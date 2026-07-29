@@ -29,6 +29,25 @@ int roots_by_evaluation(const oneshotsea::Poly& polynomial) {
     return roots;
 }
 
+std::uint64_t small_pow_mod(std::uint64_t base, std::uint64_t exponent,
+                            std::uint64_t modulus) {
+    std::uint64_t result = 1;
+    while (exponent != 0) {
+        if ((exponent & 1U) != 0U) {
+            result = (result * base) % modulus;
+        }
+        base = (base * base) % modulus;
+        exponent >>= 1U;
+    }
+    return result;
+}
+
+mpz_class target_prime() {
+    return oneshotsea::parse_integer(
+        "10000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000237");
+}
+
 void test_field() {
     const oneshotsea::Field field(101);
     check(field.normalize(-1) == 100, "normalization");
@@ -62,9 +81,7 @@ void test_polynomial() {
     check(temporary_field_poly.evaluate(3) == 7,
           "polynomial owns a temporary field context");
 
-    const oneshotsea::Field target_field(oneshotsea::parse_integer(
-        "10000000000000000000000000000000000000000000000000000000000000000000000000000000"
-        "0000000000000000000000000000000000000000000237"));
+    const oneshotsea::Field target_field(target_prime());
     const oneshotsea::Poly target_x = oneshotsea::Poly::x(target_field);
     oneshotsea::Poly target_split = oneshotsea::Poly::constant(target_field, 1);
     for (const unsigned long root : {2UL, 3UL, 5UL, 7UL}) {
@@ -289,6 +306,28 @@ void test_elkies_residues() {
     const auto phi3 = oneshotsea::SparseModularPolynomial::load(
         3, "data/modpoly/j/phi_3.txt");
 
+    const auto rejects_eigenvalue_input = [](const mpz_class& prime,
+                                              std::uint64_t ell,
+                                              std::uint64_t eigenvalue) {
+        try {
+            static_cast<void>(oneshotsea::trace_residue_from_eigenvalue(
+                prime, ell, eigenvalue));
+            return false;
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+    };
+    check(rejects_eigenvalue_input(101, 4, 1),
+          "eigenvalue helper rejects composite ell");
+    check(rejects_eigenvalue_input(91, 5, 1),
+          "eigenvalue helper rejects composite characteristic");
+    check(rejects_eigenvalue_input(-101, 5, 1),
+          "eigenvalue helper rejects negative characteristic");
+    check(rejects_eigenvalue_input(5, 5, 1),
+          "eigenvalue helper rejects ell equal to characteristic");
+    check(rejects_eigenvalue_input(101, 5, 0),
+          "eigenvalue helper rejects zero eigenvalue");
+
     // A coarse Phi_3 root is not by itself a sound Elkies classification in
     // supersingular/collision cases.  This curve has two rational modular
     // neighbors but no rational degree-one factor of psi_3.
@@ -343,6 +382,108 @@ void test_elkies_residues() {
     }
     check(elkies_cases >= 30 && atkin_cases >= 20,
           "ell=3 differential coverage includes Elkies and Atkin cases");
+
+    const auto check_general_level = [](std::uint64_t ell,
+                                        const std::vector<unsigned long>& primes) {
+        std::size_t checked = 0;
+        std::size_t elkies = 0;
+        std::size_t atkin = 0;
+        for (const unsigned long p : primes) {
+            if (p == ell) {
+                continue;
+            }
+            for (unsigned long a = 0; a < p; ++a) {
+                for (unsigned long b = 0; b < p; ++b) {
+                    const oneshotsea::Curve curve(oneshotsea::Field(p), a, b);
+                    if (curve.is_singular()) {
+                        continue;
+                    }
+                    const mpz_class order = oneshotsea::count_points_bruteforce(curve);
+                    const mpz_class trace = mpz_class(p) + 1 - order;
+                    const std::uint64_t residue = mpz_fdiv_ui(trace.get_mpz_t(), ell);
+                    const std::uint64_t discriminant =
+                        (residue * residue + ell - (4 * (p % ell)) % ell) % ell;
+                    const bool expected_elkies =
+                        discriminant == 0 ||
+                        small_pow_mod(discriminant, (ell - 1U) / 2U, ell) == 1;
+                    const auto kernels =
+                        oneshotsea::elkies_kernels_division_reference(curve, ell);
+                    check(!kernels.empty() == expected_elkies,
+                          "general Elkies/Atkin classification");
+                    const auto exact =
+                        oneshotsea::elkies_trace_residue_division_reference(curve, ell);
+                    check(exact.has_value() == expected_elkies,
+                          "general exact residue availability");
+                    if (!expected_elkies) {
+                        ++atkin;
+                        ++checked;
+                        continue;
+                    }
+                    ++elkies;
+                    check(*exact == residue, "general exact Elkies trace residue");
+                    for (const auto& kernel : kernels) {
+                        check(kernel.kernel.degree() ==
+                                  static_cast<int>((ell - 1U) / 2U),
+                              "general Elkies kernel degree");
+                        check(kernel.trace_residue == residue,
+                              "general per-kernel trace residue");
+                        check(kernel.neighbor_j == kernel.codomain.j_invariant(),
+                              "general normalized codomain j-invariant");
+                        check(oneshotsea::count_points_bruteforce(kernel.codomain) == order,
+                              "general Velu codomain order");
+                    }
+                    ++checked;
+                }
+            }
+        }
+        check(checked >= 100 && elkies >= 30 && atkin >= 30,
+              "general Elkies differential coverage");
+    };
+    check_general_level(5, {7, 11, 13});
+    check_general_level(7, {5, 11});
+
+    const auto phi5 = oneshotsea::SparseModularPolynomial::load(
+        5, "data/modpoly/j/phi_5.txt");
+    const auto phi7 = oneshotsea::SparseModularPolynomial::load(
+        7, "data/modpoly/j/phi_7.txt");
+    for (unsigned long index = 0; index < 12; ++index) {
+        const auto curve = oneshotsea::deterministic_curve(101, 0xe1c1e5, index);
+        if (curve.is_singular()) {
+            continue;
+        }
+        const auto kernels = oneshotsea::elkies_kernels_reference(curve, phi5);
+        const mpz_class trace =
+            102 - oneshotsea::count_points_bruteforce(curve);
+        if (!kernels.empty()) {
+            check(kernels.front().trace_residue ==
+                      mpz_fdiv_ui(trace.get_mpz_t(), 5),
+                  "Phi_5-validated exact residue");
+        }
+        const auto kernels7 = oneshotsea::elkies_kernels_reference(curve, phi7);
+        if (!kernels7.empty()) {
+            check(kernels7.front().trace_residue ==
+                      mpz_fdiv_ui(trace.get_mpz_t(), 7),
+                  "Phi_7-validated exact residue");
+        }
+    }
+
+    check(oneshotsea::elkies_kernels_division_reference(
+              oneshotsea::Curve(oneshotsea::Field(19), 0, 4), 5)
+              .size() == 6,
+          "scalar Frobenius recovers all level-5 kernels");
+    check(oneshotsea::elkies_kernels_division_reference(
+              oneshotsea::Curve(oneshotsea::Field(37), 0, 3), 7)
+              .size() == 8,
+          "scalar Frobenius recovers all level-7 kernels");
+
+    const oneshotsea::Curve target_curve(oneshotsea::Field(target_prime()), 2, 3);
+    for (const std::uint64_t ell : {5U, 7U}) {
+        const auto exact =
+            oneshotsea::elkies_trace_residue_division_reference(target_curve, ell);
+        check(exact.has_value(), "target-field curve has an Elkies kernel");
+        check(*exact == oneshotsea::schoof_trace_mod_ell(target_curve, ell),
+              "target-field exact Elkies residue agrees with Schoof");
+    }
 }
 
 }  // namespace

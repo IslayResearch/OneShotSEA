@@ -1,6 +1,7 @@
 #include "oneshotsea/schoof.hpp"
 
 #include "oneshotsea/poly.hpp"
+#include "oneshotsea/torsion.hpp"
 #include "oneshotsea/trace.hpp"
 
 #include <map>
@@ -312,7 +313,115 @@ bool same_point(const JacobianPoint& lhs, const JacobianPoint& rhs) {
                          element_mul(element_mul(rhs.y, left_z2), lhs.z));
 }
 
+bool projective_x_satisfies(const Poly& polynomial, const JacobianPoint& point) {
+    if (point_infinity(point)) {
+        return false;
+    }
+    const Element z2 = element_square(point.z);
+    Element z_power = z2;
+    Element value = constant(*point.x.ring, polynomial.leading_coefficient());
+    for (int index = polynomial.degree() - 1; index >= 0; --index) {
+        value = element_add(
+            element_mul(value, point.x),
+            element_scale(z_power,
+                          polynomial.coefficient(static_cast<std::size_t>(index))));
+        if (index != 0) {
+            z_power = element_mul(z_power, z2);
+        }
+    }
+    return element_zero(value);
+}
+
 }  // namespace
+
+Poly division_polynomial_reference(const Curve& curve, std::uint64_t ell) {
+    if (curve.is_singular()) {
+        throw std::invalid_argument("division polynomial requires a nonsingular curve");
+    }
+    if (ell > kMaxReferenceSchoofEll) {
+        throw std::invalid_argument("ell exceeds the reference torsion limit of 31");
+    }
+    if (!is_small_prime(ell) || ell == 2) {
+        throw std::invalid_argument("ell must be an odd prime");
+    }
+    if (mpz_cmp_ui(curve.field().modulus().get_mpz_t(), ell) == 0) {
+        throw std::invalid_argument("ell must differ from p");
+    }
+    if (mpz_probab_prime_p(curve.field().modulus().get_mpz_t(), 25) == 0) {
+        throw std::invalid_argument("division polynomial requires probable-prime p");
+    }
+    return division_polynomial(ell, curve);
+}
+
+std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
+    const Curve& curve, const Poly& kernel, std::uint64_t ell) {
+    const Poly psi_ell = division_polynomial_reference(curve, ell);
+    if (kernel.field().modulus() != curve.field().modulus()) {
+        throw std::invalid_argument("kernel and curve use different fields");
+    }
+    if (kernel.degree() != static_cast<int>((ell - 1U) / 2U) ||
+        kernel.leading_coefficient() != 1) {
+        throw std::invalid_argument("kernel has the wrong degree or normalization");
+    }
+    if (gcd(kernel, kernel.derivative()).degree() != 0) {
+        throw std::invalid_argument("kernel is not square-free");
+    }
+    const auto [cofactor, remainder] = divmod(psi_ell, kernel);
+    static_cast<void>(cofactor);
+    if (!remainder.is_zero()) {
+        throw std::invalid_argument("kernel does not divide psi_ell");
+    }
+
+    const Field& field = curve.field();
+    const Poly curve_rhs(field, {curve.b(), curve.a(), 0, 1});
+    const QuotientRing ring{&field, kernel, mod(curve_rhs, kernel)};
+    const Element x = element(ring, Poly::x(field), Poly(field));
+    const Element y = element(ring, Poly(field), Poly::constant(field, 1));
+    const JacobianPoint generic{x, y, constant(ring, 1)};
+    const Element f = element(ring, curve_rhs, Poly(field));
+    const mpz_class p = field.modulus();
+
+    // Divisibility by psi_ell only proves that every root is an ell-torsion
+    // x-coordinate.  In scalar-Frobenius cases an arbitrary mixture of roots
+    // from different lines could otherwise masquerade as an eigenkernel.
+    // Closure under every nonzero scalar modulo sign proves that the roots are
+    // exactly one cyclic subgroup.
+    for (std::uint64_t scalar = 2; scalar <= (ell - 1U) / 2U; ++scalar) {
+        if (!projective_x_satisfies(
+                kernel, scalar_multiply(scalar, generic, curve.a()))) {
+            return std::nullopt;
+        }
+    }
+
+    const JacobianPoint frobenius{
+        element_pow(x, p),
+        element_mul(y, element_pow(f, (p - 1) / 2)),
+        constant(ring, 1),
+    };
+    std::vector<std::uint64_t> matches;
+    for (std::uint64_t eigenvalue = 1; eigenvalue < ell; ++eigenvalue) {
+        if (same_point(frobenius,
+                       scalar_multiply(eigenvalue, generic, curve.a()))) {
+            matches.push_back(eigenvalue);
+        }
+    }
+    if (matches.size() != 1U) {
+        return std::nullopt;
+    }
+    return matches.front();
+}
+
+std::uint64_t frobenius_eigenvalue_reference(const Curve& curve,
+                                             const Poly& kernel,
+                                             std::uint64_t ell) {
+    const auto eigenvalue =
+        try_frobenius_eigenvalue_reference(curve, kernel, ell);
+    if (!eigenvalue.has_value()) {
+        throw std::invalid_argument(
+            "kernel is not one closed Frobenius eigenline");
+    }
+    return *eigenvalue;
+}
 
 std::uint64_t schoof_trace_mod_ell(const Curve& curve, std::uint64_t ell) {
     if (curve.is_singular()) {
@@ -332,7 +441,7 @@ std::uint64_t schoof_trace_mod_ell(const Curve& curve, std::uint64_t ell) {
     }
 
     const Field& field = curve.field();
-    const Poly psi_ell = division_polynomial(ell, curve);
+    const Poly psi_ell = division_polynomial_reference(curve, ell);
     const Poly curve_rhs(field, {curve.b(), curve.a(), 0, 1});
     const QuotientRing ring{&field, psi_ell, mod(curve_rhs, psi_ell)};
     const Element x = element(ring, Poly::x(field), Poly(field));

@@ -19,10 +19,10 @@ endif
 
 BUILD_DIR := build
 LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp \
-	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/smooth_cache.cpp
+	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/smooth_cache.cpp src/factor.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 
-.PHONY: all test test-cli test-reference test-verifier test-vendor test-smooth test-smooth-cache test-oracle test-differential test-runpod test-all clean
+.PHONY: all test test-cli test-reference test-factor test-modpoly-generator test-verifier test-vendor test-smooth test-smooth-cache test-oracle test-differential test-runpod test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -56,6 +56,10 @@ $(BUILD_DIR)/test_smooth_cache: tests/test_smooth_cache.cpp \
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
 		$(BUILD_DIR)/smooth.o $(LDFLAGS) $(OPENMP_LDFLAGS) $(LDLIBS) -o $@
 
+$(BUILD_DIR)/test_factor: tests/test_factor.cpp $(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
 test: $(BUILD_DIR)/test_core
 	./$(BUILD_DIR)/test_core
 
@@ -63,7 +67,14 @@ test-cli: all
 	python3 tests/test_cli.py -v
 
 test-reference:
-	python3 -m unittest -v reference/test_schoof.py reference/test_elkies.py
+	python3 -m unittest -v reference/test_schoof.py reference/test_elkies.py \
+		reference/test_elkies_general.py
+
+test-factor: $(BUILD_DIR)/test_factor
+	./$(BUILD_DIR)/test_factor
+
+test-modpoly-generator:
+	python3 tests/test_modpoly_generator.py -v
 
 test-verifier:
 	python3 third_party/oneshot_primality_proofs/verify_vendor.py
@@ -87,7 +98,7 @@ test-differential: all
 test-runpod:
 	scripts/runpod/test.sh
 
-test-all: test test-cli test-reference test-verifier test-vendor test-smooth test-smooth-cache test-oracle test-differential test-runpod
+test-all: test test-cli test-reference test-factor test-modpoly-generator test-verifier test-vendor test-smooth test-smooth-cache test-oracle test-differential test-runpod
 
 clean:
 	rm -rf $(BUILD_DIR)

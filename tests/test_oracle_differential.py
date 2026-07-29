@@ -198,6 +198,51 @@ class NativeOracleDifferentialTests(unittest.TestCase):
         self.assertGreater(elkies, 0)
         self.assertGreater(atkin, 0)
 
+    def test_division_kernel_elkies_residues(self) -> None:
+        assert MAGMA is not None
+        checked = 0
+        for ell in (5, 7):
+            elkies = 0
+            atkin = 0
+            for p in (97, 101):
+                for index in range(5):
+                    curve = native(
+                        "curve", "--p", p, "--seed", 0xD1A1510, "--index", index
+                    )
+                    if curve["singular"]:
+                        continue
+                    a = int(curve["a"])
+                    b = int(curve["b"])
+                    oracle = point_count.count_curve(MAGMA, p, a, b)
+                    result = native(
+                        "elkies-division-residue",
+                        "--p",
+                        p,
+                        "--a",
+                        a,
+                        "--b",
+                        b,
+                        "--ell",
+                        ell,
+                    )
+                    residue = oracle["trace"] % ell
+                    discriminant = (residue * residue - 4 * p) % ell
+                    expected_elkies = discriminant == 0 or pow(
+                        discriminant, (ell - 1) // 2, ell
+                    ) == 1
+                    self.assertEqual(result["elkies"], expected_elkies)
+                    if expected_elkies:
+                        self.assertEqual(result["trace_residue"], residue)
+                        self.assertGreater(result["kernel_count"], 0)
+                        elkies += 1
+                    else:
+                        self.assertNotIn("trace_residue", result)
+                        atkin += 1
+                    checked += 1
+            self.assertGreater(elkies, 0)
+            self.assertGreater(atkin, 0)
+        self.assertGreaterEqual(checked, 18)
+
 
 if __name__ == "__main__":
     try:

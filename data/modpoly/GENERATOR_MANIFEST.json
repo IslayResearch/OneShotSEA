@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "generator": "tools/generate_classical_modpoly.py",
+  "algorithm": "exact integer q-expansion with a unit-triangular Laurent-series solve",
+  "normalization": "symmetric, degree ell+1 in X and Y, coefficients of X^(ell+1) and Y^(ell+1) equal to 1",
+  "outputs": [
+    {
+      "level": 2,
+      "path": "data/modpoly/j/phi_2.txt",
+      "sha256": "c4febfd79090d71431db6ef665b7b7aed89640179bd0ae05ce684baf9a4b78c2"
+    },
+    {
+      "level": 3,
+      "path": "data/modpoly/j/phi_3.txt",
+      "sha256": "dc9f810a0d6830e557e44c15e5355d24caaef4d54b748c806d2c9eb2cf23ea60"
+    },
+    {
+      "level": 5,
+      "path": "data/modpoly/j/phi_5.txt",
+      "sha256": "b18e44299e31a71fb8e565bef48454a79e27cfba1e98bda95d6ec03f4555cca2"
+    },
+    {
+      "level": 7,
+      "path": "data/modpoly/j/phi_7.txt",
+      "sha256": "52e1d4c1d1bd85c91083d5265e349a3623b27ba31f39e35c41c0dcd2a8002c23"
+    }
+  ],
+  "validation": {
+    "q_series": "Each generated identity is checked through q^(ell*(ell+1)+8), beyond the q^0 coefficient used to solve it.",
+    "legacy_fixtures": "Generated levels 2 and 3 byte-match the pre-existing repository fixtures.",
+    "level_5_independent": "Five 5-isogenies over F_101 are constructed with group arithmetic and Velu formulas; every (j(E),j(E/G)) specialization is a root modulo 101.",
+    "upstream_cross_check": {
+      "role": "coefficient comparison only; the output is generated from q-series, not copied",
+      "repository": "https://github.com/AndrewVSutherland2/OneShotFastECPP",
+      "commit": "88da82fbcda4471746b5df34f008dcfa5cc28d2d",
+      "path": "phi_files/phi_j_5.txt",
+      "upstream_sha256": "e3b3ad1e7ac2aabb4987c19ec3c96e33a0a1264a769bec3d238d2d6ffced2114"
+    }
+  }
+}

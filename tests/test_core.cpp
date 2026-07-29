@@ -1,5 +1,6 @@
 #include "oneshotsea/curve.hpp"
 #include "oneshotsea/early_abort.hpp"
+#include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/poly.hpp"
 #include "oneshotsea/schoof.hpp"
@@ -47,6 +48,11 @@ void test_polynomial() {
     check(f.degree() == 2, "polynomial degree");
     check(f.evaluate(2) == 0 && f.evaluate(3) == 0, "polynomial evaluation");
     check(oneshotsea::rational_root_count(f) == 2, "rational root count");
+    check(oneshotsea::linear_roots(f) == std::vector<mpz_class>({2, 3}),
+          "linear root extraction");
+    check(oneshotsea::linear_roots(oneshotsea::mul(f, f)) ==
+              std::vector<mpz_class>({2, 3}),
+          "linear root extraction removes multiplicity");
     const auto division = oneshotsea::divmod(f, oneshotsea::sub(
         x, oneshotsea::Poly::constant(field, 2)));
     check(division.second.is_zero(), "polynomial exact division");
@@ -255,6 +261,66 @@ void test_schoof_residues() {
     check(rejected_large_ell, "reference Schoof rejects impractical ell");
 }
 
+void test_elkies_residues() {
+    const auto phi3 = oneshotsea::SparseModularPolynomial::load(
+        3, "data/modpoly/j/phi_3.txt");
+
+    // A coarse Phi_3 root is not by itself a sound Elkies classification in
+    // supersingular/collision cases.  This curve has two rational modular
+    // neighbors but no rational degree-one factor of psi_3.
+    const oneshotsea::Curve collision(oneshotsea::Field(19), 8, 14);
+    check(!oneshotsea::linear_roots(
+               phi3.evaluate_x(collision.field(), collision.j_invariant()))
+               .empty(),
+          "collision fixture has rational Phi_3 roots");
+    check(oneshotsea::elkies_kernels_reference(collision, phi3).empty(),
+          "stable kernel factors override coarse Phi_3 roots");
+
+    std::size_t elkies_cases = 0;
+    std::size_t atkin_cases = 0;
+    for (const unsigned long p :
+         {5UL, 7UL, 11UL, 13UL, 17UL, 19UL, 23UL, 29UL, 31UL, 37UL, 101UL}) {
+        for (unsigned long index = 0; index < 10; ++index) {
+            const auto curve = oneshotsea::deterministic_curve(p, 0xe1c1e5, index);
+            if (curve.is_singular()) {
+                continue;
+            }
+            const mpz_class order = oneshotsea::count_points_bruteforce(curve);
+            const mpz_class trace = mpz_class(p) + 1 - order;
+            const std::uint64_t residue = mpz_fdiv_ui(trace.get_mpz_t(), 3);
+            const std::uint64_t p_mod_3 = p % 3;
+            const std::uint64_t discriminant =
+                (residue * residue + 3 - (4 * p_mod_3) % 3) % 3;
+            const bool expected_elkies = discriminant != 2;
+
+            const auto kernels = oneshotsea::elkies_kernels_reference(curve, phi3);
+            check(!kernels.empty() == expected_elkies,
+                  "ell=3 Elkies/Atkin classification");
+            const auto exact = oneshotsea::elkies_trace_residue_reference(curve, phi3);
+            check(exact.has_value() == expected_elkies,
+                  "ell=3 exact residue availability");
+            if (!expected_elkies) {
+                ++atkin_cases;
+                continue;
+            }
+            ++elkies_cases;
+            check(*exact == residue, "ell=3 exact Elkies trace residue");
+            for (const auto& kernel : kernels) {
+                check(kernel.ell == 3 && kernel.kernel.degree() == 1,
+                      "ell=3 kernel degree");
+                check(kernel.trace_residue == residue,
+                      "ell=3 per-kernel trace residue");
+                check(kernel.neighbor_j == kernel.codomain.j_invariant(),
+                      "ell=3 normalized codomain j-invariant");
+                check(oneshotsea::count_points_bruteforce(kernel.codomain) == order,
+                      "ell=3 Velu codomain order");
+            }
+        }
+    }
+    check(elkies_cases >= 30 && atkin_cases >= 20,
+          "ell=3 differential coverage includes Elkies and Atkin cases");
+}
+
 }  // namespace
 
 int main() {
@@ -266,6 +332,7 @@ int main() {
         test_trace_constraints();
         test_early_abort();
         test_schoof_residues();
+        test_elkies_residues();
         std::cout << "core tests: ok\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

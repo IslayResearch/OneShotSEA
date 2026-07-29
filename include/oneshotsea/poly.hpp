@@ -45,6 +45,10 @@ Poly mod(const Poly& numerator, const Poly& denominator);
 Poly gcd(Poly lhs, Poly rhs);
 Poly powmod(Poly base, mpz_class exponent, const Poly& modulus);
 int rational_root_count(const Poly& polynomial);
+// Return every distinct F_p root in sorted order.  Cantor-Zassenhaus splitting
+// is deterministic and validated; failure to split within the fixed attempt
+// budget throws rather than returning an incomplete set.
+std::vector<mpz_class> linear_roots(const Poly& polynomial);
 bool equal(const Poly& lhs, const Poly& rhs);
 
 }  // namespace oneshotsea

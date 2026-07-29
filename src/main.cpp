@@ -1,4 +1,5 @@
 #include "oneshotsea/curve.hpp"
+#include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/schoof.hpp"
 
@@ -39,6 +40,7 @@ void usage() {
         << "  oneshotsea point-count --p P --a A --b B\n"
         << "  oneshotsea schoof-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea schoof-count --p P --a A --b B --max-ell L\n"
+        << "  oneshotsea elkies-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -122,6 +124,30 @@ int main(int argc, char** argv) {
                 std::cout << result.levels[index];
             }
             std::cout << "]}\n";
+            return 0;
+        }
+        if (command == "elkies-residue") {
+            const unsigned level =
+                static_cast<unsigned>(std::stoul(required(options, "ell")));
+            const auto modular_polynomial = oneshotsea::SparseModularPolynomial::load(
+                level, required(options, "file"));
+            const auto kernels =
+                oneshotsea::elkies_kernels_reference(curve, modular_polynomial);
+            std::cout << "{\"p\":\"" << p << "\",\"a\":\"" << curve.a()
+                      << "\",\"b\":\"" << curve.b() << "\",\"ell\":"
+                      << level << ",\"elkies\":" << (kernels.empty() ? "false" : "true")
+                      << ",\"kernel_count\":" << kernels.size();
+            if (!kernels.empty()) {
+                const std::uint64_t residue = kernels.front().trace_residue;
+                for (const auto& kernel : kernels) {
+                    if (kernel.trace_residue != residue) {
+                        throw std::runtime_error(
+                            "Elkies kernels imply inconsistent trace residues");
+                    }
+                }
+                std::cout << ",\"trace_residue\":" << residue;
+            }
+            std::cout << "}\n";
             return 0;
         }
         if (command == "modpoly") {

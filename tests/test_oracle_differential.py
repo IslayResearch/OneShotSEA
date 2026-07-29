@@ -155,6 +155,49 @@ class NativeOracleDifferentialTests(unittest.TestCase):
                 checked += 1
         self.assertGreaterEqual(checked, 6)
 
+    def test_level_3_elkies_residues(self) -> None:
+        assert MAGMA is not None
+        checked = 0
+        elkies = 0
+        atkin = 0
+        phi3 = ROOT / "data" / "modpoly" / "j" / "phi_3.txt"
+        for p in (97, 101, 1009):
+            for index in range(8):
+                curve = native("curve", "--p", p, "--seed", 0xE1C1E5, "--index", index)
+                if curve["singular"]:
+                    continue
+                a = int(curve["a"])
+                b = int(curve["b"])
+                oracle = point_count.count_curve(MAGMA, p, a, b)
+                result = native(
+                    "elkies-residue",
+                    "--p",
+                    p,
+                    "--a",
+                    a,
+                    "--b",
+                    b,
+                    "--ell",
+                    3,
+                    "--file",
+                    phi3,
+                )
+                residue = oracle["trace"] % 3
+                discriminant = (residue * residue - 4 * p) % 3
+                expected_elkies = discriminant in (0, 1)
+                self.assertEqual(result["elkies"], expected_elkies)
+                if expected_elkies:
+                    self.assertEqual(result["trace_residue"], residue)
+                    self.assertGreater(result["kernel_count"], 0)
+                    elkies += 1
+                else:
+                    self.assertNotIn("trace_residue", result)
+                    atkin += 1
+                checked += 1
+        self.assertGreaterEqual(checked, 20)
+        self.assertGreater(elkies, 0)
+        self.assertGreater(atkin, 0)
+
 
 if __name__ == "__main__":
     try:

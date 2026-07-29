@@ -7,10 +7,10 @@ LDLIBS ?= -lgmpxx -lgmp
 
 BUILD_DIR := build
 LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp \
-	src/early_abort.cpp src/schoof.cpp
+	src/early_abort.cpp src/schoof.cpp src/elkies.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 
-.PHONY: all test test-reference test-verifier test-oracle test-differential test-runpod test-all clean
+.PHONY: all test test-reference test-verifier test-vendor test-oracle test-differential test-runpod test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -33,11 +33,14 @@ test: $(BUILD_DIR)/test_core
 	./$(BUILD_DIR)/test_core
 
 test-reference:
-	python3 -m unittest -v reference/test_schoof.py
+	python3 -m unittest -v reference/test_schoof.py reference/test_elkies.py
 
 test-verifier:
 	python3 third_party/oneshot_primality_proofs/verify_vendor.py
 	python3 third_party/oneshot_primality_proofs/voneshot.py --test
+
+test-vendor:
+	python3 third_party/oneshot_fast_ecpp/verify_vendor.py
 
 test-oracle:
 	python3 oracle/test_point_count.py -v
@@ -48,7 +51,7 @@ test-differential: all
 test-runpod:
 	scripts/runpod/test.sh
 
-test-all: test test-reference test-verifier test-oracle test-differential test-runpod
+test-all: test test-reference test-verifier test-vendor test-oracle test-differential test-runpod
 
 clean:
 	rm -rf $(BUILD_DIR)

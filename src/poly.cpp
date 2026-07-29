@@ -1,6 +1,7 @@
 #include "oneshotsea/poly.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <stdexcept>
 
 namespace oneshotsea {
@@ -10,6 +11,47 @@ void require_same_field(const Poly& lhs, const Poly& rhs) {
     if (lhs.field().modulus() != rhs.field().modulus()) {
         throw std::invalid_argument("polynomials belong to different fields");
     }
+}
+
+void split_linear_factors(const Poly& polynomial, std::vector<mpz_class>& roots) {
+    if (polynomial.degree() <= 0) {
+        return;
+    }
+    const Field& field = polynomial.field();
+    if (polynomial.degree() == 1) {
+        roots.push_back(field.divide(field.neg(polynomial.coefficient(0)),
+                                     polynomial.coefficient(1)));
+        return;
+    }
+
+    const Poly x = Poly::x(field);
+    const mpz_class exponent = (field.modulus() - 1) / 2;
+    constexpr std::uint64_t kSplitAttempts = 256;
+    for (std::uint64_t attempt = 0; attempt < kSplitAttempts; ++attempt) {
+        const mpz_class offset = deterministic_residue(
+            field, UINT64_C(0x726f6f7473706c74), attempt,
+            static_cast<std::uint64_t>(polynomial.degree()));
+        const Poly character = powmod(
+            add(x, Poly::constant(field, offset)), exponent, polynomial);
+        const Poly candidates[] = {
+            gcd(polynomial, character),
+            gcd(polynomial, sub(character, Poly::constant(field, 1))),
+            gcd(polynomial, add(character, Poly::constant(field, 1))),
+        };
+        for (const Poly& factor : candidates) {
+            if (factor.degree() <= 0 || factor.degree() >= polynomial.degree()) {
+                continue;
+            }
+            const auto [cofactor, remainder] = divmod(polynomial, factor);
+            if (!remainder.is_zero()) {
+                throw std::logic_error("root splitter produced a non-factor");
+            }
+            split_linear_factors(factor.monic(), roots);
+            split_linear_factors(cofactor.monic(), roots);
+            return;
+        }
+    }
+    throw std::runtime_error("deterministic linear-root splitting attempt limit reached");
 }
 
 }  // namespace
@@ -206,6 +248,34 @@ int rational_root_count(const Poly& polynomial) {
     const Poly xp = powmod(Poly::x(polynomial.field()), polynomial.field().modulus(), polynomial);
     const Poly split = gcd(polynomial, sub(xp, Poly::x(polynomial.field())));
     return split.degree();
+}
+
+std::vector<mpz_class> linear_roots(const Poly& polynomial) {
+    if (polynomial.is_zero()) {
+        throw std::invalid_argument("zero polynomial has every field element as a root");
+    }
+    const Field& field = polynomial.field();
+    const Poly x = Poly::x(field);
+    const Poly xp = powmod(x, field.modulus(), polynomial);
+    const Poly split = gcd(polynomial, sub(xp, x));
+    std::vector<mpz_class> roots;
+    roots.reserve(static_cast<std::size_t>(std::max(0, split.degree())));
+    split_linear_factors(split, roots);
+    std::sort(roots.begin(), roots.end());
+    roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
+
+    Poly reconstructed = Poly::constant(field, 1);
+    for (const mpz_class& root : roots) {
+        if (polynomial.evaluate(root) != 0) {
+            throw std::logic_error("linear-root validation failed");
+        }
+        reconstructed = mul(reconstructed,
+                            sub(x, Poly::constant(field, root)));
+    }
+    if (!equal(reconstructed.monic(), split.monic())) {
+        throw std::logic_error("linear-root reconstruction failed");
+    }
+    return roots;
 }
 
 bool equal(const Poly& lhs, const Poly& rhs) {

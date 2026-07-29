@@ -14,4 +14,23 @@ See [revised_prompt.md](revised_prompt.md) for the full task specification, vali
 
 ## Status
 
-Repository initialized with the project specification. Implementation has not yet begun.
+Implementation is in progress. The repository currently includes:
+
+- a portable GMP-backed finite-field and polynomial reference layer;
+- sparse classical modular-polynomial specialization and root classification;
+- deterministic curve generation and curve/twist checks;
+- incremental CRT trace constraints for early-abort development; and
+- an isolated local Magma point-counting oracle.
+
+Build and run the native tests with:
+
+```sh
+make
+make test
+```
+
+Run the independent oracle tests by setting the local Magma launcher:
+
+```sh
+MAGMA=/path/to/magma make test-oracle
+```

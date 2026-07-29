@@ -18,6 +18,9 @@ benchmarks/raw/
 .env.*
 *.pem
 *.key
+__pycache__/
+*.pyc
+.venv/
 
 # Editor and operating-system files
 .DS_Store

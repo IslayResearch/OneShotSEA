@@ -1,5 +1,6 @@
 #include "oneshotsea/modpoly.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -64,6 +65,49 @@ Poly SparseModularPolynomial::evaluate_x(const Field& field, const mpz_class& x)
             coefficients[term.y_degree], field.mul(term.coefficient, x_power));
     }
     return Poly(field, std::move(coefficients));
+}
+
+BivariateEvaluation SparseModularPolynomial::evaluate_with_derivatives(
+    const Field& field, const mpz_class& x, const mpz_class& y) const {
+    unsigned maximum_x = 0;
+    unsigned maximum_y = 0;
+    for (const BivariateTerm& term : terms_) {
+        maximum_x = std::max(maximum_x, term.x_degree);
+        maximum_y = std::max(maximum_y, term.y_degree);
+    }
+    std::vector<mpz_class> x_powers(static_cast<std::size_t>(maximum_x) + 1U, 1);
+    std::vector<mpz_class> y_powers(static_cast<std::size_t>(maximum_y) + 1U, 1);
+    for (std::size_t index = 1; index < x_powers.size(); ++index) {
+        x_powers[index] = field.mul(x_powers[index - 1U], x);
+    }
+    for (std::size_t index = 1; index < y_powers.size(); ++index) {
+        y_powers[index] = field.mul(y_powers[index - 1U], y);
+    }
+
+    BivariateEvaluation result{0, 0, 0};
+    for (const BivariateTerm& term : terms_) {
+        const mpz_class coefficient = field.normalize(term.coefficient);
+        result.value = field.add(
+            result.value,
+            field.mul(coefficient,
+                      field.mul(x_powers[term.x_degree],
+                                y_powers[term.y_degree])));
+        if (term.x_degree != 0U) {
+            result.x_derivative = field.add(
+                result.x_derivative,
+                field.mul(field.mul(coefficient, term.x_degree),
+                          field.mul(x_powers[term.x_degree - 1U],
+                                    y_powers[term.y_degree])));
+        }
+        if (term.y_degree != 0U) {
+            result.y_derivative = field.add(
+                result.y_derivative,
+                field.mul(field.mul(coefficient, term.y_degree),
+                          field.mul(x_powers[term.x_degree],
+                                    y_powers[term.y_degree - 1U])));
+        }
+    }
+    return result;
 }
 
 }  // namespace oneshotsea

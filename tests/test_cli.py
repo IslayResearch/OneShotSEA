@@ -12,6 +12,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = ROOT / "build" / "oneshotsea"
 PHI3 = ROOT / "data" / "modpoly" / "j" / "phi_3.txt"
+PHI5 = ROOT / "data" / "modpoly" / "j" / "phi_5.txt"
 
 
 class CliTests(unittest.TestCase):
@@ -58,6 +59,21 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["ell"], 3)
+
+    def test_bmss_cli_matches_division_reference(self) -> None:
+        common = ("--p", 101, "--a", 39, "--b", 44, "--ell", 5)
+        bmss = self.run_cli(
+            "elkies-bmss-residue", *common, "--file", PHI5
+        )
+        division = self.run_cli("elkies-division-residue", *common)
+        self.assertEqual(bmss.returncode, 0, bmss.stderr)
+        self.assertEqual(division.returncode, 0, division.stderr)
+        bmss_result = json.loads(bmss.stdout)
+        division_result = json.loads(division.stdout)
+        self.assertTrue(bmss_result["elkies"])
+        self.assertEqual(
+            bmss_result["trace_residue"], division_result["trace_residue"]
+        )
 
 
 if __name__ == "__main__":

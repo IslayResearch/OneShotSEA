@@ -1,6 +1,7 @@
 #include "oneshotsea/curve.hpp"
 #include "oneshotsea/early_abort.hpp"
 #include "oneshotsea/elkies.hpp"
+#include "oneshotsea/isogeny.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/poly.hpp"
 #include "oneshotsea/schoof.hpp"
@@ -446,6 +447,10 @@ void test_elkies_residues() {
         5, "data/modpoly/j/phi_5.txt");
     const auto phi7 = oneshotsea::SparseModularPolynomial::load(
         7, "data/modpoly/j/phi_7.txt");
+    std::size_t normalized_level5_checks = 0;
+    std::size_t normalized_level7_checks = 0;
+    std::size_t bmss_level5_checks = 0;
+    std::size_t bmss_level7_checks = 0;
     for (unsigned long index = 0; index < 12; ++index) {
         const auto curve = oneshotsea::deterministic_curve(101, 0xe1c1e5, index);
         if (curve.is_singular()) {
@@ -458,14 +463,69 @@ void test_elkies_residues() {
             check(kernels.front().trace_residue ==
                       mpz_fdiv_ui(trace.get_mpz_t(), 5),
                   "Phi_5-validated exact residue");
+            for (const auto& kernel : kernels) {
+                try {
+                    const auto codomain =
+                        oneshotsea::normalized_codomain_from_classical_modpoly(
+                            curve, phi5, kernel.neighbor_j);
+                    check(codomain.a() == kernel.codomain.a() &&
+                              codomain.b() == kernel.codomain.b(),
+                          "modular derivatives recover normalized level-5 codomain");
+                    ++normalized_level5_checks;
+                    if (bmss_level5_checks < 2) {
+                        const auto reconstructed =
+                            oneshotsea::bmss_isogeny_reference(curve, codomain, 5);
+                        check(oneshotsea::equal(reconstructed.kernel, kernel.kernel),
+                              "BMSS reconstructs the level-5 kernel");
+                        ++bmss_level5_checks;
+                    }
+                } catch (const std::domain_error&) {
+                    // Exceptional invariants and repeated modular roots are
+                    // explicitly outside the derivative formula's domain.
+                }
+            }
         }
         const auto kernels7 = oneshotsea::elkies_kernels_reference(curve, phi7);
         if (!kernels7.empty()) {
             check(kernels7.front().trace_residue ==
                       mpz_fdiv_ui(trace.get_mpz_t(), 7),
                   "Phi_7-validated exact residue");
+            for (const auto& kernel : kernels7) {
+                try {
+                    const auto codomain =
+                        oneshotsea::normalized_codomain_from_classical_modpoly(
+                            curve, phi7, kernel.neighbor_j);
+                    check(codomain.a() == kernel.codomain.a() &&
+                              codomain.b() == kernel.codomain.b(),
+                          "modular derivatives recover normalized level-7 codomain");
+                    ++normalized_level7_checks;
+                    if (bmss_level7_checks < 2) {
+                        const auto reconstructed =
+                            oneshotsea::bmss_isogeny_reference(curve, codomain, 7);
+                        check(oneshotsea::equal(reconstructed.kernel, kernel.kernel),
+                              "BMSS reconstructs the level-7 kernel");
+                        ++bmss_level7_checks;
+                    }
+                } catch (const std::domain_error&) {
+                    // See the corresponding level-5 exceptional cases above.
+                }
+            }
         }
     }
+    check(normalized_level5_checks >= 2 && normalized_level7_checks >= 2,
+          "classical modular derivatives recover level-5 and level-7 codomains");
+    check(bmss_level5_checks >= 2 && bmss_level7_checks >= 2,
+          "BMSS reconstructs level-5 and level-7 kernels");
+
+    // BMSS, Section 5.1: the published worked fastElkies example over F_101.
+    const oneshotsea::Curve worked_source(oneshotsea::Field(101), 1, 1);
+    const oneshotsea::Curve worked_codomain(oneshotsea::Field(101), 75, 16);
+    const auto worked =
+        oneshotsea::bmss_isogeny_reference(worked_source, worked_codomain, 11);
+    check(oneshotsea::equal(
+              worked.kernel,
+              oneshotsea::Poly(oneshotsea::Field(101), {5, 97, 24, 89, 76, 1})),
+          "BMSS worked-example kernel polynomial");
 
     check(oneshotsea::elkies_kernels_division_reference(
               oneshotsea::Curve(oneshotsea::Field(19), 0, 4), 5)

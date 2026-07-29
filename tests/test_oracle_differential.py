@@ -243,6 +243,45 @@ class NativeOracleDifferentialTests(unittest.TestCase):
             self.assertGreater(atkin, 0)
         self.assertGreaterEqual(checked, 18)
 
+    def test_bmss_residues_against_magma_trace(self) -> None:
+        assert MAGMA is not None
+        successes = 0
+        for ell in (5, 7):
+            phi = ROOT / "data" / "modpoly" / "j" / f"phi_{ell}.txt"
+            for p in (97, 101):
+                for index in range(5):
+                    curve = native(
+                        "curve", "--p", p, "--seed", 0xB055, "--index", index
+                    )
+                    if curve["singular"]:
+                        continue
+                    a = int(curve["a"])
+                    b = int(curve["b"])
+                    trace = point_count.count_curve(MAGMA, p, a, b)["trace"]
+                    discriminant = (trace * trace - 4 * p) % ell
+                    expected_elkies = discriminant == 0 or pow(
+                        discriminant, (ell - 1) // 2, ell
+                    ) == 1
+                    result = native(
+                        "elkies-bmss-residue",
+                        "--p",
+                        p,
+                        "--a",
+                        a,
+                        "--b",
+                        b,
+                        "--ell",
+                        ell,
+                        "--file",
+                        phi,
+                    )
+                    if not expected_elkies:
+                        self.assertFalse(result["elkies"])
+                    if result["elkies"]:
+                        self.assertEqual(result["trace_residue"], trace % ell)
+                        successes += 1
+        self.assertGreaterEqual(successes, 5)
+
 
 if __name__ == "__main__":
     try:

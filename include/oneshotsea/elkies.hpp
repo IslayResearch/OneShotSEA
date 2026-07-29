@@ -49,4 +49,13 @@ std::vector<ElkiesKernelResult> elkies_kernels_reference(
 std::optional<std::uint64_t> elkies_trace_residue_reference(
     const Curve& curve, const SparseModularPolynomial& modular_polynomial);
 
+// Reconstruct kernels from simple modular neighbors with the BMSS power-series
+// path, then recover and validate exact Frobenius eigenvalues. Exceptional or
+// repeated roots are skipped; unexpected reconstruction failures are fatal.
+std::vector<ElkiesKernelResult> elkies_kernels_bmss_reference(
+    const Curve& curve, const SparseModularPolynomial& modular_polynomial);
+
+std::optional<std::uint64_t> elkies_trace_residue_bmss_reference(
+    const Curve& curve, const SparseModularPolynomial& modular_polynomial);
+
 }  // namespace oneshotsea

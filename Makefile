@@ -19,7 +19,8 @@ endif
 
 BUILD_DIR := build
 LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp \
-	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/smooth_cache.cpp src/factor.cpp
+	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/isogeny.cpp \
+	src/smooth_cache.cpp src/factor.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 
 .PHONY: all test test-cli test-reference test-factor test-modpoly-generator test-weber-modpoly test-verifier test-vendor test-smooth test-smooth-cache test-oracle test-differential test-runpod test-all clean

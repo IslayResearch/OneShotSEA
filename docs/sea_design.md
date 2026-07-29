@@ -298,21 +298,25 @@ must agree with this oracle on every common case.
 
 Suppose descent gives a simple root `f'`, its `j'`, and nonzero partials.  For
 `E: y^2=x^3+a*x+b`, recover the **normalized** codomain, not an arbitrary curve
-with invariant `j'`.  With partials converted from Weber to `j` coordinates,
+with invariant `j'`.  Let `F(f)=(f^24-16)^3/f^24`, and evaluate the Weber
+partials at `(f,f')`.  Sutherland's equation (8) gives
 
 ```text
-PhiY = W_Y(f,f') * (3*(f'^24-16)^2 - j') / f'
-PhiX = W_X(f,f') * (3*(f^24 -16)^2 - j ) / f
 Jdot = 18*b*j/a
-Jdot' = -PhiY*Jdot/(l*PhiX)
+Jdot' = -W_X(f,f')*F'(f')*Jdot/(l*W_Y(f,f')*F'(f))
 mu = Jdot'/j'
 kappa = Jdot'/(1728-j')
 a' = l^4*mu*kappa/48
 b' = l^6*mu^2*kappa/864.
 ```
 
+Here `F'(f)=24*(3*(f^24-16)^2-j)/f`; the factor 24 cancels.  The
+`W_X/W_Y` orientation is essential and is checked against classical-`j`
+modular derivatives and independent Velu codomains in the core tests.
+
 All denominators are checked.  These formulas are used only when
-`a*b*j*j'*(j-1728)*(j'-1728)*PhiX*PhiY` is nonzero; otherwise skip the level.
+`a*b*j*j'*(j-1728)*(j'-1728)*W_X*W_Y*F'(f)*F'(f')` is nonzero;
+otherwise skip the level.
 
 Construct the kernel polynomial `h_l`, of degree `(l-1)/2`, with the BMSS
 fast-Elkies power-series algorithm.  In precise terms, compute

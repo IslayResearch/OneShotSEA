@@ -61,6 +61,30 @@ void test_polynomial() {
     const oneshotsea::Poly temporary_field_poly(oneshotsea::Field(101), {1, 2});
     check(temporary_field_poly.evaluate(3) == 7,
           "polynomial owns a temporary field context");
+
+    const oneshotsea::Field target_field(oneshotsea::parse_integer(
+        "10000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000237"));
+    const oneshotsea::Poly target_x = oneshotsea::Poly::x(target_field);
+    oneshotsea::Poly target_split = oneshotsea::Poly::constant(target_field, 1);
+    for (const unsigned long root : {2UL, 3UL, 5UL, 7UL}) {
+        target_split = oneshotsea::mul(
+            target_split,
+            oneshotsea::sub(target_x, oneshotsea::Poly::constant(target_field, root)));
+    }
+    check(oneshotsea::linear_roots(target_split) ==
+              std::vector<mpz_class>({2, 3, 5, 7}),
+          "linear root extraction over the 416-bit target field");
+
+    bool rejected_composite_root_field = false;
+    try {
+        static_cast<void>(oneshotsea::linear_roots(
+            oneshotsea::Poly(oneshotsea::Field(15), {-1, 0, 1})));
+    } catch (const std::invalid_argument&) {
+        rejected_composite_root_field = true;
+    }
+    check(rejected_composite_root_field,
+          "polynomial root extraction rejects composite moduli");
 }
 
 void test_curves() {

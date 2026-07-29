@@ -1,6 +1,8 @@
 # Upstream reuse and license audit
 
-Status: source audit only; no upstream code or data has been copied into this repository.
+Status: implemented for the two approved imports. The canonical verifier and
+the MIT `smooth.c`/`smooth.h` pair are pinned under `third_party/`; no upstream
+modular-polynomial tables or GPL components were copied.
 
 This audit covers the two upstream snapshots below. Links in this document are commit-pinned so that file and line references remain meaningful.
 
@@ -23,7 +25,9 @@ f77920b3b841aa87e013dc1a1fad6fc3accb2e38aec5629ad81e7a186293c066  ecpp/invj.c
 474acd29b214674012f74e981b4b0fb441a4189ca64b49be86e4742e80606da7  ecpp/invj.h
 ```
 
-`OneShotSEA` currently has no `LICENSE` file. Before vendoring anything, choose an outbound license and add an attribution/third-party-notice policy. The cleanest permissive route is to reuse only the MIT files identified below and avoid the bundled `classpoly` and `ff_poly` trees.
+`OneShotSEA` now uses the MIT license and records both imports in
+`THIRD_PARTY_NOTICES.md`. The vendored scope is restricted to the MIT files
+identified below and excludes the bundled `classpoly` and `ff_poly` trees.
 
 This is an engineering audit, not legal advice.
 

@@ -17,20 +17,27 @@ See [revised_prompt.md](revised_prompt.md) for the full task specification, vali
 Implementation is in progress. The repository currently includes:
 
 - a portable GMP-backed finite-field and polynomial reference layer;
-- sparse classical modular-polynomial specialization and root classification;
+- a native Schoof residue/counting oracle and independent Python oracle;
+- level-3 exact Elkies kernel, Vélu codomain, eigenvalue, and trace recovery;
 - deterministic curve generation and curve/twist checks;
-- incremental CRT trace constraints for early-abort development; and
-- an isolated local Magma point-counting oracle.
+- exhaustive CRT trace constraints and sound early-abort screening;
+- the pinned MIT smooth-part engine with a portable cross-architecture cache;
+- a pinned canonical certificate verifier and isolated local Magma oracle; and
+- dry-run-safe deterministic RunPod operations.
 
-Build and run the native tests with:
+The native build needs GMP. Smooth-engine tests additionally need OpenMP
+(`libomp` with Apple Clang; GCC's OpenMP runtime on Linux). Build and run the
+local, CAS-free tests with:
 
 ```sh
 make
-make test
+make test test-cli test-reference test-verifier test-vendor \
+  test-smooth test-smooth-cache test-runpod
 ```
 
-Run the independent oracle tests by setting the local Magma launcher:
+Run the full suite, including the independent Magma oracle, by setting its
+local launcher:
 
 ```sh
-MAGMA=/path/to/magma make test-oracle
+MAGMA=/path/to/magma make test-all
 ```

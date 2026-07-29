@@ -3,8 +3,10 @@
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/schoof.hpp"
 
+#include <charconv>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -32,6 +34,27 @@ const std::string& required(const std::map<std::string, std::string>& options,
     return found->second;
 }
 
+std::uint64_t required_u64(const std::map<std::string, std::string>& options,
+                           const std::string& name) {
+    const std::string& text = required(options, name);
+    std::uint64_t value = 0;
+    const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value, 10);
+    if (text.empty() || parsed.ec != std::errc{} ||
+        parsed.ptr != text.data() + text.size()) {
+        throw std::invalid_argument("--" + name + " must be an unsigned 64-bit integer");
+    }
+    return value;
+}
+
+unsigned required_unsigned(const std::map<std::string, std::string>& options,
+                           const std::string& name) {
+    const std::uint64_t value = required_u64(options, name);
+    if (value > std::numeric_limits<unsigned>::max()) {
+        throw std::invalid_argument("--" + name + " is out of range");
+    }
+    return static_cast<unsigned>(value);
+}
+
 void usage() {
     std::cerr
         << "usage:\n"
@@ -56,8 +79,8 @@ int main(int argc, char** argv) {
         const auto options = parse_options(argc, argv, 2);
         if (command == "curve" || command == "montgomery-curve") {
             const mpz_class p = oneshotsea::parse_integer(required(options, "p"));
-            const std::uint64_t seed = std::stoull(required(options, "seed"));
-            const std::uint64_t index = std::stoull(required(options, "index"));
+            const std::uint64_t seed = required_u64(options, "seed");
+            const std::uint64_t index = required_u64(options, "index");
             if (command == "montgomery-curve") {
                 const oneshotsea::MontgomeryCurve curve =
                     oneshotsea::deterministic_montgomery_curve(p, seed, index);
@@ -102,7 +125,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         if (command == "schoof-residue") {
-            const std::uint64_t ell = std::stoull(required(options, "ell"));
+            const std::uint64_t ell = required_u64(options, "ell");
             const std::uint64_t residue = oneshotsea::schoof_trace_mod_ell(curve, ell);
             std::cout << "{\"p\":\"" << p << "\",\"a\":\"" << curve.a()
                       << "\",\"b\":\"" << curve.b() << "\",\"ell\":" << ell
@@ -110,7 +133,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         if (command == "schoof-count") {
-            const std::uint64_t max_ell = std::stoull(required(options, "max-ell"));
+            const std::uint64_t max_ell = required_u64(options, "max-ell");
             const auto result = oneshotsea::schoof_count_reference(curve, max_ell);
             std::cout << "{\"p\":\"" << p << "\",\"a\":\"" << curve.a()
                       << "\",\"b\":\"" << curve.b() << "\",\"order\":\""
@@ -127,8 +150,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         if (command == "elkies-residue") {
-            const unsigned level =
-                static_cast<unsigned>(std::stoul(required(options, "ell")));
+            const unsigned level = required_unsigned(options, "ell");
             const auto modular_polynomial = oneshotsea::SparseModularPolynomial::load(
                 level, required(options, "file"));
             const auto kernels =
@@ -151,7 +173,7 @@ int main(int argc, char** argv) {
             return 0;
         }
         if (command == "modpoly") {
-            const unsigned level = static_cast<unsigned>(std::stoul(required(options, "level")));
+            const unsigned level = required_unsigned(options, "level");
             const auto modular_polynomial = oneshotsea::SparseModularPolynomial::load(
                 level, required(options, "file"));
             const oneshotsea::Poly specialized = modular_polynomial.evaluate_x(

@@ -13,6 +13,12 @@ void require_same_field(const Poly& lhs, const Poly& rhs) {
     }
 }
 
+void require_probable_prime_field(const Poly& polynomial) {
+    if (mpz_probab_prime_p(polynomial.field().modulus().get_mpz_t(), 25) == 0) {
+        throw std::invalid_argument("polynomial root extraction requires probable-prime p");
+    }
+}
+
 void split_linear_factors(const Poly& polynomial, std::vector<mpz_class>& roots) {
     if (polynomial.degree() <= 0) {
         return;
@@ -245,6 +251,7 @@ int rational_root_count(const Poly& polynomial) {
     if (polynomial.is_zero()) {
         throw std::invalid_argument("zero polynomial has every field element as a root");
     }
+    require_probable_prime_field(polynomial);
     const Poly xp = powmod(Poly::x(polynomial.field()), polynomial.field().modulus(), polynomial);
     const Poly split = gcd(polynomial, sub(xp, Poly::x(polynomial.field())));
     return split.degree();
@@ -254,6 +261,7 @@ std::vector<mpz_class> linear_roots(const Poly& polynomial) {
     if (polynomial.is_zero()) {
         throw std::invalid_argument("zero polynomial has every field element as a root");
     }
+    require_probable_prime_field(polynomial);
     const Field& field = polynomial.field();
     const Poly x = Poly::x(field);
     const Poly xp = powmod(x, field.modulus(), polynomial);

@@ -9,7 +9,7 @@ BUILD_DIR := build
 LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 
-.PHONY: all test test-oracle clean
+.PHONY: all test test-oracle test-differential test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -33,6 +33,11 @@ test: $(BUILD_DIR)/test_core
 
 test-oracle:
 	python3 oracle/test_point_count.py -v
+
+test-differential: all
+	python3 tests/test_oracle_differential.py -v
+
+test-all: test test-oracle test-differential
 
 clean:
 	rm -rf $(BUILD_DIR)

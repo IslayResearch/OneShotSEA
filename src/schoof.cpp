@@ -353,9 +353,23 @@ Poly division_polynomial_reference(const Curve& curve, std::uint64_t ell) {
     return division_polynomial(ell, curve);
 }
 
-std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
-    const Curve& curve, const Poly& kernel, std::uint64_t ell) {
-    const Poly psi_ell = division_polynomial_reference(curve, ell);
+namespace {
+
+std::optional<std::uint64_t> try_frobenius_eigenvalue_impl(
+    const Curve& curve, const Poly& kernel, std::uint64_t ell,
+    bool validate_division_polynomial) {
+    if (curve.is_singular()) {
+        throw std::invalid_argument("Frobenius eigenvalue requires a nonsingular curve");
+    }
+    if (!is_small_prime(ell) || ell == 2) {
+        throw std::invalid_argument("ell must be an odd prime");
+    }
+    if (mpz_cmp_ui(curve.field().modulus().get_mpz_t(), ell) == 0) {
+        throw std::invalid_argument("ell must differ from p");
+    }
+    if (mpz_probab_prime_p(curve.field().modulus().get_mpz_t(), 25) == 0) {
+        throw std::invalid_argument("Frobenius eigenvalue requires probable-prime p");
+    }
     if (kernel.field().modulus() != curve.field().modulus()) {
         throw std::invalid_argument("kernel and curve use different fields");
     }
@@ -366,10 +380,11 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
     if (gcd(kernel, kernel.derivative()).degree() != 0) {
         throw std::invalid_argument("kernel is not square-free");
     }
-    const auto [cofactor, remainder] = divmod(psi_ell, kernel);
-    static_cast<void>(cofactor);
-    if (!remainder.is_zero()) {
-        throw std::invalid_argument("kernel does not divide psi_ell");
+    if (validate_division_polynomial) {
+        const Poly psi_ell = division_polynomial_reference(curve, ell);
+        if (!divmod(psi_ell, kernel).second.is_zero()) {
+            throw std::invalid_argument("kernel does not divide psi_ell");
+        }
     }
 
     const Field& field = curve.field();
@@ -381,11 +396,11 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
     const Element f = element(ring, curve_rhs, Poly(field));
     const mpz_class p = field.modulus();
 
-    // Divisibility by psi_ell only proves that every root is an ell-torsion
-    // x-coordinate.  In scalar-Frobenius cases an arbitrary mixture of roots
-    // from different lines could otherwise masquerade as an eigenkernel.
-    // Closure under every nonzero scalar modulo sign proves that the roots are
-    // exactly one cyclic subgroup.
+    // Degree, square-freeness, or even divisibility by psi_ell does not by
+    // itself prove that the roots form one cyclic subgroup. In scalar-
+    // Frobenius cases a mixture of roots from different lines could otherwise
+    // masquerade as an eigenkernel. Closure under every nonzero scalar modulo
+    // sign proves that the roots are exactly one cyclic subgroup.
     for (std::uint64_t scalar = 2; scalar <= (ell - 1U) / 2U; ++scalar) {
         if (!projective_x_satisfies(
                 kernel, scalar_multiply(scalar, generic, curve.a()))) {
@@ -409,6 +424,18 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
         return std::nullopt;
     }
     return matches.front();
+}
+
+}  // namespace
+
+std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
+    const Curve& curve, const Poly& kernel, std::uint64_t ell) {
+    return try_frobenius_eigenvalue_impl(curve, kernel, ell, true);
+}
+
+std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny_kernel(
+    const Curve& curve, const Poly& kernel, std::uint64_t ell) {
+    return try_frobenius_eigenvalue_impl(curve, kernel, ell, false);
 }
 
 std::uint64_t frobenius_eigenvalue_reference(const Curve& curve,

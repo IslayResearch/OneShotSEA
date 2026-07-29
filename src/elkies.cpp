@@ -236,7 +236,7 @@ std::vector<ElkiesKernelResult> elkies_kernels_bmss_reference(
         }
         BmssIsogenyResult reconstruction =
             bmss_isogeny_reference(curve, codomain, ell);
-        const auto eigenvalue = try_frobenius_eigenvalue_reference(
+        const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny_kernel(
             curve, reconstruction.kernel, ell);
         if (!eigenvalue.has_value()) {
             throw std::runtime_error(
@@ -289,7 +289,7 @@ std::vector<ElkiesKernelResult> elkies_kernels_weber_bmss_reference(
                 // safe discriminator.
                 continue;
             }
-            const auto eigenvalue = try_frobenius_eigenvalue_reference(
+            const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny_kernel(
                 curve, reconstruction.kernel, ell);
             if (!eigenvalue.has_value()) {
                 continue;

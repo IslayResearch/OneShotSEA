@@ -25,4 +25,10 @@ std::uint64_t frobenius_eigenvalue_reference(const Curve& curve,
 std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
     const Curve& curve, const Poly& kernel, std::uint64_t ell);
 
+// Production-kernel form: the caller has already proved that `kernel` is the
+// denominator square root of a validated degree-ell rational isogeny, so this
+// skips construction of the full division polynomial.
+std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny_kernel(
+    const Curve& curve, const Poly& kernel, std::uint64_t ell);
+
 }  // namespace oneshotsea

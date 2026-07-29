@@ -382,10 +382,6 @@ BmssIsogenyResult bmss_isogeny_reference(
     if (mpz_probab_prime_p(source.field().modulus().get_mpz_t(), 25) == 0) {
         throw std::invalid_argument("BMSS requires prime characteristic");
     }
-    if (ell > 31U) {
-        throw std::invalid_argument(
-            "reference BMSS validation is capped at ell=31");
-    }
     if (ell > (std::numeric_limits<std::size_t>::max() - 4U) / 4U) {
         throw std::overflow_error("BMSS precision does not fit size_t");
     }
@@ -444,14 +440,18 @@ BmssIsogenyResult bmss_isogeny_reference(
         throw std::runtime_error("BMSS kernel failed degree or square-free validation");
     }
 
-    const Poly psi_ell = division_polynomial_reference(source, ell);
-    if (!divmod(psi_ell, kernel).second.is_zero()) {
-        throw std::runtime_error("BMSS kernel does not divide the division polynomial");
-    }
-    const Curve velu_codomain = velu_codomain_reference(source, kernel, ell);
-    if (velu_codomain.a() != normalized_codomain.a() ||
-        velu_codomain.b() != normalized_codomain.b()) {
-        throw std::runtime_error("BMSS kernel yields the wrong normalized codomain");
+    if (ell <= 31U) {
+        const Poly psi_ell = division_polynomial_reference(source, ell);
+        if (!divmod(psi_ell, kernel).second.is_zero()) {
+            throw std::runtime_error(
+                "BMSS kernel does not divide the division polynomial");
+        }
+        const Curve velu_codomain = velu_codomain_reference(source, kernel, ell);
+        if (velu_codomain.a() != normalized_codomain.a() ||
+            velu_codomain.b() != normalized_codomain.b()) {
+            throw std::runtime_error(
+                "BMSS kernel yields the wrong normalized codomain");
+        }
     }
     validate_rational_isogeny(
         source, normalized_codomain, numerator, denominator);

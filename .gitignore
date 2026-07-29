@@ -1,0 +1,26 @@
+# Build products
+build/
+bin/
+*.o
+*.a
+*.so
+*.dylib
+*.out
+
+# Generated search data
+work/
+checkpoints/
+logs/
+benchmarks/raw/
+
+# Local configuration and credentials
+.env
+.env.*
+*.pem
+*.key
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+*~

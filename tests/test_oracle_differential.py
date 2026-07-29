@@ -127,6 +127,34 @@ class NativeOracleDifferentialTests(unittest.TestCase):
                     checked += 1
         self.assertGreaterEqual(checked, 40)
 
+    def test_complete_native_schoof_counts(self) -> None:
+        assert MAGMA is not None
+        checked = 0
+        for p in (97, 101, 1009):
+            for index in range(2):
+                curve = native("curve", "--p", p, "--seed", 0xC0FFEE, "--index", index)
+                if curve["singular"]:
+                    continue
+                a = int(curve["a"])
+                b = int(curve["b"])
+                oracle = point_count.count_curve(MAGMA, p, a, b)
+                count = native(
+                    "schoof-count",
+                    "--p",
+                    p,
+                    "--a",
+                    a,
+                    "--b",
+                    b,
+                    "--max-ell",
+                    13,
+                )
+                self.assertEqual(int(count["order"]), oracle["order"])
+                self.assertEqual(int(count["trace"]), oracle["trace"])
+                self.assertGreater(int(count["residue_modulus"]), 0)
+                checked += 1
+        self.assertGreaterEqual(checked, 6)
+
 
 if __name__ == "__main__":
     try:

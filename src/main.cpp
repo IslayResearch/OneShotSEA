@@ -38,6 +38,7 @@ void usage() {
         << "  oneshotsea montgomery-curve --p P --seed S --index I\n"
         << "  oneshotsea point-count --p P --a A --b B\n"
         << "  oneshotsea schoof-residue --p P --a A --b B --ell L\n"
+        << "  oneshotsea schoof-count --p P --a A --b B --max-ell L\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -104,6 +105,23 @@ int main(int argc, char** argv) {
             std::cout << "{\"p\":\"" << p << "\",\"a\":\"" << curve.a()
                       << "\",\"b\":\"" << curve.b() << "\",\"ell\":" << ell
                       << ",\"trace_residue\":" << residue << "}\n";
+            return 0;
+        }
+        if (command == "schoof-count") {
+            const std::uint64_t max_ell = std::stoull(required(options, "max-ell"));
+            const auto result = oneshotsea::schoof_count_reference(curve, max_ell);
+            std::cout << "{\"p\":\"" << p << "\",\"a\":\"" << curve.a()
+                      << "\",\"b\":\"" << curve.b() << "\",\"order\":\""
+                      << result.order << "\",\"trace\":\"" << result.trace
+                      << "\",\"residue_modulus\":\"" << result.residue_modulus
+                      << "\",\"levels\":[";
+            for (std::size_t index = 0; index < result.levels.size(); ++index) {
+                if (index != 0) {
+                    std::cout << ',';
+                }
+                std::cout << result.levels[index];
+            }
+            std::cout << "]}\n";
             return 0;
         }
         if (command == "modpoly") {

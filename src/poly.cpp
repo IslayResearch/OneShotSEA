@@ -14,12 +14,12 @@ void require_same_field(const Poly& lhs, const Poly& rhs) {
 
 }  // namespace
 
-Poly::Poly(const Field& field) : field_(&field) {}
+Poly::Poly(const Field& field) : field_(field) {}
 
 Poly::Poly(const Field& field, std::vector<mpz_class> coefficients)
-    : field_(&field), coefficients_(std::move(coefficients)) {
+    : field_(field), coefficients_(std::move(coefficients)) {
     for (auto& coefficient : coefficients_) {
-        coefficient = field_->normalize(coefficient);
+        coefficient = field_.normalize(coefficient);
     }
     trim();
 }
@@ -58,27 +58,27 @@ mpz_class Poly::leading_coefficient() const {
 mpz_class Poly::evaluate(const mpz_class& value) const {
     mpz_class result = 0;
     for (auto it = coefficients_.rbegin(); it != coefficients_.rend(); ++it) {
-        result = field_->add(field_->mul(result, value), *it);
+        result = field_.add(field_.mul(result, value), *it);
     }
     return result;
 }
 
 Poly Poly::derivative() const {
     if (degree() <= 0) {
-        return Poly(*field_);
+        return Poly(field_);
     }
     std::vector<mpz_class> output(coefficients_.size() - 1U);
     for (std::size_t i = 1; i < coefficients_.size(); ++i) {
-        output[i - 1U] = field_->mul(coefficients_[i], mpz_class(i));
+        output[i - 1U] = field_.mul(coefficients_[i], mpz_class(i));
     }
-    return Poly(*field_, std::move(output));
+    return Poly(field_, std::move(output));
 }
 
 Poly Poly::monic() const {
     if (is_zero()) {
         return *this;
     }
-    return scalar_mul(*this, field_->inverse(leading_coefficient()));
+    return scalar_mul(*this, field_.inverse(leading_coefficient()));
 }
 
 void Poly::trim() {

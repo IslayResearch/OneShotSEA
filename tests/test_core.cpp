@@ -51,6 +51,10 @@ void test_polynomial() {
         x, oneshotsea::Poly::constant(field, 2)));
     check(division.second.is_zero(), "polynomial exact division");
     check(division.first.evaluate(3) == 0, "polynomial quotient");
+
+    const oneshotsea::Poly temporary_field_poly(oneshotsea::Field(101), {1, 2});
+    check(temporary_field_poly.evaluate(3) == 7,
+          "polynomial owns a temporary field context");
 }
 
 void test_curves() {
@@ -225,6 +229,30 @@ void test_schoof_residues() {
             }
         }
     }
+
+    for (const unsigned long p : {101UL, 1009UL}) {
+        for (unsigned long index = 0; index < 2; ++index) {
+            const auto curve = oneshotsea::deterministic_curve(p, 0xc0ffee, index);
+            if (curve.is_singular()) {
+                continue;
+            }
+            const mpz_class expected_order = oneshotsea::count_points_bruteforce(curve);
+            const auto count = oneshotsea::schoof_count_reference(curve, 13);
+            check(count.order == expected_order, "complete native Schoof point count");
+            check(count.trace == mpz_class(p) + 1 - expected_order,
+                  "complete native Schoof trace");
+            check(!count.levels.empty(), "complete native Schoof levels");
+        }
+    }
+
+    const auto curve = oneshotsea::deterministic_curve(101, 0xc0ffee, 0);
+    bool rejected_large_ell = false;
+    try {
+        static_cast<void>(oneshotsea::schoof_trace_mod_ell(curve, 37));
+    } catch (const std::invalid_argument&) {
+        rejected_large_ell = true;
+    }
+    check(rejected_large_ell, "reference Schoof rejects impractical ell");
 }
 
 }  // namespace

@@ -1,6 +1,7 @@
 #include "oneshotsea/schoof.hpp"
 
 #include "oneshotsea/poly.hpp"
+#include "oneshotsea/trace.hpp"
 
 #include <map>
 #include <stdexcept>
@@ -9,6 +10,8 @@
 
 namespace oneshotsea {
 namespace {
+
+constexpr std::uint64_t kMaxReferenceSchoofEll = 31;
 
 struct RawElement {
     Poly u;
@@ -50,7 +53,7 @@ bool is_small_prime(std::uint64_t value) {
     if (value < 2) {
         return false;
     }
-    for (std::uint64_t divisor = 2; divisor * divisor <= value; ++divisor) {
+    for (std::uint64_t divisor = 2; divisor <= value / divisor; ++divisor) {
         if (value % divisor == 0) {
             return value == divisor;
         }
@@ -315,6 +318,9 @@ std::uint64_t schoof_trace_mod_ell(const Curve& curve, std::uint64_t ell) {
     if (curve.is_singular()) {
         throw std::invalid_argument("Schoof residue requires a nonsingular curve");
     }
+    if (ell > kMaxReferenceSchoofEll) {
+        throw std::invalid_argument("ell exceeds the reference Schoof limit of 31");
+    }
     if (!is_small_prime(ell) || ell == 2) {
         throw std::invalid_argument("ell must be an odd prime");
     }
@@ -359,6 +365,36 @@ std::uint64_t schoof_trace_mod_ell(const Curve& curve, std::uint64_t ell) {
         throw std::runtime_error("Schoof characteristic equation did not have a unique residue");
     }
     return matches.front();
+}
+
+SchoofCountResult schoof_count_reference(const Curve& curve, std::uint64_t max_ell) {
+    if (max_ell < 3) {
+        throw std::invalid_argument("max_ell must be at least 3");
+    }
+    if (max_ell > kMaxReferenceSchoofEll) {
+        throw std::invalid_argument("max_ell exceeds the reference Schoof limit of 31");
+    }
+    TraceConstraints constraints(curve.field().modulus());
+    std::vector<std::uint64_t> levels;
+    for (std::uint64_t ell = 3; ell <= max_ell; ell += 2U) {
+        if (!is_small_prime(ell) || mpz_cmp_ui(curve.field().modulus().get_mpz_t(), ell) == 0) {
+            continue;
+        }
+        const std::uint64_t residue = schoof_trace_mod_ell(curve, ell);
+        constraints.refine(ell, {residue});
+        levels.push_back(ell);
+        const auto traces = constraints.enumerate(1);
+        if (traces.has_value() && traces->size() == 1U) {
+            const mpz_class trace = traces->front();
+            return {
+                trace,
+                curve.field().modulus() + 1 - trace,
+                constraints.modulus(),
+                std::move(levels),
+            };
+        }
+    }
+    throw std::runtime_error("max_ell did not determine a unique Hasse trace");
 }
 
 }  // namespace oneshotsea

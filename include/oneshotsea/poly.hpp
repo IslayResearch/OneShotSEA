@@ -15,7 +15,7 @@ public:
     static Poly constant(const Field& field, const mpz_class& value);
     static Poly x(const Field& field);
 
-    const Field& field() const { return *field_; }
+    const Field& field() const { return field_; }
     const std::vector<mpz_class>& coefficients() const { return coefficients_; }
     int degree() const;
     bool is_zero() const;
@@ -28,7 +28,8 @@ public:
     Poly monic() const;
 
 private:
-    const Field* field_;
+    // Own the immutable field context so a polynomial cannot outlive it.
+    Field field_;
     std::vector<mpz_class> coefficients_;
 
     void trim();

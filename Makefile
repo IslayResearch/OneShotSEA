@@ -10,7 +10,7 @@ LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trac
 	src/early_abort.cpp src/schoof.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 
-.PHONY: all test test-reference test-verifier test-oracle test-differential test-all clean
+.PHONY: all test test-reference test-verifier test-oracle test-differential test-runpod test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -45,7 +45,10 @@ test-oracle:
 test-differential: all
 	python3 tests/test_oracle_differential.py -v
 
-test-all: test test-reference test-verifier test-oracle test-differential
+test-runpod:
+	scripts/runpod/test.sh
+
+test-all: test test-reference test-verifier test-oracle test-differential test-runpod
 
 clean:
 	rm -rf $(BUILD_DIR)

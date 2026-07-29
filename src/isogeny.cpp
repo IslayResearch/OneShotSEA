@@ -2,6 +2,7 @@
 
 #include "oneshotsea/elkies.hpp"
 #include "oneshotsea/torsion.hpp"
+#include "oneshotsea/weber.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -234,6 +235,36 @@ void validate_rational_isogeny(const Curve& source, const Curve& codomain,
     }
 }
 
+Curve codomain_from_neighbor_derivative(
+    const Curve& source, std::uint64_t ell, const mpz_class& neighbor_j,
+    const mpz_class& neighbor_derivative) {
+    const Field& field = source.field();
+    const mpz_class normalized_neighbor = field.normalize(neighbor_j);
+    if (normalized_neighbor == 0 ||
+        normalized_neighbor == field.normalize(1728) ||
+        neighbor_derivative == 0) {
+        throw std::domain_error(
+            "exceptional neighbor in normalized codomain formula");
+    }
+    const mpz_class mu = field.divide(neighbor_derivative, normalized_neighbor);
+    const mpz_class kappa = field.divide(
+        neighbor_derivative, field.sub(1728, normalized_neighbor));
+    const mpz_class ell_element = field.normalize(mpz_class(std::to_string(ell)));
+    const mpz_class ell_squared = field.square(ell_element);
+    const mpz_class ell_fourth = field.square(ell_squared);
+    const mpz_class ell_sixth = field.mul(ell_fourth, ell_squared);
+    const mpz_class codomain_a = field.divide(
+        field.mul(ell_fourth, field.mul(mu, kappa)), 48);
+    const mpz_class codomain_b = field.divide(
+        field.mul(ell_sixth, field.mul(field.square(mu), kappa)), 864);
+    Curve result(field, codomain_a, codomain_b);
+    if (result.is_singular() || result.j_invariant() != normalized_neighbor) {
+        throw std::runtime_error(
+            "normalized codomain does not have the requested j-invariant");
+    }
+    return result;
+}
+
 }  // namespace
 
 Curve normalized_codomain_from_classical_modpoly(
@@ -275,22 +306,66 @@ Curve normalized_codomain_from_classical_modpoly(
     const mpz_class neighbor_derivative = field.neg(field.divide(
         field.mul(evaluation.x_derivative, j_derivative),
         field.mul(mpz_class(std::to_string(ell)), evaluation.y_derivative)));
-    const mpz_class mu = field.divide(neighbor_derivative, normalized_neighbor);
-    const mpz_class kappa = field.divide(
-        neighbor_derivative, field.sub(1728, normalized_neighbor));
-    const mpz_class ell_element = field.normalize(mpz_class(std::to_string(ell)));
-    const mpz_class ell_squared = field.square(ell_element);
-    const mpz_class ell_fourth = field.square(ell_squared);
-    const mpz_class ell_sixth = field.mul(ell_fourth, ell_squared);
-    const mpz_class codomain_a = field.divide(
-        field.mul(ell_fourth, field.mul(mu, kappa)), 48);
-    const mpz_class codomain_b = field.divide(
-        field.mul(ell_sixth, field.mul(field.square(mu), kappa)), 864);
-    Curve result(field, codomain_a, codomain_b);
-    if (result.is_singular() || result.j_invariant() != normalized_neighbor) {
-        throw std::runtime_error("normalized codomain does not have the requested j-invariant");
+    return codomain_from_neighbor_derivative(
+        source, ell, normalized_neighbor, neighbor_derivative);
+}
+
+Curve normalized_codomain_from_weber_modpoly(
+    const Curve& source, const SparseModularPolynomial& weber_modular_polynomial,
+    const mpz_class& source_weber_f, const mpz_class& neighbor_weber_f) {
+    if (source.is_singular()) {
+        throw std::invalid_argument("cannot construct an isogeny from a singular curve");
     }
-    return result;
+    const std::uint64_t ell = weber_modular_polynomial.level();
+    if (!is_odd_prime(ell)) {
+        throw std::invalid_argument("Weber modular-polynomial level must be an odd prime");
+    }
+    const Field& field = source.field();
+    if (mpz_probab_prime_p(field.modulus().get_mpz_t(), 25) == 0) {
+        throw std::invalid_argument(
+            "normalized codomain requires prime characteristic");
+    }
+    if (mpz_cmp_ui(field.modulus().get_mpz_t(), ell) == 0) {
+        throw std::invalid_argument("isogeny degree must differ from the characteristic");
+    }
+    const mpz_class j = source.j_invariant();
+    const mpz_class normalized_source_f = field.normalize(source_weber_f);
+    const mpz_class normalized_neighbor_f = field.normalize(neighbor_weber_f);
+    if (source.a() == 0 || source.b() == 0 || j == 0 ||
+        j == field.normalize(1728) ||
+        j_from_weber_f(field, normalized_source_f) != j) {
+        throw std::domain_error("exceptional or invalid source Weber-f lift");
+    }
+    const mpz_class neighbor_j =
+        j_from_weber_f(field, normalized_neighbor_f);
+    const BivariateEvaluation evaluation =
+        weber_modular_polynomial.evaluate_with_derivatives(
+            field, normalized_source_f, normalized_neighbor_f);
+    if (evaluation.value != 0) {
+        throw std::invalid_argument(
+            "Weber neighbor is not a root of the modular polynomial");
+    }
+    const mpz_class source_f_derivative =
+        j_derivative_from_weber_f(field, normalized_source_f);
+    const mpz_class neighbor_f_derivative =
+        j_derivative_from_weber_f(field, normalized_neighbor_f);
+    if (evaluation.x_derivative == 0 || evaluation.y_derivative == 0 ||
+        source_f_derivative == 0 || neighbor_f_derivative == 0) {
+        throw std::domain_error(
+            "zero Weber or j-map derivative in normalized codomain formula");
+    }
+    const mpz_class j_derivative = field.divide(
+        field.mul(field.mul(18, source.b()), j), source.a());
+    const mpz_class neighbor_derivative = field.neg(field.divide(
+        field.mul(
+            field.mul(evaluation.x_derivative, neighbor_f_derivative),
+            j_derivative),
+        field.mul(
+            field.mul(mpz_class(std::to_string(ell)),
+                      evaluation.y_derivative),
+            source_f_derivative)));
+    return codomain_from_neighbor_derivative(
+        source, ell, neighbor_j, neighbor_derivative);
 }
 
 BmssIsogenyResult bmss_isogeny_reference(

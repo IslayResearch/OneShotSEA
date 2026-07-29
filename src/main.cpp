@@ -65,6 +65,7 @@ void usage() {
         << "  oneshotsea schoof-count --p P --a A --b B --max-ell L\n"
         << "  oneshotsea elkies-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-bmss-residue --p P --a A --b B --ell L --file PATH\n"
+        << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
@@ -152,18 +153,23 @@ int main(int argc, char** argv) {
             return 0;
         }
         if (command == "elkies-residue" || command == "elkies-bmss-residue" ||
+            command == "elkies-weber-residue" ||
             command == "elkies-division-residue") {
             const std::uint64_t level = required_u64(options, "ell");
             std::vector<oneshotsea::ElkiesKernelResult> kernels;
             if (command == "elkies-residue" ||
-                command == "elkies-bmss-residue") {
+                command == "elkies-bmss-residue" ||
+                command == "elkies-weber-residue") {
                 if (level > std::numeric_limits<unsigned>::max()) {
                     throw std::invalid_argument("--ell is out of range");
                 }
                 const auto modular_polynomial =
                     oneshotsea::SparseModularPolynomial::load(
                         static_cast<unsigned>(level), required(options, "file"));
-                if (command == "elkies-bmss-residue") {
+                if (command == "elkies-weber-residue") {
+                    kernels = oneshotsea::elkies_kernels_weber_bmss_reference(
+                        curve, modular_polynomial);
+                } else if (command == "elkies-bmss-residue") {
                     kernels = oneshotsea::elkies_kernels_bmss_reference(
                         curve, modular_polynomial);
                 } else {

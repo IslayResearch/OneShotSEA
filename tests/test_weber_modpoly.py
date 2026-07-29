@@ -1,4 +1,7 @@
 from pathlib import Path
+import hashlib
+import json
+import subprocess
 import sys
 import unittest
 
@@ -45,6 +48,24 @@ class WeberModpolyTests(unittest.TestCase):
         for level in (2, 3, 4, 6):
             with self.assertRaises(ValueError):
                 weber.generate_coefficients(level)
+
+    def test_checked_in_tables_match_generator_and_manifest(self) -> None:
+        directory = ROOT / "data" / "modpoly" / "weber_f"
+        manifest = json.loads((directory / "MANIFEST.json").read_text())
+        for level in (5, 7):
+            path = directory / f"phi_{level}.txt"
+            generated = subprocess.run(
+                [sys.executable, ROOT / "tools" / "generate_weber_modpoly.py",
+                 "--level", str(level)],
+                check=True,
+                text=True,
+                stdout=subprocess.PIPE,
+            ).stdout
+            self.assertEqual(path.read_text(), generated)
+            self.assertEqual(
+                hashlib.sha256(path.read_bytes()).hexdigest(),
+                manifest["files"][path.name]["sha256"],
+            )
 
 
 if __name__ == "__main__":

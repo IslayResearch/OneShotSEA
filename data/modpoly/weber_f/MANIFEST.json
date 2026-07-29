@@ -1,0 +1,16 @@
+{
+  "format": "sparse rows: x_degree y_degree integer_coefficient",
+  "generator": "tools/generate_weber_modpoly.py",
+  "normalization": "f=zeta_48^-1*eta((z+1)/2)/eta(z), r=q^(1/48)",
+  "source": "https://arxiv.org/abs/1001.0402, Section 7.3",
+  "files": {
+    "phi_5.txt": {
+      "level": 5,
+      "sha256": "d41cf91849e40aa1a76a8145af66500fa4e925477413eab12ea89f4dba0783fc"
+    },
+    "phi_7.txt": {
+      "level": 7,
+      "sha256": "3585d1cc52bab178f800d655e75a4102cb2ed03809753c42d8ecf8637d967ab0"
+    }
+  }
+}

@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BINARY = ROOT / "build" / "oneshotsea"
 PHI3 = ROOT / "data" / "modpoly" / "j" / "phi_3.txt"
 PHI5 = ROOT / "data" / "modpoly" / "j" / "phi_5.txt"
+WEBER_PHI5 = ROOT / "data" / "modpoly" / "weber_f" / "phi_5.txt"
 
 
 class CliTests(unittest.TestCase):
@@ -73,6 +74,21 @@ class CliTests(unittest.TestCase):
         self.assertTrue(bmss_result["elkies"])
         self.assertEqual(
             bmss_result["trace_residue"], division_result["trace_residue"]
+        )
+
+    def test_weber_cli_matches_classical_bmss(self) -> None:
+        common = ("--p", 109, "--a", 82, "--b", 45, "--ell", 5)
+        weber = self.run_cli(
+            "elkies-weber-residue", *common, "--file", WEBER_PHI5
+        )
+        classical = self.run_cli(
+            "elkies-bmss-residue", *common, "--file", PHI5
+        )
+        self.assertEqual(weber.returncode, 0, weber.stderr)
+        self.assertEqual(classical.returncode, 0, classical.stderr)
+        self.assertEqual(
+            json.loads(weber.stdout)["trace_residue"],
+            json.loads(classical.stdout)["trace_residue"],
         )
 
 

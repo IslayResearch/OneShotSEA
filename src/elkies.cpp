@@ -2,6 +2,7 @@
 #include "oneshotsea/factor.hpp"
 #include "oneshotsea/isogeny.hpp"
 #include "oneshotsea/torsion.hpp"
+#include "oneshotsea/weber.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -255,6 +256,76 @@ std::optional<std::uint64_t> elkies_trace_residue_bmss_reference(
     const Curve& curve, const SparseModularPolynomial& modular_polynomial) {
     return common_trace_residue(
         elkies_kernels_bmss_reference(curve, modular_polynomial));
+}
+
+std::vector<ElkiesKernelResult> elkies_kernels_weber_bmss_reference(
+    const Curve& curve,
+    const SparseModularPolynomial& weber_modular_polynomial) {
+    const std::uint64_t ell = weber_modular_polynomial.level();
+    const Field& field = curve.field();
+    const std::vector<mpz_class> source_lifts =
+        weber_f_lifts(field, curve.j_invariant());
+    std::vector<ElkiesKernelResult> results;
+    for (const mpz_class& source_f : source_lifts) {
+        const Poly specialized =
+            weber_modular_polynomial.evaluate_x(field, source_f);
+        const std::vector<mpz_class> neighbor_lifts = linear_roots(specialized);
+        for (const mpz_class& neighbor_f : neighbor_lifts) {
+            Curve codomain = curve;
+            try {
+                codomain = normalized_codomain_from_weber_modpoly(
+                    curve, weber_modular_polynomial, source_f, neighbor_f);
+            } catch (const std::domain_error&) {
+                continue;
+            }
+
+            BmssIsogenyResult reconstruction = {
+                Poly(field), Poly(field), Poly(field)};
+            try {
+                reconstruction = bmss_isogeny_reference(curve, codomain, ell);
+            } catch (const std::runtime_error&) {
+                // For p=1 mod 12, roots of Psi^f need not all be compatible
+                // class-invariant lifts. Full BMSS validation is the required
+                // safe discriminator.
+                continue;
+            }
+            const auto eigenvalue = try_frobenius_eigenvalue_reference(
+                curve, reconstruction.kernel, ell);
+            if (!eigenvalue.has_value()) {
+                continue;
+            }
+            const mpz_class neighbor_j = codomain.j_invariant();
+            const std::uint64_t trace_residue = trace_residue_from_eigenvalue(
+                field.modulus(), ell, *eigenvalue);
+            const auto duplicate = std::find_if(
+                results.begin(), results.end(),
+                [&reconstruction](const ElkiesKernelResult& existing) {
+                    return equal(existing.kernel, reconstruction.kernel);
+                });
+            if (duplicate != results.end()) {
+                if (duplicate->neighbor_j != neighbor_j ||
+                    duplicate->eigenvalue != *eigenvalue ||
+                    duplicate->trace_residue != trace_residue) {
+                    throw std::runtime_error(
+                        "duplicate Weber lifts disagree on an isogeny kernel");
+                }
+                continue;
+            }
+            results.push_back(
+                {ell, std::move(reconstruction.kernel), std::move(codomain),
+                 neighbor_j, *eigenvalue, trace_residue});
+        }
+    }
+    static_cast<void>(common_trace_residue(results));
+    return results;
+}
+
+std::optional<std::uint64_t> elkies_trace_residue_weber_bmss_reference(
+    const Curve& curve,
+    const SparseModularPolynomial& weber_modular_polynomial) {
+    return common_trace_residue(
+        elkies_kernels_weber_bmss_reference(
+            curve, weber_modular_polynomial));
 }
 
 }  // namespace oneshotsea

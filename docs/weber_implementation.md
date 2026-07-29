@@ -1,10 +1,11 @@
 # Weber-f specialized modular-polynomial path
 
-This is the first executable normalization artifact for the specialized
-modular-function path proposed in the task. It follows Section 7.3 of
-[Broeker-Lauter-Sutherland](https://arxiv.org/abs/1001.0402) and Sections 4.7
-and 5.3 of [Sutherland](https://arxiv.org/abs/1202.3985). It is not yet a
-production CRT evaluator.
+This is the executable reference path for the specialized modular function
+proposed in the task. It follows Section 7.3 of
+[Broeker-Lauter-Sutherland](https://arxiv.org/abs/1001.0402) and Sections 3.8
+and 3.9 of [Sutherland](https://arxiv.org/abs/1202.3985).
+The current checked-in levels are an end-to-end reference, not yet a
+large-level production CRT evaluator.
 
 ## Exact normalization
 
@@ -56,6 +57,8 @@ python3 tools/generate_weber_modpoly.py --level 5 --specialize 2 --modulus 101
 The naive q-product solver is deliberately capped at level 43. Production
 levels should use the isogeny-volcano/explicit-CRT algorithms from the papers,
 retaining the same normalization, sparsity, and `X^ell Y^ell=-1` sign test.
+The generated level-5 and level-7 tables, hashes, and provenance are checked in
+under `data/modpoly/weber_f/`.
 
 ## Finite-field admission and sign cases
 
@@ -71,6 +74,11 @@ two-root lemma does not apply to the production search. The safe 1202.3985
 fallback is to enumerate every root of `Psi^f(F,j(E))`, instantiate for each,
 and validate the resulting isogeny using its dual. Silently choosing one root
 would make this path incorrect.
+
+`weber_f_lifts` and `elkies_kernels_weber_bmss_reference` implement this
+exhaustive policy. Incompatible lifts are rejected by normalized BMSS
+reconstruction; duplicate sign lifts are coalesced only after their kernels,
+neighbors, eigenvalues, and residues agree.
 
 ## Kernel and codomain handoff
 
@@ -105,10 +113,14 @@ valid.
 
 ## Remaining production work
 
-The exact blocker is no longer the Weber normalization or a toy modular
-equation. It is the large-level instantiated evaluator and the root/codomain
-validation path for fields congruent to 1 modulo 12. The minimal next experiment
-is level 5 over several small primes `p=1 (mod 12)`: enumerate every root of
-`Psi^f(F,j(E))`, compare Weber roots of `phi` with independently Velu-generated
-5-isogenous codomains, and reject any lift that fails the dual-composition test.
-Only after this experiment should the CRT evaluator be connected to SEA.
+The exhaustive root/codomain experiment is complete at levels 5 and 7. Weber
+and classical-j paths recover identical kernels and trace residues on the
+admitted fixtures, and the Weber path produces an independently Schoof-checked
+level-7 residue over the 416-bit `p125` field. A curve with no compatible Weber
+class-invariant lift safely returns no result so the scheduler can fall back.
+
+The remaining blockers are the large-level instantiated evaluator and the fast
+arithmetic behind it: generate or explicitly evaluate the levels selected by
+the SEA scheduler, replace quadratic reference power-series arithmetic with
+Newton doubling and fast multiplication, and use dual-composition validation
+when full division polynomials are no longer a practical independent check.

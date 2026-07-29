@@ -282,6 +282,32 @@ class NativeOracleDifferentialTests(unittest.TestCase):
                         successes += 1
         self.assertGreaterEqual(successes, 5)
 
+    def test_weber_bmss_residues_against_magma_trace(self) -> None:
+        assert MAGMA is not None
+        fixtures = (
+            (109, 82, 45, 5),
+            (157, 37, 13, 7),
+            (193, 148, 168, 5),
+            (181, 101, 115, 7),
+        )
+        for p, a, b, ell in fixtures:
+            trace = point_count.count_curve(MAGMA, p, a, b)["trace"]
+            result = native(
+                "elkies-weber-residue",
+                "--p",
+                p,
+                "--a",
+                a,
+                "--b",
+                b,
+                "--ell",
+                ell,
+                "--file",
+                ROOT / "data" / "modpoly" / "weber_f" / f"phi_{ell}.txt",
+            )
+            self.assertTrue(result["elkies"])
+            self.assertEqual(result["trace_residue"], trace % ell)
+
 
 if __name__ == "__main__":
     try:

@@ -6,6 +6,7 @@
 #include "oneshotsea/poly.hpp"
 #include "oneshotsea/schoof.hpp"
 #include "oneshotsea/trace.hpp"
+#include "oneshotsea/weber.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -447,6 +448,10 @@ void test_elkies_residues() {
         5, "data/modpoly/j/phi_5.txt");
     const auto phi7 = oneshotsea::SparseModularPolynomial::load(
         7, "data/modpoly/j/phi_7.txt");
+    const auto weber_phi5 = oneshotsea::SparseModularPolynomial::load(
+        5, "data/modpoly/weber_f/phi_5.txt");
+    const auto weber_phi7 = oneshotsea::SparseModularPolynomial::load(
+        7, "data/modpoly/weber_f/phi_7.txt");
     std::size_t normalized_level5_checks = 0;
     std::size_t normalized_level7_checks = 0;
     std::size_t bmss_level5_checks = 0;
@@ -517,6 +522,32 @@ void test_elkies_residues() {
     check(bmss_level5_checks >= 2 && bmss_level7_checks >= 2,
           "BMSS reconstructs level-5 and level-7 kernels");
 
+    const auto compare_weber_path = [](const oneshotsea::Curve& curve,
+                                       const auto& classical,
+                                       const auto& weber) {
+        const auto classical_kernels =
+            oneshotsea::elkies_kernels_bmss_reference(curve, classical);
+        const auto weber_kernels =
+            oneshotsea::elkies_kernels_weber_bmss_reference(curve, weber);
+        check(weber_kernels.size() == classical_kernels.size(),
+              "Weber and classical BMSS kernel counts agree");
+        for (const auto& expected : classical_kernels) {
+            check(std::any_of(
+                      weber_kernels.begin(), weber_kernels.end(),
+                      [&expected](const auto& candidate) {
+                          return oneshotsea::equal(
+                              expected.kernel, candidate.kernel);
+                      }),
+                  "Weber and classical BMSS kernels agree");
+        }
+    };
+    compare_weber_path(
+        oneshotsea::Curve(oneshotsea::Field(109), 82, 45),
+        phi5, weber_phi5);
+    compare_weber_path(
+        oneshotsea::Curve(oneshotsea::Field(157), 37, 13),
+        phi7, weber_phi7);
+
     // BMSS, Section 5.1: the published worked fastElkies example over F_101.
     const oneshotsea::Curve worked_source(oneshotsea::Field(101), 1, 1);
     const oneshotsea::Curve worked_codomain(oneshotsea::Field(101), 75, 16);
@@ -544,6 +575,16 @@ void test_elkies_residues() {
         check(*exact == oneshotsea::schoof_trace_mod_ell(target_curve, ell),
               "target-field exact Elkies residue agrees with Schoof");
     }
+
+    const oneshotsea::Curve target_weber_curve =
+        oneshotsea::deterministic_curve(target_prime(), 45077, 0);
+    const auto target_weber =
+        oneshotsea::elkies_trace_residue_weber_bmss_reference(
+            target_weber_curve, weber_phi7);
+    check(target_weber.has_value() &&
+              *target_weber ==
+                  oneshotsea::schoof_trace_mod_ell(target_weber_curve, 7),
+          "target-field Weber residue agrees with Schoof");
 }
 
 }  // namespace

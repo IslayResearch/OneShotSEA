@@ -1,0 +1,6 @@
+# Weber-f modular polynomial Phi_7^f(X,Y); r=q^(1/48).
+8 0 1
+0 8 1
+7 7 -1
+4 4 7
+1 1 -8

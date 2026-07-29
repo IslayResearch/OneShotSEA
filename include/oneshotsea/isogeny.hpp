@@ -15,6 +15,12 @@ Curve normalized_codomain_from_classical_modpoly(
     const Curve& source, const SparseModularPolynomial& modular_polynomial,
     const mpz_class& neighbor_j);
 
+// Equation (8) of Sutherland 2012 specialized to the BLS Weber-f
+// normalization. The X/Y derivative orientation is deliberately explicit.
+Curve normalized_codomain_from_weber_modpoly(
+    const Curve& source, const SparseModularPolynomial& weber_modular_polynomial,
+    const mpz_class& source_weber_f, const mpz_class& neighbor_weber_f);
+
 struct BmssIsogenyResult {
     Poly kernel;
     Poly numerator;

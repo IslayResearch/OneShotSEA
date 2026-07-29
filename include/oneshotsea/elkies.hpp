@@ -58,4 +58,14 @@ std::vector<ElkiesKernelResult> elkies_kernels_bmss_reference(
 std::optional<std::uint64_t> elkies_trace_residue_bmss_reference(
     const Curve& curve, const SparseModularPolynomial& modular_polynomial);
 
+// Exhaust every rational Weber-f lift, as required for p=1 mod 12, and retain
+// only candidates that pass normalized BMSS and Frobenius validation.
+std::vector<ElkiesKernelResult> elkies_kernels_weber_bmss_reference(
+    const Curve& curve,
+    const SparseModularPolynomial& weber_modular_polynomial);
+
+std::optional<std::uint64_t> elkies_trace_residue_weber_bmss_reference(
+    const Curve& curve,
+    const SparseModularPolynomial& weber_modular_polynomial);
+
 }  // namespace oneshotsea

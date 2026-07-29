@@ -1,5 +1,6 @@
 #include "oneshotsea/curve.hpp"
 #include "oneshotsea/modpoly.hpp"
+#include "oneshotsea/schoof.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -34,7 +35,9 @@ void usage() {
     std::cerr
         << "usage:\n"
         << "  oneshotsea curve --p P --seed S --index I\n"
+        << "  oneshotsea montgomery-curve --p P --seed S --index I\n"
         << "  oneshotsea point-count --p P --a A --b B\n"
+        << "  oneshotsea schoof-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -48,10 +51,26 @@ int main(int argc, char** argv) {
         }
         const std::string command = argv[1];
         const auto options = parse_options(argc, argv, 2);
-        if (command == "curve") {
+        if (command == "curve" || command == "montgomery-curve") {
             const mpz_class p = oneshotsea::parse_integer(required(options, "p"));
             const std::uint64_t seed = std::stoull(required(options, "seed"));
             const std::uint64_t index = std::stoull(required(options, "index"));
+            if (command == "montgomery-curve") {
+                const oneshotsea::MontgomeryCurve curve =
+                    oneshotsea::deterministic_montgomery_curve(p, seed, index);
+                std::cout << "{\"p\":\"" << p << "\",\"seed\":" << seed
+                          << ",\"index\":" << index << ",\"A\":\""
+                          << curve.coefficient() << "\",\"singular\":"
+                          << (curve.is_singular() ? "true" : "false");
+                if (!curve.is_singular()) {
+                    const oneshotsea::Curve short_curve = curve.short_weierstrass();
+                    std::cout << ",\"a\":\"" << short_curve.a() << "\",\"b\":\""
+                              << short_curve.b() << "\",\"j\":\""
+                              << curve.j_invariant() << "\"";
+                }
+                std::cout << "}\n";
+                return 0;
+            }
             const oneshotsea::Curve curve = oneshotsea::deterministic_curve(p, seed, index);
             std::cout << "{\"p\":\"" << p << "\",\"seed\":" << seed
                       << ",\"index\":" << index << ",\"a\":\"" << curve.a()
@@ -77,6 +96,14 @@ int main(int argc, char** argv) {
             std::cout << "{\"p\":\"" << p << "\",\"a\":\"" << curve.a()
                       << "\",\"b\":\"" << curve.b() << "\",\"order\":\""
                       << count << "\",\"trace\":\"" << trace << "\"}\n";
+            return 0;
+        }
+        if (command == "schoof-residue") {
+            const std::uint64_t ell = std::stoull(required(options, "ell"));
+            const std::uint64_t residue = oneshotsea::schoof_trace_mod_ell(curve, ell);
+            std::cout << "{\"p\":\"" << p << "\",\"a\":\"" << curve.a()
+                      << "\",\"b\":\"" << curve.b() << "\",\"ell\":" << ell
+                      << ",\"trace_residue\":" << residue << "}\n";
             return 0;
         }
         if (command == "modpoly") {

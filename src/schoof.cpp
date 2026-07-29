@@ -1,0 +1,364 @@
+#include "oneshotsea/schoof.hpp"
+
+#include "oneshotsea/poly.hpp"
+
+#include <map>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+namespace oneshotsea {
+namespace {
+
+struct RawElement {
+    Poly u;
+    Poly v;
+};
+
+RawElement raw_add(const RawElement& lhs, const RawElement& rhs) {
+    return {add(lhs.u, rhs.u), add(lhs.v, rhs.v)};
+}
+
+RawElement raw_neg(const RawElement& value) {
+    return {neg(value.u), neg(value.v)};
+}
+
+RawElement raw_sub(const RawElement& lhs, const RawElement& rhs) {
+    return raw_add(lhs, raw_neg(rhs));
+}
+
+RawElement raw_mul(const RawElement& lhs, const RawElement& rhs, const Poly& curve_rhs) {
+    return {
+        add(mul(lhs.u, rhs.u), mul(curve_rhs, mul(lhs.v, rhs.v))),
+        add(mul(lhs.u, rhs.v), mul(lhs.v, rhs.u)),
+    };
+}
+
+RawElement raw_square(const RawElement& value, const Poly& curve_rhs) {
+    return raw_mul(value, value, curve_rhs);
+}
+
+Poly exact_divide(const Poly& numerator, const Poly& denominator) {
+    auto [quotient, remainder] = divmod(numerator, denominator);
+    if (!remainder.is_zero()) {
+        throw std::runtime_error("division-polynomial recurrence was not exact");
+    }
+    return quotient;
+}
+
+bool is_small_prime(std::uint64_t value) {
+    if (value < 2) {
+        return false;
+    }
+    for (std::uint64_t divisor = 2; divisor * divisor <= value; ++divisor) {
+        if (value % divisor == 0) {
+            return value == divisor;
+        }
+    }
+    return true;
+}
+
+Poly division_polynomial(std::uint64_t ell, const Curve& curve) {
+    const Field& field = curve.field();
+    const Poly zero(field);
+    const Poly one = Poly::constant(field, 1);
+    const Poly curve_rhs(field, {curve.b(), curve.a(), 0, 1});
+    std::map<std::uint64_t, RawElement> cache;
+
+    const auto psi = [&](auto&& self, std::uint64_t index) -> RawElement {
+        const auto found = cache.find(index);
+        if (found != cache.end()) {
+            return found->second;
+        }
+        RawElement result{zero, zero};
+        if (index == 0) {
+            result = {zero, zero};
+        } else if (index == 1) {
+            result = {one, zero};
+        } else if (index == 2) {
+            result = {zero, Poly::constant(field, 2)};
+        } else if (index == 3) {
+            const mpz_class a = curve.a();
+            const mpz_class b = curve.b();
+            result = {Poly(field, {-a * a, 12 * b, 6 * a, 0, 3}), zero};
+        } else if (index == 4) {
+            const mpz_class a = curve.a();
+            const mpz_class b = curve.b();
+            const Poly inside(field, {
+                -a * a * a - 8 * b * b,
+                -4 * a * b,
+                -5 * a * a,
+                20 * b,
+                5 * a,
+                0,
+                1,
+            });
+            result = {zero, scalar_mul(inside, 4)};
+        } else if ((index & 1U) != 0U) {
+            const std::uint64_t m = (index - 1U) / 2U;
+            const RawElement psi_m = self(self, m);
+            const RawElement psi_m1 = self(self, m + 1U);
+            const RawElement first = raw_mul(
+                self(self, m + 2U),
+                raw_mul(raw_square(psi_m, curve_rhs), psi_m, curve_rhs), curve_rhs);
+            const RawElement second = raw_mul(
+                self(self, m - 1U),
+                raw_mul(raw_square(psi_m1, curve_rhs), psi_m1, curve_rhs), curve_rhs);
+            result = raw_sub(first, second);
+        } else {
+            const std::uint64_t m = index / 2U;
+            const RawElement bracket = raw_sub(
+                raw_mul(self(self, m + 2U), raw_square(self(self, m - 1U), curve_rhs),
+                        curve_rhs),
+                raw_mul(self(self, m - 2U), raw_square(self(self, m + 1U), curve_rhs),
+                        curve_rhs));
+            const RawElement numerator = raw_mul(self(self, m), bracket, curve_rhs);
+            if (!numerator.v.is_zero()) {
+                throw std::runtime_error("unexpected y term in even division polynomial");
+            }
+            const Poly quotient = exact_divide(numerator.u, curve_rhs);
+            result = {zero, scalar_mul(quotient, field.inverse(2))};
+        }
+        cache.insert_or_assign(index, result);
+        return result;
+    };
+
+    const RawElement raw_result = psi(psi, ell);
+    if (!raw_result.v.is_zero() || raw_result.u.is_zero()) {
+        throw std::runtime_error("invalid odd division polynomial");
+    }
+    return raw_result.u.monic();
+}
+
+struct QuotientRing {
+    const Field* field;
+    Poly modulus;
+    Poly curve_rhs;
+};
+
+struct Element {
+    const QuotientRing* ring;
+    Poly u;
+    Poly v;
+};
+
+Element element(const QuotientRing& ring, const Poly& u, const Poly& v) {
+    return {&ring, mod(u, ring.modulus), mod(v, ring.modulus)};
+}
+
+Element constant(const QuotientRing& ring, const mpz_class& value) {
+    return element(ring, Poly::constant(*ring.field, value), Poly(*ring.field));
+}
+
+void require_same_ring(const Element& lhs, const Element& rhs) {
+    if (lhs.ring != rhs.ring) {
+        throw std::invalid_argument("quotient elements belong to different rings");
+    }
+}
+
+Element element_add(const Element& lhs, const Element& rhs) {
+    require_same_ring(lhs, rhs);
+    return element(*lhs.ring, add(lhs.u, rhs.u), add(lhs.v, rhs.v));
+}
+
+Element element_neg(const Element& value) {
+    return element(*value.ring, neg(value.u), neg(value.v));
+}
+
+Element element_sub(const Element& lhs, const Element& rhs) {
+    return element_add(lhs, element_neg(rhs));
+}
+
+Element element_mul(const Element& lhs, const Element& rhs) {
+    require_same_ring(lhs, rhs);
+    const RawElement product = raw_mul({lhs.u, lhs.v}, {rhs.u, rhs.v},
+                                       lhs.ring->curve_rhs);
+    return element(*lhs.ring, product.u, product.v);
+}
+
+Element element_square(const Element& value) {
+    return element_mul(value, value);
+}
+
+Element element_scale(const Element& value, const mpz_class& scalar) {
+    return element(*value.ring, scalar_mul(value.u, scalar), scalar_mul(value.v, scalar));
+}
+
+Element element_pow(Element base, mpz_class exponent) {
+    if (exponent < 0) {
+        throw std::invalid_argument("negative quotient-ring exponent");
+    }
+    Element result = constant(*base.ring, 1);
+    while (exponent > 0) {
+        if (mpz_odd_p(exponent.get_mpz_t()) != 0) {
+            result = element_mul(result, base);
+        }
+        exponent >>= 1;
+        if (exponent > 0) {
+            base = element_square(base);
+        }
+    }
+    return result;
+}
+
+bool element_zero(const Element& value) {
+    return value.u.is_zero() && value.v.is_zero();
+}
+
+bool element_equal(const Element& lhs, const Element& rhs) {
+    require_same_ring(lhs, rhs);
+    return equal(lhs.u, rhs.u) && equal(lhs.v, rhs.v);
+}
+
+struct JacobianPoint {
+    Element x;
+    Element y;
+    Element z;
+};
+
+JacobianPoint infinity(const QuotientRing& ring) {
+    return {constant(ring, 0), constant(ring, 1), constant(ring, 0)};
+}
+
+bool point_infinity(const JacobianPoint& point) {
+    return element_zero(point.z);
+}
+
+JacobianPoint point_double(const JacobianPoint& point, const mpz_class& curve_a) {
+    if (point_infinity(point) || element_zero(point.y)) {
+        return infinity(*point.x.ring);
+    }
+    const Element xx = element_square(point.x);
+    const Element yy = element_square(point.y);
+    const Element yyyy = element_square(yy);
+    const Element zz = element_square(point.z);
+    const Element s = element_scale(
+        element_sub(element_sub(element_square(element_add(point.x, yy)), xx), yyyy), 2);
+    const Element m = element_add(element_scale(xx, 3),
+                                  element_scale(element_square(zz), curve_a));
+    const Element t = element_sub(element_square(m), element_scale(s, 2));
+    return {
+        t,
+        element_sub(element_mul(m, element_sub(s, t)), element_scale(yyyy, 8)),
+        element_sub(element_sub(element_square(element_add(point.y, point.z)), yy), zz),
+    };
+}
+
+JacobianPoint point_add(const JacobianPoint& lhs, const JacobianPoint& rhs,
+                        const mpz_class& curve_a) {
+    if (point_infinity(lhs)) {
+        return rhs;
+    }
+    if (point_infinity(rhs)) {
+        return lhs;
+    }
+    const Element z1z1 = element_square(lhs.z);
+    const Element z2z2 = element_square(rhs.z);
+    const Element u1 = element_mul(lhs.x, z2z2);
+    const Element u2 = element_mul(rhs.x, z1z1);
+    const Element s1 = element_mul(element_mul(lhs.y, rhs.z), z2z2);
+    const Element s2 = element_mul(element_mul(rhs.y, lhs.z), z1z1);
+    if (element_equal(u1, u2)) {
+        if (element_equal(s1, s2)) {
+            return point_double(lhs, curve_a);
+        }
+        if (element_equal(s1, element_neg(s2))) {
+            return infinity(*lhs.x.ring);
+        }
+    }
+    const Element h = element_sub(u2, u1);
+    const Element i = element_square(element_scale(h, 2));
+    const Element j = element_mul(h, i);
+    const Element r = element_scale(element_sub(s2, s1), 2);
+    const Element v = element_mul(u1, i);
+    const Element x3 = element_sub(element_sub(element_square(r), j), element_scale(v, 2));
+    return {
+        x3,
+        element_sub(element_mul(r, element_sub(v, x3)),
+                    element_scale(element_mul(s1, j), 2)),
+        element_mul(
+            element_sub(element_sub(element_square(element_add(lhs.z, rhs.z)), z1z1), z2z2),
+            h),
+    };
+}
+
+JacobianPoint scalar_multiply(std::uint64_t scalar, const JacobianPoint& point,
+                              const mpz_class& curve_a) {
+    JacobianPoint result = infinity(*point.x.ring);
+    JacobianPoint addend = point;
+    while (scalar != 0) {
+        if ((scalar & 1U) != 0U) {
+            result = point_add(result, addend, curve_a);
+        }
+        scalar >>= 1U;
+        if (scalar != 0) {
+            addend = point_double(addend, curve_a);
+        }
+    }
+    return result;
+}
+
+bool same_point(const JacobianPoint& lhs, const JacobianPoint& rhs) {
+    if (point_infinity(lhs) || point_infinity(rhs)) {
+        return point_infinity(lhs) && point_infinity(rhs);
+    }
+    const Element left_z2 = element_square(lhs.z);
+    const Element right_z2 = element_square(rhs.z);
+    return element_equal(element_mul(lhs.x, right_z2), element_mul(rhs.x, left_z2)) &&
+           element_equal(element_mul(element_mul(lhs.y, right_z2), rhs.z),
+                         element_mul(element_mul(rhs.y, left_z2), lhs.z));
+}
+
+}  // namespace
+
+std::uint64_t schoof_trace_mod_ell(const Curve& curve, std::uint64_t ell) {
+    if (curve.is_singular()) {
+        throw std::invalid_argument("Schoof residue requires a nonsingular curve");
+    }
+    if (!is_small_prime(ell) || ell == 2) {
+        throw std::invalid_argument("ell must be an odd prime");
+    }
+    if (mpz_cmp_ui(curve.field().modulus().get_mpz_t(), ell) == 0) {
+        throw std::invalid_argument("ell must differ from p");
+    }
+    if (mpz_probab_prime_p(curve.field().modulus().get_mpz_t(), 25) == 0) {
+        throw std::invalid_argument("Schoof residue requires probable-prime p");
+    }
+
+    const Field& field = curve.field();
+    const Poly psi_ell = division_polynomial(ell, curve);
+    const Poly curve_rhs(field, {curve.b(), curve.a(), 0, 1});
+    const QuotientRing ring{&field, psi_ell, mod(curve_rhs, psi_ell)};
+    const Element x = element(ring, Poly::x(field), Poly(field));
+    const Element y = element(ring, Poly(field), Poly::constant(field, 1));
+    const Element one = constant(ring, 1);
+    const JacobianPoint generic{x, y, one};
+    const Element f = element(ring, curve_rhs, Poly(field));
+    const mpz_class p = field.modulus();
+    const JacobianPoint frobenius{
+        element_pow(x, p),
+        element_mul(y, element_pow(f, (p - 1) / 2)),
+        one,
+    };
+    const mpz_class p_squared = p * p;
+    const JacobianPoint frobenius_squared{
+        element_pow(x, p_squared),
+        element_mul(y, element_pow(f, (p_squared - 1) / 2)),
+        one,
+    };
+    const std::uint64_t p_mod_ell = mpz_fdiv_ui(p.get_mpz_t(), ell);
+    const JacobianPoint lhs = point_add(
+        frobenius_squared, scalar_multiply(p_mod_ell, generic, curve.a()), curve.a());
+    std::vector<std::uint64_t> matches;
+    for (std::uint64_t residue = 0; residue < ell; ++residue) {
+        if (same_point(lhs, scalar_multiply(residue, frobenius, curve.a()))) {
+            matches.push_back(residue);
+        }
+    }
+    if (matches.size() != 1U) {
+        throw std::runtime_error("Schoof characteristic equation did not have a unique residue");
+    }
+    return matches.front();
+}
+
+}  // namespace oneshotsea

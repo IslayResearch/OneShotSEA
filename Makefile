@@ -6,10 +6,11 @@ LDFLAGS ?= -L$(GMP_PREFIX)/lib
 LDLIBS ?= -lgmpxx -lgmp
 
 BUILD_DIR := build
-LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp
+LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp \
+	src/early_abort.cpp src/schoof.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 
-.PHONY: all test test-oracle test-differential test-all clean
+.PHONY: all test test-reference test-verifier test-oracle test-differential test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -31,13 +32,20 @@ $(BUILD_DIR)/test_core: tests/test_core.cpp $(BUILD_DIR)/liboneshotsea.a
 test: $(BUILD_DIR)/test_core
 	./$(BUILD_DIR)/test_core
 
+test-reference:
+	python3 -m unittest -v reference/test_schoof.py
+
+test-verifier:
+	python3 third_party/oneshot_primality_proofs/verify_vendor.py
+	python3 third_party/oneshot_primality_proofs/voneshot.py --test
+
 test-oracle:
 	python3 oracle/test_point_count.py -v
 
 test-differential: all
 	python3 tests/test_oracle_differential.py -v
 
-test-all: test test-oracle test-differential
+test-all: test test-reference test-verifier test-oracle test-differential
 
 clean:
 	rm -rf $(BUILD_DIR)

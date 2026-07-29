@@ -1,6 +1,8 @@
 #include "oneshotsea/curve.hpp"
+#include "oneshotsea/early_abort.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/poly.hpp"
+#include "oneshotsea/schoof.hpp"
 #include "oneshotsea/trace.hpp"
 
 #include <algorithm>
@@ -66,6 +68,32 @@ void test_curves() {
     const auto c0 = oneshotsea::deterministic_curve(101, 7, 11);
     const auto c1 = oneshotsea::deterministic_curve(101, 7, 11);
     check(c0.a() == c1.a() && c0.b() == c1.b(), "deterministic curve mapping");
+
+    const oneshotsea::MontgomeryCurve montgomery(oneshotsea::Field(101), 7);
+    check(!montgomery.is_singular(), "nonsingular Montgomery curve");
+    const auto short_curve = montgomery.short_weierstrass();
+    check(short_curve.j_invariant() == montgomery.j_invariant(),
+          "Montgomery/short j-invariant");
+    for (unsigned long x_montgomery = 0; x_montgomery < 20; ++x_montgomery) {
+        const mpz_class x_short = montgomery.short_x(x_montgomery);
+        check(montgomery.montgomery_x(x_short) == x_montgomery,
+              "Montgomery x-coordinate roundtrip");
+        const mpz_class montgomery_rhs = montgomery.field().add(
+            montgomery.field().add(
+                montgomery.field().mul(montgomery.field().square(x_montgomery), x_montgomery),
+                montgomery.field().mul(
+                    montgomery.coefficient(), montgomery.field().square(x_montgomery))),
+            x_montgomery);
+        const mpz_class short_rhs = short_curve.field().add(
+            short_curve.field().add(
+                short_curve.field().mul(short_curve.field().square(x_short), x_short),
+                short_curve.field().mul(short_curve.a(), x_short)),
+            short_curve.b());
+        check(montgomery_rhs == short_rhs, "Montgomery/short curve equation");
+    }
+    const auto m0 = oneshotsea::deterministic_montgomery_curve(101, 19, 23);
+    const auto m1 = oneshotsea::deterministic_montgomery_curve(101, 19, 23);
+    check(m0.coefficient() == m1.coefficient(), "deterministic Montgomery mapping");
 }
 
 void test_modular_polynomials() {
@@ -151,6 +179,54 @@ void test_trace_constraints() {
     check(elkies.size() + atkin.size() == 3, "classification covers all residues");
 }
 
+void test_early_abort() {
+    check(oneshotsea::trial_smooth_part(2 * 2 * 3 * 7 * 11, 7) == 2 * 2 * 3 * 7,
+          "trial smooth part");
+    check(oneshotsea::certificate_lower_bound(101) == 17,
+          "integer certificate lower bound");
+
+    oneshotsea::TraceConstraints constraints(101);
+    constraints.refine(41, {0});  // only trace zero lies in [-20,20]
+    const auto rejected = oneshotsea::screen_order_candidates(
+        constraints, 4, 20,
+        [](const mpz_class& order) { return oneshotsea::trial_smooth_part(order, 3); });
+    check(rejected.has_value() && rejected->trace_count == 1,
+          "early-abort exhaustive trace set");
+    check(rejected->rejects_curve(), "sound screen rejects both sides");
+
+    const auto retained = oneshotsea::screen_order_candidates(
+        constraints, 4, 5,
+        [](const mpz_class& order) { return oneshotsea::trial_smooth_part(order, 3); });
+    check(retained.has_value() && retained->survivors.size() == 2,
+          "sound screen retains curve and twist");
+
+    oneshotsea::TraceConstraints many(101);
+    check(!oneshotsea::screen_order_candidates(
+               many, 4, 1, [](const mpz_class&) { return mpz_class(1); })
+               .has_value(),
+          "early-abort cap prevents incomplete enumeration");
+}
+
+void test_schoof_residues() {
+    for (const unsigned long p : {11UL, 17UL, 23UL, 29UL}) {
+        for (unsigned long index = 0; index < 3; ++index) {
+            const auto curve = oneshotsea::deterministic_curve(p, 0x5c400f, index);
+            if (curve.is_singular()) {
+                continue;
+            }
+            const mpz_class trace = p + 1 - oneshotsea::count_points_bruteforce(curve);
+            for (const std::uint64_t ell : {3U, 5U, 7U}) {
+                if (ell == p) {
+                    continue;
+                }
+                check(oneshotsea::schoof_trace_mod_ell(curve, ell) ==
+                          mpz_fdiv_ui(trace.get_mpz_t(), ell),
+                      "native Schoof trace residue");
+            }
+        }
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -160,6 +236,8 @@ int main() {
         test_curves();
         test_modular_polynomials();
         test_trace_constraints();
+        test_early_abort();
+        test_schoof_residues();
         std::cout << "core tests: ok\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

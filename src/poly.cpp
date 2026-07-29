@@ -208,4 +208,9 @@ int rational_root_count(const Poly& polynomial) {
     return split.degree();
 }
 
+bool equal(const Poly& lhs, const Poly& rhs) {
+    require_same_field(lhs, rhs);
+    return lhs.coefficients() == rhs.coefficients();
+}
+
 }  // namespace oneshotsea

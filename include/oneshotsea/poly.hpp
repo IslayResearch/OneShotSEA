@@ -44,5 +44,6 @@ Poly mod(const Poly& numerator, const Poly& denominator);
 Poly gcd(Poly lhs, Poly rhs);
 Poly powmod(Poly base, mpz_class exponent, const Poly& modulus);
 int rational_root_count(const Poly& polynomial);
+bool equal(const Poly& lhs, const Poly& rhs);
 
 }  // namespace oneshotsea

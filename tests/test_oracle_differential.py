@@ -98,6 +98,35 @@ class NativeOracleDifferentialTests(unittest.TestCase):
                 checked += 1
         self.assertGreaterEqual(checked, 35)
 
+    def test_native_schoof_residues_against_magma_trace(self) -> None:
+        assert MAGMA is not None
+        checked = 0
+        for p in self.PRIMES[:4]:
+            for index in range(4):
+                curve = native("curve", "--p", p, "--seed", 0x5C400F, "--index", index)
+                if curve["singular"]:
+                    continue
+                a = int(curve["a"])
+                b = int(curve["b"])
+                trace = point_count.count_curve(MAGMA, p, a, b)["trace"]
+                for ell in (3, 5, 7):
+                    if ell == p:
+                        continue
+                    residue = native(
+                        "schoof-residue",
+                        "--p",
+                        p,
+                        "--a",
+                        a,
+                        "--b",
+                        b,
+                        "--ell",
+                        ell,
+                    )
+                    self.assertEqual(int(residue["trace_residue"]), trace % ell)
+                    checked += 1
+        self.assertGreaterEqual(checked, 40)
+
 
 if __name__ == "__main__":
     try:

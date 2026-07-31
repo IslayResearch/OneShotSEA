@@ -1,0 +1,16 @@
+{
+  "schema": "oneshotsea.trusted-smooth-cache-manifest.v1",
+  "caches": [
+    {
+      "bit_length": "416",
+      "bound": "29948379136",
+      "prime_count": "1297866953",
+      "product_bytes": "5400759974",
+      "sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+      "builder_commit": "25dd0fb29a90d2bacc5bee8009b4a1a23c1e2c05",
+      "builder_binary_id": "binary-sha256:3d535909ba6b8debbf52feb47a01af0d",
+      "build_segment_span": "500000000",
+      "build_threads": "9"
+    }
+  ]
+}

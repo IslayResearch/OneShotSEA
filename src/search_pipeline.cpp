@@ -891,6 +891,7 @@ SearchCurveReport process_search_curve(
                 pass,
                 level.ell,
                 level.exact,
+                level.timings.modular_root_workers,
                 level.timings.source_lifts_us,
                 level.timings.modular_roots_us,
                 level.timings.normalized_codomain_us,
@@ -900,7 +901,7 @@ SearchCurveReport process_search_curve(
         };
         WeberSeaResult result = run_weber_sea_reference(
             pair.curve, config.table_directory.string(), config.max_level,
-            trace_cap, progress);
+            trace_cap, progress, config.sea_threads);
         report.timings.sea_us += elapsed_us(stage_start);
         ++report.sea_passes;
         report.sea_levels += result.levels.size();
@@ -1332,7 +1333,9 @@ std::string search_curve_report_json(const SearchCurveReport& report,
         output << "{\"pass\":\"" << level.pass << "\",\"ell\":\""
                << level.ell << "\",\"exact\":"
                << (level.exact ? "true" : "false")
-               << ",\"source_lifts_us\":\"" << level.source_lifts_us
+               << ",\"modular_root_workers\":\""
+               << level.modular_root_workers
+               << "\",\"source_lifts_us\":\"" << level.source_lifts_us
                << "\",\"modular_roots_us\":\"" << level.modular_roots_us
                << "\",\"normalized_codomain_us\":\""
                << level.normalized_codomain_us << "\",\"bmss_us\":\""

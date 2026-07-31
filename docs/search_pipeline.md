@@ -69,7 +69,7 @@ survives early screening.  Increasing the range does not remedy an inadequate
 table schedule.
 
 Useful resource caps include `--max-curves`, `--checkpoint-every`,
-`--smooth-threads`, `--smooth-max-batch`,
+`--sea-threads`, `--smooth-threads`, `--smooth-max-batch`,
 `--smooth-root-auxiliary-bytes`, `--smooth-build-segment-span`,
 `--assembly-attempts`,
 `--max-certificate-candidates`, and `--max-candidate-search-nodes`.  Reaching
@@ -83,6 +83,12 @@ memory used while constructing a new full smooth cache; it does not change the
 prime product.  A capped run can be resumed with the identical command.
 Resource settings that cannot change mathematical output are logged but are
 not part of the semantic schedule identity.
+
+`--sea-threads N` bounds the number of concurrent modular-root jobs within
+each Weber SEA level.  Zero selects the host's reported hardware concurrency
+(falling back to one); a positive value is a strict ceiling and the actual
+worker count is also capped by the number of source lifts.  Long or distributed
+runs should set it explicitly so their resource use is reproducible.
 
 The search defaults to `--trace-cap 64` and `--smooth-max-batch 128`: each
 complete trace contributes a curve and twist order, so the largest default

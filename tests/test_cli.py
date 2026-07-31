@@ -133,10 +133,15 @@ class CliTests(unittest.TestCase):
             ROOT / "data" / "modpoly" / "weber_f",
             "--trace-cap",
             1,
+            "--sea-threads",
+            1,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         records = [json.loads(line) for line in result.stdout.splitlines()]
         self.assertEqual([record["ell"] for record in records[:-1]], [5, 7, 11])
+        self.assertTrue(
+            all(record["modular_root_workers"] == 1 for record in records[:-1])
+        )
         self.assertEqual(
             [record["exact"] for record in records[:-1]], [True, False, True]
         )
@@ -181,6 +186,7 @@ class CliTests(unittest.TestCase):
                 "--worker-count", 1,
                 "--max-level", 11,
                 "--trace-cap", 16,
+                "--sea-threads", 2,
                 "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
                 "--smooth-cache", root / "smooth.cache",
                 "--checkpoint", root / "checkpoint.json",
@@ -195,6 +201,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(len(records[0]["table_manifest_sha256"]), 64)
             self.assertEqual(len(records[0]["verifier_sha256"]), 64)
             self.assertFalse(records[0]["heuristic_rejection"])
+            self.assertEqual(records[0]["resources"]["sea_threads"], "2")
             self.assertEqual(
                 records[0]["resources"]["smooth_root_auxiliary_bytes"],
                 str(128 * 1024 * 1024),
@@ -209,6 +216,12 @@ class CliTests(unittest.TestCase):
                              "verified_certificate")
             self.assertEqual(curve_records[-1]["certificate"]["line"],
                              "101 35 25 28")
+            self.assertTrue(
+                all(
+                    1 <= int(level["modular_root_workers"]) <= 2
+                    for level in curve_records[-1]["sea_level_timings"]
+                )
+            )
             self.assertEqual((root / "certificate.txt").read_text(),
                              "101 35 25 28\n")
             self.assertTrue((root / "checkpoint.json").is_file())
@@ -248,6 +261,7 @@ class CliTests(unittest.TestCase):
             start = json.loads(built.stdout.splitlines()[0])
             self.assertEqual(start["resources"]["trace_cap"], "64")
             self.assertEqual(start["resources"]["smooth_max_batch"], "128")
+            self.assertEqual(start["resources"]["sea_threads"], "0")
             self.assert_rejected(
                 *common, "--checkpoint", root / "fresh.json"
             )

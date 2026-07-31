@@ -28,6 +28,10 @@ struct SearchPipelineConfig {
     // twist order, so 64 traces fill the search CLI's 128-order default.  A
     // larger cap can make an early exact screen slower than finishing SEA.
     std::size_t early_trace_cap = 64;
+    // Maximum concurrent modular-root jobs inside SEA. Zero selects the
+    // available CPU concurrency. This is a resource setting and deliberately
+    // does not alter the deterministic schedule/checkpoint identity.
+    std::size_t sea_threads = 0;
     std::size_t assembly_attempts = 400;
     std::size_t max_certificate_candidates = 100000;
     std::size_t max_candidate_search_nodes = 1000000;
@@ -69,6 +73,7 @@ struct SearchSeaLevelTiming {
     std::size_t pass = 0;
     std::uint64_t ell = 0;
     bool exact = false;
+    std::size_t modular_root_workers = 0;
     std::uint64_t source_lifts_us = 0;
     std::uint64_t modular_roots_us = 0;
     std::uint64_t normalized_codomain_us = 0;

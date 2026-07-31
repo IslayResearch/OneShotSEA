@@ -32,6 +32,7 @@ Options:
   --max-curves N                      Stop after at most N curves (0 means none)
   --checkpoint-every N                Checkpoint interval
   --trace-cap N                       Early complete-trace-set cap
+  --sea-threads N                     SEA modular-root workers (0 is automatic)
   --smooth-threads N                  Exact-smooth worker threads (0 is automatic)
   --smooth-max-batch N                Maximum orders per exact-smooth batch
   --smooth-root-auxiliary-bytes N     Root-reduction auxiliary-memory cap
@@ -81,6 +82,7 @@ while (( $# )); do
     --max-curves) append_uint_option max-curves "${2:-}"; shift 2 ;;
     --checkpoint-every) append_positive_uint_option checkpoint-every "${2:-}"; shift 2 ;;
     --trace-cap) append_positive_uint_option trace-cap "${2:-}"; shift 2 ;;
+    --sea-threads) append_uint_option sea-threads "${2:-}"; shift 2 ;;
     --smooth-threads) append_uint_option smooth-threads "${2:-}"; shift 2 ;;
     --smooth-max-batch) append_positive_uint_option smooth-max-batch "${2:-}"; shift 2 ;;
     --smooth-root-auxiliary-bytes) append_positive_uint_option smooth-root-auxiliary-bytes "${2:-}"; shift 2 ;;

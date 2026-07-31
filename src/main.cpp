@@ -106,8 +106,8 @@ void usage() {
         << "  oneshotsea elkies-bmss-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
-        << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--max-curves N]\n"
+        << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--sea-threads N] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -129,6 +129,8 @@ int main(int argc, char** argv) {
             config.max_level = required_u64(options, "max-level");
             const std::uint64_t trace_cap = optional_u64(
                 options, "trace-cap", config.early_trace_cap);
+            const std::uint64_t sea_threads = optional_u64(
+                options, "sea-threads", 0U);
             const std::uint64_t assembly_attempts = optional_u64(
                 options, "assembly-attempts", 400U);
             const std::uint64_t max_certificate_candidates = optional_u64(
@@ -136,6 +138,7 @@ int main(int argc, char** argv) {
             const std::uint64_t max_candidate_search_nodes = optional_u64(
                 options, "max-candidate-search-nodes", 1000000U);
             if (trace_cap > std::numeric_limits<std::size_t>::max() ||
+                sea_threads > std::numeric_limits<std::size_t>::max() ||
                 assembly_attempts > std::numeric_limits<std::size_t>::max() ||
                 max_certificate_candidates == 0U ||
                 max_certificate_candidates >
@@ -146,6 +149,7 @@ int main(int argc, char** argv) {
                 throw std::invalid_argument("search size option is out of range");
             }
             config.early_trace_cap = static_cast<std::size_t>(trace_cap);
+            config.sea_threads = static_cast<std::size_t>(sea_threads);
             config.assembly_attempts =
                 static_cast<std::size_t>(assembly_attempts);
             config.max_certificate_candidates =
@@ -317,6 +321,7 @@ int main(int argc, char** argv) {
                       << smooth_root_auxiliary_bytes
                       << "\",\"smooth_build_segment_span\":\""
                       << smooth_build_segment_span
+                      << "\",\"sea_threads\":\"" << config.sea_threads
                       << "\",\"assembly_attempts\":\""
                       << config.assembly_attempts << "\",\"trace_cap\":\""
                       << config.early_trace_cap
@@ -418,8 +423,12 @@ int main(int argc, char** argv) {
         if (command == "sea-weber-count") {
             const std::uint64_t max_level = required_u64(options, "max-level");
             const std::uint64_t trace_cap_u64 = required_u64(options, "trace-cap");
-            if (trace_cap_u64 > std::numeric_limits<std::size_t>::max()) {
-                throw std::invalid_argument("--trace-cap is out of range");
+            const std::uint64_t sea_threads_u64 = optional_u64(
+                options, "sea-threads", 0U);
+            if (trace_cap_u64 > std::numeric_limits<std::size_t>::max() ||
+                sea_threads_u64 > std::numeric_limits<std::size_t>::max()) {
+                throw std::invalid_argument(
+                    "--trace-cap or --sea-threads is out of range");
             }
             const auto progress = [](const oneshotsea::WeberSeaLevelRecord& record) {
                 std::cout << "{\"type\":\"level\",\"ell\":" << record.ell
@@ -432,6 +441,8 @@ int main(int argc, char** argv) {
                           << record.trace_candidate_count
                           << "\",\"compatible_source_lifts\":"
                           << record.compatible_source_lifts
+                          << ",\"modular_root_workers\":"
+                          << record.timings.modular_root_workers
                           << ",\"timings_us\":{\"source_lifts\":"
                           << record.timings.source_lifts_us
                           << ",\"modular_roots\":"
@@ -452,7 +463,8 @@ int main(int argc, char** argv) {
             };
             const auto result = oneshotsea::run_weber_sea_reference(
                 curve, required(options, "table-dir"), max_level,
-                static_cast<std::size_t>(trace_cap_u64), progress);
+                static_cast<std::size_t>(trace_cap_u64), progress,
+                static_cast<std::size_t>(sea_threads_u64));
             std::cout << "{\"type\":\"summary\",\"exact_modulus\":\""
                       << result.constraints.modulus()
                       << "\",\"trace_candidates\":\""
@@ -535,7 +547,9 @@ int main(int argc, char** argv) {
                 std::cout << ",\"trace_residue\":" << residue;
             }
             if (command == "elkies-weber-residue") {
-                std::cout << ",\"timings_us\":{\"source_lifts\":"
+                std::cout << ",\"modular_root_workers\":"
+                          << weber_timings.modular_root_workers
+                          << ",\"timings_us\":{\"source_lifts\":"
                           << weber_timings.source_lifts_us
                           << ",\"modular_roots\":"
                           << weber_timings.modular_roots_us

@@ -273,27 +273,62 @@ void test_weber_sea_runner() {
     const auto phi5 = oneshotsea::SparseModularPolynomial::load(
         5, "data/modpoly/weber_f/phi_5.txt");
     const oneshotsea::Curve curve(oneshotsea::Field(193), 148, 168);
-    const auto level =
-        oneshotsea::compute_weber_elkies_level_reference(curve, phi5);
-    check(!level.kernels.empty() && level.kernels.front().trace_residue == 4,
+    const auto serial_level = oneshotsea::compute_weber_elkies_level_reference(
+        curve, phi5, nullptr, 1);
+    const auto parallel_level =
+        oneshotsea::compute_weber_elkies_level_reference(
+            curve, phi5, nullptr, 2);
+    check(!serial_level.kernels.empty() &&
+              serial_level.kernels.front().trace_residue == 4,
           "Weber level returns an exact residue");
-    check(!level.compatible_source_lifts.empty(),
+    check(!serial_level.compatible_source_lifts.empty(),
           "positive Weber level identifies compatible source lifts");
+    check(serial_level.timings.modular_root_workers == 1U &&
+              parallel_level.timings.modular_root_workers == 2U,
+          "Weber modular-root concurrency obeys its configured ceiling");
+    check(parallel_level.compatible_source_lifts ==
+                  serial_level.compatible_source_lifts &&
+              parallel_level.kernels.size() == serial_level.kernels.size(),
+          "bounded parallel root extraction preserves deterministic results");
+    for (std::size_t index = 0; index < serial_level.kernels.size(); ++index) {
+        check(parallel_level.kernels[index].trace_residue ==
+                      serial_level.kernels[index].trace_residue &&
+                  parallel_level.kernels[index].neighbor_j ==
+                      serial_level.kernels[index].neighbor_j &&
+                  oneshotsea::equal(parallel_level.kernels[index].kernel,
+                                    serial_level.kernels[index].kernel),
+              "bounded parallel root extraction preserves kernel order");
+    }
 
     const std::vector<mpz_class> mixed_lifts = {
-        level.compatible_source_lifts.front(), 0};
+        serial_level.compatible_source_lifts.front(), 0};
     const auto narrowed = oneshotsea::compute_weber_elkies_level_reference(
-        curve, phi5, &mixed_lifts);
+        curve, phi5, &mixed_lifts, 64);
     check(narrowed.compatible_source_lifts ==
               std::vector<mpz_class>({mixed_lifts.front()}),
           "Weber level safely narrows a source-lift state");
+    check(narrowed.timings.modular_root_workers == mixed_lifts.size(),
+          "Weber modular-root workers are capped by available work");
 
+    const auto serial_result = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 11, 1, {}, 1);
     const auto result = oneshotsea::run_weber_sea_reference(
-        curve, "data/modpoly/weber_f", 11, 1);
+        curve, "data/modpoly/weber_f", 11, 1, {}, 2);
     check(result.traces.has_value() &&
               *result.traces ==
                   std::vector<mpz_class>{oneshotsea::parse_integer("-6")},
           "stateful Weber SEA runner recovers the exact trace");
+    check(serial_result.traces == result.traces &&
+              serial_result.compatible_source_lifts ==
+                  result.compatible_source_lifts,
+          "SEA result is independent of its modular-root thread limit");
+    check(std::all_of(
+              result.levels.begin(), result.levels.end(),
+              [](const oneshotsea::WeberSeaLevelRecord& record) {
+                  return record.timings.modular_root_workers >= 1U &&
+                         record.timings.modular_root_workers <= 2U;
+              }),
+          "every SEA level reports bounded modular-root workers");
     check(result.constraints.modulus() == 55 && result.levels.size() == 3,
           "stateful Weber SEA runner accumulates exact levels only");
     check(result.levels[1].ell == 7 && !result.levels[1].exact,

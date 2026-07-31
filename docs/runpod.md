@@ -173,6 +173,7 @@ search --p P
 --range-start FIRST --range-end EXCLUSIVE
 --seed SEED
 --max-level L
+--sea-threads N
 --table-dir PATH
 --smooth-cache PATH --smooth-cache-sha256 TRUSTED_SHA256
 --checkpoint PATH
@@ -231,6 +232,7 @@ scripts/runpod/launch-worker.sh \
   --range-start 0 --range-end 1000000000 \
   --seed 202607290000 \
   --max-level 401 \
+  --sea-threads 8 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache "$SMOOTH_CACHE" \
   --smooth-cache-sha256 "$SMOOTH_CACHE_SHA256"
@@ -242,6 +244,7 @@ scripts/runpod/launch-worker.sh \
   --range-start 0 --range-end 1000000000 \
   --seed 202607290000 \
   --max-level 401 \
+  --sea-threads 8 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache "$SMOOTH_CACHE" \
   --smooth-cache-sha256 "$SMOOTH_CACHE_SHA256" \
@@ -250,7 +253,7 @@ scripts/runpod/launch-worker.sh \
 
 Repeat with worker ids 1 through 3, changing no other search-identity value.
 The launcher accepts only explicit resource controls such as `--trace-cap`,
-`--smooth-threads`, and `--max-curves`; it has no generic argument passthrough
+`--sea-threads`, `--smooth-threads`, and `--max-curves`; it has no generic argument passthrough
 that could override worker identity or durable output paths.
 
 Each worker gets a `tmux` session named `sea-<run-id>-<worker-id>` and this

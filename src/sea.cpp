@@ -33,7 +33,8 @@ bool count_fits_cap(const mpz_class& count, std::size_t cap) {
 WeberSeaResult run_weber_sea_reference(
     const Curve& curve, const std::string& table_directory,
     std::uint64_t max_level, std::size_t trace_cap,
-    const WeberSeaProgress& progress) {
+    const WeberSeaProgress& progress,
+    std::size_t modular_root_threads) {
     if (curve.is_singular()) {
         throw std::invalid_argument("SEA requires a nonsingular curve");
     }
@@ -71,7 +72,8 @@ WeberSeaResult run_weber_sea_reference(
             SparseModularPolynomial::load(
                 static_cast<unsigned>(ell), table.string());
         WeberElkiesLevelResult level = compute_weber_elkies_level_reference(
-            curve, modular_polynomial, &result.compatible_source_lifts);
+            curve, modular_polynomial, &result.compatible_source_lifts,
+            modular_root_threads);
         std::optional<std::uint64_t> residue;
         if (!level.kernels.empty()) {
             residue = level.kernels.front().trace_residue;

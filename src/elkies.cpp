@@ -5,10 +5,12 @@
 #include "oneshotsea/weber.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <map>
 #include <stdexcept>
+#include <thread>
 
 namespace oneshotsea {
 namespace {
@@ -58,6 +60,18 @@ std::optional<std::uint64_t> common_trace_residue(
         }
     }
     return residue;
+}
+
+std::size_t bounded_worker_count(std::size_t requested,
+                                 std::size_t work_items) {
+    if (work_items == 0U) {
+        return 0U;
+    }
+    if (requested == 0U) {
+        const unsigned available = std::thread::hardware_concurrency();
+        requested = available == 0U ? 1U : static_cast<std::size_t>(available);
+    }
+    return std::min(requested, work_items);
 }
 
 }  // namespace
@@ -264,7 +278,8 @@ std::optional<std::uint64_t> elkies_trace_residue_bmss_reference(
 WeberElkiesLevelResult compute_weber_elkies_level_reference(
     const Curve& curve,
     const SparseModularPolynomial& weber_modular_polynomial,
-    const std::vector<mpz_class>* restricted_source_lifts) {
+    const std::vector<mpz_class>* restricted_source_lifts,
+    std::size_t modular_root_threads) {
     using Clock = std::chrono::steady_clock;
     const auto elapsed_us = [](const Clock::time_point& started) {
         return static_cast<std::uint64_t>(
@@ -297,21 +312,33 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
         }
     };
     started = Clock::now();
-    std::vector<std::future<std::vector<mpz_class>>> root_jobs;
-    root_jobs.reserve(source_lifts->size());
-    for (const mpz_class& source_f : *source_lifts) {
+    std::vector<std::vector<mpz_class>> neighbor_sets(source_lifts->size());
+    measured.modular_root_workers = bounded_worker_count(
+        modular_root_threads, source_lifts->size());
+    std::atomic<std::size_t> next_source_lift{0U};
+    std::vector<std::future<void>> root_jobs;
+    root_jobs.reserve(measured.modular_root_workers);
+    for (std::size_t worker = 0; worker < measured.modular_root_workers;
+         ++worker) {
         root_jobs.push_back(std::async(
             std::launch::async,
-            [&field, &weber_modular_polynomial, source_f]() {
-                const Poly specialized =
-                    weber_modular_polynomial.evaluate_x(field, source_f);
-                return linear_roots(specialized);
+            [&field, &weber_modular_polynomial, source_lifts,
+             &neighbor_sets, &next_source_lift]() {
+                while (true) {
+                    const std::size_t source_index =
+                        next_source_lift.fetch_add(1U);
+                    if (source_index >= source_lifts->size()) {
+                        return;
+                    }
+                    const Poly specialized =
+                        weber_modular_polynomial.evaluate_x(
+                            field, (*source_lifts)[source_index]);
+                    neighbor_sets[source_index] = linear_roots(specialized);
+                }
             }));
     }
-    std::vector<std::vector<mpz_class>> neighbor_sets;
-    neighbor_sets.reserve(root_jobs.size());
     for (auto& job : root_jobs) {
-        neighbor_sets.push_back(job.get());
+        job.get();
     }
     measured.modular_roots_us += elapsed_us(started);
 

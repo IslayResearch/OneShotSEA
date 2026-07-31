@@ -111,7 +111,7 @@ PY
 launcher_common=(
   --prime 101 --worker-id 0 --worker-count 1
   --range-start 0 --range-end 1 --seed 17
-  --max-level 31 --table-dir data/modpoly/weber_f
+  --max-level 31 --table-dir data/modpoly/weber_f --sea-threads 2
   --smooth-cache "$smooth_cache"
   --smooth-cache-sha256 "$smooth_cache_sha256"
 )
@@ -207,7 +207,8 @@ jq -e '
   .global_range == {"start":"0","end":"1","count":"1"} and
   .assigned_range == {"start":"0","end":"1","count":"1"} and
   (.deployment_commit | test("^[0-9a-f]{40}$")) and
-  .command_argv[1] == "search" and
+    .command_argv[1] == "search" and
+  (.command_argv | index("--sea-threads") != null) and
   (.command_argv | index("--smooth-cache-sha256") != null) and
   (.command_argv | index("--progress") != null) and
   (.command_argv | index("--certificate-out") != null)

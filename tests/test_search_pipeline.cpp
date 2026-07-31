@@ -315,15 +315,21 @@ void test_sea_level_limit_does_not_advance_cursor() {
 }
 
 void test_worker_partition_is_identity_bound() {
-    const oneshotsea::SearchPipelineConfig config = small_config();
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.sea_threads = 1;
     const std::string digest(64U, 'a');
     const auto identity = oneshotsea::make_search_identity(
+        config, {10, 21}, 2, 3, digest, digest, "pipeline-test-v1");
+    config.sea_threads = 8;
+    const auto differently_threaded = oneshotsea::make_search_identity(
         config, {10, 21}, 2, 3, digest, digest, "pipeline-test-v1");
     check(identity.range == oneshotsea::SearchRange{18, 21},
           "pipeline identity uses deterministic disjoint worker shard");
     check(identity.schedule_sha256.size() == 64U &&
               identity.table_manifest_sha256.size() == 64U,
           "pipeline identity binds schedule and table content");
+    check(differently_threaded == identity,
+          "SEA thread limit is a resumable resource setting, not an identity");
 }
 
 void test_bounded_early_screen_default() {

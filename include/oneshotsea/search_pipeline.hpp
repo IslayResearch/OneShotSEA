@@ -26,6 +26,8 @@ struct SearchPipelineConfig {
     std::uint64_t max_level = 0;
     std::size_t early_trace_cap = 4096;
     std::size_t assembly_attempts = 400;
+    std::size_t max_certificate_candidates = 100000;
+    std::size_t max_candidate_search_nodes = 1000000;
     std::uint64_t certificate_seed = 1;
     std::filesystem::path canonical_verifier;
     std::string python_executable = "python3";
@@ -86,6 +88,7 @@ struct SearchCurveReport {
     bool certificate_uses_odd_only = false;
     MontgomerySide certificate_montgomery_side = MontgomerySide::either;
     std::size_t candidate_attempts = 0;
+    std::size_t candidate_search_nodes = 0;
     std::size_t assembly_attempts = 0;
     std::size_t canonical_rejections = 0;
     std::optional<MontgomeryCertificate> certificate;

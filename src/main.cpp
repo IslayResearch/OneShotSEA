@@ -130,13 +130,27 @@ int main(int argc, char** argv) {
                 options, "trace-cap", 4096U);
             const std::uint64_t assembly_attempts = optional_u64(
                 options, "assembly-attempts", 400U);
+            const std::uint64_t max_certificate_candidates = optional_u64(
+                options, "max-certificate-candidates", 100000U);
+            const std::uint64_t max_candidate_search_nodes = optional_u64(
+                options, "max-candidate-search-nodes", 1000000U);
             if (trace_cap > std::numeric_limits<std::size_t>::max() ||
-                assembly_attempts > std::numeric_limits<std::size_t>::max()) {
+                assembly_attempts > std::numeric_limits<std::size_t>::max() ||
+                max_certificate_candidates == 0U ||
+                max_certificate_candidates >
+                    std::numeric_limits<std::size_t>::max() ||
+                max_candidate_search_nodes == 0U ||
+                max_candidate_search_nodes >
+                    std::numeric_limits<std::size_t>::max()) {
                 throw std::invalid_argument("search size option is out of range");
             }
             config.early_trace_cap = static_cast<std::size_t>(trace_cap);
             config.assembly_attempts =
                 static_cast<std::size_t>(assembly_attempts);
+            config.max_certificate_candidates =
+                static_cast<std::size_t>(max_certificate_candidates);
+            config.max_candidate_search_nodes =
+                static_cast<std::size_t>(max_candidate_search_nodes);
             config.certificate_seed = optional_u64(
                 options, "certificate-seed", 1U);
             if (options.contains("verifier")) {
@@ -296,7 +310,12 @@ int main(int argc, char** argv) {
                       << smooth_build_segment_span
                       << "\",\"assembly_attempts\":\""
                       << config.assembly_attempts << "\",\"trace_cap\":\""
-                      << config.early_trace_cap << "\"}}\n" << std::flush;
+                      << config.early_trace_cap
+                      << "\",\"max_certificate_candidates\":\""
+                      << config.max_certificate_candidates
+                      << "\",\"max_candidate_search_nodes\":\""
+                      << config.max_candidate_search_nodes << "\"}}\n"
+                      << std::flush;
             const auto callback = [](const oneshotsea::SearchCurveReport& report,
                                      const oneshotsea::SearchState& current) {
                 std::cout << oneshotsea::search_curve_report_json(report, current)

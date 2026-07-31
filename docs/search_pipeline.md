@@ -66,7 +66,11 @@ the range does not remedy an inadequate table schedule.
 
 Useful resource caps include `--max-curves`, `--checkpoint-every`,
 `--smooth-threads`, `--smooth-max-batch`,
-`--smooth-build-segment-span`, and `--assembly-attempts`.  The segmented-build
+`--smooth-build-segment-span`, `--assembly-attempts`,
+`--max-certificate-candidates`, and `--max-candidate-search-nodes`.  Reaching
+either candidate-enumeration bound aborts before the curve cursor advances, so
+the same worker can be resumed with a larger cap without skipping a possible
+certificate.  The segmented-build
 span bounds the transient sieve/product-tree memory used while constructing a
 new full smooth cache; it does not change the prime product.  A capped run can
 be resumed with the identical command.  Resource settings that cannot change

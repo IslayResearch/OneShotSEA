@@ -516,9 +516,14 @@ CandidateResult prepare_certificate_candidate(
 CandidateEnumerationResult enumerate_certificate_candidates(
     const mpz_class& prime, const mpz_class& order,
     const mpz_class& smooth_part,
-    const CertificateCandidateVisitor& visitor) {
+    const CertificateCandidateVisitor& visitor,
+    CandidateEnumerationLimits limits) {
     if (!visitor) {
         throw std::invalid_argument("certificate candidate visitor is empty");
+    }
+    if (limits.max_candidates == 0U || limits.max_search_nodes == 0U) {
+        throw std::invalid_argument(
+            "certificate candidate enumeration limits must be positive");
     }
 
     // Use the compatibility entry point for validation and to retain its
@@ -528,18 +533,24 @@ CandidateEnumerationResult enumerate_certificate_candidates(
         prime, order, smooth_part, false);
     if (preferred.failure != CandidateFailure::none &&
         preferred.failure != CandidateFailure::no_admissible_divisor) {
-        return {preferred.failure, 0, false};
+        CandidateEnumerationResult result;
+        result.failure = preferred.failure;
+        return result;
     }
 
     CertificateBounds bounds;
     try {
         bounds = canonical_certificate_bounds(prime);
     } catch (const std::overflow_error&) {
-        return {CandidateFailure::unsupported_bit_length, 0, false};
+        CandidateEnumerationResult result;
+        result.failure = CandidateFailure::unsupported_bit_length;
+        return result;
     }
     const auto factorization = factor_known_smooth(smooth_part, bounds.n4);
     if (!factorization.has_value()) {
-        return {CandidateFailure::no_admissible_divisor, 0, false};
+        CandidateEnumerationResult result;
+        result.failure = CandidateFailure::no_admissible_divisor;
+        return result;
     }
 
     CandidateEnumerationResult result;
@@ -547,6 +558,10 @@ CandidateEnumerationResult enumerate_certificate_candidates(
     std::optional<mpz_class> second_preferred_order;
     auto visit = [&](const CertificateCandidate& candidate,
                      CandidateOrigin origin) {
+        if (result.candidates_visited == limits.max_candidates) {
+            result.limit = CandidateEnumerationResult::Limit::candidates;
+            return false;
+        }
         ++result.candidates_visited;
         if (!visitor(candidate, origin)) {
             result.stopped_early = true;
@@ -595,7 +610,17 @@ CandidateEnumerationResult enumerate_certificate_candidates(
 
         std::function<void(std::size_t, const mpz_class&)> descend;
         descend = [&](std::size_t index, const mpz_class& partial) {
-            if (!keep_going || partial >= upper_bound ||
+            if (!keep_going) {
+                return;
+            }
+            if (result.search_nodes_visited == limits.max_search_nodes) {
+                result.limit =
+                    CandidateEnumerationResult::Limit::search_nodes;
+                keep_going = false;
+                return;
+            }
+            ++result.search_nodes_visited;
+            if (partial >= upper_bound ||
                 partial * suffix_maximum[index] <=
                     bounds.lower_order_bound) {
                 return;
@@ -639,7 +664,8 @@ CandidateEnumerationResult enumerate_certificate_candidates(
         };
         descend(least_index, 1);
     }
-    if (result.candidates_visited == 0U) {
+    if (result.candidates_visited == 0U &&
+        result.limit == CandidateEnumerationResult::Limit::none) {
         result.failure = CandidateFailure::no_admissible_divisor;
     }
     return result;

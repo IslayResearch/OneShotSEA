@@ -229,7 +229,9 @@ void validate_config(const SearchPipelineConfig& config,
             "search target must be an odd probable prime greater than seven");
     }
     if (config.max_level < 5U || config.early_trace_cap == 0U ||
-        config.assembly_attempts == 0U) {
+        config.assembly_attempts == 0U ||
+        config.max_certificate_candidates == 0U ||
+        config.max_candidate_search_nodes == 0U) {
         throw std::invalid_argument("invalid SEA/search resource limit");
     }
     if (!std::filesystem::is_directory(config.table_directory)) {
@@ -939,6 +941,17 @@ SearchCurveReport process_search_curve(
 
     bool had_candidate = false;
     for (const PreparedOrder& order : orders) {
+        if (report.candidate_attempts ==
+                config.max_certificate_candidates ||
+            report.candidate_search_nodes ==
+                config.max_candidate_search_nodes) {
+            throw std::runtime_error(
+                "certificate candidate enumeration limit reached before both order classes were exhausted");
+        }
+        const CandidateEnumerationLimits remaining_limits{
+            config.max_certificate_candidates - report.candidate_attempts,
+            config.max_candidate_search_nodes - report.candidate_search_nodes,
+        };
         const Clock::time_point enumeration_start = Clock::now();
         std::uint64_t visitor_us = 0;
         const CandidateEnumerationResult enumeration =
@@ -1001,7 +1014,8 @@ SearchCurveReport process_search_curve(
             }
             visitor_us += elapsed_us(visitor_start);
             return true;
-        });
+        }, remaining_limits);
+        report.candidate_search_nodes += enumeration.search_nodes_visited;
         const std::uint64_t enumeration_total_us =
             elapsed_us(enumeration_start);
         if (enumeration_total_us >= visitor_us) {
@@ -1009,6 +1023,14 @@ SearchCurveReport process_search_curve(
         }
         if (report.certificate.has_value()) {
             return report;
+        }
+        if (enumeration.limit !=
+            CandidateEnumerationResult::Limit::none) {
+            throw std::runtime_error(
+                enumeration.limit ==
+                        CandidateEnumerationResult::Limit::candidates
+                    ? "certificate candidate limit reached; rerun with a larger --max-certificate-candidates"
+                    : "candidate DFS node limit reached; rerun with a larger --max-candidate-search-nodes");
         }
         if (enumeration.failure != CandidateFailure::none &&
             enumeration.failure != CandidateFailure::no_admissible_divisor) {
@@ -1217,6 +1239,8 @@ std::string search_curve_report_json(const SearchCurveReport& report,
         output << ",\"trace\":\"" << *report.exact_trace << '"';
     }
     output << ",\"candidate_attempts\":\"" << report.candidate_attempts
+           << "\",\"candidate_search_nodes\":\""
+           << report.candidate_search_nodes
            << "\",\"assembly_calls\":\"" << report.assembly_attempts
            << "\",\"canonical_rejections\":\""
            << report.canonical_rejections << "\",\"timings_us\":{"

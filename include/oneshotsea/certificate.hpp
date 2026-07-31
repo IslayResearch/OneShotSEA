@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -81,13 +82,25 @@ using CertificateCandidateVisitor = std::function<bool(
 struct CandidateEnumerationResult {
     CandidateFailure failure = CandidateFailure::none;
     std::size_t candidates_visited = 0;
+    std::size_t search_nodes_visited = 0;
     bool stopped_early = false;
+    enum class Limit {
+        none,
+        candidates,
+        search_nodes,
+    } limit = Limit::none;
+};
+
+struct CandidateEnumerationLimits {
+    std::size_t max_candidates = std::numeric_limits<std::size_t>::max();
+    std::size_t max_search_nodes = std::numeric_limits<std::size_t>::max();
 };
 
 CandidateEnumerationResult enumerate_certificate_candidates(
     const mpz_class& prime, const mpz_class& order,
     const mpz_class& smooth_part,
-    const CertificateCandidateVisitor& visitor);
+    const CertificateCandidateVisitor& visitor,
+    CandidateEnumerationLimits limits = {});
 
 struct MontgomeryXZ {
     mpz_class x;

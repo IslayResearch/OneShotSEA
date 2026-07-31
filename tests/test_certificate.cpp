@@ -249,6 +249,47 @@ void test_candidate_enumeration_completeness() {
     }
 }
 
+void test_candidate_enumeration_limits() {
+    std::vector<mpz_class> candidates;
+    const auto candidate_limited =
+        oneshotsea::enumerate_certificate_candidates(
+            101, 100, 100,
+            [&](const oneshotsea::CertificateCandidate& candidate,
+                oneshotsea::CandidateOrigin) {
+                candidates.push_back(candidate.point_order);
+                return true;
+            },
+            {.max_candidates = 1, .max_search_nodes = 100});
+    check(candidates == std::vector<mpz_class>{25} &&
+              candidate_limited.limit ==
+                  oneshotsea::CandidateEnumerationResult::Limit::candidates &&
+              !candidate_limited.stopped_early,
+          "candidate cap stops before emitting an unbounded divisor list");
+
+    const auto node_limited = oneshotsea::enumerate_certificate_candidates(
+        101, 100, 100,
+        [](const oneshotsea::CertificateCandidate&,
+           oneshotsea::CandidateOrigin) { return true; },
+        {.max_candidates = 100, .max_search_nodes = 1});
+    check(node_limited.limit ==
+              oneshotsea::CandidateEnumerationResult::Limit::search_nodes &&
+              node_limited.search_nodes_visited == 1U &&
+              !node_limited.stopped_early,
+          "DFS node cap bounds pruning work as well as emitted candidates");
+
+    bool invalid_limit_rejected = false;
+    try {
+        (void)oneshotsea::enumerate_certificate_candidates(
+            101, 100, 100,
+            [](const oneshotsea::CertificateCandidate&,
+               oneshotsea::CandidateOrigin) { return true; },
+            {.max_candidates = 0, .max_search_nodes = 1});
+    } catch (const std::invalid_argument&) {
+        invalid_limit_rejected = true;
+    }
+    check(invalid_limit_rejected, "zero enumeration cap is rejected");
+}
+
 void test_j_conversion_and_assembly() {
     const oneshotsea::MontgomeryCurve curve(oneshotsea::Field(101), 3);
     const mpz_class j = curve.j_invariant();
@@ -324,6 +365,7 @@ int main() {
         test_direct_curve_and_twist_assembly();
         test_alternative_candidate_regression();
         test_candidate_enumeration_completeness();
+        test_candidate_enumeration_limits();
         test_j_conversion_and_assembly();
         test_native_validation_regressions();
         std::cout << "certificate candidate/assembly tests passed\n";

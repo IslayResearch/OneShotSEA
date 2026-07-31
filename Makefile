@@ -159,7 +159,7 @@ test-oracle:
 test-differential: all
 	python3 tests/test_oracle_differential.py -v
 
-test-runpod:
+test-runpod: all
 	scripts/runpod/test.sh
 
 test-all: test test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod

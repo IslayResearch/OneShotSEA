@@ -17,7 +17,7 @@ review the plan before enabling it.
   shell xtrace and supplies the bearer header to `curl` over stdin.
 - Put the SSH private-key *path* in `RUNPOD_SSH_KEY_FILE`; do not copy the key
   into this repository or `/workspace`.
-- Do not put secrets in `--build-command`, `--search-arg`, source files, search
+- Do not put secrets in `--build-command`, source files, search
   logs, or checkpoints. RunPod pod environment variables are deliberately not
   used by this workflow.
 - Deployment uses `git archive HEAD`, requires a clean worktree, and transfers
@@ -42,7 +42,7 @@ export RUNPOD_API_KEY
 Run the local contract tests before cloud work:
 
 ```bash
-scripts/runpod/test.sh
+make test-runpod
 ```
 
 ## 1. Inspect inventory and provision
@@ -117,8 +117,8 @@ scripts/runpod/start.sh --execute
 Commit and test each coherent code increment before deployment. `deploy.sh`
 refuses a dirty worktree and installs the exact commit into
 `/workspace/OneShotSEA/deployments/<commit>`. The `current` symlink changes only
-after the optional build succeeds. It also records `nvidia-smi`, `nvcc`, CMake,
-compiler, kernel, and commit information in `environment.txt`.
+after the optional build succeeds. It also records the available GPU and build
+tools, kernel, and commit information in `environment.txt`.
 
 Review the actual GPU compute capability and choose the matching CUDA
 architecture. For the Ada precedent this was `89`; do not copy it to a
@@ -126,10 +126,10 @@ different GPU blindly.
 
 ```bash
 scripts/runpod/deploy.sh \
-  --build-command 'cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89 && cmake --build build -j2'
+  --build-command 'make -j"$(nproc)" all'
 
 scripts/runpod/deploy.sh \
-  --build-command 'cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CUDA_ARCHITECTURES=89 && cmake --build build -j2' \
+  --build-command 'make -j"$(nproc)" all' \
   --execute
 ```
 
@@ -139,9 +139,14 @@ for this 416–432-bit SEA search.
 
 ## 3. Allocate deterministic ranges
 
-Workers receive disjoint half-open curve-index ranges. `shard.py` uses Python
-integers, so ranges are not limited to 64 bits. It divides any remainder among
-the lowest worker ids and derives seed `seed_base + worker_id`.
+Every worker receives the same global half-open curve-index range and seed.
+`oneshotsea search` partitions that range internally using the worker id and
+count. Do not pre-shard its `--range-start` and `--range-end`: doing so would
+partition the interval twice and silently leave most of it unsearched.
+
+`shard.py` reports both the shared CLI values and the subrange that the CLI will
+assign to one worker. Values are checked against the executable's unsigned
+64-bit range. Any remainder goes to the lowest worker ids.
 
 ```bash
 scripts/runpod/shard.py \
@@ -149,26 +154,30 @@ scripts/runpod/shard.py \
   --global-count 1000000000 \
   --worker-id 0 \
   --worker-count 4 \
-  --seed-base 202607290000
+  --seed 202607290000
 ```
 
-Generate and retain one JSON record per worker. Across machines, keep the same
-global interval, worker count, and seed base; assign each zero-based worker id
-exactly once. A changed worker count defines a different partition and must use
-a new run id or an explicitly unsearched interval.
+The JSON fields `range_start`, `range_end`, `range_count`, and `seed` are
+identical for all workers. The `assigned_range_*` fields are for reporting and
+coverage audits only; do not pass them back as the global range. Generate and
+retain one record per worker. Assign each zero-based worker id exactly once. A
+changed worker count defines a different partition and must use a new run id or
+an explicitly unsearched global interval.
 
 The search executable launched by this scaffold must accept this operator
 contract:
 
 ```text
---prime P
+search --p P
 --worker-id I --worker-count W
 --range-start FIRST --range-end EXCLUSIVE
 --seed SEED
+--max-level L
+--table-dir PATH
+--smooth-cache PATH --smooth-cache-sha256 TRUSTED_SHA256
 --checkpoint PATH
---progress-jsonl PATH
---result PATH
-[--resume-from PATH]
+--progress PATH
+--certificate-out PATH
 ```
 
 `--range-start` must completely determine the first curve candidate and each
@@ -176,34 +185,79 @@ subsequent integer index must determine exactly one candidate. A seed may
 choose a deterministic permutation or family, but must not turn the range into
 an untracked random stream.
 
-## 4. Launch and supervise workers
+## 4. Prepare the smooth cache
+
+All workers for a target should share one prebuilt smooth cache. The launcher
+requires its trusted SHA-256 so an existing, incomplete, or substituted cache
+cannot be accepted silently. One way to build a new cache without searching a
+curve is the production executable itself:
+
+```bash
+SMOOTH_CACHE='/workspace/OneShotSEA/caches/p125.cache'
+
+mkdir -p /workspace/OneShotSEA/caches /workspace/OneShotSEA/cache-build/p125
+/workspace/OneShotSEA/current/build/oneshotsea search \
+  --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
+  --seed 202607290000 \
+  --range-start 0 --range-end 1 \
+  --worker-id 0 --worker-count 1 \
+  --max-level 401 \
+  --table-dir /workspace/OneShotSEA/current/data/modpoly/weber_f \
+  --smooth-cache "$SMOOTH_CACHE" \
+  --checkpoint /workspace/OneShotSEA/cache-build/p125/checkpoint.json \
+  --progress /workspace/OneShotSEA/cache-build/p125/progress.jsonl \
+  --certificate-out /workspace/OneShotSEA/cache-build/p125/certificate.txt \
+  --max-curves 0
+sha256sum "$SMOOTH_CACHE"
+```
+
+Retain the digest with the build record and independently check that the build
+completed with the intended target and executable. A digest calculated from an
+unknown cache proves only byte identity, not mathematical completeness.
+
+## 5. Launch and supervise workers
 
 Use a stable run id. For one shard, transfer the JSON values directly:
 
 ```bash
 RUN_ID='p125-bench-20260729'
+SMOOTH_CACHE='/workspace/OneShotSEA/caches/p125.cache'
+SMOOTH_CACHE_SHA256='trusted-64-lowercase-hex-digest-from-build-record'
 
 scripts/runpod/launch-worker.sh \
   --run-id "$RUN_ID" \
   --prime 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --worker-id 0 --worker-count 4 \
-  --range-start 0 --range-end 250000000 \
-  --seed 202607290000
-
-scripts/runpod/launch-worker.sh \
-  --run-id "$RUN_ID" \
-  --prime 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
-  --worker-id 0 --worker-count 4 \
-  --range-start 0 --range-end 250000000 \
+  --range-start 0 --range-end 1000000000 \
   --seed 202607290000 \
+  --max-level 401 \
+  --table-dir data/modpoly/weber_f \
+  --smooth-cache "$SMOOTH_CACHE" \
+  --smooth-cache-sha256 "$SMOOTH_CACHE_SHA256"
+
+scripts/runpod/launch-worker.sh \
+  --run-id "$RUN_ID" \
+  --prime 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
+  --worker-id 0 --worker-count 4 \
+  --range-start 0 --range-end 1000000000 \
+  --seed 202607290000 \
+  --max-level 401 \
+  --table-dir data/modpoly/weber_f \
+  --smooth-cache "$SMOOTH_CACHE" \
+  --smooth-cache-sha256 "$SMOOTH_CACHE_SHA256" \
   --execute
 ```
+
+Repeat with worker ids 1 through 3, changing no other search-identity value.
+The launcher accepts only explicit resource controls such as `--trace-cap`,
+`--smooth-threads`, and `--max-curves`; it has no generic argument passthrough
+that could override worker identity or durable output paths.
 
 Each worker gets a `tmux` session named `sea-<run-id>-<worker-id>` and this
 state below `/workspace/OneShotSEA/runs/<run-id>/worker-<id>/`:
 
 ```text
-manifest.json       immutable range, seed, prime, commit, and start time
+manifest.json       immutable command argv, ranges, seed, prime, commit, start
 command.sh          exact shell-escaped search command (mode 0700)
 worker.log          stdout/stderr
 progress.jsonl      compact per-chunk counters and timings
@@ -224,10 +278,13 @@ scripts/runpod/status.sh --remote --run-id "$RUN_ID"
 scripts/runpod/status.sh --remote --run-id "$RUN_ID" --execute
 ```
 
-Use `--resume` with the same immutable worker assignment after an interruption;
-the launcher adds `--resume-from` only when that worker's checkpoint exists.
+Use `--resume` with the identical launcher command after an interruption. The
+search CLI resumes automatically through the same `--checkpoint` path. Before
+launching, the wrapper compares the complete search argv and deployed commit to
+`manifest.json`; resource, identity, cache, deployment, or output changes are
+rejected.
 
-## 5. Fetch, verify, and stop
+## 6. Fetch, verify, and stop
 
 Fetch periodically and immediately when a worker finishes or emits a
 candidate. The transfer is additive: it never uses `--delete` and never removes

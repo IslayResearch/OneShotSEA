@@ -6,30 +6,62 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 run_id=''
-binary='build/oneshot-sea'
+binary='build/oneshotsea'
 prime=''
 worker_id=''
 worker_count=''
 range_start=''
 range_end=''
 seed=''
+max_level=''
+table_dir=''
+smooth_cache=''
+smooth_cache_sha256=''
 resume=0
-extra_args=()
+resource_args=()
 
 usage() {
   cat <<'EOF'
 Usage: launch-worker.sh --run-id RUN --prime P --worker-id I --worker-count W
-       --range-start FIRST --range-end EXCLUSIVE --seed SEED [options]
+       --range-start GLOBAL_FIRST --range-end GLOBAL_EXCLUSIVE --seed SEED
+       --max-level L --table-dir RELPATH --smooth-cache PATH
+       --smooth-cache-sha256 SHA256 [options]
 
 Options:
-  --binary RELPATH       Search executable below deployed `current`
-  --search-arg ARG       Repeatable non-secret additional argument
-  --resume               Add --resume-from CHECKPOINT when it exists
-  --execute              Create files and launch the remote tmux session
+  --binary RELPATH                    Search executable below deployed `current`
+  --max-curves N                      Stop after at most N curves (0 means none)
+  --checkpoint-every N                Checkpoint interval
+  --trace-cap N                       Early complete-trace-set cap
+  --smooth-threads N                  Exact-smooth worker threads (0 is automatic)
+  --smooth-max-batch N                Maximum orders per exact-smooth batch
+  --smooth-root-auxiliary-bytes N     Root-reduction auxiliary-memory cap
+  --smooth-build-segment-span N       Smooth-cache build segment span
+  --assembly-attempts N               Attempts per certificate coefficient
+  --max-certificate-candidates N      Certificate candidate cap
+  --max-candidate-search-nodes N      Candidate enumeration node cap
+  --resume                            Resume the manifest-bound checkpoint
+  --execute                           Create files and launch the remote tmux session
 
-The search executable contract is documented in docs/runpod.md. Dry-run is
-default. Ranges are half-open, deterministic, and use arbitrary-size decimals.
+Dry-run is the default. The range is the shared global half-open interval, not
+the worker's assigned subrange. Every worker in a run must receive the same
+range and seed; `oneshotsea search` performs the one and only partitioning.
+The table directory and binary are relative to the deployed commit. The smooth
+cache is an absolute path below RUNPOD_REMOTE_ROOT and must already exist.
 EOF
+}
+
+append_uint_option() {
+  local option="$1"
+  local value="${2:-}"
+  validate_uint "$option" "$value"
+  resource_args+=("--${option}" "$value")
+}
+
+append_positive_uint_option() {
+  local option="$1"
+  local value="${2:-}"
+  validate_positive_uint "$option" "$value"
+  resource_args+=("--${option}" "$value")
 }
 
 while (( $# )); do
@@ -42,7 +74,20 @@ while (( $# )); do
     --range-start) range_start="${2:-}"; shift 2 ;;
     --range-end) range_end="${2:-}"; shift 2 ;;
     --seed) seed="${2:-}"; shift 2 ;;
-    --search-arg) extra_args+=("${2:-}"); shift 2 ;;
+    --max-level) max_level="${2:-}"; shift 2 ;;
+    --table-dir) table_dir="${2:-}"; shift 2 ;;
+    --smooth-cache) smooth_cache="${2:-}"; shift 2 ;;
+    --smooth-cache-sha256) smooth_cache_sha256="${2:-}"; shift 2 ;;
+    --max-curves) append_uint_option max-curves "${2:-}"; shift 2 ;;
+    --checkpoint-every) append_positive_uint_option checkpoint-every "${2:-}"; shift 2 ;;
+    --trace-cap) append_positive_uint_option trace-cap "${2:-}"; shift 2 ;;
+    --smooth-threads) append_uint_option smooth-threads "${2:-}"; shift 2 ;;
+    --smooth-max-batch) append_positive_uint_option smooth-max-batch "${2:-}"; shift 2 ;;
+    --smooth-root-auxiliary-bytes) append_positive_uint_option smooth-root-auxiliary-bytes "${2:-}"; shift 2 ;;
+    --smooth-build-segment-span) append_positive_uint_option smooth-build-segment-span "${2:-}"; shift 2 ;;
+    --assembly-attempts) append_positive_uint_option assembly-attempts "${2:-}"; shift 2 ;;
+    --max-certificate-candidates) append_positive_uint_option max-certificate-candidates "${2:-}"; shift 2 ;;
+    --max-candidate-search-nodes) append_positive_uint_option max-candidate-search-nodes "${2:-}"; shift 2 ;;
     --resume) resume=1; shift ;;
     --execute) EXECUTE=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -52,25 +97,53 @@ done
 
 [[ -n "$run_id" ]] || die "--run-id is required"
 validate_run_id "$run_id"
-[[ "$binary" =~ ^[A-Za-z0-9._/+~-]+$ && "$binary" != /* ]] || die "binary must be a simple relative path"
-[[ "$binary" != ../* && "$binary" != */../* && "$binary" != */.. ]] || die "binary path may not traverse parents"
+[[ "$binary" =~ ^[A-Za-z0-9._/+~-]+$ && "$binary" != /* ]] ||
+  die "binary must be a simple relative path"
+[[ "$binary" != ../* && "$binary" != */../* && "$binary" != */.. ]] ||
+  die "binary path may not traverse parents"
 validate_positive_uint prime "$prime"
 validate_uint worker-id "$worker_id"
 validate_positive_uint worker-count "$worker_count"
 validate_uint range-start "$range_start"
 validate_positive_uint range-end "$range_end"
 validate_uint seed "$seed"
+validate_positive_uint max-level "$max_level"
+[[ "$table_dir" =~ ^[A-Za-z0-9._/+~-]+$ && "$table_dir" != /* ]] ||
+  die "table directory must be a simple relative path"
+[[ "$table_dir" != ../* && "$table_dir" != */../* && "$table_dir" != */.. ]] ||
+  die "table directory may not traverse parents"
+[[ "$smooth_cache_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+  die "--smooth-cache-sha256 must be a trusted lowercase SHA-256 digest"
+validate_remote_root
+[[ "$smooth_cache" =~ ^/[A-Za-z0-9._/+~-]+$ &&
+   "$smooth_cache" == "${RUNPOD_REMOTE_ROOT}/"* ]] ||
+  die "smooth cache must be a simple absolute path below RUNPOD_REMOTE_ROOT"
+[[ "$smooth_cache" != *'/../'* && "$smooth_cache" != */.. ]] ||
+  die "smooth cache path may not traverse parents"
 require_cmd python3
-python3 - "$worker_id" "$worker_count" "$range_start" "$range_end" <<'PY'
+
+partition_values="$(python3 - "$worker_id" "$worker_count" "$range_start" "$range_end" "$seed" "$max_level" ${resource_args[@]+"${resource_args[@]}"} <<'PY'
 import sys
-i, workers, start, end = map(int, sys.argv[1:])
-if not 0 <= i < workers:
+
+maximum = (1 << 64) - 1
+worker, workers, start, end, seed, max_level = map(int, sys.argv[1:7])
+resource_values = [int(value) for value in sys.argv[8::2]]
+if any(value > maximum for value in
+       [worker, workers, start, end, seed, max_level, *resource_values]):
+    raise SystemExit("error: search integer exceeds the unsigned 64-bit CLI limit")
+if not 0 <= worker < workers:
     raise SystemExit("error: require 0 <= worker-id < worker-count")
 if not start < end:
     raise SystemExit("error: require range-start < range-end")
+if max_level < 5:
+    raise SystemExit("error: max-level must be at least 5")
+width, remainder = divmod(end - start, workers)
+count = width + (worker < remainder)
+assigned_start = start + worker * width + min(worker, remainder)
+print(end - start, assigned_start, assigned_start + count, count)
 PY
-range_count="$(python3 -c 'import sys; print(int(sys.argv[2])-int(sys.argv[1]))' "$range_start" "$range_end")"
-validate_remote_root
+)"
+read -r range_count assigned_start assigned_end assigned_count <<<"$partition_values"
 build_ssh_args
 
 remote_run_dir="${RUNPOD_REMOTE_ROOT}/runs/${run_id}/worker-${worker_id}"
@@ -78,24 +151,66 @@ session_run="${run_id//./_}"
 session="sea-${session_run}-${worker_id}"
 
 if ! require_execute; then
-  printf 'DRY-RUN: tmux session=%s remote_dir=%s\n' "$session" "$remote_run_dir"
-  printf 'DRY-RUN: %s/current/%s --prime %s --worker-id %s --worker-count %s --range-start %s --range-end %s --seed %s --checkpoint %s/checkpoint.json --progress-jsonl %s/progress.jsonl --result %s/certificate.txt' \
-    "$RUNPOD_REMOTE_ROOT" "$binary" "$prime" "$worker_id" "$worker_count" \
-    "$range_start" "$range_end" "$seed" "$remote_run_dir" "$remote_run_dir" "$remote_run_dir"
-  if (( resume )); then printf ' --resume-from %s/checkpoint.json' "$remote_run_dir"; fi
-  printf '\n'
-  (( ${#extra_args[@]} == 0 )) || print_cmd extra-search-args "${extra_args[@]}"
+  dry_run_build_id='git:deployed-commit'
+  dry_run_cmd=(
+    "${RUNPOD_REMOTE_ROOT}/current/${binary}" search
+    --p "$prime" --seed "$seed"
+    --range-start "$range_start" --range-end "$range_end"
+    --worker-id "$worker_id" --worker-count "$worker_count"
+    --max-level "$max_level"
+    --table-dir "${RUNPOD_REMOTE_ROOT}/current/${table_dir}"
+    --smooth-cache "$smooth_cache"
+    --smooth-cache-sha256 "$smooth_cache_sha256"
+    --checkpoint "${remote_run_dir}/checkpoint.json"
+    --progress "${remote_run_dir}/progress.jsonl"
+    --certificate-out "${remote_run_dir}/certificate.txt"
+    --build-id "$dry_run_build_id"
+    ${resource_args[@]+"${resource_args[@]}"}
+  )
+  printf 'DRY-RUN: tmux session=%s remote_dir=%s assigned_range=[%s,%s)\n' \
+    "$session" "$remote_run_dir" "$assigned_start" "$assigned_end"
+  print_cmd "${dry_run_cmd[@]}"
   exit 0
 fi
 
 # shellcheck disable=SC2016
 remote_script='set -euo pipefail
 root=$1; run_id=$2; binary=$3; prime=$4; worker_id=$5; worker_count=$6
-range_start=$7; range_end=$8; range_count=$9; seed=${10}; resume=${11}; shift 11
+range_start=$7; range_end=$8; range_count=$9; assigned_start=${10}
+assigned_end=${11}; assigned_count=${12}; seed=${13}; max_level=${14}
+table_dir=${15}; smooth_cache=${16}; smooth_cache_sha256=${17}; resume=${18}
+shift 18
 deploy=$(readlink -f "$root/current")
 [[ -n "$deploy" && -d "$deploy" ]] || { echo "error: no current deployment" >&2; exit 2; }
 exe="$deploy/$binary"
+tables="$deploy/$table_dir"
 [[ -x "$exe" ]] || { echo "error: search executable is not executable: $exe" >&2; exit 2; }
+[[ -d "$tables" ]] || { echo "error: Weber table directory does not exist: $tables" >&2; exit 2; }
+[[ -f "$smooth_cache" ]] || { echo "error: trusted smooth cache does not exist: $smooth_cache" >&2; exit 2; }
+actual_smooth_cache_sha256=$(python3 - "$smooth_cache" <<"PY"
+import hashlib
+import sys
+
+digest = hashlib.sha256()
+with open(sys.argv[1], "rb") as stream:
+    for block in iter(lambda: stream.read(1024 * 1024), b""):
+        digest.update(block)
+print(digest.hexdigest())
+PY
+)
+[[ "$actual_smooth_cache_sha256" == "$smooth_cache_sha256" ]] || {
+  echo "error: smooth cache does not match its trusted SHA-256" >&2; exit 2;
+}
+deployment_commit=""
+if [[ -f "$deploy/environment.txt" ]]; then
+  deployment_commit=$(sed -n "s/^git_commit=//p" "$deploy/environment.txt" | head -n 1)
+fi
+if [[ -z "$deployment_commit" ]] && command -v git >/dev/null 2>&1; then
+  deployment_commit=$(git -C "$deploy" rev-parse HEAD 2>/dev/null || true)
+fi
+[[ "$deployment_commit" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "error: current deployment has no trustworthy Git commit identity" >&2; exit 2;
+}
 run_dir="$root/runs/$run_id/worker-$worker_id"
 session_run=${run_id//./_}
 session="sea-${session_run}-${worker_id}"
@@ -110,34 +225,80 @@ result="$run_dir/certificate.txt"
 log="$run_dir/worker.log"
 command_file="$run_dir/command.sh"
 manifest="$run_dir/manifest.json"
+cmd=("$exe" search --p "$prime" --seed "$seed"
+     --range-start "$range_start" --range-end "$range_end"
+     --worker-id "$worker_id" --worker-count "$worker_count"
+     --max-level "$max_level" --table-dir "$tables"
+     --smooth-cache "$smooth_cache" --smooth-cache-sha256 "$smooth_cache_sha256"
+     --checkpoint "$checkpoint" --progress "$progress" --certificate-out "$result"
+     --build-id "git:$deployment_commit" "$@")
 if [[ -f "$manifest" ]]; then
   [[ "$resume" == 1 ]] || { echo "error: worker manifest exists; use --resume after checking it" >&2; exit 2; }
   [[ -s "$checkpoint" ]] || { echo "error: cannot resume without a nonempty checkpoint" >&2; exit 2; }
-  [[ ! -s "$result" ]] || { echo "error: result already exists; fetch and verify it instead of resuming" >&2; exit 2; }
-  python3 - "$manifest" "$run_id" "$worker_id" "$worker_count" "$range_start" "$range_end" "$seed" "$prime" <<"PY"
-import json, sys
-path, run_id, worker_id, worker_count, start, end, seed, prime = sys.argv[1:]
+  [[ ! -e "$result" ]] || { echo "error: result already exists; fetch and verify it instead of resuming" >&2; exit 2; }
+  python3 - "$manifest" "$run_id" "$worker_id" "$worker_count" "$range_start" "$range_end" "$range_count" "$assigned_start" "$assigned_end" "$assigned_count" "$seed" "$prime" "$deployment_commit" "${cmd[@]}" <<"PY"
+import json
+import sys
+
+(path, run_id, worker_id, worker_count, start, end, count,
+ assigned_start, assigned_end, assigned_count, seed, prime,
+ deployment_commit) = sys.argv[1:14]
+command = sys.argv[14:]
 with open(path, encoding="utf-8") as stream:
     value = json.load(stream)
-expected = {"run_id": run_id, "worker_id": int(worker_id), "worker_count": int(worker_count),
-            "range_start": start, "range_end": end, "seed": seed, "prime": prime}
+expected = {
+    "schema": "oneshotsea.runpod-worker.v2",
+    "run_id": run_id,
+    "worker_id": int(worker_id),
+    "worker_count": int(worker_count),
+    "global_range": {"start": start, "end": end, "count": count},
+    "assigned_range": {
+        "start": assigned_start, "end": assigned_end,
+        "count": assigned_count,
+    },
+    "seed": seed,
+    "prime": prime,
+    "deployment_commit": deployment_commit,
+    "command_argv": command,
+}
 for key, wanted in expected.items():
     if value.get(key) != wanted:
         raise SystemExit(f"error: resume manifest mismatch for {key}")
 PY
 else
   [[ "$resume" == 0 ]] || { echo "error: --resume requested but no prior manifest exists" >&2; exit 2; }
-  {
-    printf "{\"schema\":1,\"run_id\":\"%s\",\"worker_id\":%s,\"worker_count\":%s," "$run_id" "$worker_id" "$worker_count"
-    printf "\"range_start\":\"%s\",\"range_end\":\"%s\",\"range_count\":\"%s\"," "$range_start" "$range_end" "$range_count"
-    printf "\"seed\":\"%s\",\"prime\":\"%s\",\"git_commit\":\"%s\",\"started_utc\":\"%s\"}\n" "$seed" "$prime" "$(basename "$deploy")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  } >"$manifest"
+  [[ ! -e "$checkpoint" && ! -e "$progress" && ! -e "$result" ]] || {
+    echo "error: worker artifacts exist without a manifest" >&2; exit 2;
+  }
+  manifest_tmp="$manifest.tmp.$$"
+  python3 - "$run_id" "$worker_id" "$worker_count" "$range_start" "$range_end" "$range_count" "$assigned_start" "$assigned_end" "$assigned_count" "$seed" "$prime" "$deployment_commit" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${cmd[@]}" <<"PY" >"$manifest_tmp"
+import json
+import sys
+
+(run_id, worker_id, worker_count, start, end, count,
+ assigned_start, assigned_end, assigned_count, seed, prime,
+ deployment_commit, started_utc) = sys.argv[1:14]
+value = {
+    "schema": "oneshotsea.runpod-worker.v2",
+    "run_id": run_id,
+    "worker_id": int(worker_id),
+    "worker_count": int(worker_count),
+    "global_range": {"start": start, "end": end, "count": count},
+    "assigned_range": {
+        "start": assigned_start, "end": assigned_end,
+        "count": assigned_count,
+    },
+    "seed": seed,
+    "prime": prime,
+    "deployment_commit": deployment_commit,
+    "command_argv": sys.argv[14:],
+    "started_utc": started_utc,
+}
+json.dump(value, sys.stdout, sort_keys=True, separators=(",", ":"))
+sys.stdout.write("\n")
+PY
+  mv -f -- "$manifest_tmp" "$manifest"
 fi
-cmd=("$exe" --prime "$prime" --worker-id "$worker_id" --worker-count "$worker_count"
-     --range-start "$range_start" --range-end "$range_end" --seed "$seed"
-     --checkpoint "$checkpoint" --progress-jsonl "$progress" --result "$result")
-if [[ "$resume" == 1 && -f "$checkpoint" ]]; then cmd+=(--resume-from "$checkpoint"); fi
-cmd+=("$@")
 {
   printf "#!/usr/bin/env bash\nset -euo pipefail\ncd %q\n" "$deploy"
   printf "exec"
@@ -146,10 +307,14 @@ cmd+=("$@")
 } >"$command_file"
 chmod 700 "$command_file"
 tmux new-session -d -s "$session" "$command_file"
-printf "session=%s\nrun_dir=%s\n" "$session" "$run_dir"
+printf "session=%s\nrun_dir=%s\nassigned_range=[%s,%s)\n" "$session" "$run_dir" "$assigned_start" "$assigned_end"
 '
-remote_args=("$RUNPOD_REMOTE_ROOT" "$run_id" "$binary" "$prime" "$worker_id" "$worker_count"
-             "$range_start" "$range_end" "$range_count" "$seed" "$resume" "${extra_args[@]}")
+remote_args=(
+  "$RUNPOD_REMOTE_ROOT" "$run_id" "$binary" "$prime" "$worker_id" "$worker_count"
+  "$range_start" "$range_end" "$range_count" "$assigned_start" "$assigned_end"
+  "$assigned_count" "$seed" "$max_level" "$table_dir" "$smooth_cache"
+  "$smooth_cache_sha256" "$resume" ${resource_args[@]+"${resource_args[@]}"}
+)
 printf -v remote_invocation 'bash -c %q --' "$remote_script"
 for arg in "${remote_args[@]}"; do
   printf -v quoted_arg '%q' "$arg"

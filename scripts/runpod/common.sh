@@ -49,6 +49,17 @@ validate_positive_uint() {
 }
 
 validate_remote_root() {
+  if [[ -n "${RUNPOD_TEST_REMOTE_ROOT:-}" ]]; then
+    [[ "${RUNPOD_SSH_HOST:-}" == '203.0.113.10' ]] ||
+      die "test remote roots require the reserved local-test SSH host"
+    [[ "$RUNPOD_REMOTE_ROOT" == "$RUNPOD_TEST_REMOTE_ROOT" ]] ||
+      die "RUNPOD_REMOTE_ROOT must equal RUNPOD_TEST_REMOTE_ROOT in test mode"
+    [[ "$RUNPOD_REMOTE_ROOT" =~ ^/[A-Za-z0-9._/+~-]+$ ]] ||
+      die "test remote root must be a simple absolute path"
+    [[ "$RUNPOD_REMOTE_ROOT" != *'/../'* && "$RUNPOD_REMOTE_ROOT" != */.. ]] ||
+      die "test remote root may not contain parent traversal"
+    return
+  fi
   [[ "$RUNPOD_REMOTE_ROOT" =~ ^/workspace/[A-Za-z0-9._/-]+$ ]] ||
     die "RUNPOD_REMOTE_ROOT must be a simple absolute path below /workspace"
   [[ "$RUNPOD_REMOTE_ROOT" != *'/../'* && "$RUNPOD_REMOTE_ROOT" != */.. ]] ||

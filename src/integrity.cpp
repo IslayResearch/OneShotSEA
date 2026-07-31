@@ -193,4 +193,46 @@ std::string sha256_file(const std::filesystem::path& path) {
     return digest.hex_digest();
 }
 
+bool paths_alias(const std::filesystem::path& left,
+                 const std::filesystem::path& right) {
+    std::error_code error;
+    const std::filesystem::path normalized_left =
+        std::filesystem::weakly_canonical(std::filesystem::absolute(left),
+                                          error);
+    if (error) {
+        throw std::invalid_argument("cannot resolve path: " + left.string());
+    }
+    error.clear();
+    const std::filesystem::path normalized_right =
+        std::filesystem::weakly_canonical(std::filesystem::absolute(right),
+                                          error);
+    if (error) {
+        throw std::invalid_argument("cannot resolve path: " + right.string());
+    }
+    if (normalized_left == normalized_right) {
+        return true;
+    }
+
+    error.clear();
+    const bool left_exists = std::filesystem::exists(left, error);
+    if (error) {
+        throw std::invalid_argument("cannot inspect path: " + left.string());
+    }
+    error.clear();
+    const bool right_exists = std::filesystem::exists(right, error);
+    if (error) {
+        throw std::invalid_argument("cannot inspect path: " + right.string());
+    }
+    if (!left_exists || !right_exists) {
+        return false;
+    }
+    error.clear();
+    const bool equivalent = std::filesystem::equivalent(left, right, error);
+    if (error) {
+        throw std::invalid_argument(
+            "cannot compare filesystem paths for aliasing");
+    }
+    return equivalent;
+}
+
 }  // namespace oneshotsea

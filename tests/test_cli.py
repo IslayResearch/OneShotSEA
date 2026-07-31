@@ -266,6 +266,24 @@ class CliTests(unittest.TestCase):
                 "--max-curves", 0,
             )
 
+    def test_search_rejects_hardlinked_output_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            smooth_cache = root / "smooth.cache"
+            checkpoint = root / "checkpoint.json"
+            smooth_cache.write_bytes(b"same inode")
+            checkpoint.hardlink_to(smooth_cache)
+            self.assert_rejected(
+                "search", "--p", 101, "--seed", 17,
+                "--range-start", 0, "--range-end", 1,
+                "--worker-id", 0, "--worker-count", 1,
+                "--max-level", 31,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", smooth_cache,
+                "--checkpoint", checkpoint,
+                "--max-curves", 0,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

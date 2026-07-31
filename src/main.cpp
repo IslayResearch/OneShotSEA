@@ -83,22 +83,13 @@ void ensure_parent_directory(const std::filesystem::path& path) {
 
 void require_distinct_output_paths(
     const std::vector<std::filesystem::path>& paths) {
-    std::vector<std::filesystem::path> normalized;
-    for (const auto& path : paths) {
-        std::error_code error;
-        const std::filesystem::path value =
-            std::filesystem::weakly_canonical(
-                std::filesystem::absolute(path), error);
-        if (error) {
-            throw std::invalid_argument("cannot resolve output path: " +
-                                        path.string());
+    for (std::size_t left = 0; left < paths.size(); ++left) {
+        for (std::size_t right = 0; right < left; ++right) {
+            if (oneshotsea::paths_alias(paths[left], paths[right])) {
+                throw std::invalid_argument(
+                    "smooth cache, checkpoint, progress, certificate, and metadata paths must be distinct");
+            }
         }
-        if (std::find(normalized.begin(), normalized.end(), value) !=
-            normalized.end()) {
-            throw std::invalid_argument(
-                "smooth cache, checkpoint, progress, certificate, and metadata paths must be distinct");
-        }
-        normalized.push_back(value);
     }
 }
 

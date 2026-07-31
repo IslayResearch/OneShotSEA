@@ -20,9 +20,11 @@
 #include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <thread>
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <spawn.h>
 #include <unistd.h>
 #include <utility>
@@ -34,6 +36,7 @@ namespace oneshotsea {
 namespace {
 
 using Clock = std::chrono::steady_clock;
+constexpr std::chrono::seconds kSubprocessTimeout{30};
 
 std::uint64_t elapsed_us(Clock::time_point start) {
     const auto elapsed =
@@ -500,17 +503,6 @@ std::string read_small_file(const std::filesystem::path& path) {
     return output.str();
 }
 
-std::filesystem::path normalized_output_path(
-    const std::filesystem::path& path) {
-    std::error_code error;
-    const std::filesystem::path normalized = std::filesystem::weakly_canonical(
-        std::filesystem::absolute(path), error);
-    if (error) {
-        throw std::invalid_argument("cannot resolve output path: " + path.string());
-    }
-    return normalized;
-}
-
 void require_distinct_pipeline_paths(const SearchPipelineRunOptions& options) {
     std::vector<std::filesystem::path> paths;
     for (const auto& path : {options.checkpoint_path, options.progress_path,
@@ -519,12 +511,40 @@ void require_distinct_pipeline_paths(const SearchPipelineRunOptions& options) {
         if (path.empty()) {
             continue;
         }
-        const std::filesystem::path normalized = normalized_output_path(path);
-        if (std::find(paths.begin(), paths.end(), normalized) != paths.end()) {
-            throw std::invalid_argument(
-                "checkpoint, progress, certificate, and metadata paths must be distinct");
+        for (const std::filesystem::path& existing : paths) {
+            if (paths_alias(path, existing)) {
+                throw std::invalid_argument(
+                    "checkpoint, progress, certificate, and metadata paths must be distinct");
+            }
         }
-        paths.push_back(normalized);
+        paths.push_back(path);
+    }
+}
+
+int wait_for_child(pid_t process, std::chrono::seconds timeout,
+                   const char* label) {
+    const Clock::time_point deadline = Clock::now() + timeout;
+    for (;;) {
+        int status = 0;
+        const pid_t waited = ::waitpid(process, &status, WNOHANG);
+        if (waited == process) {
+            return status;
+        }
+        if (waited < 0 && errno != EINTR) {
+            throw std::runtime_error(std::string("cannot wait for ") + label +
+                                     ": " + std::strerror(errno));
+        }
+        if (Clock::now() >= deadline) {
+            if (::kill(process, SIGKILL) != 0 && errno != ESRCH) {
+                throw std::runtime_error(std::string("cannot terminate timed-out ") +
+                                         label + ": " +
+                                         std::strerror(errno));
+            }
+            while (::waitpid(process, &status, 0) < 0 && errno == EINTR) {
+            }
+            throw std::runtime_error(std::string(label) + " timed out");
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
@@ -672,6 +692,14 @@ bool authenticate_python3_interpreter(
         throw std::runtime_error("cannot launch Python authentication probe: " +
                                  std::string(std::strerror(spawned)));
     }
+    int status = 0;
+    try {
+        status = wait_for_child(process, kSubprocessTimeout,
+                                "Python authentication probe");
+    } catch (...) {
+        ::close(output_pipe[0]);
+        throw;
+    }
     std::string output;
     std::array<char, 128> buffer{};
     for (;;) {
@@ -692,12 +720,6 @@ bool authenticate_python3_interpreter(
         break;
     }
     ::close(output_pipe[0]);
-    int status = 0;
-    while (::waitpid(process, &status, 0) < 0) {
-        if (errno != EINTR) {
-            throw std::runtime_error("cannot wait for Python authentication probe");
-        }
-    }
     return WIFEXITED(status) && WEXITSTATUS(status) == 0 &&
            output == "oneshotsea-python3\n";
 }
@@ -781,13 +803,8 @@ bool verify_with_canonical_voneshot(
         throw std::runtime_error("cannot launch canonical verifier: " +
                                  std::string(std::strerror(spawned)));
     }
-    int status = 0;
-    while (::waitpid(process, &status, 0) < 0) {
-        if (errno != EINTR) {
-            throw std::runtime_error("cannot wait for canonical verifier: " +
-                                     std::string(std::strerror(errno)));
-        }
-    }
+    const int status = wait_for_child(process, kSubprocessTimeout,
+                                      "canonical verifier");
     if (!WIFEXITED(status)) {
         throw std::runtime_error("canonical verifier terminated abnormally");
     }

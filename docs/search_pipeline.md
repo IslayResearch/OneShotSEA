@@ -5,7 +5,8 @@ sample to a canonical one-shot certificate.  It does not call Magma or another
 point-counting oracle.
 
 For each assigned global index it constructs both curve classes for one
-Weber-f value, runs the checked-in Weber SEA implementation, extracts exact
+Montgomery-compatible Weber-f value, runs the checked-in Weber SEA
+implementation, extracts exact
 curve and twist n^4-smooth parts in one batch, tries both order classes and
 both Montgomery sides, retries certificate construction without the 2-primary
 part, validates the result natively, and finally invokes the unmodified pinned
@@ -37,6 +38,9 @@ The global half-open range is split into deterministic, contiguous, disjoint
 worker shards.  A pre-existing checkpoint is resumed automatically and is
 accepted only when the prime, seed, worker, shard, schedule, table-content
 manifest, cache content, verifier content, and build identity agree.  The
+schedule identity explicitly versions the Montgomery-compatibility filter, so
+checkpoints from the earlier unfiltered generator cannot be mistaken for the
+same deterministic index distribution.  The
 default build identity hashes the executable.  Every completed curve is
 checkpointed by default; partial SEA residues are never trusted after restart.
 The Python interpreter is resolved to an absolute executable, content-hashed,

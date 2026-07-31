@@ -1413,7 +1413,7 @@ std::string search_schedule_sha256(
     Sha256 schedule;
     std::ostringstream canonical;
     canonical << "oneshotsea.search-schedule.v1\n"
-              << "curve_generator=weber-f-v1\n"
+              << "curve_generator=weber-f-montgomery-filtered-v2\n"
               << "sea=weber-reference-two-pass-v1\n"
               << "heuristic_rejection=disabled\n"
               << "prime=" << config.prime << '\n'

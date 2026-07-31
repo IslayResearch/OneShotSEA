@@ -46,4 +46,11 @@ MontgomeryCurve deterministic_montgomery_curve(const mpz_class& prime, std::uint
                                                 std::uint64_t index);
 mpz_class count_points_bruteforce(const Curve& curve, unsigned long limit = 10000000UL);
 
+// True iff j is the invariant of a nonsingular Montgomery model
+// y^2=x^3+A*x^2+x with A in the supplied prime field.  This is the lightweight
+// admission predicate used before SEA; certificate assembly independently
+// recovers and validates every coefficient.
+bool has_montgomery_model_from_j(const Field& field,
+                                 const mpz_class& j_invariant);
+
 }  // namespace oneshotsea

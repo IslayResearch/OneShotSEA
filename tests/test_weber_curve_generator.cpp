@@ -112,6 +112,9 @@ void test_deterministic_replay_and_retry() {
         check(pair.weber_f != 0 && pair.j_invariant != 0 &&
                   pair.j_invariant != pair.curve.field().normalize(1728),
               "deterministic sampler returns only admitted nonexceptional values");
+        check(oneshotsea::has_montgomery_model_from_j(
+                  pair.curve.field(), pair.j_invariant),
+              "deterministic sampler returns certificate-compatible models");
         if (pair.rejected_samples != 0) {
             const auto retry_replay =
                 oneshotsea::deterministic_weber_curve_pair(101, 17, index);
@@ -122,6 +125,43 @@ void test_deterministic_replay_and_retry() {
         }
     }
     check(exercised_retry, "deterministic fixture exercises exceptional retry");
+}
+
+void test_certificate_model_prefilter() {
+    const oneshotsea::Field field(101);
+    bool found_compatible = false;
+    bool found_incompatible = false;
+    for (mpz_class source_f = 1; source_f < field.modulus(); ++source_f) {
+        try {
+            const auto pair =
+                oneshotsea::weber_curve_pair_from_f(field, source_f);
+            if (!oneshotsea::has_montgomery_model_from_j(
+                    field, pair.j_invariant)) {
+                found_incompatible = true;
+                continue;
+            }
+            found_compatible = true;
+            const mpz_class curve_order =
+                oneshotsea::count_points_bruteforce(pair.curve);
+            const mpz_class twist_order =
+                oneshotsea::count_points_bruteforce(pair.twist);
+            check(mpz_divisible_ui_p(curve_order.get_mpz_t(), 4) != 0 &&
+                      mpz_divisible_ui_p(twist_order.get_mpz_t(), 4) != 0,
+                  "compatible Weber models carry full rational 2-torsion");
+        } catch (const std::domain_error&) {
+            // The direct reference constructor rejects ramified images.
+        }
+    }
+    check(found_compatible && found_incompatible,
+          "Weber family contains compatible and wasted certificate models");
+
+    for (std::uint64_t index = 0; index < 64; ++index) {
+        const auto pair =
+            oneshotsea::deterministic_weber_curve_pair(101, 71, index);
+        check(oneshotsea::has_montgomery_model_from_j(
+                  pair.curve.field(), pair.j_invariant),
+              "production generator filters every incompatible model");
+    }
 }
 
 void test_curve_twist_coverage_relation() {
@@ -146,6 +186,7 @@ int main() {
         test_direct_weber_construction();
         test_exceptional_handling();
         test_deterministic_replay_and_retry();
+        test_certificate_model_prefilter();
         test_curve_twist_coverage_relation();
         std::cout << "all Weber curve-generator tests passed\n";
         return 0;

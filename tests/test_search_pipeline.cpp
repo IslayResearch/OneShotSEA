@@ -104,9 +104,11 @@ void test_sha256_fixtures() {
 oneshotsea::SearchPipelineConfig small_config() {
     oneshotsea::SearchPipelineConfig config;
     config.prime = 101;
-    config.seed = 17;
+    // Under the certificate-compatible Montgomery prefilter, index one yields
+    // the canonical fixture asserted below.
+    config.seed = 4;
     config.table_directory = "data/modpoly/weber_f";
-    config.max_level = 31;
+    config.max_level = 11;
     config.early_trace_cap = 16;
     config.assembly_attempts = 400;
     config.certificate_seed = 1;
@@ -132,22 +134,23 @@ void test_small_prime_resume_and_canonical_verification() {
     const std::string verifier_sha =
         oneshotsea::sha256_file(config.canonical_verifier);
     const oneshotsea::SearchIdentity identity = oneshotsea::make_search_identity(
-        config, {0, 2}, 0, 1, smooth_sha, verifier_sha, "pipeline-test-v1");
+        config, {1, 2}, 0, 1, smooth_sha, verifier_sha, "pipeline-test-v1");
     config.expected_schedule_sha256 = identity.schedule_sha256;
     config.expected_table_manifest_sha256 =
         identity.table_manifest_sha256;
     oneshotsea::SearchState state(identity);
 
     oneshotsea::SearchPipelineRunOptions first;
-    first.max_curves = 1;
+    first.max_curves = 0;
     first.checkpoint_path = checkpoint;
     first.progress_path = progress;
     first.certificate_path = temporary.path() / "certificate.txt";
     const auto first_result = oneshotsea::run_search_pipeline(
         config, smooth, state, first);
-    check(first_result.curves_processed == 1U &&
+    check(first_result.curves_processed == 0U &&
               !first_result.verified.has_value() && state.next_index() == 1U,
-          "capped first search chunk");
+          "zero-curve first chunk leaves the initial resume cursor");
+    oneshotsea::save_search_checkpoint(state, checkpoint);
     const std::filesystem::path precertificate_checkpoint =
         temporary.path() / "precertificate.json";
     std::filesystem::copy_file(checkpoint, precertificate_checkpoint);
@@ -161,6 +164,7 @@ void test_small_prime_resume_and_canonical_verification() {
             cert, config.canonical_verifier, config.python_executable);
     };
     oneshotsea::SearchPipelineRunOptions second = first;
+    second.max_curves = 1;
     const auto second_result = oneshotsea::run_search_pipeline(
         config, smooth, resumed, second, {}, canonical);
     check(second_result.curves_processed == 1U &&
@@ -168,7 +172,7 @@ void test_small_prime_resume_and_canonical_verification() {
           "resumed search finds deterministic certificate");
     check(canonical_calls == 1U,
           "pipeline invoked the unmodified canonical verifier before success");
-    check(second_result.verified->certificate->line() == "101 5 8 28",
+    check(second_result.verified->certificate->line() == "101 35 25 28",
           "small-prime deterministic certificate fixture");
     check(resumed.next_index() == 2U &&
               resumed.counters().certificates_found == 1U,
@@ -205,7 +209,109 @@ void test_small_prime_resume_and_canonical_verification() {
               "event distinguishes disabled heuristic rejection");
         ++event_count;
     }
-    check(event_count == 2U, "one NDJSON event per completed curve");
+    check(event_count == 1U, "one NDJSON event per completed curve");
+}
+
+void test_sea_level_limit_does_not_advance_cursor() {
+    TemporaryDirectory temporary;
+    oneshotsea::SearchPipelineConfig limited = small_config();
+    limited.max_level = 5;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(limited.prime);
+    const std::filesystem::path smooth_cache =
+        temporary.path() / "smooth.cache";
+    smooth.save(smooth_cache);
+    const std::string smooth_sha = oneshotsea::sha256_file(smooth_cache);
+    const std::string verifier_sha =
+        oneshotsea::sha256_file(limited.canonical_verifier);
+    const oneshotsea::SearchIdentity limited_identity =
+        oneshotsea::make_search_identity(
+            limited, {1, 2}, 0, 1, smooth_sha, verifier_sha,
+            "level-limit-test-v1");
+    limited.expected_schedule_sha256 = limited_identity.schedule_sha256;
+    limited.expected_table_manifest_sha256 =
+        limited_identity.table_manifest_sha256;
+    oneshotsea::SearchState limited_state(limited_identity);
+    oneshotsea::SearchPipelineRunOptions limited_options;
+    limited_options.max_curves = 1;
+    limited_options.checkpoint_path = temporary.path() / "limited.json";
+    limited_options.progress_path = temporary.path() / "limited.ndjson";
+    limited_options.certificate_path = temporary.path() / "limited.cert";
+    std::size_t reports = 0;
+    oneshotsea::SearchCurveStatus observed =
+        oneshotsea::SearchCurveStatus::verified_certificate;
+    oneshotsea::SearchPipelineRunResult limited_result;
+    try {
+        limited_result = oneshotsea::run_search_pipeline(
+            limited, smooth, limited_state, limited_options,
+            [&](const oneshotsea::SearchCurveReport& report,
+                const oneshotsea::SearchState& current) {
+                ++reports;
+                observed = report.status;
+                check(current.next_index() == 1U,
+                      "level-limit report observes unchanged cursor");
+            });
+    } catch (const std::exception& error) {
+        throw std::runtime_error(std::string("limited SEA regression: ") +
+                                 error.what());
+    }
+    check(limited_result.curves_processed == 0U && reports == 1U &&
+              observed == oneshotsea::SearchCurveStatus::sea_level_limit,
+          "level-five SEA limit is reported but not completed");
+    check(limited_state.next_index() == 1U &&
+              limited_state.counters().curves_attempted == 0U,
+          "implementation limit does not mutate search counters/cursor");
+    const oneshotsea::SearchState checkpointed =
+        oneshotsea::load_search_checkpoint(
+            limited_options.checkpoint_path, limited_identity);
+    check(checkpointed.next_index() == 1U &&
+              checkpointed.counters().curves_attempted == 0U,
+          "unchanged cursor is atomically checkpointed");
+    {
+        std::ifstream progress(limited_options.progress_path);
+        std::string event;
+        std::getline(progress, event);
+        check(event.find("\"status\":\"sea_level_limit\"") !=
+                  std::string::npos &&
+                  event.find("\"next_index\":\"1\"") !=
+                  std::string::npos,
+              "progress preserves implementation-limit evidence and cursor");
+    }
+
+    oneshotsea::SearchPipelineConfig sufficient = small_config();
+    const oneshotsea::SearchIdentity sufficient_identity =
+        oneshotsea::make_search_identity(
+            sufficient, {1, 2}, 0, 1, smooth_sha, verifier_sha,
+            "level-limit-test-v1");
+    sufficient.expected_schedule_sha256 = sufficient_identity.schedule_sha256;
+    sufficient.expected_table_manifest_sha256 =
+        sufficient_identity.table_manifest_sha256;
+    oneshotsea::SearchState sufficient_state(sufficient_identity);
+    oneshotsea::SearchPipelineRunOptions sufficient_options;
+    sufficient_options.max_curves = 1;
+    sufficient_options.checkpoint_path = temporary.path() / "sufficient.json";
+    sufficient_options.progress_path = temporary.path() / "sufficient.ndjson";
+    sufficient_options.certificate_path = temporary.path() / "sufficient.cert";
+    oneshotsea::SearchPipelineRunResult sufficient_result;
+    oneshotsea::SearchCurveStatus sufficient_status =
+        oneshotsea::SearchCurveStatus::sea_level_limit;
+    try {
+        sufficient_result = oneshotsea::run_search_pipeline(
+            sufficient, smooth, sufficient_state, sufficient_options,
+            [&](const oneshotsea::SearchCurveReport& report,
+                const oneshotsea::SearchState&) {
+                sufficient_status = report.status;
+            });
+    } catch (const std::exception& error) {
+        throw std::runtime_error(std::string("sufficient SEA regression: ") +
+                                 error.what());
+    }
+    check(sufficient_result.verified.has_value() &&
+              sufficient_result.verified->global_index == 1U &&
+              sufficient_result.verified->certificate->line() ==
+                  "101 35 25 28",
+          std::string("same curve succeeds when sufficient SEA levels are available; status=") +
+              oneshotsea::search_curve_status_name(sufficient_status));
 }
 
 void test_worker_partition_is_identity_bound() {
@@ -218,6 +324,12 @@ void test_worker_partition_is_identity_bound() {
     check(identity.schedule_sha256.size() == 64U &&
               identity.table_manifest_sha256.size() == 64U,
           "pipeline identity binds schedule and table content");
+}
+
+void test_bounded_early_screen_default() {
+    const oneshotsea::SearchPipelineConfig defaults;
+    check(defaults.early_trace_cap == 64U,
+          "default early screen is capped at 64 traces / 128 orders");
 }
 
 void test_non_python_success_program_is_rejected() {
@@ -259,7 +371,9 @@ int main() {
         test_sha256_fixtures();
         test_non_python_success_program_is_rejected();
         test_verifier_runtime_failure_is_not_a_rejection();
+        test_bounded_early_screen_default();
         test_worker_partition_is_identity_bound();
+        test_sea_level_limit_does_not_advance_cursor();
         test_small_prime_resume_and_canonical_verification();
         std::cout << "search pipeline tests passed\n";
         return 0;

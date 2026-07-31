@@ -60,10 +60,13 @@ revalidates the sidecar, native certificate conditions, and canonical verifier.
 
 The stdout and progress records distinguish sound smoothness rejection from
 `implementation_no_lift` and `implementation_level_limit`.  The latter two are
-not mathematical rejections.  In particular, search completeness depends on
-providing enough valid specialized tables through `--max-level` to isolate a
-unique trace for every candidate that survives early screening.  Increasing
-the range does not remedy an inadequate table schedule.
+not mathematical rejections.  Either outcome is reported and checkpointed
+without advancing the curve cursor, and the current search chunk stops so the
+same index can be retried with an adequate build/table schedule.  In
+particular, search completeness depends on providing enough valid specialized
+tables through `--max-level` to isolate a unique trace for every candidate that
+survives early screening.  Increasing the range does not remedy an inadequate
+table schedule.
 
 Useful resource caps include `--max-curves`, `--checkpoint-every`,
 `--smooth-threads`, `--smooth-max-batch`,

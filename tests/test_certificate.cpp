@@ -305,6 +305,9 @@ void test_j_conversion_and_assembly() {
         check(!recovered.is_singular() && recovered.j_invariant() == j,
               "every returned coefficient has the requested j invariant");
     }
+    check(oneshotsea::has_montgomery_model_from_j(
+              oneshotsea::Field(101), j) == !coefficients.empty(),
+          "lightweight admission agrees with coefficient recovery");
 
     const auto candidate =
         oneshotsea::prepare_certificate_candidate(101, 96, 96);
@@ -330,6 +333,20 @@ void test_j_conversion_and_assembly() {
     check(std::find(target_coefficients.begin(), target_coefficients.end(),
                     mpz_class(3)) != target_coefficients.end(),
           "j conversion recovers a model over the 416-bit target field");
+}
+
+void test_montgomery_admission_predicate_completeness() {
+    const oneshotsea::Field field(101);
+    for (mpz_class j = 0; j < field.modulus(); ++j) {
+        const bool admitted =
+            oneshotsea::has_montgomery_model_from_j(field, j);
+        const bool recoverable =
+            !oneshotsea::montgomery_coefficients_from_j(
+                 field.modulus(), j).empty();
+        check(admitted == recoverable,
+              "lightweight Montgomery admission matches complete coefficient recovery for j=" +
+                  j.get_str());
+    }
 }
 
 void test_native_validation_regressions() {
@@ -367,6 +384,7 @@ int main() {
         test_candidate_enumeration_completeness();
         test_candidate_enumeration_limits();
         test_j_conversion_and_assembly();
+        test_montgomery_admission_predicate_completeness();
         test_native_validation_regressions();
         std::cout << "certificate candidate/assembly tests passed\n";
         return EXIT_SUCCESS;

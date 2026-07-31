@@ -17,9 +17,8 @@ completion gate remains acceptance by the unmodified pinned `voneshot.py`.
 
 | Priority | Item | Evidence / decision | Next gate |
 |---|---|---|---|
-| P0 | SEA cost per admitted curve | `p125` index 0: 749.608 s SEA of 753.377 s total | Filter certificate-incompatible Weber images before SEA; then resume deterministic search |
+| P0 | SEA cost per admitted curve | `p125` old index 0: 749.608 s SEA of 753.377 s total | Resume the filtered deterministic search and profile the next actual hot path |
 | P0 | Cloud launcher must run the production CLI | Audit found stale option names, nonexistent CMake build instructions, and double sharding | Real-command contract test, exactly-once range union, authenticated shared cache, manifest-bound argv/deployment |
-| P1 | Implementation limits must not skip indices | A low `max-level` can advance past a curve that succeeds with adequate tables | Non-advancing checkpoint/progress regression for `sea_level_limit` and other implementation-only outcomes |
 | P1 | Search parallelism | No CUDA SEA kernel exists; local SEA uses unbounded `std::async` jobs over source lifts | Add measured CPU concurrency control before cloud CPU/GPU comparison; use a GPU only after a throughput win |
 | P1 | Certificate hit-rate model | No production hit yet; curve/twist are already screened together | Measure exact-smooth survivor rate on admitted Hasse-near order pairs without overlapping a live timing run |
 | External | RunPod access | No `RUNPOD_*` credentials or saved pod state were present on 2026-07-31 | Authorized operator configures credentials; dry-run and local contract gates must pass first |
@@ -30,6 +29,8 @@ completion gate remains acceptance by the unmodified pinned `voneshot.py`.
 | Item | Resolution evidence |
 |---|---|
 | Full-cache smoothness memory | Commit `6538bc7`; real 5 GB cache extraction completed with exact known outputs, 5.55 GB maximum RSS, zero swaps |
+| Certificate-incompatible curve generation | The exact j-to-Montgomery admission predicate rejects the old p125 index-0 curve before SEA. A `p=10093` census admitted 50.89%; a 32-index p125 probe needed 41 rejected attempts in 0.48 s, making every scheduled SEA curve assembly-eligible. |
+| Implementation-limit cursor safety | `sea_level_limit` and `no_rational_weber_lift` now checkpoint/report without changing cursor or counters; the regression retries the same index with adequate levels and obtains a canonical certificate. |
 | Early trace-cap policy | Cap 195 on index 0 cost 99.722 s to save 68.115 s of SEA; cap 4096 on index 1 screened 1,188 traces and took 1,097.637 s total. Keep the default at 64 with explicit overrides. |
 | Cache trust/completeness boundary | Every pre-existing exact cache requires a trusted lowercase SHA-256; p125 cache digest is pinned in `data/smooth_cache/TRUSTED_MANIFEST.json` |
 | Candidate divisor coverage | Exhaustive bounded DFS tries every admissible divisor while failing closed on candidate/node caps |

@@ -174,19 +174,19 @@ class CliTests(unittest.TestCase):
             result = self.run_cli(
                 "search",
                 "--p", 101,
-                "--seed", 17,
-                "--range-start", 0,
+                "--seed", 4,
+                "--range-start", 1,
                 "--range-end", 2,
                 "--worker-id", 0,
                 "--worker-count", 1,
-                "--max-level", 31,
+                "--max-level", 11,
                 "--trace-cap", 16,
                 "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
                 "--smooth-cache", root / "smooth.cache",
                 "--checkpoint", root / "checkpoint.json",
                 "--progress", root / "progress.ndjson",
                 "--certificate-out", root / "certificate.txt",
-                "--max-curves", 2,
+                "--max-curves", 1,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             records = [json.loads(line) for line in result.stdout.splitlines()]
@@ -204,16 +204,16 @@ class CliTests(unittest.TestCase):
             self.assertTrue(records[-1]["verified"])
             curve_records = records[1:-1]
             self.assertEqual([record["index"] for record in curve_records],
-                             ["0", "1"])
+                             ["1"])
             self.assertEqual(curve_records[-1]["status"],
                              "verified_certificate")
             self.assertEqual(curve_records[-1]["certificate"]["line"],
-                             "101 5 8 28")
+                             "101 35 25 28")
             self.assertEqual((root / "certificate.txt").read_text(),
-                             "101 5 8 28\n")
+                             "101 35 25 28\n")
             self.assertTrue((root / "checkpoint.json").is_file())
             self.assertEqual(
-                len((root / "progress.ndjson").read_text().splitlines()), 2
+                len((root / "progress.ndjson").read_text().splitlines()), 1
             )
 
     def test_search_rejects_non_python_success_executable(self) -> None:

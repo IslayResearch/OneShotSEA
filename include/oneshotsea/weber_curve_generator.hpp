@@ -24,9 +24,11 @@ struct WeberCurvePair {
 WeberCurvePair weber_curve_pair_from_f(const Field& field,
                                        const mpz_class& weber_f);
 
-// Deterministically sample Weber-f first, retrying only zero and exceptional
-// images, then construct the corresponding curve/twist pair.  Replaying the
-// same (prime, seed, global_index) returns exactly the same field values.
+// Deterministically sample Weber-f first, retrying zero, exceptional images,
+// and images with no F_p-rational Montgomery coefficient usable by the
+// canonical certificate tail, then construct the corresponding curve/twist
+// pair. Replaying the same (prime, seed, global_index) returns exactly the
+// same field values.
 WeberCurvePair deterministic_weber_curve_pair(const mpz_class& prime,
                                                std::uint64_t seed,
                                                std::uint64_t global_index);

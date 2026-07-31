@@ -1,5 +1,7 @@
 #include "oneshotsea/curve.hpp"
 
+#include "oneshotsea/poly.hpp"
+
 #include <stdexcept>
 
 namespace oneshotsea {
@@ -107,6 +109,29 @@ mpz_class count_points_bruteforce(const Curve& curve, unsigned long limit) {
         count += 1 + curve.field().legendre(rhs);
     }
     return count;
+}
+
+bool has_montgomery_model_from_j(const Field& field,
+                                 const mpz_class& j_invariant) {
+    if (field.modulus() <= 3 ||
+        mpz_even_p(field.modulus().get_mpz_t()) != 0 ||
+        mpz_probab_prime_p(field.modulus().get_mpz_t(), 25) == 0) {
+        throw std::invalid_argument(
+            "j-to-Montgomery admission requires an odd probable-prime field");
+    }
+    const mpz_class j = field.normalize(j_invariant);
+    const mpz_class inv256 = field.inverse(256);
+    const mpz_class c1 = field.mul(field.sub(6912, j), inv256);
+    const mpz_class c0 = field.mul(field.sub(field.mul(4, j), 6912), inv256);
+    const Poly cubic(field, {c0, c1, field.neg(9), 1});
+    for (const mpz_class& coefficient_square : linear_roots(cubic)) {
+        if (coefficient_square != 4 &&
+            (coefficient_square == 0 ||
+             field.legendre(coefficient_square) == 1)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 }  // namespace oneshotsea

@@ -80,7 +80,12 @@ WeberCurvePair deterministic_weber_curve_pair(const mpz_class& prime,
             field, seed, global_index, attempt_domain);
         if (weber_f != 0) {
             const mpz_class j = j_from_weber_f(field, weber_f);
-            if (j != 0 && j != field.normalize(1728)) {
+            // A counted order can reach the canonical certificate only when
+            // this j-invariant has a base-field Montgomery coefficient.
+            // Roughly half of the p125-congruence Weber images do not, so
+            // reject them before spending an SEA point count.
+            if (j != 0 && j != field.normalize(1728) &&
+                has_montgomery_model_from_j(field, j)) {
                 return pair_from_admitted_f(field, weber_f, rejected);
             }
         }

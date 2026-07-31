@@ -1221,6 +1221,23 @@ SearchPipelineRunResult run_search_pipeline(
             throw std::runtime_error(
                 "Weber table contents changed during curve processing");
         }
+        if (report.status == SearchCurveStatus::sea_level_limit ||
+            report.status == SearchCurveStatus::no_rational_weber_lift) {
+            // These are implementation/resource outcomes, not mathematical
+            // rejections.  Persist and report the unchanged cursor, then stop
+            // this chunk so a retry cannot silently skip the curve.
+            if (!options.checkpoint_path.empty()) {
+                save_search_checkpoint(state, options.checkpoint_path);
+            }
+            if (!options.progress_path.empty()) {
+                append_line(options.progress_path,
+                            search_curve_report_json(report, state));
+            }
+            if (report_callback) {
+                report_callback(report, state);
+            }
+            break;
+        }
         if (report.certificate.has_value()) {
             // Anchor the exact winning cursor before exposing its artifacts.
             // This makes crash recovery unambiguous even when the ordinary

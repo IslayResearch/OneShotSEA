@@ -207,3 +207,53 @@ next checkpoint = 1
 This run demonstrates that the production reducer completes the stage that
 previously entered VM thrashing, while preserving exact output and atomic
 cursor advancement.
+
+## Early-abort cap profile (2026-07-31)
+
+The index-zero exact candidate counts near the end of SEA were 15,480,001 at
+level 277, 55,089 at 281, 195 at 283, and 1 at 307.  Thus `trace-cap=64` did
+not ignore a 2-to-64-candidate screen: the count jumped directly from 195 to
+one.  The only plausible larger cap is at least 195 and below 55,089.
+
+The level-283 state was reconstructed from the independently established
+trace residues and screened using the authenticated production cache:
+
+```sh
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 \
+  -Wall -Wextra -Wpedantic -Wconversion -Wshadow \
+  tools/benchmark_p125_early_abort.cpp \
+  build/liboneshotsea.a build/smooth.o \
+  -L/opt/homebrew/opt/gmp/lib -L/opt/homebrew/opt/libomp/lib \
+  -Wl,-rpath,/opt/homebrew/opt/libomp/lib -lomp -lgmpxx -lgmp \
+  -o work/p125/benchmark_early_abort
+/usr/bin/time -l work/p125/benchmark_early_abort \
+  work/p125/smooth.cache \
+  afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551
+```
+
+It enumerated 195 traces (390 curve/twist orders), found no survivor, and
+measured 99.722 seconds for extraction with 8 threads, 128 orders per batch,
+and a 128 MiB root-table cap.  Peak resident size was 8,400,650,240 bytes with
+zero swaps.  Levels 293 and 307 account for only 68.115 seconds of the original
+SEA timings, while the singleton extraction took 3.769 seconds.  A cap that
+stops at 195 therefore predicts 781.2 seconds total, about 27.8 seconds slower
+than the observed 753.4 seconds at cap 64.  Any cap from 1 through 194 follows
+the same unique-trace path on this curve; a larger or multi-rung policy is not
+justified by this profile.
+
+A second end-to-end measurement used index one with `trace-cap=4096`.  SEA
+stopped at level 283 with 1,188 complete Hasse-compatible traces, after which
+bounded extraction screened 2,376 curve/twist orders:
+
+```text
+SEA              = 632.014 s
+smoothness       = 465.623 s
+total            = 1097.637 s
+maximum RSS      = 5702057984 bytes
+surviving orders = 0
+```
+
+This direct run was soundly rejected without completing a unique point count,
+but it was already 344 seconds slower than the complete cap-64 index-zero run.
+Together with the same-index level-283 reconstruction above, it confirms that
+thousands-of-traces screening is not a useful default on this host.

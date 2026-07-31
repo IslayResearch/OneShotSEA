@@ -24,7 +24,10 @@ struct SearchPipelineConfig {
     std::uint64_t seed = 0;
     std::filesystem::path table_directory;
     std::uint64_t max_level = 0;
-    std::size_t early_trace_cap = 4096;
+    // One default bounded-smoothness batch: every trace produces a curve and
+    // twist order, so 64 traces fill the search CLI's 128-order default.  A
+    // larger cap can make an early exact screen slower than finishing SEA.
+    std::size_t early_trace_cap = 64;
     std::size_t assembly_attempts = 400;
     std::size_t max_certificate_candidates = 100000;
     std::size_t max_candidate_search_nodes = 1000000;

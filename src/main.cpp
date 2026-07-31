@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
             config.table_directory = required(options, "table-dir");
             config.max_level = required_u64(options, "max-level");
             const std::uint64_t trace_cap = optional_u64(
-                options, "trace-cap", 4096U);
+                options, "trace-cap", config.early_trace_cap);
             const std::uint64_t assembly_attempts = optional_u64(
                 options, "assembly-attempts", 400U);
             const std::uint64_t max_certificate_candidates = optional_u64(
@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
             }
             smooth_options.thread_count = static_cast<int>(smooth_threads);
             const std::uint64_t smooth_batch = optional_u64(
-                options, "smooth-max-batch", 4096U);
+                options, "smooth-max-batch", 128U);
             if (smooth_batch == 0U ||
                 smooth_batch > std::numeric_limits<std::size_t>::max()) {
                 throw std::invalid_argument("--smooth-max-batch is out of range");

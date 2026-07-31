@@ -80,3 +80,12 @@ memory used while constructing a new full smooth cache; it does not change the
 prime product.  A capped run can be resumed with the identical command.
 Resource settings that cannot change mathematical output are logged but are
 not part of the semantic schedule identity.
+
+The search defaults to `--trace-cap 64` and `--smooth-max-batch 128`: each
+complete trace contributes a curve and twist order, so the largest default
+early screen is one bounded-smoothness batch. This is a throughput guard, not
+a correctness condition; explicit overrides remain available. On the p125
+index-0 profile the candidate count jumped from 55,089 at level 281 to 195 at
+283 and then directly to one at 307. Screening those 195 traces cost more
+than the two remaining SEA levels, so a larger or multi-rung default would
+have been slower.

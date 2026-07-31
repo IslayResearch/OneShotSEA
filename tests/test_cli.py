@@ -245,6 +245,9 @@ class CliTests(unittest.TestCase):
             )
             built = self.run_cli(*common, "--checkpoint", root / "build.json")
             self.assertEqual(built.returncode, 0, built.stderr)
+            start = json.loads(built.stdout.splitlines()[0])
+            self.assertEqual(start["resources"]["trace_cap"], "64")
+            self.assertEqual(start["resources"]["smooth_max_batch"], "128")
             self.assert_rejected(
                 *common, "--checkpoint", root / "fresh.json"
             )

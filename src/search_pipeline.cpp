@@ -776,21 +776,38 @@ bool verify_with_canonical_voneshot(
     if (posix_spawn_file_actions_init(&actions) != 0) {
         throw std::runtime_error("cannot initialize canonical verifier process");
     }
+    int output_pipe[2] = {-1, -1};
+    if (::pipe(output_pipe) != 0) {
+        posix_spawn_file_actions_destroy(&actions);
+        throw std::runtime_error("cannot create canonical verifier pipe");
+    }
     const int null_descriptor = ::open("/dev/null", O_WRONLY);
     if (null_descriptor < 0) {
+        ::close(output_pipe[0]);
+        ::close(output_pipe[1]);
         posix_spawn_file_actions_destroy(&actions);
         throw std::runtime_error("cannot open /dev/null for canonical verifier");
     }
-    int action_error = posix_spawn_file_actions_adddup2(
-        &actions, null_descriptor, STDOUT_FILENO);
+    int action_error = posix_spawn_file_actions_addclose(
+        &actions, output_pipe[0]);
+    if (action_error == 0) {
+        action_error = posix_spawn_file_actions_adddup2(
+            &actions, output_pipe[1], STDOUT_FILENO);
+    }
     if (action_error == 0) {
         action_error = posix_spawn_file_actions_adddup2(
             &actions, null_descriptor, STDERR_FILENO);
     }
     if (action_error == 0) {
+        action_error = posix_spawn_file_actions_addclose(
+            &actions, output_pipe[1]);
+    }
+    if (action_error == 0) {
         action_error = posix_spawn_file_actions_addclose(&actions, null_descriptor);
     }
     if (action_error != 0) {
+        ::close(output_pipe[0]);
+        ::close(output_pipe[1]);
         ::close(null_descriptor);
         posix_spawn_file_actions_destroy(&actions);
         throw std::runtime_error("cannot configure canonical verifier process");
@@ -800,17 +817,55 @@ bool verify_with_canonical_voneshot(
     const int spawned = posix_spawnp(&process, python_executable.c_str(),
                                      &actions, nullptr, argv.data(), environ);
     posix_spawn_file_actions_destroy(&actions);
+    ::close(output_pipe[1]);
     ::close(null_descriptor);
     if (spawned != 0) {
+        ::close(output_pipe[0]);
         throw std::runtime_error("cannot launch canonical verifier: " +
                                  std::string(std::strerror(spawned)));
     }
-    const int status = wait_for_child(process, kSubprocessTimeout,
-                                      "canonical verifier");
+    int status = 0;
+    try {
+        status = wait_for_child(process, kSubprocessTimeout,
+                                "canonical verifier");
+    } catch (...) {
+        ::close(output_pipe[0]);
+        throw;
+    }
+    std::string output;
+    std::array<char, 128> buffer{};
+    for (;;) {
+        const ssize_t count = ::read(output_pipe[0], buffer.data(), buffer.size());
+        if (count > 0) {
+            if (output.size() + static_cast<std::size_t>(count) > 1024U) {
+                ::close(output_pipe[0]);
+                throw std::runtime_error(
+                    "canonical verifier output exceeds byte limit");
+            }
+            output.append(buffer.data(), static_cast<std::size_t>(count));
+            continue;
+        }
+        if (count < 0 && errno == EINTR) {
+            continue;
+        }
+        if (count < 0) {
+            ::close(output_pipe[0]);
+            throw std::runtime_error("cannot read canonical verifier output");
+        }
+        break;
+    }
+    ::close(output_pipe[0]);
     if (!WIFEXITED(status)) {
         throw std::runtime_error("canonical verifier terminated abnormally");
     }
-    return WEXITSTATUS(status) == 0;
+    if (WEXITSTATUS(status) == 0 && output == "True\n") {
+        return true;
+    }
+    if (WEXITSTATUS(status) == 1 && output == "False\n") {
+        return false;
+    }
+    throw std::runtime_error(
+        "canonical verifier returned an unexpected status or output");
 }
 
 SearchCurveReport process_search_curve(

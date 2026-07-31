@@ -74,6 +74,31 @@ void test_sha256_fixtures() {
     const std::string second = oneshotsea::sha256_file(source);
     check(first.size() == 64U && first == second,
           "SHA-256 regular-file fixture is stable");
+
+    const std::vector<std::pair<std::size_t, std::string>> boundary_vectors = {
+        {55U, "9f4390f8d30c2dd92ec9f095b65e2b9a"
+              "e9b0a925a5258e241c9f1e910f734318"},
+        {56U, "b35439a4ac6f0948b6d6f9e3c6af0f5"
+              "f590ce20f1bde7090ef7970686ec6738a"},
+        {63U, "7d3e74a05d7db15bce4ad9ec0658ea98"
+              "e3f06eeecf16b4c6fff2da457ddc2f34"},
+        {64U, "ffe054fe7ae0cb6dc65c3af9b61d5209"
+              "f439851db43d0ba5997337df154668eb"},
+        {65U, "635361c48bb9eab14198e76ea8ab7f1a"
+              "41685d6ad62aa9146d301d4f17eb0ae0"},
+        {128U, "6836cf13bac400e9105071cd6af47084d"
+               "facad4e5e302c94bfed24e013afb73e"},
+    };
+    for (const auto& [size, expected] : boundary_vectors) {
+        const std::filesystem::path fixture =
+            temporary.path() / ("a-" + std::to_string(size));
+        {
+            std::ofstream output(fixture, std::ios::binary);
+            output << std::string(size, 'a');
+        }
+        check(oneshotsea::sha256_file(fixture) == expected,
+              "SHA-256 block-boundary fixture " + std::to_string(size));
+    }
 }
 
 oneshotsea::SearchPipelineConfig small_config() {
@@ -202,12 +227,38 @@ void test_non_python_success_program_is_rejected() {
           "exit-zero non-Python executable cannot impersonate verifier runtime");
 }
 
+void test_verifier_runtime_failure_is_not_a_rejection() {
+    TemporaryDirectory temporary;
+    const std::filesystem::path failing = temporary.path() / "failing.py";
+    {
+        std::ofstream output(failing, std::ios::binary);
+        output << "raise RuntimeError('operational failure')\n";
+    }
+    const oneshotsea::MontgomeryCertificate fixture{101, 3, 24, 24, {}};
+    bool threw = false;
+    try {
+        (void)oneshotsea::verify_with_canonical_voneshot(
+            fixture, failing, oneshotsea::resolve_executable_path("python3"));
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    check(threw,
+          "Python verifier exception is operational, not certificate rejection");
+
+    const oneshotsea::MontgomeryCertificate invalid{101, 3, 24, 25, {}};
+    check(!oneshotsea::verify_with_canonical_voneshot(
+              invalid, "third_party/oneshot_primality_proofs/voneshot.py",
+              oneshotsea::resolve_executable_path("python3")),
+          "canonical False output remains an ordinary certificate rejection");
+}
+
 }  // namespace
 
 int main() {
     try {
         test_sha256_fixtures();
         test_non_python_success_program_is_rejected();
+        test_verifier_runtime_failure_is_not_a_rejection();
         test_worker_partition_is_identity_bound();
         test_small_prime_resume_and_canonical_verification();
         std::cout << "search pipeline tests passed\n";

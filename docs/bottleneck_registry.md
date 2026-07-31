@@ -17,7 +17,7 @@ completion gate remains acceptance by the unmodified pinned `voneshot.py`.
 
 | Priority | Item | Evidence / decision | Next gate |
 |---|---|---|---|
-| P0 | SEA cost per admitted curve | `p125` old index 0: 749.608 s SEA of 753.377 s total | Resume the filtered deterministic search and profile the next actual hot path |
+| P0 | SEA cost per admitted curve | Filtered index 0: 584.850 s SEA of 598.318 s curve work; modular roots were 431.200 s and eigenvalues 143.382 s | Optimize the measured modular-root hot path while resuming the identity-bound range at index 1 |
 | P0 | Cloud launcher must run the production CLI | Audit found stale option names, nonexistent CMake build instructions, and double sharding | Real-command contract test, exactly-once range union, authenticated shared cache, manifest-bound argv/deployment |
 | P1 | Search parallelism | SEA modular-root work now uses a fixed worker group bounded by explicit `--sea-threads`; no CUDA SEA kernel exists | Measure the explicit CPU thread setting before cloud CPU/GPU comparison; use a GPU only after a throughput win |
 | P1 | Certificate hit-rate model | No production hit yet; curve/twist are already screened together | Measure exact-smooth survivor rate on admitted Hasse-near order pairs without overlapping a live timing run |

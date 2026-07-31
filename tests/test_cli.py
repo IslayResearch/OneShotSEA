@@ -195,6 +195,10 @@ class CliTests(unittest.TestCase):
             self.assertEqual(len(records[0]["table_manifest_sha256"]), 64)
             self.assertEqual(len(records[0]["verifier_sha256"]), 64)
             self.assertFalse(records[0]["heuristic_rejection"])
+            self.assertEqual(
+                records[0]["resources"]["smooth_root_auxiliary_bytes"],
+                str(128 * 1024 * 1024),
+            )
             self.assertEqual(records[-1]["schema"],
                              "oneshotsea.search-summary.v1")
             self.assertTrue(records[-1]["verified"])

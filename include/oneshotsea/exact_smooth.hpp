@@ -21,6 +21,11 @@ namespace oneshotsea {
 struct ExactSmoothOptions {
     int thread_count = 0;
     std::size_t max_orders_per_batch = 4096;
+    // Cap the two modulus-sized residue tables used while reducing the full
+    // prime product at the batch root.  The product itself, the small order
+    // product tree, per-thread GMP scratch, and allocator overhead are not
+    // included in this cap.
+    std::size_t max_root_auxiliary_bytes = 128U * 1024U * 1024U;
     // Bound the segmented sieve/product-tree working set while constructing
     // the full cache.  The resulting exact prime product is independent of
     // this span.  500 million kept the p125 build below 2 GB before the

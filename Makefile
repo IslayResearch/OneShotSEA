@@ -22,7 +22,7 @@ endif
 BUILD_DIR := build
 LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp \
 	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/isogeny.cpp src/weber.cpp src/sea.cpp \
-	src/smooth_cache.cpp src/integrity.cpp src/exact_smooth.cpp src/factor.cpp src/search_checkpoint.cpp src/certificate.cpp \
+	src/smooth_cache.cpp src/smooth_bounded.cpp src/integrity.cpp src/exact_smooth.cpp src/factor.cpp src/search_checkpoint.cpp src/certificate.cpp \
 	src/weber_curve_generator.cpp src/search_pipeline.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 LIB_DEPS := $(LIB_OBJECTS:.o=.d)
@@ -38,6 +38,10 @@ $(BUILD_DIR):
 
 $(BUILD_DIR)/%.o: src/%.cpp | $(BUILD_DIR)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+
+$(BUILD_DIR)/smooth_bounded.o: src/smooth_bounded.cpp \
+		include/oneshotsea/smooth_bounded.hpp | $(BUILD_DIR)
+	$(CXX) $(CPPFLAGS) $(OPENMP_CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 $(BUILD_DIR)/smooth.o: third_party/oneshot_fast_ecpp/smooth.c \
 		third_party/oneshot_fast_ecpp/smooth.h | $(BUILD_DIR)

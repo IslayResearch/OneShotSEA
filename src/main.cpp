@@ -220,6 +220,17 @@ int main(int argc, char** argv) {
             }
             smooth_options.max_orders_per_batch =
                 static_cast<std::size_t>(smooth_batch);
+            const std::uint64_t smooth_root_auxiliary_bytes = optional_u64(
+                options, "smooth-root-auxiliary-bytes",
+                smooth_options.max_root_auxiliary_bytes);
+            if (smooth_root_auxiliary_bytes == 0U ||
+                smooth_root_auxiliary_bytes >
+                    std::numeric_limits<std::size_t>::max()) {
+                throw std::invalid_argument(
+                    "--smooth-root-auxiliary-bytes is out of range");
+            }
+            smooth_options.max_root_auxiliary_bytes =
+                static_cast<std::size_t>(smooth_root_auxiliary_bytes);
             const std::uint64_t smooth_build_segment_span = optional_u64(
                 options, "smooth-build-segment-span",
                 smooth_options.build_segment_span);
@@ -302,6 +313,8 @@ int main(int argc, char** argv) {
                       << ",\"resources\":{\"smooth_threads\":\""
                       << smooth_threads << "\",\"smooth_max_batch\":\""
                       << smooth_batch
+                      << "\",\"smooth_root_auxiliary_bytes\":\""
+                      << smooth_root_auxiliary_bytes
                       << "\",\"smooth_build_segment_span\":\""
                       << smooth_build_segment_span
                       << "\",\"assembly_attempts\":\""

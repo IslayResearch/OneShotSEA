@@ -1,5 +1,6 @@
 #include "oneshotsea/exact_smooth.hpp"
 #include "oneshotsea/integrity.hpp"
+#include "oneshotsea/smooth_bounded.hpp"
 
 #include <array>
 #include <chrono>
@@ -54,6 +55,97 @@ public:
 
     std::filesystem::path path;
 };
+
+template <std::size_t Size>
+class TestMpzArray {
+public:
+    TestMpzArray() {
+        for (mpz_t& value : values_) {
+            mpz_init(value);
+        }
+    }
+
+    TestMpzArray(const TestMpzArray&) = delete;
+    TestMpzArray& operator=(const TestMpzArray&) = delete;
+
+    ~TestMpzArray() {
+        for (mpz_t& value : values_) {
+            mpz_clear(value);
+        }
+    }
+
+    mpz_t* data() { return values_.data(); }
+    mpz_ptr operator[](std::size_t index) { return values_[index]; }
+    mpz_srcptr operator[](std::size_t index) const { return values_[index]; }
+
+private:
+    std::array<mpz_t, Size> values_{};
+};
+
+void test_bounded_reducer_differential() {
+    smooth_base base{};
+    smooth_base_build(&base, 100000, 2);
+
+    std::vector<mpz_class> orders;
+    orders.emplace_back(mpz_class(128) * 9 * 100003);
+    orders.emplace_back(mpz_class(97) * 97 * 97 * 100003 * 100003);
+    orders.emplace_back(mpz_class(99991) * 99991 * 100003);
+    orders.emplace_back(mpz_class(1048576) * 65537 * 100019);
+    orders.emplace_back(mpz_class(99991) * 99991 * 99991);
+
+    mpz_class root = 1;
+    TestMpzArray<5> input;
+    TestMpzArray<5> upstream;
+    for (std::size_t index = 0; index < orders.size(); ++index) {
+        root *= orders[index];
+        mpz_set(input[index], orders[index].get_mpz_t());
+    }
+    smooth_parts(&base, input.data(), orders.size(), upstream.data(), 2);
+
+    const std::size_t root_limbs = mpz_size(root.get_mpz_t());
+    const std::size_t one_item_cap =
+        2U * root_limbs * sizeof(mp_limb_t);
+    check(mpz_size(base.P) > root_limbs + 1U,
+          "bounded reducer fixture spans more than one root chunk");
+    const std::vector<mpz_class> bounded = oneshotsea::bounded_smooth_parts(
+        base, orders, 2, one_item_cap);
+    check(bounded.size() == orders.size(),
+          "bounded reducer preserves non-power-of-two batch size");
+    for (std::size_t index = 0; index < orders.size(); ++index) {
+        const mpz_class trial =
+            oneshotsea::trial_smooth_part(orders[index], base.y);
+        check(bounded[index] == trial,
+              "bounded reducer differs from trial division");
+        check(mpz_cmp(upstream[index], bounded[index].get_mpz_t()) == 0,
+              "bounded reducer differs from upstream remainder tree");
+    }
+
+    const std::array<mpz_class, 1> single = {orders.front()};
+    const std::size_t single_cap =
+        2U * mpz_size(single.front().get_mpz_t()) * sizeof(mp_limb_t);
+    const auto single_result =
+        oneshotsea::bounded_smooth_parts(base, single, 1, single_cap);
+    check(single_result.size() == 1U &&
+              single_result.front() ==
+                  oneshotsea::trial_smooth_part(single.front(), base.y),
+          "bounded reducer handles one order with one-item blocks");
+    check(oneshotsea::bounded_smooth_parts(
+              base, std::span<const mpz_class>{}, 1, 1U).empty(),
+          "bounded reducer accepts an empty batch");
+    expect_exception<std::invalid_argument>(
+        [&] {
+            (void)oneshotsea::bounded_smooth_parts(
+                base, orders, 1, one_item_cap - 1U);
+        },
+        "bounded reducer rejects a cap smaller than one table item");
+    expect_exception<std::invalid_argument>(
+        [&] {
+            const std::array<mpz_class, 1> invalid = {1};
+            (void)oneshotsea::bounded_smooth_parts(base, invalid, 1, 1024U);
+        },
+        "bounded reducer rejects order one");
+    smooth_base_clear(&base);
+}
 
 void test_small_differential_and_batching(TestDirectory& temporary) {
     // 101 has seven bits, hence the engine must bind itself to B=7^4=2401.
@@ -182,6 +274,15 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
     expect_exception<std::invalid_argument>(
         [] {
             (void)oneshotsea::ExactSmoothEngine::build(
+                101,
+                {.thread_count = 1,
+                 .max_orders_per_batch = 1,
+                 .max_root_auxiliary_bytes = 0});
+        },
+        "zero root auxiliary cap rejected");
+    expect_exception<std::invalid_argument>(
+        [] {
+            (void)oneshotsea::ExactSmoothEngine::build(
                 101, {.thread_count = 1,
                       .max_orders_per_batch = 1,
                       .build_segment_span = 0});
@@ -285,6 +386,7 @@ void test_p125_factored_segment_fixture() {
 int main() {
     try {
         TestDirectory temporary;
+        test_bounded_reducer_differential();
         test_small_differential_and_batching(temporary);
         test_curve_twist_and_evidence_lifetime();
         test_p125_factored_segment_fixture();

@@ -1,6 +1,7 @@
 #include "oneshotsea/exact_smooth.hpp"
 
 #include "oneshotsea/integrity.hpp"
+#include "oneshotsea/smooth_bounded.hpp"
 
 #include <algorithm>
 #include <array>
@@ -59,54 +60,16 @@ private:
     smooth_base base_{};
 };
 
-class MpzArray {
-public:
-    explicit MpzArray(std::size_t size) : size_(size) {
-        if (size_ == 0) {
-            return;
-        }
-        values_ = new mpz_t[size_];
-        std::size_t initialized = 0;
-        try {
-            for (; initialized < size_; ++initialized) {
-                mpz_init(values_[initialized]);
-            }
-        } catch (...) {
-            while (initialized != 0) {
-                mpz_clear(values_[--initialized]);
-            }
-            delete[] values_;
-            values_ = nullptr;
-            throw;
-        }
-    }
-
-    MpzArray(const MpzArray&) = delete;
-    MpzArray& operator=(const MpzArray&) = delete;
-
-    ~MpzArray() {
-        for (std::size_t index = 0; index < size_; ++index) {
-            mpz_clear(values_[index]);
-        }
-        delete[] values_;
-    }
-
-    mpz_t* data() { return values_; }
-    const mpz_t* data() const { return values_; }
-    mpz_ptr operator[](std::size_t index) { return values_[index]; }
-    mpz_srcptr operator[](std::size_t index) const { return values_[index]; }
-
-private:
-    mpz_t* values_ = nullptr;
-    std::size_t size_ = 0;
-};
-
 void validate_options(const ExactSmoothOptions& options) {
     if (options.thread_count < 0) {
         throw std::invalid_argument("exact smooth thread count must be nonnegative");
     }
     if (options.max_orders_per_batch == 0) {
         throw std::invalid_argument("exact smooth batch size must be positive");
+    }
+    if (options.max_root_auxiliary_bytes == 0) {
+        throw std::invalid_argument(
+            "exact smooth root auxiliary byte cap must be positive");
     }
     if (options.build_segment_span == 0) {
         throw std::invalid_argument(
@@ -316,20 +279,11 @@ std::vector<ExactN4SmoothPart> ExactSmoothEngine::extract(
     for (std::size_t begin = 0; begin < orders.size();) {
         const std::size_t count =
             std::min(options_.max_orders_per_batch, orders.size() - begin);
-        MpzArray input(count);
-        MpzArray output(count);
+        std::vector<mpz_class> values = bounded_smooth_parts(
+            data_->base.get(), orders.subspan(begin, count),
+            options_.thread_count, options_.max_root_auxiliary_bytes);
         for (std::size_t index = 0; index < count; ++index) {
-            const mpz_class& order = orders[begin + index];
-            if (order <= 1) {
-                throw std::invalid_argument("smooth-part order must exceed one");
-            }
-            mpz_set(input[index], order.get_mpz_t());
-        }
-
-        smooth_parts(&data_->base.get(), input.data(), count, output.data(),
-                     options_.thread_count);
-        for (std::size_t index = 0; index < count; ++index) {
-            mpz_class value(output[index]);
+            mpz_class value = std::move(values[index]);
             const mpz_class& order = orders[begin + index];
             if (value <= 0 || order % value != 0) {
                 throw std::runtime_error(

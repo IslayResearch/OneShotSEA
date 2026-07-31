@@ -5,6 +5,7 @@
 #include "oneshotsea/weber.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <stdexcept>
 
 namespace oneshotsea {
@@ -258,51 +259,82 @@ std::optional<std::uint64_t> elkies_trace_residue_bmss_reference(
         elkies_kernels_bmss_reference(curve, modular_polynomial));
 }
 
-std::vector<ElkiesKernelResult> elkies_kernels_weber_bmss_reference(
+WeberElkiesLevelResult compute_weber_elkies_level_reference(
     const Curve& curve,
-    const SparseModularPolynomial& weber_modular_polynomial) {
+    const SparseModularPolynomial& weber_modular_polynomial,
+    const std::vector<mpz_class>* restricted_source_lifts) {
+    using Clock = std::chrono::steady_clock;
+    const auto elapsed_us = [](const Clock::time_point& started) {
+        return static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                Clock::now() - started)
+                .count());
+    };
+    WeberElkiesLevelResult output;
+    ElkiesStageTimings& measured = output.timings;
     const std::uint64_t ell = weber_modular_polynomial.level();
     const Field& field = curve.field();
-    const std::vector<mpz_class> source_lifts =
-        weber_f_lifts(field, curve.j_invariant());
-    std::vector<ElkiesKernelResult> results;
-    for (const mpz_class& source_f : source_lifts) {
+    std::vector<mpz_class> discovered_source_lifts;
+    const std::vector<mpz_class>* source_lifts = restricted_source_lifts;
+    auto started = Clock::now();
+    if (source_lifts == nullptr) {
+        discovered_source_lifts = weber_f_lifts(field, curve.j_invariant());
+        source_lifts = &discovered_source_lifts;
+    }
+    measured.source_lifts_us += elapsed_us(started);
+    for (const mpz_class& source_f : *source_lifts) {
+        started = Clock::now();
         const Poly specialized =
             weber_modular_polynomial.evaluate_x(field, source_f);
         const std::vector<mpz_class> neighbor_lifts = linear_roots(specialized);
+        measured.modular_roots_us += elapsed_us(started);
         for (const mpz_class& neighbor_f : neighbor_lifts) {
+            ++measured.lift_pairs;
             Curve codomain = curve;
+            started = Clock::now();
             try {
                 codomain = normalized_codomain_from_weber_modpoly(
                     curve, weber_modular_polynomial, source_f, neighbor_f);
             } catch (const std::domain_error&) {
+                measured.normalized_codomain_us += elapsed_us(started);
                 continue;
             }
+            measured.normalized_codomain_us += elapsed_us(started);
 
             BmssIsogenyResult reconstruction = {
                 Poly(field), Poly(field), Poly(field)};
+            started = Clock::now();
             try {
                 reconstruction = bmss_isogeny_reference(curve, codomain, ell);
             } catch (const std::runtime_error&) {
+                measured.bmss_us += elapsed_us(started);
                 // For p=1 mod 12, roots of Psi^f need not all be compatible
                 // class-invariant lifts. Full BMSS validation is the required
                 // safe discriminator.
                 continue;
             }
+            measured.bmss_us += elapsed_us(started);
+            started = Clock::now();
             const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny_kernel(
                 curve, reconstruction.kernel, ell);
+            measured.eigenvalue_us += elapsed_us(started);
             if (!eigenvalue.has_value()) {
                 continue;
+            }
+            if (std::find(output.compatible_source_lifts.begin(),
+                          output.compatible_source_lifts.end(), source_f) ==
+                output.compatible_source_lifts.end()) {
+                output.compatible_source_lifts.push_back(source_f);
             }
             const mpz_class neighbor_j = codomain.j_invariant();
             const std::uint64_t trace_residue = trace_residue_from_eigenvalue(
                 field.modulus(), ell, *eigenvalue);
             const auto duplicate = std::find_if(
-                results.begin(), results.end(),
+                output.kernels.begin(), output.kernels.end(),
                 [&reconstruction](const ElkiesKernelResult& existing) {
                     return equal(existing.kernel, reconstruction.kernel);
                 });
-            if (duplicate != results.end()) {
+            if (duplicate != output.kernels.end()) {
                 if (duplicate->neighbor_j != neighbor_j ||
                     duplicate->eigenvalue != *eigenvalue ||
                     duplicate->trace_residue != trace_residue) {
@@ -311,21 +343,32 @@ std::vector<ElkiesKernelResult> elkies_kernels_weber_bmss_reference(
                 }
                 continue;
             }
-            results.push_back(
+            output.kernels.push_back(
                 {ell, std::move(reconstruction.kernel), std::move(codomain),
                  neighbor_j, *eigenvalue, trace_residue});
         }
     }
-    static_cast<void>(common_trace_residue(results));
-    return results;
+    static_cast<void>(common_trace_residue(output.kernels));
+    return output;
+}
+
+std::vector<ElkiesKernelResult> elkies_kernels_weber_bmss_reference(
+    const Curve& curve,
+    const SparseModularPolynomial& weber_modular_polynomial,
+    ElkiesStageTimings* timings) {
+    WeberElkiesLevelResult result = compute_weber_elkies_level_reference(
+        curve, weber_modular_polynomial);
+    if (timings != nullptr) {
+        *timings = result.timings;
+    }
+    return std::move(result.kernels);
 }
 
 std::optional<std::uint64_t> elkies_trace_residue_weber_bmss_reference(
     const Curve& curve,
     const SparseModularPolynomial& weber_modular_polynomial) {
-    return common_trace_residue(
-        elkies_kernels_weber_bmss_reference(
-            curve, weber_modular_polynomial));
+    return common_trace_residue(elkies_kernels_weber_bmss_reference(
+        curve, weber_modular_polynomial, nullptr));
 }
 
 }  // namespace oneshotsea

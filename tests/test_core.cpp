@@ -5,6 +5,7 @@
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/poly.hpp"
 #include "oneshotsea/schoof.hpp"
+#include "oneshotsea/sea.hpp"
 #include "oneshotsea/trace.hpp"
 #include "oneshotsea/weber.hpp"
 
@@ -230,6 +231,48 @@ void test_trace_constraints() {
               "classification partitions are disjoint");
     }
     check(elkies.size() + atkin.size() == 3, "classification covers all residues");
+
+    oneshotsea::TraceConstraints exact(1009);
+    exact.refine(5, {0});
+    exact.refine(11, {0});
+    exact.refine(19, {0});
+    check(exact.modulus() == 1045, "exact CRT modulus");
+    check(exact.candidate_count() == 1, "exact CRT candidate count");
+    const auto exact_traces = exact.enumerate(1);
+    check(exact_traces.has_value() &&
+              *exact_traces == std::vector<mpz_class>{mpz_class(0)},
+          "exact CRT candidate enumeration");
+}
+
+void test_weber_sea_runner() {
+    const auto phi5 = oneshotsea::SparseModularPolynomial::load(
+        5, "data/modpoly/weber_f/phi_5.txt");
+    const oneshotsea::Curve curve(oneshotsea::Field(193), 148, 168);
+    const auto level =
+        oneshotsea::compute_weber_elkies_level_reference(curve, phi5);
+    check(!level.kernels.empty() && level.kernels.front().trace_residue == 4,
+          "Weber level returns an exact residue");
+    check(!level.compatible_source_lifts.empty(),
+          "positive Weber level identifies compatible source lifts");
+
+    const std::vector<mpz_class> mixed_lifts = {
+        level.compatible_source_lifts.front(), 0};
+    const auto narrowed = oneshotsea::compute_weber_elkies_level_reference(
+        curve, phi5, &mixed_lifts);
+    check(narrowed.compatible_source_lifts ==
+              std::vector<mpz_class>({mixed_lifts.front()}),
+          "Weber level safely narrows a source-lift state");
+
+    const auto result = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 11, 1);
+    check(result.traces.has_value() &&
+              *result.traces ==
+                  std::vector<mpz_class>{oneshotsea::parse_integer("-6")},
+          "stateful Weber SEA runner recovers the exact trace");
+    check(result.constraints.modulus() == 55 && result.levels.size() == 3,
+          "stateful Weber SEA runner accumulates exact levels only");
+    check(result.levels[1].ell == 7 && !result.levels[1].exact,
+          "empty Weber level preserves the accumulated exact state");
 }
 
 void test_early_abort() {
@@ -585,6 +628,22 @@ void test_elkies_residues() {
               *target_weber ==
                   oneshotsea::schoof_trace_mod_ell(target_weber_curve, 7),
           "target-field Weber residue agrees with Schoof");
+
+    const auto weber_phi37 = oneshotsea::SparseModularPolynomial::load(
+        37, "data/modpoly/weber_f/phi_37.txt");
+    const auto level37 =
+        oneshotsea::elkies_trace_residue_weber_bmss_reference(
+            oneshotsea::Curve(oneshotsea::Field(1009), 799, 474),
+            weber_phi37);
+    check(level37.has_value() && *level37 == 0,
+          "level-37 Weber residue works above the old division-polynomial cap");
+
+    const auto target_level37 =
+        oneshotsea::elkies_trace_residue_weber_bmss_reference(
+            oneshotsea::deterministic_curve(target_prime(), 45077, 2),
+            weber_phi37);
+    check(target_level37.has_value() && *target_level37 == 29,
+          "416-bit target level-37 Weber residue matches the Magma oracle");
 }
 
 }  // namespace
@@ -596,6 +655,7 @@ int main() {
         test_curves();
         test_modular_polynomials();
         test_trace_constraints();
+        test_weber_sea_runner();
         test_early_abort();
         test_schoof_residues();
         test_elkies_residues();

@@ -60,6 +60,16 @@ class PointCountOracleTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "prime greater than 3"):
             point_count.count_curve(MAGMA, 15, 1, 1)
 
+    def test_target_size_json_is_not_line_wrapped(self) -> None:
+        assert MAGMA is not None
+        p = int("1" + "0" * 122 + "237")
+        expected_trace = int(
+            "199878959579708724069452759250102513576112885806884790114121178"
+        )
+        result = point_count.count_curve(MAGMA, p, 2, 3)
+        self.assertEqual(result["trace"], expected_trace)
+        self.assertEqual(result["order"], p + 1 - expected_trace)
+
 
 def parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(add_help=False)

@@ -2,6 +2,7 @@
 #include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/schoof.hpp"
+#include "oneshotsea/sea.hpp"
 
 #include <charconv>
 #include <cstdint>
@@ -67,6 +68,7 @@ void usage() {
         << "  oneshotsea elkies-bmss-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
+        << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -152,11 +154,66 @@ int main(int argc, char** argv) {
             std::cout << "]}\n";
             return 0;
         }
+        if (command == "sea-weber-count") {
+            const std::uint64_t max_level = required_u64(options, "max-level");
+            const std::uint64_t trace_cap_u64 = required_u64(options, "trace-cap");
+            if (trace_cap_u64 > std::numeric_limits<std::size_t>::max()) {
+                throw std::invalid_argument("--trace-cap is out of range");
+            }
+            const auto progress = [](const oneshotsea::WeberSeaLevelRecord& record) {
+                std::cout << "{\"type\":\"level\",\"ell\":" << record.ell
+                          << ",\"exact\":" << (record.exact ? "true" : "false");
+                if (record.trace_residue.has_value()) {
+                    std::cout << ",\"trace_residue\":" << *record.trace_residue;
+                }
+                std::cout << ",\"exact_modulus\":\"" << record.exact_modulus
+                          << "\",\"trace_candidates\":\""
+                          << record.trace_candidate_count
+                          << "\",\"compatible_source_lifts\":"
+                          << record.compatible_source_lifts
+                          << ",\"timings_us\":{\"source_lifts\":"
+                          << record.timings.source_lifts_us
+                          << ",\"modular_roots\":"
+                          << record.timings.modular_roots_us
+                          << ",\"normalized_codomain\":"
+                          << record.timings.normalized_codomain_us
+                          << ",\"bmss\":" << record.timings.bmss_us
+                          << ",\"eigenvalue\":"
+                          << record.timings.eigenvalue_us
+                          << ",\"lift_pairs\":" << record.timings.lift_pairs
+                          << "}}\n" << std::flush;
+            };
+            const auto result = oneshotsea::run_weber_sea_reference(
+                curve, required(options, "table-dir"), max_level,
+                static_cast<std::size_t>(trace_cap_u64), progress);
+            std::cout << "{\"type\":\"summary\",\"exact_modulus\":\""
+                      << result.constraints.modulus()
+                      << "\",\"trace_candidates\":\""
+                      << result.constraints.candidate_count()
+                      << "\",\"compatible_source_lifts\":"
+                      << result.compatible_source_lifts.size()
+                      << ",\"levels_processed\":" << result.levels.size()
+                      << ",\"complete\":"
+                      << (result.traces.has_value() ? "true" : "false");
+            if (result.traces.has_value()) {
+                std::cout << ",\"traces\":[";
+                for (std::size_t index = 0; index < result.traces->size(); ++index) {
+                    if (index != 0U) {
+                        std::cout << ',';
+                    }
+                    std::cout << '\"' << (*result.traces)[index] << '\"';
+                }
+                std::cout << ']';
+            }
+            std::cout << "}\n";
+            return 0;
+        }
         if (command == "elkies-residue" || command == "elkies-bmss-residue" ||
             command == "elkies-weber-residue" ||
             command == "elkies-division-residue") {
             const std::uint64_t level = required_u64(options, "ell");
             std::vector<oneshotsea::ElkiesKernelResult> kernels;
+            oneshotsea::ElkiesStageTimings weber_timings;
             if (command == "elkies-residue" ||
                 command == "elkies-bmss-residue" ||
                 command == "elkies-weber-residue") {
@@ -168,7 +225,7 @@ int main(int argc, char** argv) {
                         static_cast<unsigned>(level), required(options, "file"));
                 if (command == "elkies-weber-residue") {
                     kernels = oneshotsea::elkies_kernels_weber_bmss_reference(
-                        curve, modular_polynomial);
+                        curve, modular_polynomial, &weber_timings);
                 } else if (command == "elkies-bmss-residue") {
                     kernels = oneshotsea::elkies_kernels_bmss_reference(
                         curve, modular_polynomial);
@@ -193,6 +250,19 @@ int main(int argc, char** argv) {
                     }
                 }
                 std::cout << ",\"trace_residue\":" << residue;
+            }
+            if (command == "elkies-weber-residue") {
+                std::cout << ",\"timings_us\":{\"source_lifts\":"
+                          << weber_timings.source_lifts_us
+                          << ",\"modular_roots\":"
+                          << weber_timings.modular_roots_us
+                          << ",\"normalized_codomain\":"
+                          << weber_timings.normalized_codomain_us
+                          << ",\"bmss\":" << weber_timings.bmss_us
+                          << ",\"eigenvalue\":"
+                          << weber_timings.eigenvalue_us
+                          << ",\"lift_pairs\":"
+                          << weber_timings.lift_pairs << '}';
             }
             std::cout << "}\n";
             return 0;

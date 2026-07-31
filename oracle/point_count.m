@@ -40,5 +40,7 @@ order := #E;
 trace := p + 1 - order;
 
 // Decimal JSON integers preserve the exact values for arbitrary-size parsers.
+SetAutoColumns(false);
+SetColumns(0);
 printf "{\"p\":%o,\"a\":%o,\"b\":%o,\"order\":%o,\"trace\":%o}\n",
        p, Integers() ! aa, Integers() ! bb, order, trace;

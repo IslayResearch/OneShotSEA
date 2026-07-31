@@ -192,23 +192,32 @@ std::pair<Poly, Poly> divmod(const Poly& numerator, const Poly& denominator) {
     if (denominator.is_zero()) {
         throw std::domain_error("polynomial division by zero");
     }
-    Poly remainder = numerator;
-    if (remainder.degree() < denominator.degree()) {
-        return {Poly(numerator.field()), remainder};
+    if (numerator.degree() < denominator.degree()) {
+        return {Poly(numerator.field()), numerator};
     }
+    const Field& field = numerator.field();
+    std::vector<mpz_class> remainder = numerator.coefficients();
     std::vector<mpz_class> quotient(
-        static_cast<std::size_t>(remainder.degree() - denominator.degree() + 1), 0);
-    const mpz_class inverse_lead = numerator.field().inverse(denominator.leading_coefficient());
-    while (!remainder.is_zero() && remainder.degree() >= denominator.degree()) {
-        const int shift = remainder.degree() - denominator.degree();
-        const mpz_class factor = numerator.field().mul(
-            remainder.leading_coefficient(), inverse_lead);
-        quotient[static_cast<std::size_t>(shift)] = factor;
-        std::vector<mpz_class> term(static_cast<std::size_t>(shift) + 1U, 0);
-        term.back() = factor;
-        remainder = sub(remainder, mul(denominator, Poly(numerator.field(), std::move(term))));
+        static_cast<std::size_t>(numerator.degree() - denominator.degree() + 1), 0);
+    const std::size_t denominator_degree =
+        static_cast<std::size_t>(denominator.degree());
+    const mpz_class inverse_lead =
+        field.inverse(denominator.leading_coefficient());
+    while (remainder.size() > denominator_degree) {
+        const std::size_t shift = remainder.size() - denominator_degree - 1U;
+        const mpz_class factor = field.mul(remainder.back(), inverse_lead);
+        quotient[shift] = factor;
+        for (std::size_t index = 0; index <= denominator_degree; ++index) {
+            remainder[shift + index] = field.sub(
+                remainder[shift + index],
+                field.mul(factor, denominator.coefficient(index)));
+        }
+        while (!remainder.empty() && remainder.back() == 0) {
+            remainder.pop_back();
+        }
     }
-    return {Poly(numerator.field(), std::move(quotient)), remainder};
+    return {Poly(field, std::move(quotient)),
+            Poly(field, std::move(remainder))};
 }
 
 Poly mod(const Poly& numerator, const Poly& denominator) {

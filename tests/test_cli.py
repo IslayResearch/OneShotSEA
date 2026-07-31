@@ -91,6 +91,32 @@ class CliTests(unittest.TestCase):
             json.loads(classical.stdout)["trace_residue"],
         )
 
+    def test_stateful_weber_sea_streams_exact_progress(self) -> None:
+        result = self.run_cli(
+            "sea-weber-count",
+            "--p",
+            193,
+            "--a",
+            148,
+            "--b",
+            168,
+            "--max-level",
+            11,
+            "--table-dir",
+            ROOT / "data" / "modpoly" / "weber_f",
+            "--trace-cap",
+            1,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        records = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual([record["ell"] for record in records[:-1]], [5, 7, 11])
+        self.assertEqual(
+            [record["exact"] for record in records[:-1]], [True, False, True]
+        )
+        self.assertEqual(records[-1]["type"], "summary")
+        self.assertEqual(records[-1]["exact_modulus"], "55")
+        self.assertEqual(records[-1]["traces"], ["-6"])
+
 
 if __name__ == "__main__":
     unittest.main()

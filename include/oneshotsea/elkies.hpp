@@ -20,6 +20,23 @@ struct ElkiesKernelResult {
     std::uint64_t trace_residue;
 };
 
+struct ElkiesStageTimings {
+    std::uint64_t source_lifts_us = 0;
+    std::uint64_t modular_roots_us = 0;
+    std::uint64_t normalized_codomain_us = 0;
+    std::uint64_t bmss_us = 0;
+    std::uint64_t eigenvalue_us = 0;
+    std::uint64_t lift_pairs = 0;
+};
+
+struct WeberElkiesLevelResult {
+    std::vector<ElkiesKernelResult> kernels;
+    // Source lifts that produced at least one fully validated kernel. Positive
+    // evidence may safely restrict later levels; an empty level must not.
+    std::vector<mpz_class> compatible_source_lifts;
+    ElkiesStageTimings timings;
+};
+
 // Compute the normalized short-Weierstrass Vélu codomain from the monic kernel
 // polynomial using its first three power sums. The kernel is independently
 // checked for degree, square-freeness, and divisibility by psi_ell.
@@ -62,7 +79,13 @@ std::optional<std::uint64_t> elkies_trace_residue_bmss_reference(
 // only candidates that pass normalized BMSS and Frobenius validation.
 std::vector<ElkiesKernelResult> elkies_kernels_weber_bmss_reference(
     const Curve& curve,
-    const SparseModularPolynomial& weber_modular_polynomial);
+    const SparseModularPolynomial& weber_modular_polynomial,
+    ElkiesStageTimings* timings = nullptr);
+
+WeberElkiesLevelResult compute_weber_elkies_level_reference(
+    const Curve& curve,
+    const SparseModularPolynomial& weber_modular_polynomial,
+    const std::vector<mpz_class>* restricted_source_lifts = nullptr);
 
 std::optional<std::uint64_t> elkies_trace_residue_weber_bmss_reference(
     const Curve& curve,

@@ -357,7 +357,7 @@ namespace {
 
 std::optional<std::uint64_t> try_frobenius_eigenvalue_impl(
     const Curve& curve, const Poly& kernel, std::uint64_t ell,
-    bool validate_division_polynomial) {
+    bool validate_division_polynomial, bool validate_subgroup_closure) {
     if (curve.is_singular()) {
         throw std::invalid_argument("Frobenius eigenvalue requires a nonsingular curve");
     }
@@ -396,46 +396,46 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_impl(
     const Element f = element(ring, curve_rhs, Poly(field));
     const mpz_class p = field.modulus();
 
-    // Degree, square-freeness, or even divisibility by psi_ell does not by
-    // itself prove that the roots form one cyclic subgroup. In scalar-
-    // Frobenius cases a mixture of roots from different lines could otherwise
-    // masquerade as an eigenkernel. Closure under every nonzero scalar modulo
-    // sign proves that the roots are exactly one cyclic subgroup.
-    for (std::uint64_t scalar = 2; scalar <= (ell - 1U) / 2U; ++scalar) {
-        if (!projective_x_satisfies(
-                kernel, scalar_multiply(scalar, generic, curve.a()))) {
-            return std::nullopt;
-        }
-    }
-
     const JacobianPoint frobenius{
         element_pow(x, p),
         element_mul(y, element_pow(f, (p - 1) / 2)),
         constant(ring, 1),
     };
-    std::vector<std::uint64_t> matches;
+    JacobianPoint multiple = generic;
     for (std::uint64_t eigenvalue = 1; eigenvalue < ell; ++eigenvalue) {
-        if (same_point(frobenius,
-                       scalar_multiply(eigenvalue, generic, curve.a()))) {
-            matches.push_back(eigenvalue);
+        // Degree, square-freeness, or even divisibility by psi_ell does not by
+        // itself prove that the roots form one cyclic subgroup. In scalar-
+        // Frobenius cases a mixture of roots from different lines could
+        // otherwise masquerade as an eigenkernel. Closure under every
+        // nonzero scalar modulo sign proves that the roots form one subgroup.
+        // A BMSS denominator that has passed the full rational-isogeny identity
+        // already has this property, so its production caller skips this
+        // deliberately expensive independent check.
+        if (validate_subgroup_closure && eigenvalue >= 2U &&
+            eigenvalue <= (ell - 1U) / 2U &&
+            !projective_x_satisfies(kernel, multiple)) {
+            return std::nullopt;
+        }
+        if (same_point(frobenius, multiple)) {
+            return eigenvalue;
+        }
+        if (eigenvalue + 1U < ell) {
+            multiple = point_add(multiple, generic, curve.a());
         }
     }
-    if (matches.size() != 1U) {
-        return std::nullopt;
-    }
-    return matches.front();
+    return std::nullopt;
 }
 
 }  // namespace
 
 std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
     const Curve& curve, const Poly& kernel, std::uint64_t ell) {
-    return try_frobenius_eigenvalue_impl(curve, kernel, ell, true);
+    return try_frobenius_eigenvalue_impl(curve, kernel, ell, true, true);
 }
 
 std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny_kernel(
     const Curve& curve, const Poly& kernel, std::uint64_t ell) {
-    return try_frobenius_eigenvalue_impl(curve, kernel, ell, false);
+    return try_frobenius_eigenvalue_impl(curve, kernel, ell, false, false);
 }
 
 std::uint64_t frobenius_eigenvalue_reference(const Curve& curve,

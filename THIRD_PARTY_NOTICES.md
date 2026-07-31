@@ -1,8 +1,9 @@
 # Third-party notices
 
 OneShotSEA's original code is distributed under the root MIT license. The
-repository also contains the two pinned, MIT-licensed upstream components
-listed below. The root license does not replace their copyright notices.
+repository also contains two pinned, MIT-licensed upstream components and an
+adaptation of a third upstream source file, listed below. The root license does
+not replace their copyright notices.
 
 ## Canonical one-shot primality verifier
 
@@ -83,6 +84,25 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## OneShotFastECPP Montgomery certificate assembly
+
+- Local adaptation: `src/certificate.cpp`
+- Upstream: [AndrewVSutherland2/OneShotFastECPP](https://github.com/AndrewVSutherland2/OneShotFastECPP)
+- Pinned commit: `88da82fbcda4471746b5df34f008dcfa5cc28d2d`
+- Reference paths: `ecpp/curve.c` and `ecpp/curve.h`
+- SHA-256 (`curve.c`): `040b2831104053bf06d439edb4797c886532dbaf8f3b377bc6ec04c2778d6897`
+- SHA-256 (`curve.h`): `5dd7fc22c7c1b50c2f264aa86c1a3293dda1d1b0d41adb5ad816cd6ec7420498`
+- License: MIT
+- Copyright: 2026 AndrewVSutherland2
+
+The native certificate module adapts the x-only Montgomery formulas,
+`j`-to-Montgomery conversion, cofactor projection, and exact-order assembly
+flow. It replaces the upstream fixed-limb field, polynomial-root, and
+Cornacchia dependencies with OneShotSEA's GMP-backed field and polynomial
+interfaces. The upstream MIT license text is reproduced in the preceding
+OneShotFastECPP section and retained verbatim at
+`third_party/oneshot_fast_ecpp/LICENSE`.
 
 ## Explicit exclusions
 

@@ -22,13 +22,13 @@ endif
 BUILD_DIR := build
 LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp \
 	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/isogeny.cpp src/weber.cpp src/sea.cpp \
-	src/smooth_cache.cpp src/factor.cpp
+	src/smooth_cache.cpp src/factor.cpp src/search_checkpoint.cpp src/certificate.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-cli test-reference test-factor test-modpoly-generator test-weber-modpoly test-verifier test-vendor test-smooth test-smooth-cache test-oracle test-differential test-runpod test-all clean
+.PHONY: all test test-cli test-reference test-factor test-certificate test-modpoly-generator test-weber-modpoly test-verifier test-vendor test-smooth test-smooth-cache test-search-checkpoint test-oracle test-differential test-runpod test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -46,8 +46,10 @@ $(BUILD_DIR)/smooth.o: third_party/oneshot_fast_ecpp/smooth.c \
 $(BUILD_DIR)/liboneshotsea.a: $(LIB_OBJECTS)
 	ar rcs $@ $^
 
-$(BUILD_DIR)/oneshotsea: src/main.cpp $(BUILD_DIR)/liboneshotsea.a
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a $(LDFLAGS) $(LDLIBS) -o $@
+$(BUILD_DIR)/oneshotsea: src/main.cpp $(BUILD_DIR)/liboneshotsea.a \
+		$(BUILD_DIR)/smooth.o
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(BUILD_DIR)/smooth.o $(LDFLAGS) $(OPENMP_LDFLAGS) $(LDLIBS) -o $@
 
 $(BUILD_DIR)/test_core: tests/test_core.cpp $(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a $(LDFLAGS) $(LDLIBS) -o $@
@@ -66,6 +68,16 @@ $(BUILD_DIR)/test_factor: tests/test_factor.cpp $(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
 		$(LDFLAGS) $(LDLIBS) -o $@
 
+$(BUILD_DIR)/test_certificate: tests/test_certificate.cpp \
+		$(BUILD_DIR)/liboneshotsea.a $(BUILD_DIR)/smooth.o
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(BUILD_DIR)/smooth.o $(LDFLAGS) $(OPENMP_LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD_DIR)/test_search_checkpoint: tests/test_search_checkpoint.cpp \
+		$(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
 test: $(BUILD_DIR)/test_core
 	./$(BUILD_DIR)/test_core
 
@@ -78,6 +90,9 @@ test-reference:
 
 test-factor: $(BUILD_DIR)/test_factor
 	./$(BUILD_DIR)/test_factor
+
+test-certificate: $(BUILD_DIR)/test_certificate
+	./$(BUILD_DIR)/test_certificate
 
 test-modpoly-generator:
 	python3 tests/test_modpoly_generator.py -v
@@ -98,6 +113,9 @@ test-smooth: $(BUILD_DIR)/test_smooth
 test-smooth-cache: $(BUILD_DIR)/test_smooth_cache
 	./$(BUILD_DIR)/test_smooth_cache
 
+test-search-checkpoint: $(BUILD_DIR)/test_search_checkpoint
+	./$(BUILD_DIR)/test_search_checkpoint
+
 test-oracle:
 	python3 oracle/test_point_count.py -v
 
@@ -107,7 +125,7 @@ test-differential: all
 test-runpod:
 	scripts/runpod/test.sh
 
-test-all: test test-cli test-reference test-factor test-modpoly-generator test-weber-modpoly test-verifier test-vendor test-smooth test-smooth-cache test-oracle test-differential test-runpod
+test-all: test test-cli test-reference test-factor test-certificate test-modpoly-generator test-weber-modpoly test-verifier test-vendor test-smooth test-smooth-cache test-search-checkpoint test-oracle test-differential test-runpod
 
 clean:
 	rm -rf $(BUILD_DIR)

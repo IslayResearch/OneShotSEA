@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -62,6 +63,31 @@ struct CandidateResult {
 CandidateResult prepare_certificate_candidate(
     const mpz_class& prime, const mpz_class& order,
     const mpz_class& smooth_part, bool odd_only = false);
+
+// The exhaustive iterator preserves build_m2's choices as the first preferred
+// candidates, then streams every other divisor m of smooth_part satisfying the
+// canonical L < m < L*r window (r is m's least prime divisor).  The callback
+// returns true to continue or false to stop.  No candidate collection is kept;
+// enumeration uses O(number of distinct smooth factors) working memory.
+enum class CandidateOrigin {
+    preferred,
+    preferred_odd_only,
+    exhaustive,
+};
+
+using CertificateCandidateVisitor = std::function<bool(
+    const CertificateCandidate&, CandidateOrigin)>;
+
+struct CandidateEnumerationResult {
+    CandidateFailure failure = CandidateFailure::none;
+    std::size_t candidates_visited = 0;
+    bool stopped_early = false;
+};
+
+CandidateEnumerationResult enumerate_certificate_candidates(
+    const mpz_class& prime, const mpz_class& order,
+    const mpz_class& smooth_part,
+    const CertificateCandidateVisitor& visitor);
 
 struct MontgomeryXZ {
     mpz_class x;

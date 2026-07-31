@@ -157,6 +157,98 @@ void test_direct_curve_and_twist_assembly() {
     canonical_accepts(*twist_certificate);
 }
 
+void test_alternative_candidate_regression() {
+    const auto preferred =
+        oneshotsea::prepare_certificate_candidate(101, 100, 100);
+    check(preferred && preferred.candidate->point_order == 25,
+          "compatibility selector keeps its preferred order");
+    check(!oneshotsea::assemble_montgomery_certificate(
+               *preferred.candidate, 6,
+               {1, 400, oneshotsea::MontgomerySide::twist})
+               .has_value(),
+          "preferred order is absent from the target twist");
+
+    std::vector<mpz_class> orders;
+    std::optional<oneshotsea::MontgomeryCertificate> assembled;
+    const auto enumeration = oneshotsea::enumerate_certificate_candidates(
+        101, 100, 100,
+        [&](const oneshotsea::CertificateCandidate& candidate,
+            oneshotsea::CandidateOrigin) {
+            orders.push_back(candidate.point_order);
+            if (candidate.point_order == 20) {
+                assembled = oneshotsea::assemble_montgomery_certificate(
+                    candidate, 6,
+                    {1, 400, oneshotsea::MontgomerySide::twist});
+            }
+            return true;
+        });
+    check(enumeration.failure == oneshotsea::CandidateFailure::none &&
+              !enumeration.stopped_early &&
+              enumeration.candidates_visited == 2U,
+          "alternative enumeration reaches true exhaustion");
+    check(orders == std::vector<mpz_class>({25, 20}),
+          "complete candidate enumeration preserves preference then finds 20");
+    check(assembled.has_value() && assembled->order == 20 &&
+              oneshotsea::validate_montgomery_certificate(*assembled),
+          "alternative order 20 assembles natively");
+    canonical_accepts(*assembled);
+    const oneshotsea::MontgomeryCertificate canonical_fixture{
+        101, 6, 4, 20, {}};
+    check(oneshotsea::validate_montgomery_certificate(canonical_fixture),
+          "known order-20 regression fixture validates natively");
+    canonical_accepts(canonical_fixture);
+}
+
+void test_candidate_enumeration_completeness() {
+    const mpz_class lower_bound =
+        oneshotsea::canonical_certificate_bounds(101).lower_order_bound;
+    for (unsigned long order = 82; order <= 122; ++order) {
+        for (unsigned long smooth = 1; smooth <= order; ++smooth) {
+            if (order % smooth != 0 || mpz_class(smooth) <= lower_bound) {
+                continue;
+            }
+            std::vector<unsigned long> expected;
+            for (unsigned long divisor = 2; divisor <= smooth; ++divisor) {
+                if (smooth % divisor != 0 ||
+                    mpz_class(divisor) <= lower_bound) {
+                    continue;
+                }
+                unsigned long least_prime = 2;
+                while (divisor % least_prime != 0) {
+                    ++least_prime;
+                }
+                if (mpz_class(divisor) < lower_bound * least_prime) {
+                    expected.push_back(divisor);
+                }
+            }
+
+            std::vector<unsigned long> actual;
+            const auto result = oneshotsea::enumerate_certificate_candidates(
+                101, order, smooth,
+                [&](const oneshotsea::CertificateCandidate& candidate,
+                    oneshotsea::CandidateOrigin) {
+                    actual.push_back(candidate.point_order.get_ui());
+                    return true;
+                });
+            const oneshotsea::CandidateFailure expected_failure =
+                expected.empty()
+                    ? oneshotsea::CandidateFailure::no_admissible_divisor
+                    : oneshotsea::CandidateFailure::none;
+            check(result.failure == expected_failure && !result.stopped_early,
+                  "small exhaustive candidate enumeration completes for N=" +
+                      std::to_string(order) + " S=" +
+                      std::to_string(smooth) + " failure=" +
+                      oneshotsea::candidate_failure_name(result.failure));
+            std::sort(actual.begin(), actual.end());
+            std::sort(expected.begin(), expected.end());
+            check(actual == expected,
+                  "streamed candidates equal all admissible divisors for N=" +
+                      std::to_string(order) + " S=" +
+                      std::to_string(smooth));
+        }
+    }
+}
+
 void test_j_conversion_and_assembly() {
     const oneshotsea::MontgomeryCurve curve(oneshotsea::Field(101), 3);
     const mpz_class j = curve.j_invariant();
@@ -230,6 +322,8 @@ int main() {
         test_bounds_and_candidate_preparation();
         test_ladder_and_exact_order();
         test_direct_curve_and_twist_assembly();
+        test_alternative_candidate_regression();
+        test_candidate_enumeration_completeness();
         test_j_conversion_and_assembly();
         test_native_validation_regressions();
         std::cout << "certificate candidate/assembly tests passed\n";

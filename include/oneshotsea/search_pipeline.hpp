@@ -1,0 +1,165 @@
+#pragma once
+
+#include "oneshotsea/certificate.hpp"
+#include "oneshotsea/exact_smooth.hpp"
+#include "oneshotsea/integrity.hpp"
+#include "oneshotsea/search_checkpoint.hpp"
+
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <functional>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace oneshotsea {
+
+// Semantic configuration of the deterministic production search.  The
+// production path deliberately has no heuristic-rejection switch: every
+// early rejection is justified by a complete trace set and exact n^4-smooth
+// parts, or is an explicit SEA availability/level-limit outcome.
+struct SearchPipelineConfig {
+    mpz_class prime;
+    std::uint64_t seed = 0;
+    std::filesystem::path table_directory;
+    std::uint64_t max_level = 0;
+    std::size_t early_trace_cap = 4096;
+    std::size_t assembly_attempts = 400;
+    std::uint64_t certificate_seed = 1;
+    std::filesystem::path canonical_verifier;
+    std::string python_executable = "python3";
+    // Optional run-time assertions used by the CLI after it has computed the
+    // content identities.  Library users may leave these empty while building
+    // an identity, then set them before executing the run.
+    std::string expected_schedule_sha256;
+    std::string expected_table_manifest_sha256;
+    std::string expected_verifier_sha256;
+    std::string expected_python_sha256;
+};
+
+enum class SearchCurveStatus : std::uint8_t {
+    no_rational_weber_lift,
+    sea_level_limit,
+    sound_smoothness_reject,
+    no_certificate_candidate,
+    certificate_assembly_failed,
+    canonical_verifier_rejected,
+    verified_certificate,
+};
+
+const char* search_curve_status_name(SearchCurveStatus status);
+
+struct SearchCurveTimings {
+    std::uint64_t generation_us = 0;
+    std::uint64_t sea_us = 0;
+    std::uint64_t smoothness_us = 0;
+    std::uint64_t candidate_us = 0;
+    std::uint64_t assembly_us = 0;
+    std::uint64_t verifier_us = 0;
+    std::uint64_t total_us = 0;
+};
+
+struct SearchSeaLevelTiming {
+    std::size_t pass = 0;
+    std::uint64_t ell = 0;
+    bool exact = false;
+    std::uint64_t source_lifts_us = 0;
+    std::uint64_t modular_roots_us = 0;
+    std::uint64_t normalized_codomain_us = 0;
+    std::uint64_t bmss_us = 0;
+    std::uint64_t eigenvalue_us = 0;
+};
+
+struct SearchCurveReport {
+    std::uint64_t global_index = 0;
+    SearchCurveStatus status = SearchCurveStatus::sea_level_limit;
+    CurveSearchOutcome outcome{CurveTerminalStage::rejected_sea, false, false};
+    std::uint64_t rejected_generator_samples = 0;
+    std::size_t sea_passes = 0;
+    std::size_t sea_levels = 0;
+    std::size_t exact_sea_levels = 0;
+    std::vector<SearchSeaLevelTiming> sea_level_timings;
+    std::size_t initial_trace_count = 0;
+    std::optional<mpz_class> exact_trace;
+    bool certificate_uses_twist_order = false;
+    bool certificate_uses_odd_only = false;
+    MontgomerySide certificate_montgomery_side = MontgomerySide::either;
+    std::size_t candidate_attempts = 0;
+    std::size_t assembly_attempts = 0;
+    std::size_t canonical_rejections = 0;
+    std::optional<MontgomeryCertificate> certificate;
+    SearchCurveTimings timings;
+};
+
+// Injectable so a focused integration test can assert verifier invocation.
+// Production callers should leave this empty to invoke the unmodified script.
+using CanonicalCertificateVerifier =
+    std::function<bool(const MontgomeryCertificate&)>;
+
+// Resolve through PATH once, canonicalize symlinks, and require a regular
+// executable.  Search schedules bind both this absolute path and its digest.
+std::string resolve_executable_path(const std::string& executable);
+bool authenticate_python3_interpreter(
+    const std::string& absolute_python_executable);
+
+bool verify_with_canonical_voneshot(
+    const MontgomeryCertificate& certificate,
+    const std::filesystem::path& verifier,
+    const std::string& python_executable = "python3");
+
+SearchCurveReport process_search_curve(
+    const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
+    std::uint64_t global_index,
+    const CanonicalCertificateVerifier& verifier = {});
+
+struct SearchPipelineRunOptions {
+    // Zero means no curves; callers choose an explicit cap or the remaining
+    // assigned range.  This makes accidental unbounded test runs impossible.
+    std::uint64_t max_curves = 0;
+    std::uint64_t checkpoint_every = 1;
+    std::filesystem::path checkpoint_path;
+    std::filesystem::path progress_path;
+    // Required for a nonempty run.  A canonical certificate is durably
+    // published here before the checkpoint cursor advances.
+    std::filesystem::path certificate_path;
+};
+
+struct SearchPipelineRunResult {
+    std::uint64_t curves_processed = 0;
+    bool exhausted_assigned_range = false;
+    std::optional<SearchCurveReport> verified;
+};
+
+using SearchReportCallback =
+    std::function<void(const SearchCurveReport&, const SearchState&)>;
+
+// Advances SearchState only after a complete terminal report.  Checkpoints
+// therefore never contain partial SEA residues.  Processing stops immediately
+// after canonical verification succeeds.
+SearchPipelineRunResult run_search_pipeline(
+    const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
+    SearchState& state, const SearchPipelineRunOptions& options,
+    const SearchReportCallback& report_callback = {},
+    const CanonicalCertificateVerifier& verifier = {});
+
+std::string search_curve_report_json(const SearchCurveReport& report,
+                                     const SearchState& state);
+
+// Content identities used to bind resumable checkpoints.  The schedule hash
+// includes the exact smooth-cache and canonical-verifier digests.
+std::string weber_table_manifest_sha256(
+    const std::filesystem::path& table_directory, std::uint64_t max_level);
+std::string search_schedule_sha256(
+    const SearchPipelineConfig& config,
+    const std::string& smooth_cache_sha256,
+    const std::string& canonical_verifier_sha256);
+
+SearchIdentity make_search_identity(
+    const SearchPipelineConfig& config, SearchRange global_range,
+    std::uint64_t worker_id, std::uint64_t worker_count,
+    const std::string& smooth_cache_sha256,
+    const std::string& canonical_verifier_sha256,
+    const std::string& build_id);
+
+}  // namespace oneshotsea

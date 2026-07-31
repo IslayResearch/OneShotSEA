@@ -1,16 +1,20 @@
 #include "oneshotsea/curve.hpp"
 #include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
+#include "oneshotsea/search_pipeline.hpp"
 #include "oneshotsea/schoof.hpp"
 #include "oneshotsea/sea.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -56,6 +60,48 @@ unsigned required_unsigned(const std::map<std::string, std::string>& options,
     return static_cast<unsigned>(value);
 }
 
+std::uint64_t optional_u64(const std::map<std::string, std::string>& options,
+                           const std::string& name, std::uint64_t fallback) {
+    if (!options.contains(name)) {
+        return fallback;
+    }
+    return required_u64(options, name);
+}
+
+std::string optional_string(const std::map<std::string, std::string>& options,
+                            const std::string& name, std::string fallback) {
+    const auto found = options.find(name);
+    return found == options.end() ? std::move(fallback) : found->second;
+}
+
+void ensure_parent_directory(const std::filesystem::path& path) {
+    const std::filesystem::path parent = path.parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent);
+    }
+}
+
+void require_distinct_output_paths(
+    const std::vector<std::filesystem::path>& paths) {
+    std::vector<std::filesystem::path> normalized;
+    for (const auto& path : paths) {
+        std::error_code error;
+        const std::filesystem::path value =
+            std::filesystem::weakly_canonical(
+                std::filesystem::absolute(path), error);
+        if (error) {
+            throw std::invalid_argument("cannot resolve output path: " +
+                                        path.string());
+        }
+        if (std::find(normalized.begin(), normalized.end(), value) !=
+            normalized.end()) {
+            throw std::invalid_argument(
+                "smooth cache, checkpoint, progress, certificate, and metadata paths must be distinct");
+        }
+        normalized.push_back(value);
+    }
+}
+
 void usage() {
     std::cerr
         << "usage:\n"
@@ -69,6 +115,7 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -82,6 +129,201 @@ int main(int argc, char** argv) {
         }
         const std::string command = argv[1];
         const auto options = parse_options(argc, argv, 2);
+        if (command == "search") {
+            oneshotsea::SearchPipelineConfig config;
+            config.prime = oneshotsea::parse_integer(required(options, "p"));
+            config.seed = required_u64(options, "seed");
+            config.table_directory = required(options, "table-dir");
+            config.max_level = required_u64(options, "max-level");
+            const std::uint64_t trace_cap = optional_u64(
+                options, "trace-cap", 4096U);
+            const std::uint64_t assembly_attempts = optional_u64(
+                options, "assembly-attempts", 400U);
+            if (trace_cap > std::numeric_limits<std::size_t>::max() ||
+                assembly_attempts > std::numeric_limits<std::size_t>::max()) {
+                throw std::invalid_argument("search size option is out of range");
+            }
+            config.early_trace_cap = static_cast<std::size_t>(trace_cap);
+            config.assembly_attempts =
+                static_cast<std::size_t>(assembly_attempts);
+            config.certificate_seed = optional_u64(
+                options, "certificate-seed", 1U);
+            if (options.contains("verifier")) {
+                throw std::invalid_argument(
+                    "--verifier overrides are forbidden in production search");
+            }
+            const std::filesystem::path executable_path =
+                std::filesystem::canonical(std::filesystem::absolute(argv[0]));
+            const std::filesystem::path repository_root =
+                executable_path.parent_path().parent_path();
+            config.canonical_verifier = std::filesystem::canonical(
+                repository_root / "third_party" /
+                "oneshot_primality_proofs" / "voneshot.py");
+            config.python_executable = oneshotsea::resolve_executable_path(
+                optional_string(options, "python", "python3"));
+            if (!oneshotsea::authenticate_python3_interpreter(
+                    config.python_executable)) {
+                throw std::invalid_argument(
+                    "--python did not authenticate as Python 3");
+            }
+            const std::string python_sha =
+                oneshotsea::sha256_file(config.python_executable);
+
+            const std::filesystem::path smooth_cache =
+                required(options, "smooth-cache");
+            const std::filesystem::path checkpoint =
+                required(options, "checkpoint");
+            const std::filesystem::path progress = optional_string(
+                options, "progress", checkpoint.string() + ".ndjson");
+            const std::filesystem::path certificate_output = optional_string(
+                options, "certificate-out", checkpoint.string() + ".certificate");
+            const std::filesystem::path certificate_metadata =
+                certificate_output.string() + ".meta.json";
+            require_distinct_output_paths({
+                smooth_cache, checkpoint, progress, certificate_output,
+                certificate_metadata});
+            const bool cache_preexisted =
+                std::filesystem::is_regular_file(smooth_cache);
+            const bool checkpoint_preexisted =
+                std::filesystem::is_regular_file(checkpoint);
+            std::string trusted_existing_cache_sha;
+            if (cache_preexisted) {
+                trusted_existing_cache_sha = oneshotsea::sha256_file(smooth_cache);
+                if (!checkpoint_preexisted) {
+                    const std::string supplied =
+                        required(options, "smooth-cache-sha256");
+                    if (!oneshotsea::is_lower_sha256(supplied) ||
+                        supplied != trusted_existing_cache_sha) {
+                        throw std::invalid_argument(
+                            "fresh search rejected untrusted pre-existing smooth cache digest");
+                    }
+                }
+            }
+            ensure_parent_directory(smooth_cache);
+            ensure_parent_directory(checkpoint);
+            ensure_parent_directory(progress);
+
+            oneshotsea::ExactSmoothOptions smooth_options;
+            const std::uint64_t smooth_threads = optional_u64(
+                options, "smooth-threads", 0U);
+            if (smooth_threads >
+                static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+                throw std::invalid_argument("--smooth-threads is out of range");
+            }
+            smooth_options.thread_count = static_cast<int>(smooth_threads);
+            const std::uint64_t smooth_batch = optional_u64(
+                options, "smooth-max-batch", 4096U);
+            if (smooth_batch == 0U ||
+                smooth_batch > std::numeric_limits<std::size_t>::max()) {
+                throw std::invalid_argument("--smooth-max-batch is out of range");
+            }
+            smooth_options.max_orders_per_batch =
+                static_cast<std::size_t>(smooth_batch);
+            const std::uint64_t smooth_build_segment_span = optional_u64(
+                options, "smooth-build-segment-span",
+                smooth_options.build_segment_span);
+            if (smooth_build_segment_span == 0U) {
+                throw std::invalid_argument(
+                    "--smooth-build-segment-span must be positive");
+            }
+            smooth_options.build_segment_span = smooth_build_segment_span;
+            const oneshotsea::ExactSmoothEngine smooth_engine =
+                oneshotsea::ExactSmoothEngine::load_or_build(
+                    config.prime, smooth_cache, smooth_options);
+            const std::string cache_sha = oneshotsea::sha256_file(smooth_cache);
+            if (cache_preexisted && cache_sha != trusted_existing_cache_sha) {
+                throw std::runtime_error(
+                    "smooth cache changed while initializing search");
+            }
+            const std::string verifier_sha =
+                oneshotsea::sha256_file(config.canonical_verifier);
+            constexpr const char* pinned_verifier_sha =
+                "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666";
+            if (verifier_sha != pinned_verifier_sha) {
+                throw std::runtime_error(
+                    "pinned canonical voneshot.py digest mismatch");
+            }
+            std::string build_id = optional_string(options, "build-id", "");
+            if (build_id.empty()) {
+                const std::string executable_sha =
+                    oneshotsea::sha256_file(std::filesystem::absolute(argv[0]));
+                build_id = "binary-sha256:" + executable_sha.substr(0, 32U);
+            }
+            const oneshotsea::SearchRange global_range{
+                required_u64(options, "range-start"),
+                required_u64(options, "range-end")};
+            const std::uint64_t worker_id = required_u64(options, "worker-id");
+            const std::uint64_t worker_count =
+                required_u64(options, "worker-count");
+            const oneshotsea::SearchIdentity identity =
+                oneshotsea::make_search_identity(
+                    config, global_range, worker_id, worker_count, cache_sha,
+                    verifier_sha, build_id);
+            config.expected_schedule_sha256 = identity.schedule_sha256;
+            config.expected_table_manifest_sha256 =
+                identity.table_manifest_sha256;
+            config.expected_verifier_sha256 = verifier_sha;
+            config.expected_python_sha256 = python_sha;
+            oneshotsea::SearchState state =
+                std::filesystem::exists(checkpoint)
+                    ? oneshotsea::load_search_checkpoint(checkpoint, identity)
+                    : oneshotsea::SearchState(identity);
+
+            const std::uint64_t remaining =
+                identity.range.end - state.next_index();
+            oneshotsea::SearchPipelineRunOptions run_options;
+            run_options.max_curves = optional_u64(
+                options, "max-curves", remaining);
+            run_options.checkpoint_every = optional_u64(
+                options, "checkpoint-every", 1U);
+            run_options.checkpoint_path = checkpoint;
+            run_options.progress_path = progress;
+            run_options.certificate_path = certificate_output;
+            std::cout << "{\"schema\":\"oneshotsea.search-start.v1\""
+                      << ",\"prime\":\"" << config.prime
+                      << "\",\"seed\":\"" << config.seed
+                      << "\",\"worker_id\":\"" << worker_id
+                      << "\",\"worker_count\":\"" << worker_count
+                      << "\",\"range_start\":\"" << identity.range.first
+                      << "\",\"range_end\":\"" << identity.range.end
+                      << "\",\"next_index\":\"" << state.next_index()
+                      << "\",\"schedule_sha256\":\""
+                      << identity.schedule_sha256
+                      << "\",\"table_manifest_sha256\":\""
+                      << identity.table_manifest_sha256
+                      << "\",\"smooth_cache_sha256\":\"" << cache_sha
+                      << "\",\"verifier_sha256\":\"" << verifier_sha
+                      << "\",\"python_executable\":\""
+                      << config.python_executable
+                      << "\",\"python_sha256\":\"" << python_sha
+                      << "\",\"build_id\":\"" << build_id
+                      << "\",\"heuristic_rejection\":false"
+                      << ",\"resources\":{\"smooth_threads\":\""
+                      << smooth_threads << "\",\"smooth_max_batch\":\""
+                      << smooth_batch
+                      << "\",\"smooth_build_segment_span\":\""
+                      << smooth_build_segment_span
+                      << "\",\"assembly_attempts\":\""
+                      << config.assembly_attempts << "\",\"trace_cap\":\""
+                      << config.early_trace_cap << "\"}}\n" << std::flush;
+            const auto callback = [](const oneshotsea::SearchCurveReport& report,
+                                     const oneshotsea::SearchState& current) {
+                std::cout << oneshotsea::search_curve_report_json(report, current)
+                          << '\n' << std::flush;
+            };
+            const oneshotsea::SearchPipelineRunResult result =
+                oneshotsea::run_search_pipeline(
+                    config, smooth_engine, state, run_options, callback);
+            std::cout << "{\"schema\":\"oneshotsea.search-summary.v1\""
+                      << ",\"processed\":\"" << result.curves_processed
+                      << "\",\"range_exhausted\":"
+                      << (result.exhausted_assigned_range ? "true" : "false")
+                      << ",\"verified\":"
+                      << (result.verified.has_value() ? "true" : "false")
+                      << ",\"state\":"
+                      << oneshotsea::search_progress_json(state) << "}\n";
+            return 0;
+        }
         if (command == "curve" || command == "montgomery-curve") {
             const mpz_class p = oneshotsea::parse_integer(required(options, "p"));
             const std::uint64_t seed = required_u64(options, "seed");

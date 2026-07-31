@@ -21,7 +21,7 @@ namespace {
 // AndrewVSutherland2/OneShotFastECPP at commit 88da82f (MIT).  Arithmetic is
 // expressed through OneShotSEA's GMP-backed Field rather than the upstream
 // fixed-limb and Cornacchia contexts.  See THIRD_PARTY_NOTICES.md.
-constexpr std::size_t kMaxSmoothFactors = 64;
+constexpr std::size_t kFactorBatchCapacity = 64;
 constexpr std::uint64_t kAssemblyDomain = UINT64_C(0x636572746173736d);
 
 struct SmoothFactorization {
@@ -62,41 +62,69 @@ std::optional<SmoothFactorization> factor_known_smooth(
     if (value <= 1) {
         return std::nullopt;
     }
-    std::array<std::uint64_t, kMaxSmoothFactors> primes{};
-    std::array<int, kMaxSmoothFactors> exponents{};
-    const int count = factor_smooth(value.get_mpz_t(), primes.data(),
-                                    exponents.data(),
-                                    static_cast<int>(primes.size()));
-    if (count <= 0 || count > static_cast<int>(primes.size())) {
-        return std::nullopt;
+    mpz_class remaining = value;
+    SmoothFactorization result;
+    while (remaining > 1) {
+        std::array<std::uint64_t, kFactorBatchCapacity> primes{};
+        std::array<int, kFactorBatchCapacity> ignored_exponents{};
+        const int count = factor_smooth(
+            remaining.get_mpz_t(), primes.data(), ignored_exponents.data(),
+            static_cast<int>(primes.size()));
+        if (count <= 0 || count > static_cast<int>(primes.size())) {
+            return std::nullopt;
+        }
+        bool made_progress = false;
+        for (int index = 0; index < count; ++index) {
+            const std::uint64_t prime =
+                primes[static_cast<std::size_t>(index)];
+            if (prime < 2 || prime > bound) {
+                return std::nullopt;
+            }
+            const mpz_class prime_z = integer_from_u64(prime);
+            if (mpz_probab_prime_p(prime_z.get_mpz_t(), 25) == 0) {
+                return std::nullopt;
+            }
+            int exponent = 0;
+            while (mpz_divisible_p(remaining.get_mpz_t(),
+                                   prime_z.get_mpz_t()) != 0) {
+                mpz_divexact(remaining.get_mpz_t(), remaining.get_mpz_t(),
+                             prime_z.get_mpz_t());
+                if (exponent == std::numeric_limits<int>::max()) {
+                    return std::nullopt;
+                }
+                ++exponent;
+            }
+            if (exponent != 0) {
+                result.primes.push_back(prime);
+                result.exponents.push_back(exponent);
+                made_progress = true;
+            }
+        }
+        if (!made_progress) {
+            return std::nullopt;
+        }
     }
 
-    mpz_class reconstructed = 1;
-    SmoothFactorization result;
-    result.primes.reserve(static_cast<std::size_t>(count));
-    result.exponents.reserve(static_cast<std::size_t>(count));
-    for (int index = 0; index < count; ++index) {
-        const std::uint64_t prime = primes[static_cast<std::size_t>(index)];
-        const int exponent = exponents[static_cast<std::size_t>(index)];
-        if (prime < 2 || prime > bound || exponent <= 0 ||
-            (index != 0 &&
-             prime <= primes[static_cast<std::size_t>(index - 1)])) {
+    std::vector<std::size_t> permutation(result.primes.size());
+    for (std::size_t index = 0; index < permutation.size(); ++index) {
+        permutation[index] = index;
+    }
+    std::sort(permutation.begin(), permutation.end(),
+              [&](std::size_t left, std::size_t right) {
+                  return result.primes[left] < result.primes[right];
+              });
+    SmoothFactorization sorted;
+    sorted.primes.reserve(result.primes.size());
+    sorted.exponents.reserve(result.exponents.size());
+    for (const std::size_t index : permutation) {
+        if (!sorted.primes.empty() &&
+            sorted.primes.back() == result.primes[index]) {
             return std::nullopt;
         }
-        const mpz_class prime_z = integer_from_u64(prime);
-        if (mpz_probab_prime_p(prime_z.get_mpz_t(), 25) == 0) {
-            return std::nullopt;
-        }
-        for (int copy = 0; copy < exponent; ++copy) {
-            reconstructed *= prime_z;
-        }
-        result.primes.push_back(prime);
-        result.exponents.push_back(exponent);
+        sorted.primes.push_back(result.primes[index]);
+        sorted.exponents.push_back(result.exponents[index]);
     }
-    if (reconstructed != value) {
-        return std::nullopt;
-    }
-    return result;
+    return sorted;
 }
 
 MontgomeryXZ xdbl(const Field& field, const mpz_class& coefficient,
@@ -343,6 +371,31 @@ int desired_legendre(MontgomerySide side) {
     return 0;
 }
 
+CertificateCandidate candidate_from_factor_exponents(
+    const mpz_class& prime, const mpz_class& order,
+    const mpz_class& smooth_part, const mpz_class& point_order,
+    const SmoothFactorization& smooth_factorization,
+    const std::vector<int>& selected_exponents, std::uint64_t n2,
+    std::uint64_t n4) {
+    std::vector<std::uint64_t> distinct;
+    std::vector<std::uint64_t> large;
+    distinct.reserve(smooth_factorization.primes.size());
+    large.reserve(smooth_factorization.primes.size());
+    for (std::size_t index = 0;
+         index < smooth_factorization.primes.size(); ++index) {
+        if (selected_exponents[index] == 0) {
+            continue;
+        }
+        const std::uint64_t factor = smooth_factorization.primes[index];
+        distinct.push_back(factor);
+        if (factor > n2 && factor < n4) {
+            large.push_back(factor);
+        }
+    }
+    return {prime, order, smooth_part, point_order, std::move(distinct),
+            std::move(large)};
+}
+
 }  // namespace
 
 CertificateBounds canonical_certificate_bounds(const mpz_class& prime) {
@@ -419,7 +472,7 @@ CandidateResult prepare_certificate_candidate(
     }
 
     mpz_class point_order;
-    std::array<std::uint64_t, kMaxSmoothFactors> upstream_large{};
+    std::array<std::uint64_t, kFactorBatchCapacity> upstream_large{};
     int upstream_large_count = 0;
     const int built = build_m2(
         point_order.get_mpz_t(), upstream_large.data(), &upstream_large_count,
@@ -458,6 +511,138 @@ CandidateResult prepare_certificate_candidate(
         CertificateCandidate{prime, order, smooth_part, point_order,
                              factorization->primes, std::move(large)},
     };
+}
+
+CandidateEnumerationResult enumerate_certificate_candidates(
+    const mpz_class& prime, const mpz_class& order,
+    const mpz_class& smooth_part,
+    const CertificateCandidateVisitor& visitor) {
+    if (!visitor) {
+        throw std::invalid_argument("certificate candidate visitor is empty");
+    }
+
+    // Use the compatibility entry point for validation and to retain its
+    // established first-choice ordering.  A no-admissible-divisor result does
+    // not end enumeration: build_m2 is intentionally only a selector.
+    const CandidateResult preferred = prepare_certificate_candidate(
+        prime, order, smooth_part, false);
+    if (preferred.failure != CandidateFailure::none &&
+        preferred.failure != CandidateFailure::no_admissible_divisor) {
+        return {preferred.failure, 0, false};
+    }
+
+    CertificateBounds bounds;
+    try {
+        bounds = canonical_certificate_bounds(prime);
+    } catch (const std::overflow_error&) {
+        return {CandidateFailure::unsupported_bit_length, 0, false};
+    }
+    const auto factorization = factor_known_smooth(smooth_part, bounds.n4);
+    if (!factorization.has_value()) {
+        return {CandidateFailure::no_admissible_divisor, 0, false};
+    }
+
+    CandidateEnumerationResult result;
+    std::optional<mpz_class> first_preferred_order;
+    std::optional<mpz_class> second_preferred_order;
+    auto visit = [&](const CertificateCandidate& candidate,
+                     CandidateOrigin origin) {
+        ++result.candidates_visited;
+        if (!visitor(candidate, origin)) {
+            result.stopped_early = true;
+            return false;
+        }
+        return true;
+    };
+
+    if (preferred) {
+        first_preferred_order = preferred.candidate->point_order;
+        if (!visit(*preferred.candidate, CandidateOrigin::preferred)) {
+            return result;
+        }
+    }
+    const CandidateResult preferred_odd = prepare_certificate_candidate(
+        prime, order, smooth_part, true);
+    if (preferred_odd &&
+        (!first_preferred_order.has_value() ||
+         preferred_odd.candidate->point_order != *first_preferred_order)) {
+        second_preferred_order = preferred_odd.candidate->point_order;
+        if (!visit(*preferred_odd.candidate,
+                   CandidateOrigin::preferred_odd_only)) {
+            return result;
+        }
+    }
+
+    const std::size_t factor_count = factorization->primes.size();
+    std::vector<mpz_class> suffix_maximum(factor_count + 1U, 1);
+    for (std::size_t offset = 0; offset < factor_count; ++offset) {
+        const std::size_t index = factor_count - offset - 1U;
+        suffix_maximum[index] = suffix_maximum[index + 1U];
+        for (int exponent = 0;
+             exponent < factorization->exponents[index]; ++exponent) {
+            suffix_maximum[index] *=
+                integer_from_u64(factorization->primes[index]);
+        }
+    }
+
+    std::vector<int> selected_exponents(factor_count, 0);
+    bool keep_going = true;
+    for (std::size_t least_index = 0;
+         least_index < factor_count && keep_going; ++least_index) {
+        const mpz_class upper_bound =
+            bounds.lower_order_bound *
+            integer_from_u64(factorization->primes[least_index]);
+
+        std::function<void(std::size_t, const mpz_class&)> descend;
+        descend = [&](std::size_t index, const mpz_class& partial) {
+            if (!keep_going || partial >= upper_bound ||
+                partial * suffix_maximum[index] <=
+                    bounds.lower_order_bound) {
+                return;
+            }
+            if (index == factor_count) {
+                if (partial <= bounds.lower_order_bound ||
+                    (first_preferred_order.has_value() &&
+                     partial == *first_preferred_order) ||
+                    (second_preferred_order.has_value() &&
+                     partial == *second_preferred_order)) {
+                    return;
+                }
+                const CertificateCandidate candidate =
+                    candidate_from_factor_exponents(
+                        prime, order, smooth_part, partial, *factorization,
+                        selected_exponents, bounds.n2, bounds.n4);
+                keep_going = visit(candidate, CandidateOrigin::exhaustive);
+                return;
+            }
+
+            const int minimum_exponent =
+                index == least_index ? 1 : 0;
+            mpz_class power = 1;
+            for (int exponent = 0; exponent < minimum_exponent; ++exponent) {
+                power *= integer_from_u64(factorization->primes[index]);
+            }
+            for (int exponent = minimum_exponent;
+                 exponent <= factorization->exponents[index]; ++exponent) {
+                const mpz_class next = partial * power;
+                if (next >= upper_bound) {
+                    break;
+                }
+                selected_exponents[index] = exponent;
+                descend(index + 1U, next);
+                if (!keep_going) {
+                    return;
+                }
+                power *= integer_from_u64(factorization->primes[index]);
+            }
+            selected_exponents[index] = 0;
+        };
+        descend(least_index, 1);
+    }
+    if (result.candidates_visited == 0U) {
+        result.failure = CandidateFailure::no_admissible_divisor;
+    }
+    return result;
 }
 
 MontgomeryXZ montgomery_ladder(

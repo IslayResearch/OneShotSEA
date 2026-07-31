@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 
@@ -165,6 +167,104 @@ class CliTests(unittest.TestCase):
         self.assertEqual(records[0]["status"], "no_rational_weber_lift")
         self.assertFalse(records[0]["complete"])
         self.assertEqual(records[0]["levels_processed"], 0)
+
+    def test_deterministic_search_cli_checkpoints_and_verifies(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 17,
+                "--range-start", 0,
+                "--range-end", 2,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 31,
+                "--trace-cap", 16,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--checkpoint", root / "checkpoint.json",
+                "--progress", root / "progress.ndjson",
+                "--certificate-out", root / "certificate.txt",
+                "--max-curves", 2,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            records = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(records[0]["schema"], "oneshotsea.search-start.v1")
+            self.assertEqual(len(records[0]["smooth_cache_sha256"]), 64)
+            self.assertEqual(len(records[0]["table_manifest_sha256"]), 64)
+            self.assertEqual(len(records[0]["verifier_sha256"]), 64)
+            self.assertFalse(records[0]["heuristic_rejection"])
+            self.assertEqual(records[-1]["schema"],
+                             "oneshotsea.search-summary.v1")
+            self.assertTrue(records[-1]["verified"])
+            curve_records = records[1:-1]
+            self.assertEqual([record["index"] for record in curve_records],
+                             ["0", "1"])
+            self.assertEqual(curve_records[-1]["status"],
+                             "verified_certificate")
+            self.assertEqual(curve_records[-1]["certificate"]["line"],
+                             "101 5 8 28")
+            self.assertEqual((root / "certificate.txt").read_text(),
+                             "101 5 8 28\n")
+            self.assertTrue((root / "checkpoint.json").is_file())
+            self.assertEqual(
+                len((root / "progress.ndjson").read_text().splitlines()), 2
+            )
+
+    def test_search_rejects_non_python_success_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assert_rejected(
+                "search", "--p", 101, "--seed", 17,
+                "--range-start", 0, "--range-end", 1,
+                "--worker-id", 0, "--worker-count", 1,
+                "--max-level", 31,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--checkpoint", root / "checkpoint.json",
+                "--python", "/usr/bin/true",
+                "--max-curves", 0,
+            )
+
+    def test_fresh_search_requires_preexisting_cache_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            common = (
+                "search", "--p", 101, "--seed", 17,
+                "--range-start", 0, "--range-end", 1,
+                "--worker-id", 0, "--worker-count", 1,
+                "--max-level", 31,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--max-curves", 0,
+            )
+            built = self.run_cli(*common, "--checkpoint", root / "build.json")
+            self.assertEqual(built.returncode, 0, built.stderr)
+            self.assert_rejected(
+                *common, "--checkpoint", root / "fresh.json"
+            )
+            digest = hashlib.sha256((root / "smooth.cache").read_bytes()).hexdigest()
+            trusted = self.run_cli(
+                *common, "--checkpoint", root / "fresh.json",
+                "--smooth-cache-sha256", digest,
+            )
+            self.assertEqual(trusted.returncode, 0, trusted.stderr)
+
+    def test_search_rejects_aliased_output_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            same = root / "same"
+            self.assert_rejected(
+                "search", "--p", 101, "--seed", 17,
+                "--range-start", 0, "--range-end", 1,
+                "--worker-id", 0, "--worker-count", 1,
+                "--max-level", 31,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", same,
+                "--checkpoint", same,
+                "--max-curves", 0,
+            )
 
 
 if __name__ == "__main__":

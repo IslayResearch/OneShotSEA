@@ -7,6 +7,8 @@ CFLAGS ?= -O2 -g -std=c11
 LDFLAGS ?= -L$(GMP_PREFIX)/lib
 LDLIBS ?= -lgmpxx -lgmp
 
+.DEFAULT_GOAL := all
+
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 OPENMP_PREFIX ?= /opt/homebrew/opt/libomp
@@ -22,6 +24,9 @@ LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trac
 	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/isogeny.cpp src/weber.cpp src/sea.cpp \
 	src/smooth_cache.cpp src/factor.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
+LIB_DEPS := $(LIB_OBJECTS:.o=.d)
+
+-include $(LIB_DEPS)
 
 .PHONY: all test test-cli test-reference test-factor test-modpoly-generator test-weber-modpoly test-verifier test-vendor test-smooth test-smooth-cache test-oracle test-differential test-runpod test-all clean
 
@@ -31,7 +36,7 @@ $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/%.o: src/%.cpp | $(BUILD_DIR)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 $(BUILD_DIR)/smooth.o: third_party/oneshot_fast_ecpp/smooth.c \
 		third_party/oneshot_fast_ecpp/smooth.h | $(BUILD_DIR)

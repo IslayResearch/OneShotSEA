@@ -42,6 +42,10 @@ Poly mul(const Poly& lhs, const Poly& rhs);
 Poly scalar_mul(const Poly& value, const mpz_class& scalar);
 std::pair<Poly, Poly> divmod(const Poly& numerator, const Poly& denominator);
 Poly mod(const Poly& numerator, const Poly& denominator);
+// Multiply or square directly in F_p[x]/(modulus), avoiding a full product
+// allocation followed by generic long division.
+Poly mulmod(const Poly& lhs, const Poly& rhs, const Poly& modulus);
+Poly squaremod(const Poly& value, const Poly& modulus);
 Poly gcd(Poly lhs, Poly rhs);
 Poly powmod(Poly base, mpz_class exponent, const Poly& modulus);
 int rational_root_count(const Poly& polynomial);

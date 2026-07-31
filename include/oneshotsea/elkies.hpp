@@ -27,6 +27,9 @@ struct ElkiesStageTimings {
     std::uint64_t bmss_us = 0;
     std::uint64_t eigenvalue_us = 0;
     std::uint64_t lift_pairs = 0;
+    std::uint64_t distinct_codomains = 0;
+    std::uint64_t codomain_cache_hits = 0;
+    std::uint64_t eigenvalue_attempts = 0;
 };
 
 struct WeberElkiesLevelResult {

@@ -162,11 +162,11 @@ void require_same_ring(const Element& lhs, const Element& rhs) {
 
 Element element_add(const Element& lhs, const Element& rhs) {
     require_same_ring(lhs, rhs);
-    return element(*lhs.ring, add(lhs.u, rhs.u), add(lhs.v, rhs.v));
+    return {lhs.ring, add(lhs.u, rhs.u), add(lhs.v, rhs.v)};
 }
 
 Element element_neg(const Element& value) {
-    return element(*value.ring, neg(value.u), neg(value.v));
+    return {value.ring, neg(value.u), neg(value.v)};
 }
 
 Element element_sub(const Element& lhs, const Element& rhs) {
@@ -175,17 +175,31 @@ Element element_sub(const Element& lhs, const Element& rhs) {
 
 Element element_mul(const Element& lhs, const Element& rhs) {
     require_same_ring(lhs, rhs);
-    const RawElement product = raw_mul({lhs.u, lhs.v}, {rhs.u, rhs.v},
-                                       lhs.ring->curve_rhs);
-    return element(*lhs.ring, product.u, product.v);
+    const Poly uu = mulmod(lhs.u, rhs.u, lhs.ring->modulus);
+    const Poly vv = mulmod(lhs.v, rhs.v, lhs.ring->modulus);
+    const Poly uv = mulmod(lhs.u, rhs.v, lhs.ring->modulus);
+    const Poly vu = mulmod(lhs.v, rhs.u, lhs.ring->modulus);
+    return {
+        lhs.ring,
+        add(uu, mulmod(lhs.ring->curve_rhs, vv, lhs.ring->modulus)),
+        add(uv, vu),
+    };
 }
 
 Element element_square(const Element& value) {
-    return element_mul(value, value);
+    const Poly uu = squaremod(value.u, value.ring->modulus);
+    const Poly vv = squaremod(value.v, value.ring->modulus);
+    const Poly uv = mulmod(value.u, value.v, value.ring->modulus);
+    return {
+        value.ring,
+        add(uu, mulmod(value.ring->curve_rhs, vv, value.ring->modulus)),
+        scalar_mul(uv, 2),
+    };
 }
 
 Element element_scale(const Element& value, const mpz_class& scalar) {
-    return element(*value.ring, scalar_mul(value.u, scalar), scalar_mul(value.v, scalar));
+    return {value.ring, scalar_mul(value.u, scalar),
+            scalar_mul(value.v, scalar)};
 }
 
 Element element_pow(Element base, mpz_class exponent) {
@@ -302,6 +316,10 @@ JacobianPoint scalar_multiply(std::uint64_t scalar, const JacobianPoint& point,
     return result;
 }
 
+JacobianPoint point_neg(const JacobianPoint& point) {
+    return {point.x, element_neg(point.y), point.z};
+}
+
 bool same_point(const JacobianPoint& lhs, const JacobianPoint& rhs) {
     if (point_infinity(lhs) || point_infinity(rhs)) {
         return point_infinity(lhs) && point_infinity(rhs);
@@ -311,6 +329,16 @@ bool same_point(const JacobianPoint& lhs, const JacobianPoint& rhs) {
     return element_equal(element_mul(lhs.x, right_z2), element_mul(rhs.x, left_z2)) &&
            element_equal(element_mul(element_mul(lhs.y, right_z2), rhs.z),
                          element_mul(element_mul(rhs.y, left_z2), lhs.z));
+}
+
+bool same_x(const JacobianPoint& lhs, const JacobianPoint& rhs) {
+    if (point_infinity(lhs) || point_infinity(rhs)) {
+        return point_infinity(lhs) && point_infinity(rhs);
+    }
+    const Element left_z2 = element_square(lhs.z);
+    const Element right_z2 = element_square(rhs.z);
+    return element_equal(
+        element_mul(lhs.x, right_z2), element_mul(rhs.x, left_z2));
 }
 
 bool projective_x_satisfies(const Poly& polynomial, const JacobianPoint& point) {
@@ -330,6 +358,182 @@ bool projective_x_satisfies(const Poly& polynomial, const JacobianPoint& point) 
         }
     }
     return element_zero(value);
+}
+
+Poly invert_mod(const Poly& value, const Poly& modulus) {
+    Poly old_remainder = modulus;
+    Poly remainder = mod(value, modulus);
+    Poly old_cofactor = Poly::constant(value.field(), 0);
+    Poly cofactor = Poly::constant(value.field(), 1);
+    while (!remainder.is_zero()) {
+        auto [quotient, next_remainder] =
+            divmod(old_remainder, remainder);
+        Poly next_cofactor = sub(
+            old_cofactor, mulmod(quotient, cofactor, modulus));
+        old_remainder = std::move(remainder);
+        remainder = std::move(next_remainder);
+        old_cofactor = std::move(cofactor);
+        cofactor = std::move(next_cofactor);
+    }
+    if (old_remainder.degree() != 0) {
+        throw std::domain_error("quotient-ring element is not invertible");
+    }
+    return mod(
+        scalar_mul(old_cofactor,
+                   value.field().inverse(old_remainder.coefficient(0))),
+        modulus);
+}
+
+struct AffineXKey {
+    std::vector<mpz_class> x;
+
+    bool operator<(const AffineXKey& other) const {
+        return x < other.x;
+    }
+};
+
+// Convert a batch of nonzero projective x-coordinates to canonical affine
+// keys with one polynomial inversion (Montgomery's batch-inversion trick).
+// Generic odd-torsion X and Z coordinates lie in F_p[x]/(h), even though the
+// full points live in its quadratic curve algebra.
+std::vector<AffineXKey> affine_x_keys(
+    const std::vector<JacobianPoint>& points) {
+    if (points.empty()) {
+        return {};
+    }
+    const QuotientRing& ring = *points.front().x.ring;
+    const Field& field = *ring.field;
+    std::vector<Poly> prefix_products;
+    prefix_products.reserve(points.size() + 1U);
+    prefix_products.push_back(Poly::constant(field, 1));
+    for (const JacobianPoint& point : points) {
+        if (point_infinity(point) || !point.x.v.is_zero() ||
+            !point.z.v.is_zero() ||
+            point.x.ring != &ring) {
+            throw std::domain_error(
+                "point batch cannot be normalized in the base quotient ring");
+        }
+        prefix_products.push_back(mod(
+            mul(prefix_products.back(), point.z.u), ring.modulus));
+    }
+
+    std::vector<Poly> inverse_z(points.size(), Poly(field));
+    Poly inverse_product = invert_mod(prefix_products.back(), ring.modulus);
+    for (std::size_t index = points.size(); index > 0U; --index) {
+        inverse_z[index - 1U] = mod(
+            mul(inverse_product, prefix_products[index - 1U]), ring.modulus);
+        inverse_product = mod(
+            mul(inverse_product, points[index - 1U].z.u), ring.modulus);
+    }
+
+    std::vector<AffineXKey> keys;
+    keys.reserve(points.size());
+    for (std::size_t index = 0; index < points.size(); ++index) {
+        const Poly inverse_squared =
+            squaremod(inverse_z[index], ring.modulus);
+        const Poly affine_x =
+            mulmod(points[index].x.u, inverse_squared, ring.modulus);
+        keys.push_back({affine_x.coefficients()});
+    }
+    return keys;
+}
+
+std::optional<std::uint64_t> try_eigenvalue_x_linear(
+    const Curve& curve, const JacobianPoint& generic,
+    const JacobianPoint& frobenius, std::uint64_t ell) {
+    JacobianPoint multiple = generic;
+    for (std::uint64_t eigenvalue = 1; eigenvalue <= (ell - 1U) / 2U;
+         ++eigenvalue) {
+        if (same_x(frobenius, multiple)) {
+            if (same_point(frobenius, multiple)) {
+                return eigenvalue;
+            }
+            if (same_point(frobenius, point_neg(multiple))) {
+                return ell - eigenvalue;
+            }
+        }
+        if (eigenvalue < (ell - 1U) / 2U) {
+            multiple = point_add(multiple, generic, curve.a());
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::uint64_t> try_eigenvalue_mitm(
+    const Curve& curve, const JacobianPoint& generic,
+    const JacobianPoint& frobenius, std::uint64_t ell) {
+    std::uint64_t width = 1U;
+    while (width < ell / width + (ell % width == 0U ? 0U : 1U)) {
+        ++width;
+    }
+
+    std::vector<JacobianPoint> babies;
+    std::vector<std::uint64_t> baby_scalars;
+    babies.reserve(static_cast<std::size_t>(width - 1U));
+    baby_scalars.reserve(static_cast<std::size_t>(width - 1U));
+    JacobianPoint multiple = generic;
+    for (std::uint64_t scalar = 1U; scalar < width; ++scalar) {
+        babies.push_back(multiple);
+        baby_scalars.push_back(scalar);
+        if (scalar + 1U < width) {
+            multiple = point_add(multiple, generic, curve.a());
+        }
+    }
+
+    const JacobianPoint giant_step =
+        scalar_multiply(width, generic, curve.a());
+    std::vector<JacobianPoint> residuals;
+    std::vector<std::uint64_t> giant_scalars;
+    residuals.reserve(static_cast<std::size_t>((ell - 1U) / width + 1U));
+    giant_scalars.reserve(residuals.capacity());
+    JacobianPoint giant = infinity(*generic.x.ring);
+    for (std::uint64_t scalar = 0U; scalar <= (ell - 1U) / width;
+         ++scalar) {
+        const JacobianPoint residual = point_add(
+            frobenius, point_neg(giant), curve.a());
+        if (point_infinity(residual)) {
+            const std::uint64_t eigenvalue = scalar * width;
+            if (eigenvalue > 0U && eigenvalue < ell) {
+                return eigenvalue;
+            }
+        } else {
+            residuals.push_back(residual);
+            giant_scalars.push_back(scalar);
+        }
+        if (scalar < (ell - 1U) / width) {
+            giant = point_add(giant, giant_step, curve.a());
+        }
+    }
+
+    std::vector<JacobianPoint> normalized_points = babies;
+    normalized_points.insert(
+        normalized_points.end(), residuals.begin(), residuals.end());
+    const std::vector<AffineXKey> keys = affine_x_keys(normalized_points);
+    std::map<AffineXKey, std::uint64_t> baby_table;
+    for (std::size_t index = 0; index < babies.size(); ++index) {
+        baby_table.emplace(keys[index], baby_scalars[index]);
+    }
+    for (std::size_t index = 0; index < residuals.size(); ++index) {
+        const auto found = baby_table.find(keys[babies.size() + index]);
+        if (found == baby_table.end()) {
+            continue;
+        }
+        const std::uint64_t base = giant_scalars[index] * width;
+        const std::uint64_t baby = found->second;
+        const std::uint64_t plus =
+            base >= ell - baby ? base - (ell - baby) : base + baby;
+        const std::uint64_t minus =
+            base >= baby ? base - baby : ell - (baby - base);
+        for (const std::uint64_t eigenvalue : {plus, minus}) {
+            if (eigenvalue > 0U && eigenvalue < ell &&
+                same_point(
+                    frobenius,
+                    scalar_multiply(eigenvalue, generic, curve.a()))) {
+                return eigenvalue;
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 }  // namespace
@@ -401,8 +605,8 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_impl(
         element_mul(y, element_pow(f, (p - 1) / 2)),
         constant(ring, 1),
     };
-    JacobianPoint multiple = generic;
-    for (std::uint64_t eigenvalue = 1; eigenvalue < ell; ++eigenvalue) {
+    if (validate_subgroup_closure) {
+        JacobianPoint multiple = generic;
         // Degree, square-freeness, or even divisibility by psi_ell does not by
         // itself prove that the roots form one cyclic subgroup. In scalar-
         // Frobenius cases a mixture of roots from different lines could
@@ -411,19 +615,25 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_impl(
         // A BMSS denominator that has passed the full rational-isogeny identity
         // already has this property, so its production caller skips this
         // deliberately expensive independent check.
-        if (validate_subgroup_closure && eigenvalue >= 2U &&
-            eigenvalue <= (ell - 1U) / 2U &&
-            !projective_x_satisfies(kernel, multiple)) {
-            return std::nullopt;
-        }
-        if (same_point(frobenius, multiple)) {
-            return eigenvalue;
-        }
-        if (eigenvalue + 1U < ell) {
+        for (std::uint64_t scalar = 2U; scalar <= (ell - 1U) / 2U;
+             ++scalar) {
             multiple = point_add(multiple, generic, curve.a());
+            if (!projective_x_satisfies(kernel, multiple)) {
+                return std::nullopt;
+            }
         }
     }
-    return std::nullopt;
+    try {
+        if (ell <= 401U) {
+            return try_eigenvalue_x_linear(curve, generic, frobenius, ell);
+        }
+        return try_eigenvalue_mitm(curve, generic, frobenius, ell);
+    } catch (const std::domain_error&) {
+        // A malformed or non-eigen kernel can make a projective Z coordinate
+        // a zero divisor.  Preserve the complete reference behavior in this
+        // exceptional case without weakening the exact final comparison.
+        return try_eigenvalue_x_linear(curve, generic, frobenius, ell);
+    }
 }
 
 }  // namespace

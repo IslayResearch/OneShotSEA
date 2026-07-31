@@ -28,6 +28,8 @@ public:
 
 private:
     mpz_class modulus_;
+
+    bool is_normalized(const mpz_class& value) const;
 };
 
 std::uint64_t splitmix64(std::uint64_t value);

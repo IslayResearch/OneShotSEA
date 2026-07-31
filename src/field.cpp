@@ -19,30 +19,71 @@ Field::Field(mpz_class modulus) : modulus_(std::move(modulus)) {
     }
 }
 
+bool Field::is_normalized(const mpz_class& value) const {
+    return value >= 0 && value < modulus_;
+}
+
 mpz_class Field::normalize(const mpz_class& value) const {
+    if (is_normalized(value)) {
+        return value;
+    }
     mpz_class result;
     mpz_mod(result.get_mpz_t(), value.get_mpz_t(), modulus_.get_mpz_t());
     return result;
 }
 
 mpz_class Field::add(const mpz_class& lhs, const mpz_class& rhs) const {
+    if (is_normalized(lhs) && is_normalized(rhs)) {
+        mpz_class result = lhs + rhs;
+        if (result >= modulus_) {
+            result -= modulus_;
+        }
+        return result;
+    }
     return normalize(lhs + rhs);
 }
 
 mpz_class Field::sub(const mpz_class& lhs, const mpz_class& rhs) const {
+    if (is_normalized(lhs) && is_normalized(rhs)) {
+        if (lhs >= rhs) {
+            return lhs - rhs;
+        }
+        return lhs + modulus_ - rhs;
+    }
     return normalize(lhs - rhs);
 }
 
 mpz_class Field::neg(const mpz_class& value) const {
+    if (is_normalized(value)) {
+        return value == 0 ? mpz_class(0) : modulus_ - value;
+    }
     return normalize(-value);
 }
 
 mpz_class Field::mul(const mpz_class& lhs, const mpz_class& rhs) const {
-    return normalize(lhs * rhs);
+    if (lhs == 0 || rhs == 0) {
+        return 0;
+    }
+    if (lhs == 1) {
+        return normalize(rhs);
+    }
+    if (rhs == 1) {
+        return normalize(lhs);
+    }
+    mpz_class result;
+    mpz_mul(result.get_mpz_t(), lhs.get_mpz_t(), rhs.get_mpz_t());
+    mpz_mod(result.get_mpz_t(), result.get_mpz_t(), modulus_.get_mpz_t());
+    return result;
 }
 
 mpz_class Field::square(const mpz_class& value) const {
-    return mul(value, value);
+    if (value == 0 || value == 1) {
+        return normalize(value);
+    }
+    mpz_class result;
+    mpz_mul(result.get_mpz_t(), value.get_mpz_t(), value.get_mpz_t());
+    mpz_mod(result.get_mpz_t(), result.get_mpz_t(), modulus_.get_mpz_t());
+    return result;
 }
 
 mpz_class Field::pow(const mpz_class& base, const mpz_class& exponent) const {

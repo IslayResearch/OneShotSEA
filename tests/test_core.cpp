@@ -80,6 +80,18 @@ void test_polynomial() {
     check(division.second.is_zero(), "polynomial exact division");
     check(division.first.evaluate(3) == 0, "polynomial quotient");
 
+    const oneshotsea::Poly modulus(field, {7, 5, 0, 1});
+    const oneshotsea::Poly left(field, {91, 17, 42, 9, 3});
+    const oneshotsea::Poly right(field, {6, 88, 19, 4});
+    check(oneshotsea::equal(
+              oneshotsea::mulmod(left, right, modulus),
+              oneshotsea::mod(oneshotsea::mul(left, right), modulus)),
+          "direct modular polynomial multiplication");
+    check(oneshotsea::equal(
+              oneshotsea::squaremod(left, modulus),
+              oneshotsea::mod(oneshotsea::mul(left, left), modulus)),
+          "direct modular polynomial squaring");
+
     const oneshotsea::Poly temporary_field_poly(oneshotsea::Field(101), {1, 2});
     check(temporary_field_poly.evaluate(3) == 7,
           "polynomial owns a temporary field context");

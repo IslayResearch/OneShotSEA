@@ -181,6 +181,12 @@ int main(int argc, char** argv) {
                           << ",\"eigenvalue\":"
                           << record.timings.eigenvalue_us
                           << ",\"lift_pairs\":" << record.timings.lift_pairs
+                          << ",\"distinct_codomains\":"
+                          << record.timings.distinct_codomains
+                          << ",\"codomain_cache_hits\":"
+                          << record.timings.codomain_cache_hits
+                          << ",\"eigenvalue_attempts\":"
+                          << record.timings.eigenvalue_attempts
                           << "}}\n" << std::flush;
             };
             const auto result = oneshotsea::run_weber_sea_reference(
@@ -262,7 +268,13 @@ int main(int argc, char** argv) {
                           << ",\"eigenvalue\":"
                           << weber_timings.eigenvalue_us
                           << ",\"lift_pairs\":"
-                          << weber_timings.lift_pairs << '}';
+                          << weber_timings.lift_pairs
+                          << ",\"distinct_codomains\":"
+                          << weber_timings.distinct_codomains
+                          << ",\"codomain_cache_hits\":"
+                          << weber_timings.codomain_cache_hits
+                          << ",\"eigenvalue_attempts\":"
+                          << weber_timings.eigenvalue_attempts << '}';
             }
             std::cout << "}\n";
             return 0;

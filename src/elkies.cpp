@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <future>
+#include <map>
 #include <stdexcept>
 
 namespace oneshotsea {
@@ -282,12 +284,42 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
         source_lifts = &discovered_source_lifts;
     }
     measured.source_lifts_us += elapsed_us(started);
+    // Weber symmetries often produce the same normalized codomain many times.
+    // For these fixed curves, the normalized isogeny (differential 1) is
+    // unique, so deterministic BMSS and Frobenius results can be reused.
+    std::map<std::pair<mpz_class, mpz_class>, std::optional<std::size_t>>
+        codomain_cache;
+    const auto remember_source_lift = [&output](const mpz_class& source_f) {
+        if (std::find(output.compatible_source_lifts.begin(),
+                      output.compatible_source_lifts.end(), source_f) ==
+            output.compatible_source_lifts.end()) {
+            output.compatible_source_lifts.push_back(source_f);
+        }
+    };
+    started = Clock::now();
+    std::vector<std::future<std::vector<mpz_class>>> root_jobs;
+    root_jobs.reserve(source_lifts->size());
     for (const mpz_class& source_f : *source_lifts) {
-        started = Clock::now();
-        const Poly specialized =
-            weber_modular_polynomial.evaluate_x(field, source_f);
-        const std::vector<mpz_class> neighbor_lifts = linear_roots(specialized);
-        measured.modular_roots_us += elapsed_us(started);
+        root_jobs.push_back(std::async(
+            std::launch::async,
+            [&field, &weber_modular_polynomial, source_f]() {
+                const Poly specialized =
+                    weber_modular_polynomial.evaluate_x(field, source_f);
+                return linear_roots(specialized);
+            }));
+    }
+    std::vector<std::vector<mpz_class>> neighbor_sets;
+    neighbor_sets.reserve(root_jobs.size());
+    for (auto& job : root_jobs) {
+        neighbor_sets.push_back(job.get());
+    }
+    measured.modular_roots_us += elapsed_us(started);
+
+    for (std::size_t source_index = 0; source_index < source_lifts->size();
+         ++source_index) {
+        const mpz_class& source_f = (*source_lifts)[source_index];
+        const std::vector<mpz_class>& neighbor_lifts =
+            neighbor_sets[source_index];
         for (const mpz_class& neighbor_f : neighbor_lifts) {
             ++measured.lift_pairs;
             Curve codomain = curve;
@@ -300,6 +332,17 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
                 continue;
             }
             measured.normalized_codomain_us += elapsed_us(started);
+
+            const auto [cached, inserted] = codomain_cache.try_emplace(
+                std::make_pair(codomain.a(), codomain.b()), std::nullopt);
+            if (!inserted) {
+                ++measured.codomain_cache_hits;
+                if (cached->second.has_value()) {
+                    remember_source_lift(source_f);
+                }
+                continue;
+            }
+            ++measured.distinct_codomains;
 
             BmssIsogenyResult reconstruction = {
                 Poly(field), Poly(field), Poly(field)};
@@ -314,38 +357,37 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
                 continue;
             }
             measured.bmss_us += elapsed_us(started);
-            started = Clock::now();
-            const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny_kernel(
-                curve, reconstruction.kernel, ell);
-            measured.eigenvalue_us += elapsed_us(started);
-            if (!eigenvalue.has_value()) {
-                continue;
-            }
-            if (std::find(output.compatible_source_lifts.begin(),
-                          output.compatible_source_lifts.end(), source_f) ==
-                output.compatible_source_lifts.end()) {
-                output.compatible_source_lifts.push_back(source_f);
-            }
             const mpz_class neighbor_j = codomain.j_invariant();
-            const std::uint64_t trace_residue = trace_residue_from_eigenvalue(
-                field.modulus(), ell, *eigenvalue);
             const auto duplicate = std::find_if(
                 output.kernels.begin(), output.kernels.end(),
                 [&reconstruction](const ElkiesKernelResult& existing) {
                     return equal(existing.kernel, reconstruction.kernel);
                 });
             if (duplicate != output.kernels.end()) {
-                if (duplicate->neighbor_j != neighbor_j ||
-                    duplicate->eigenvalue != *eigenvalue ||
-                    duplicate->trace_residue != trace_residue) {
+                if (duplicate->neighbor_j != neighbor_j) {
                     throw std::runtime_error(
                         "duplicate Weber lifts disagree on an isogeny kernel");
                 }
+                remember_source_lift(source_f);
+                cached->second = static_cast<std::size_t>(
+                    duplicate - output.kernels.begin());
                 continue;
             }
+            started = Clock::now();
+            ++measured.eigenvalue_attempts;
+            const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny_kernel(
+                curve, reconstruction.kernel, ell);
+            measured.eigenvalue_us += elapsed_us(started);
+            if (!eigenvalue.has_value()) {
+                continue;
+            }
+            remember_source_lift(source_f);
+            const std::uint64_t trace_residue = trace_residue_from_eigenvalue(
+                field.modulus(), ell, *eigenvalue);
             output.kernels.push_back(
                 {ell, std::move(reconstruction.kernel), std::move(codomain),
                  neighbor_j, *eigenvalue, trace_residue});
+            cached->second = output.kernels.size() - 1U;
         }
     }
     static_cast<void>(common_trace_residue(output.kernels));

@@ -106,6 +106,10 @@ void validate_options(const ExactSmoothOptions& options) {
     if (options.max_orders_per_batch == 0) {
         throw std::invalid_argument("exact smooth batch size must be positive");
     }
+    if (options.build_segment_span == 0) {
+        throw std::invalid_argument(
+            "exact smooth build segment span must be positive");
+    }
     if (options.cache_limits.max_product_bytes == 0) {
         throw std::invalid_argument("exact smooth cache byte limit must be positive");
     }
@@ -169,16 +173,42 @@ ExactSmoothEngine ExactSmoothEngine::build(const mpz_class& prime,
                                            ExactSmoothOptions options) {
     validate_options(options);
     const auto [bits, bound] = target_parameters(prime);
-
-    smooth_base built{};
-    smooth_base_build(&built, bound, options.thread_count);
-
     auto data = std::make_shared<Data>();
     data->prime = prime;
     data->bit_length = bits;
     data->bound = bound;
-    data->base.adopt(built);
-    smooth_base_clear(&built);
+
+    std::uint64_t total_primes = 0;
+    for (std::uint64_t lower = 0; lower < bound;) {
+        const std::uint64_t remaining = bound - lower;
+        const std::uint64_t upper =
+            lower + std::min(options.build_segment_span, remaining);
+        smooth_base segment{};
+        smooth_base_build_range(
+            &segment, lower, upper, options.thread_count);
+        try {
+            if (segment.lo != lower || segment.y != upper ||
+                segment.nprimes > upper - lower || mpz_sgn(segment.P) <= 0) {
+                throw std::runtime_error(
+                    "segmented smooth-base builder returned invalid metadata");
+            }
+            if (segment.nprimes >
+                std::numeric_limits<std::uint64_t>::max() - total_primes) {
+                throw std::overflow_error(
+                    "exact smooth prime count does not fit uint64");
+            }
+            mpz_mul(data->base.get().P, data->base.get().P, segment.P);
+            total_primes += segment.nprimes;
+        } catch (...) {
+            smooth_base_clear(&segment);
+            throw;
+        }
+        smooth_base_clear(&segment);
+        lower = upper;
+    }
+    data->base.get().lo = 0;
+    data->base.get().y = bound;
+    data->base.get().nprimes = total_primes;
     validate_full_base(data->base.get(), bound);
     validate_product_size(data->base.get(), options.cache_limits);
     return ExactSmoothEngine(std::move(data), options);

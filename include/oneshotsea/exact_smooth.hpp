@@ -19,6 +19,11 @@ namespace oneshotsea {
 struct ExactSmoothOptions {
     int thread_count = 0;
     std::size_t max_orders_per_batch = 4096;
+    // Bound the segmented sieve/product-tree working set while constructing
+    // the full cache.  The resulting exact prime product is independent of
+    // this span.  500 million kept the p125 build below 2 GB before the
+    // accumulated product itself was retained.
+    std::uint64_t build_segment_span = UINT64_C(500000000);
     SmoothCacheLimits cache_limits{};
 };
 

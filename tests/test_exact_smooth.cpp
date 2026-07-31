@@ -59,6 +59,7 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
     const oneshotsea::ExactSmoothOptions options{
         .thread_count = 2,
         .max_orders_per_batch = 3,
+        .build_segment_span = 100,
         .cache_limits = {.max_product_bytes = 1024 * 1024},
     };
     const auto engine = oneshotsea::ExactSmoothEngine::build(101, options);
@@ -104,6 +105,7 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
                 101, cache,
                 {.thread_count = 1,
                  .max_orders_per_batch = 1,
+                 .build_segment_span = 100,
                  .cache_limits = {.max_product_bytes = 8}});
         },
         "cache load must obey configured byte cap");
@@ -156,6 +158,14 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
                 101, {.thread_count = 1, .max_orders_per_batch = 0});
         },
         "zero batch cap rejected");
+    expect_exception<std::invalid_argument>(
+        [] {
+            (void)oneshotsea::ExactSmoothEngine::build(
+                101, {.thread_count = 1,
+                      .max_orders_per_batch = 1,
+                      .build_segment_span = 0});
+        },
+        "zero build segment span rejected");
 }
 
 void test_curve_twist_and_evidence_lifetime() {

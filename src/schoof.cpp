@@ -395,8 +395,8 @@ struct AffineXKey {
 
 // Convert a batch of nonzero projective x-coordinates to canonical affine
 // keys with one polynomial inversion (Montgomery's batch-inversion trick).
-// Generic odd-torsion X and Z coordinates lie in F_p[x]/(h), even though the
-// full points live in its quadratic curve algebra.
+// Generic odd-torsion X and Z^2 coordinates lie in F_p[x]/(h), even though Z
+// itself and the full points can have y terms in the quadratic curve algebra.
 std::vector<AffineXKey> affine_x_keys(
     const std::vector<JacobianPoint>& points) {
     if (points.empty()) {
@@ -404,36 +404,46 @@ std::vector<AffineXKey> affine_x_keys(
     }
     const QuotientRing& ring = *points.front().x.ring;
     const Field& field = *ring.field;
+    std::vector<Poly> z_squared;
+    z_squared.reserve(points.size());
     std::vector<Poly> prefix_products;
     prefix_products.reserve(points.size() + 1U);
     prefix_products.push_back(Poly::constant(field, 1));
     for (const JacobianPoint& point : points) {
-        if (point_infinity(point) || !point.x.v.is_zero() ||
-            !point.z.v.is_zero() ||
-            point.x.ring != &ring) {
-            throw std::domain_error(
-                "point batch cannot be normalized in the base quotient ring");
+        if (point_infinity(point)) {
+            throw std::domain_error("point batch contains infinity");
         }
+        if (!point.x.v.is_zero()) {
+            throw std::domain_error("point batch x left base quotient ring");
+        }
+        if (point.x.ring != &ring) {
+            throw std::domain_error(
+                "point batch mixes quotient rings");
+        }
+        const Element denominator = element_square(point.z);
+        if (!denominator.v.is_zero()) {
+            throw std::domain_error(
+                "point batch Z^2 left base quotient ring");
+        }
+        z_squared.push_back(denominator.u);
         prefix_products.push_back(mod(
-            mul(prefix_products.back(), point.z.u), ring.modulus));
+            mul(prefix_products.back(), z_squared.back()), ring.modulus));
     }
 
-    std::vector<Poly> inverse_z(points.size(), Poly(field));
+    std::vector<Poly> inverse_z_squared(points.size(), Poly(field));
     Poly inverse_product = invert_mod(prefix_products.back(), ring.modulus);
     for (std::size_t index = points.size(); index > 0U; --index) {
-        inverse_z[index - 1U] = mod(
+        inverse_z_squared[index - 1U] = mod(
             mul(inverse_product, prefix_products[index - 1U]), ring.modulus);
         inverse_product = mod(
-            mul(inverse_product, points[index - 1U].z.u), ring.modulus);
+            mul(inverse_product, z_squared[index - 1U]), ring.modulus);
     }
 
     std::vector<AffineXKey> keys;
     keys.reserve(points.size());
     for (std::size_t index = 0; index < points.size(); ++index) {
-        const Poly inverse_squared =
-            squaremod(inverse_z[index], ring.modulus);
         const Poly affine_x =
-            mulmod(points[index].x.u, inverse_squared, ring.modulus);
+            mulmod(points[index].x.u, inverse_z_squared[index], ring.modulus);
         keys.push_back({affine_x.coefficients()});
     }
     return keys;
@@ -562,7 +572,8 @@ namespace {
 
 std::optional<std::uint64_t> try_frobenius_eigenvalue_impl(
     const Curve& curve, const Poly& kernel, std::uint64_t ell,
-    bool validate_division_polynomial, bool validate_subgroup_closure) {
+    bool validate_division_polynomial, bool validate_subgroup_closure,
+    std::optional<FrobeniusEigenvalueTestPath> forced_path = std::nullopt) {
     if (curve.is_singular()) {
         throw std::invalid_argument("Frobenius eigenvalue requires a nonsingular curve");
     }
@@ -624,6 +635,17 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_impl(
             }
         }
     }
+    if (forced_path.has_value()) {
+        switch (*forced_path) {
+            case FrobeniusEigenvalueTestPath::linear:
+                return try_eigenvalue_x_linear(
+                    curve, generic, frobenius, ell);
+            case FrobeniusEigenvalueTestPath::meet_in_the_middle:
+                return try_eigenvalue_mitm(curve, generic, frobenius, ell);
+        }
+        throw std::invalid_argument("invalid Frobenius eigenvalue test path");
+    }
+
     try {
         if (ell <= 401U) {
             return try_eigenvalue_x_linear(curve, generic, frobenius, ell);
@@ -644,6 +666,14 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
     return try_frobenius_eigenvalue_impl(curve, kernel, ell, true, true);
 }
 
+std::optional<std::uint64_t>
+try_frobenius_eigenvalue_reference_for_testing(
+    const Curve& curve, const Poly& kernel, std::uint64_t ell,
+    FrobeniusEigenvalueTestPath path) {
+    return try_frobenius_eigenvalue_impl(
+        curve, kernel, ell, true, true, path);
+}
+
 std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny(
     const Curve& curve, const Curve& normalized_codomain,
     const BmssIsogenyResult& isogeny, std::uint64_t ell) {
@@ -651,6 +681,17 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny(
         curve, normalized_codomain, ell, isogeny);
     return try_frobenius_eigenvalue_impl(
         curve, isogeny.kernel, ell, false, false);
+}
+
+std::optional<std::uint64_t>
+try_frobenius_eigenvalue_from_isogeny_for_testing(
+    const Curve& curve, const Curve& normalized_codomain,
+    const BmssIsogenyResult& isogeny, std::uint64_t ell,
+    FrobeniusEigenvalueTestPath path) {
+    validate_rational_isogeny_reference(
+        curve, normalized_codomain, ell, isogeny);
+    return try_frobenius_eigenvalue_impl(
+        curve, isogeny.kernel, ell, false, false, path);
 }
 
 std::uint64_t frobenius_eigenvalue_reference(const Curve& curve,

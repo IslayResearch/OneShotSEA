@@ -227,7 +227,7 @@ class CliTests(unittest.TestCase):
                 "--max-curves", 0,
             )
 
-    def test_fresh_search_requires_preexisting_cache_digest(self) -> None:
+    def test_every_search_requires_preexisting_cache_digest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             common = (
@@ -243,6 +243,9 @@ class CliTests(unittest.TestCase):
             self.assertEqual(built.returncode, 0, built.stderr)
             self.assert_rejected(
                 *common, "--checkpoint", root / "fresh.json"
+            )
+            self.assert_rejected(
+                *common, "--checkpoint", root / "build.json"
             )
             digest = hashlib.sha256((root / "smooth.cache").read_bytes()).hexdigest()
             trusted = self.run_cli(

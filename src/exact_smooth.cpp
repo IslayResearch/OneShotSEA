@@ -1,5 +1,7 @@
 #include "oneshotsea/exact_smooth.hpp"
 
+#include "oneshotsea/integrity.hpp"
+
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -216,14 +218,26 @@ ExactSmoothEngine ExactSmoothEngine::build(const mpz_class& prime,
 
 ExactSmoothEngine ExactSmoothEngine::load(
     const mpz_class& prime, const std::filesystem::path& cache_path,
-    ExactSmoothOptions options) {
+    const std::string& trusted_sha256, ExactSmoothOptions options) {
     validate_options(options);
+    if (!is_lower_sha256(trusted_sha256)) {
+        throw SmoothCacheError(
+            "trusted exact-smooth cache SHA-256 is malformed");
+    }
+    if (sha256_file(cache_path) != trusted_sha256) {
+        throw SmoothCacheError(
+            "exact-smooth cache does not match its trusted SHA-256");
+    }
     const auto [bits, bound] = target_parameters(prime);
     auto data = std::make_shared<Data>();
     load_portable_smooth_base(data->base.get(), cache_path,
                               options.cache_limits);
     validate_full_base(data->base.get(), bound);
     validate_product_size(data->base.get(), options.cache_limits);
+    if (sha256_file(cache_path) != trusted_sha256) {
+        throw SmoothCacheError(
+            "exact-smooth cache changed while it was being loaded");
+    }
     data->prime = prime;
     data->bit_length = bits;
     data->bound = bound;
@@ -232,6 +246,7 @@ ExactSmoothEngine ExactSmoothEngine::load(
 
 ExactSmoothEngine ExactSmoothEngine::load_or_build(
     const mpz_class& prime, const std::filesystem::path& cache_path,
+    const std::optional<std::string>& trusted_sha256,
     ExactSmoothOptions options) {
     validate_options(options);
     if (cache_path.empty()) {
@@ -256,10 +271,19 @@ ExactSmoothEngine ExactSmoothEngine::load_or_build(
                                cache_path.string() + ": " + error.message());
     }
     if (exists) {
-        return load(prime, cache_path, options);
+        if (!trusted_sha256.has_value()) {
+            throw SmoothCacheError(
+                "existing exact-smooth cache requires a trusted SHA-256");
+        }
+        return load(prime, cache_path, *trusted_sha256, options);
     }
     ExactSmoothEngine engine = build(prime, options);
     engine.save(cache_path);
+    if (trusted_sha256.has_value() &&
+        sha256_file(cache_path) != *trusted_sha256) {
+        throw SmoothCacheError(
+            "new exact-smooth cache does not match its trusted SHA-256");
+    }
     return engine;
 }
 

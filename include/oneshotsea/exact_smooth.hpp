@@ -7,7 +7,9 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace oneshotsea {
@@ -45,7 +47,8 @@ struct CurveTwistSmoothParts {
 // portable cache CRC, bound, range metadata, and pinned-engine self-check, but
 // intentionally does not rebuild the multi-gigabyte primorial.  Production
 // search identities must therefore pin the digest/provenance of a cache built
-// by this engine.  Replacing a cache during a search can cause false rejection
+// by this engine.  Existing caches cannot be loaded without an explicit
+// trusted digest.  Replacing a cache during a search can cause false rejection
 // and is forbidden even though final certificate verification prevents false
 // primality acceptance.
 class ExactSmoothEngine {
@@ -55,6 +58,7 @@ public:
 
     static ExactSmoothEngine load(const mpz_class& prime,
                                   const std::filesystem::path& cache_path,
+                                  const std::string& trusted_sha256,
                                   ExactSmoothOptions options = {});
 
     // Load an existing cache.  If and only if the path does not exist, build a
@@ -63,6 +67,7 @@ public:
     // cache is rejected rather than silently replaced.
     static ExactSmoothEngine load_or_build(
         const mpz_class& prime, const std::filesystem::path& cache_path,
+        const std::optional<std::string>& trusted_sha256 = std::nullopt,
         ExactSmoothOptions options = {});
 
     void save(const std::filesystem::path& cache_path) const;

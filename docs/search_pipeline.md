@@ -45,11 +45,12 @@ CLI has no verifier override and accepts only the pinned vendored
 `voneshot.py` digest recorded in its upstream manifest.
 
 A smooth cache built by the current process is trusted and immediately bound
-into the schedule.  Starting without a checkpoint from a pre-existing cache
-instead requires `--smooth-cache-sha256 DIGEST`; a resume gets the same trust
-anchor from its checkpoint identity.  The cache is hashed before and after
-loading.  Checkpoint, progress, cache, certificate, and certificate-metadata
-paths must all be distinct.
+into the schedule.  Every use of a pre-existing cache, including a resume,
+requires `--smooth-cache-sha256 DIGEST`.  This digest is a trust anchor and must
+come from an independently trusted build record; computing it from an unknown
+cache merely checks transport integrity and does not establish completeness.
+The cache is hashed before and after loading.  Checkpoint, progress, cache,
+certificate, and certificate-metadata paths must all be distinct.
 
 On success the canonical certificate line is atomically published before the
 cursor advances.  A small sidecar binds its digest and line to the full search

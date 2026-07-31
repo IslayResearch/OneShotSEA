@@ -12,6 +12,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -189,20 +190,15 @@ int main(int argc, char** argv) {
                 certificate_metadata});
             const bool cache_preexisted =
                 std::filesystem::is_regular_file(smooth_cache);
-            const bool checkpoint_preexisted =
-                std::filesystem::is_regular_file(checkpoint);
-            std::string trusted_existing_cache_sha;
+            std::optional<std::string> trusted_existing_cache_sha;
             if (cache_preexisted) {
-                trusted_existing_cache_sha = oneshotsea::sha256_file(smooth_cache);
-                if (!checkpoint_preexisted) {
-                    const std::string supplied =
-                        required(options, "smooth-cache-sha256");
-                    if (!oneshotsea::is_lower_sha256(supplied) ||
-                        supplied != trusted_existing_cache_sha) {
-                        throw std::invalid_argument(
-                            "fresh search rejected untrusted pre-existing smooth cache digest");
-                    }
+                const std::string supplied =
+                    required(options, "smooth-cache-sha256");
+                if (!oneshotsea::is_lower_sha256(supplied)) {
+                    throw std::invalid_argument(
+                        "--smooth-cache-sha256 must be a trusted lowercase SHA-256 digest");
                 }
+                trusted_existing_cache_sha = supplied;
             }
             ensure_parent_directory(smooth_cache);
             ensure_parent_directory(checkpoint);
@@ -234,12 +230,12 @@ int main(int argc, char** argv) {
             smooth_options.build_segment_span = smooth_build_segment_span;
             const oneshotsea::ExactSmoothEngine smooth_engine =
                 oneshotsea::ExactSmoothEngine::load_or_build(
-                    config.prime, smooth_cache, smooth_options);
-            const std::string cache_sha = oneshotsea::sha256_file(smooth_cache);
-            if (cache_preexisted && cache_sha != trusted_existing_cache_sha) {
-                throw std::runtime_error(
-                    "smooth cache changed while initializing search");
-            }
+                    config.prime, smooth_cache, trusted_existing_cache_sha,
+                    smooth_options);
+            const std::string cache_sha =
+                trusted_existing_cache_sha.has_value()
+                    ? *trusted_existing_cache_sha
+                    : oneshotsea::sha256_file(smooth_cache);
             const std::string verifier_sha =
                 oneshotsea::sha256_file(config.canonical_verifier);
             constexpr const char* pinned_verifier_sha =

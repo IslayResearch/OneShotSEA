@@ -1,4 +1,5 @@
 #include "oneshotsea/exact_smooth.hpp"
+#include "oneshotsea/integrity.hpp"
 
 #include <array>
 #include <chrono>
@@ -93,16 +94,21 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
 
     const auto cache = temporary.path / "full.cache";
     engine.save(cache);
-    const auto loaded = oneshotsea::ExactSmoothEngine::load(101, cache, options);
+    const std::string cache_sha = oneshotsea::sha256_file(cache);
+    const auto loaded = oneshotsea::ExactSmoothEngine::load(
+        101, cache, cache_sha, options);
     check(loaded.extract_one(2 * 2 * 3 * 2503).value == 12,
           "portable full-product cache reload");
     expect_exception<oneshotsea::SmoothCacheError>(
-        [&] { (void)oneshotsea::ExactSmoothEngine::load(257, cache, options); },
+        [&] {
+            (void)oneshotsea::ExactSmoothEngine::load(
+                257, cache, cache_sha, options);
+        },
         "cache bound must be tied to target bit length");
     expect_exception<oneshotsea::SmoothCacheError>(
         [&] {
             (void)oneshotsea::ExactSmoothEngine::load(
-                101, cache,
+                101, cache, cache_sha,
                 {.thread_count = 1,
                  .max_orders_per_batch = 1,
                  .build_segment_span = 100,
@@ -122,7 +128,7 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
     const auto generated_cache =
         temporary.path / "new-parent" / "nested" / "generated.cache";
     const auto generated = oneshotsea::ExactSmoothEngine::load_or_build(
-        101, generated_cache, options);
+        101, generated_cache, std::nullopt, options);
     check(std::filesystem::is_regular_file(generated_cache) &&
               generated.extract_one(97 * 97 * 2503).value == 97 * 97,
           "missing cache is built, saved, and immediately usable");
@@ -130,7 +136,8 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
     expect_exception<oneshotsea::SmoothCacheError>(
         [&] {
             (void)oneshotsea::ExactSmoothEngine::load_or_build(
-                101, temporary.path / "full.cache" / "child.cache", options);
+                101, temporary.path / "full.cache" / "child.cache",
+                std::nullopt, options);
         },
         "load-or-build reports a parent path that is an existing file");
 
@@ -141,10 +148,24 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
     smooth_base_clear(&segment);
     expect_exception<oneshotsea::SmoothCacheError>(
         [&] {
-            (void)oneshotsea::ExactSmoothEngine::load(101, segment_cache,
-                                                       options);
+            (void)oneshotsea::ExactSmoothEngine::load(
+                101, segment_cache, oneshotsea::sha256_file(segment_cache),
+                options);
         },
         "partial cache must never create exact full-bound evidence");
+
+    expect_exception<oneshotsea::SmoothCacheError>(
+        [&] {
+            (void)oneshotsea::ExactSmoothEngine::load(
+                101, cache, std::string(64U, '0'), options);
+        },
+        "cache load requires the exact trusted digest");
+    expect_exception<oneshotsea::SmoothCacheError>(
+        [&] {
+            (void)oneshotsea::ExactSmoothEngine::load_or_build(
+                101, cache, std::nullopt, options);
+        },
+        "existing cache cannot mint exact evidence without a trust anchor");
 
     expect_exception<std::invalid_argument>(
         [] {

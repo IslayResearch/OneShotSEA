@@ -161,3 +161,49 @@ then independently checked for divisibility, complete factorization, and
 `build_m` acceptance.  A Magma full-factor attempt was stopped after 16.5
 minutes once the exhaustive project-engine result was available; Magma was
 not used to establish smooth-part completeness.
+
+## Bounded full-cache extraction
+
+Commit `6538bc7` replaced the upstream root reduction, whose temporary arrays
+scaled with the entire 5 GB primorial, with a project-owned block reducer.  The
+portable full cache used for the check was:
+
+```text
+bound         = 29948379136
+prime_count   = 1297866953
+product_bytes = 5400759974
+sha256        = afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551
+```
+
+A release-build fixture loaded this cache and extracted a single 128-order
+batch containing 64 copies of each independently established curve/twist
+order above.  It used eight OpenMP threads and the default 128 MiB root-table
+cap.  All 128 outputs matched the known values:
+
+```text
+authenticated load (two hashes) = 79.409 s
+bounded extraction              = 25.371 s
+maximum RSS                     = 5552111616 bytes
+swaps during process            = 0
+```
+
+The first production search curve was then rerun from cursor zero with
+`seed=202607300000`, `trace-cap=64`, `max-level=401`, an order batch cap of
+128, and the same root-table cap.  Its authenticated search identity had
+schedule digest
+`d9ee14c5fc8016a6827cc3bfba006efe1cbdd46f73ca73bd62710fd77b095fb6`.
+Index zero reached one exact trace and was soundly rejected after full-cache
+smoothness extraction:
+
+```text
+trace           = -365740341970189488309911289011845029564959533378642173923364552
+SEA             = 749.608 s
+smoothness      = 3.769 s
+total           = 753.377 s
+maximum RSS     = 5438865408 bytes
+next checkpoint = 1
+```
+
+This run demonstrates that the production reducer completes the stage that
+previously entered VM thrashing, while preserving exact output and atomic
+cursor advancement.

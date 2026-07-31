@@ -87,3 +87,77 @@ meet-in-the-middle implementation.  The eigenvalues have absolute scalars 166
 and 169, so this is close to the scan's worst case.  The checked-in selector
 therefore uses the scan through the current maximum table level 401 and keeps
 meet-in-the-middle for future larger levels.
+
+## Full `p125` point count
+
+The same custom Weber/BMSS path was subsequently run through the first level
+that left a unique Hasse-compatible trace:
+
+```bash
+./build/oneshotsea sea-weber-count \
+  --p "$p" --a "$a" --b "$b" \
+  --max-level 269 --table-dir data/modpoly/weber_f --trace-cap 1
+```
+
+Levels 263 and 269 reduced the candidate count from 1,304 to 5 and then 1.
+The final exact modulus and trace were:
+
+```text
+M = 68633190145362186166822788812085221001251429656599284690267927483
+t = 578587541766877021216876046824777178219993323764234508955305134
+```
+
+Thus the curve order is:
+
+```text
+99999999999999999999999999999999999999999999999999999999999999421412458233122978783123953175222821780006676235765491044695104
+```
+
+An independent local Magma run returned the same order and trace:
+
+```bash
+MAGMA=/path/to/magma python3 oracle/point_count.py "$p" "$a" "$b"
+```
+
+Representative high-level timings were 8.4 seconds for level-163 modular
+roots, 14.6 seconds at level 223, and at level 269, 21.6 seconds for modular
+roots plus 19.7 seconds for eigenvalue recovery.  BMSS remained below one
+second per level because equivalent Weber lifts reused the exact codomain and
+kernel reconstruction.  This exploratory run did not retain a complete wall
+clock transcript or checkpoint; a production-search rerun must capture both
+before it can be cited as a reproducible search artifact.
+
+## Exact smooth-part disposition
+
+For `n=416`, the verifier bounds are:
+
+```text
+n^2 = 173056
+n^4 = 29948379136
+L   = 316227766016837933199889354443307418960156292388546191109654339
+```
+
+The curve and twist orders and their exact `n^4`-smooth parts are:
+
+```text
+N_curve = 99999999999999999999999999999999999999999999999999999999999999421412458233122978783123953175222821780006676235765491044695104
+S_curve = 332287808 = 2^6 * 19 * 23 * 109^2
+
+N_twist = 100000000000000000000000000000000000000000000000000000000000000578587541766877021216876046824777178219993323764234508955305372
+S_twist = 41624092412 = 2^2 * 7 * 1486574729
+```
+
+Both smooth parts are below `L`, and the pinned `build_m` rejects both.  Thus
+this curve supplied a successful full custom SEA point count but cannot supply
+a one-shot certificate on either side.
+
+Exactness was established with the pinned smooth engine over 60 disjoint
+500,000,000-wide prime intervals covering `(0,n^4]`.  With nine threads, the
+scan took 584.416 seconds internally (574.551 seconds building interval
+products and 9.857 seconds extracting the two smooth parts), 4,333.93 user
+seconds, 25.83 system seconds, and 1,901,379,584 bytes maximum RSS.  The
+interval result was multiplied into a running smooth part for each order and
+then independently checked for divisibility, complete factorization, and
+`build_m` acceptance.  A Magma full-factor attempt was stopped after 16.5
+minutes once the exhaustive project-engine result was available; Magma was
+not used to establish smooth-part completeness.

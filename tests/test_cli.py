@@ -14,6 +14,7 @@ BINARY = ROOT / "build" / "oneshotsea"
 PHI3 = ROOT / "data" / "modpoly" / "j" / "phi_3.txt"
 PHI5 = ROOT / "data" / "modpoly" / "j" / "phi_5.txt"
 WEBER_PHI5 = ROOT / "data" / "modpoly" / "weber_f" / "phi_5.txt"
+WEBER_PHI11 = ROOT / "data" / "modpoly" / "weber_f" / "phi_11.txt"
 
 
 class CliTests(unittest.TestCase):
@@ -91,6 +92,30 @@ class CliTests(unittest.TestCase):
             json.loads(classical.stdout)["trace_residue"],
         )
 
+    def test_empty_weber_result_is_not_mislabeled_atkin(self) -> None:
+        # This level is genuinely Elkies: t=18 and
+        # t^2-4p = 3 (mod 11), a quadratic residue.  The rational Weber
+        # lifts are exceptional, however, so an empty kernel list supplies
+        # no Atkin classification evidence.
+        result = self.run_cli(
+            "elkies-weber-residue",
+            "--p",
+            193,
+            "--a",
+            1,
+            "--b",
+            29,
+            "--ell",
+            11,
+            "--file",
+            WEBER_PHI11,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        record = json.loads(result.stdout)
+        self.assertEqual(record["status"], "unavailable")
+        self.assertIsNone(record["elkies"])
+        self.assertEqual(record["kernel_count"], 0)
+
     def test_stateful_weber_sea_streams_exact_progress(self) -> None:
         result = self.run_cli(
             "sea-weber-count",
@@ -114,8 +139,32 @@ class CliTests(unittest.TestCase):
             [record["exact"] for record in records[:-1]], [True, False, True]
         )
         self.assertEqual(records[-1]["type"], "summary")
+        self.assertEqual(records[-1]["status"], "trace_set_enumerated")
         self.assertEqual(records[-1]["exact_modulus"], "55")
         self.assertEqual(records[-1]["traces"], ["-6"])
+
+    def test_no_rational_weber_lift_is_explicitly_incomplete(self) -> None:
+        result = self.run_cli(
+            "sea-weber-count",
+            "--p",
+            97,
+            "--a",
+            1,
+            "--b",
+            1,
+            "--max-level",
+            11,
+            "--table-dir",
+            ROOT / "data" / "modpoly" / "weber_f",
+            "--trace-cap",
+            1,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        records = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["status"], "no_rational_weber_lift")
+        self.assertFalse(records[0]["complete"])
+        self.assertEqual(records[0]["levels_processed"], 0)
 
 
 if __name__ == "__main__":

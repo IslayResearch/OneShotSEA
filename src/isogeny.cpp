@@ -147,13 +147,14 @@ std::pair<Poly, Poly> pade_reconstruct(
     }
     if (cofactor.is_zero() || cofactor.coefficient(0) == 0 ||
         cofactor.degree() > static_cast<int>(denominator_degree)) {
-        throw std::runtime_error("Pade reconstruction has invalid denominator");
+        throw BmssIncompatibleNeighborError(
+            "Pade reconstruction has invalid denominator");
     }
     const mpz_class scale = field.inverse(cofactor.coefficient(0));
     Poly numerator = scalar_mul(remainder, scale);
     Poly denominator = scalar_mul(cofactor, scale);
     if (numerator.degree() > static_cast<int>(numerator_degree)) {
-        throw std::runtime_error("Pade reconstruction has invalid numerator");
+        throw std::logic_error("Pade reconstruction has invalid numerator");
     }
 
     for (std::size_t degree = 0; degree < series.size(); ++degree) {
@@ -167,7 +168,7 @@ std::pair<Poly, Poly> pade_reconstruct(
                           series[degree - index]));
         }
         if (product != numerator.coefficient(degree)) {
-            throw std::runtime_error(
+            throw BmssIncompatibleNeighborError(
                 "Pade reconstruction failed extra-precision validation");
         }
     }
@@ -190,7 +191,8 @@ Poly square_root_reversed_denominator(const Poly& denominator,
     const Field& field = denominator.field();
     if (denominator.degree() != static_cast<int>(2U * kernel_degree) ||
         denominator.coefficient(0) != 1) {
-        throw std::runtime_error("isogeny denominator has invalid degree or normalization");
+        throw std::logic_error(
+            "isogeny denominator has invalid degree or normalization");
     }
     std::vector<mpz_class> reversed_root(kernel_degree + 1U, 0);
     reversed_root[0] = 1;
@@ -206,14 +208,17 @@ Poly square_root_reversed_denominator(const Poly& denominator,
     }
     const Poly root(field, reversed_root);
     if (!equal(mul(root, root), denominator)) {
-        throw std::runtime_error("isogeny denominator is not a polynomial square");
+        throw BmssIncompatibleNeighborError(
+            "isogeny denominator is not a polynomial square");
     }
     std::reverse(reversed_root.begin(), reversed_root.end());
     return Poly(field, std::move(reversed_root));
 }
 
-void validate_rational_isogeny(const Curve& source, const Curve& codomain,
-                               const Poly& numerator, const Poly& denominator) {
+bool rational_isogeny_equation_holds(const Curve& source,
+                                     const Curve& codomain,
+                                     const Poly& numerator,
+                                     const Poly& denominator) {
     const Field& field = source.field();
     const Poly x = Poly::x(field);
     const Poly source_rhs = add(
@@ -230,8 +235,90 @@ void validate_rational_isogeny(const Curve& source, const Curve& codomain,
             scalar_mul(mul(numerator, denominator_squared), codomain.a())),
         scalar_mul(mul(denominator_squared, denominator), codomain.b()));
     const Poly right = mul(denominator, codomain_rhs_numerator);
-    if (!equal(left, right)) {
-        throw std::runtime_error("reconstructed rational map fails the isogeny equation");
+    return equal(left, right);
+}
+
+enum class IsogenyValidationContext {
+    PublicProofObject,
+    BmssReconstruction,
+};
+
+[[noreturn]] void throw_isogeny_validation_failure(
+    IsogenyValidationContext context, bool candidate_dependent,
+    const char* message) {
+    if (context == IsogenyValidationContext::BmssReconstruction) {
+        if (candidate_dependent) {
+            throw BmssIncompatibleNeighborError(message);
+        }
+        throw std::logic_error(message);
+    }
+    throw std::runtime_error(message);
+}
+
+void validate_rational_isogeny_impl(
+    const Curve& source, const Curve& normalized_codomain, std::uint64_t ell,
+    const BmssIsogenyResult& isogeny, IsogenyValidationContext context) {
+    if (source.field().modulus() != normalized_codomain.field().modulus() ||
+        source.field().modulus() != isogeny.kernel.field().modulus() ||
+        source.field().modulus() != isogeny.numerator.field().modulus() ||
+        source.field().modulus() != isogeny.denominator.field().modulus()) {
+        throw std::invalid_argument(
+            "rational isogeny curves and polynomials use different fields");
+    }
+    if (source.is_singular() || normalized_codomain.is_singular()) {
+        throw std::invalid_argument(
+            "rational isogeny validation requires nonsingular curves");
+    }
+    if (!is_odd_prime(ell)) {
+        throw std::invalid_argument(
+            "rational isogeny degree must be an odd prime");
+    }
+    if (mpz_probab_prime_p(source.field().modulus().get_mpz_t(), 25) == 0) {
+        throw std::invalid_argument(
+            "rational isogeny validation requires prime characteristic");
+    }
+    if (mpz_cmp_ui(source.field().modulus().get_mpz_t(), ell) == 0) {
+        throw std::invalid_argument(
+            "rational isogeny degree must differ from the characteristic");
+    }
+
+    const std::uint64_t kernel_degree = (ell - 1U) / 2U;
+    if (isogeny.kernel.degree() < 0 ||
+        static_cast<std::uint64_t>(isogeny.kernel.degree()) != kernel_degree ||
+        isogeny.kernel.leading_coefficient() != 1) {
+        throw_isogeny_validation_failure(
+            context, false,
+            "rational isogeny kernel has the wrong degree or normalization");
+    }
+    if (gcd(isogeny.kernel, isogeny.kernel.derivative()).degree() != 0) {
+        throw_isogeny_validation_failure(
+            context, true, "rational isogeny kernel is not square-free");
+    }
+    if (gcd(isogeny.numerator, isogeny.denominator).degree() != 0) {
+        throw_isogeny_validation_failure(
+            context, true,
+            "rational isogeny numerator and denominator are not coprime");
+    }
+    const int rational_map_degree =
+        std::max(isogeny.numerator.degree(), isogeny.denominator.degree());
+    if (rational_map_degree < 0 ||
+        static_cast<std::uint64_t>(rational_map_degree) != ell) {
+        throw_isogeny_validation_failure(
+            context, false,
+            "reduced rational isogeny map does not have exact degree ell");
+    }
+    if (!equal(mul(isogeny.kernel, isogeny.kernel),
+               isogeny.denominator)) {
+        throw_isogeny_validation_failure(
+            context, false,
+            "rational isogeny denominator is not the kernel square");
+    }
+    if (!rational_isogeny_equation_holds(
+            source, normalized_codomain, isogeny.numerator,
+            isogeny.denominator)) {
+        throw_isogeny_validation_failure(
+            context, true,
+            "reconstructed rational map fails the isogeny equation");
     }
 }
 
@@ -266,6 +353,14 @@ Curve codomain_from_neighbor_derivative(
 }
 
 }  // namespace
+
+void validate_rational_isogeny_reference(
+    const Curve& source, const Curve& normalized_codomain, std::uint64_t ell,
+    const BmssIsogenyResult& isogeny) {
+    validate_rational_isogeny_impl(
+        source, normalized_codomain, ell, isogeny,
+        IsogenyValidationContext::PublicProofObject);
+}
 
 Curve normalized_codomain_from_classical_modpoly(
     const Curve& source, const SparseModularPolynomial& modular_polynomial,
@@ -405,7 +500,7 @@ BmssIsogenyResult bmss_isogeny_reference(
     }
     for (std::size_t degree = 0; degree < isogeny_series.size(); degree += 2U) {
         if (isogeny_series[degree] != 0) {
-            throw std::runtime_error("BMSS power series lost odd parity");
+            throw std::logic_error("BMSS power series lost odd parity");
         }
     }
 
@@ -425,7 +520,8 @@ BmssIsogenyResult bmss_isogeny_reference(
         field, u_series, ell_size, ell_size - 1U);
     if (reversed_numerator.degree() != static_cast<int>(ell_size) ||
         reversed_denominator.degree() != static_cast<int>(ell_size - 1U)) {
-        throw std::runtime_error("BMSS reconstruction returned deficient degrees");
+        throw BmssIncompatibleNeighborError(
+            "BMSS reconstruction returned deficient degrees");
     }
 
     Poly numerator = reverse_polynomial(reversed_numerator, ell_size);
@@ -433,29 +529,27 @@ BmssIsogenyResult bmss_isogeny_reference(
     const std::size_t kernel_degree = (ell_size - 1U) / 2U;
     Poly kernel = square_root_reversed_denominator(
         reversed_denominator, kernel_degree);
-    if (!equal(mul(kernel, kernel), denominator) ||
-        kernel.degree() != static_cast<int>(kernel_degree) ||
-        kernel.leading_coefficient() != 1 ||
-        gcd(kernel, kernel.derivative()).degree() != 0) {
-        throw std::runtime_error("BMSS kernel failed degree or square-free validation");
-    }
+    BmssIsogenyResult result{
+        std::move(kernel), std::move(numerator), std::move(denominator)};
+    validate_rational_isogeny_impl(
+        source, normalized_codomain, ell, result,
+        IsogenyValidationContext::BmssReconstruction);
 
     if (ell <= 31U) {
         const Poly psi_ell = division_polynomial_reference(source, ell);
-        if (!divmod(psi_ell, kernel).second.is_zero()) {
-            throw std::runtime_error(
+        if (!divmod(psi_ell, result.kernel).second.is_zero()) {
+            throw std::logic_error(
                 "BMSS kernel does not divide the division polynomial");
         }
-        const Curve velu_codomain = velu_codomain_reference(source, kernel, ell);
+        const Curve velu_codomain =
+            velu_codomain_reference(source, result.kernel, ell);
         if (velu_codomain.a() != normalized_codomain.a() ||
             velu_codomain.b() != normalized_codomain.b()) {
-            throw std::runtime_error(
+            throw std::logic_error(
                 "BMSS kernel yields the wrong normalized codomain");
         }
     }
-    validate_rational_isogeny(
-        source, normalized_codomain, numerator, denominator);
-    return {std::move(kernel), std::move(numerator), std::move(denominator)};
+    return result;
 }
 
 }  // namespace oneshotsea

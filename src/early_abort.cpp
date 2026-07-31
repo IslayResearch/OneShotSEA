@@ -2,8 +2,21 @@
 
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace oneshotsea {
+
+namespace {
+
+const mpz_class& evidence_value(const SmoothPartEvidence& evidence) {
+    return std::visit(
+        [](const auto& typed_evidence) -> const mpz_class& {
+            return typed_evidence.value;
+        },
+        evidence);
+}
+
+}  // namespace
 
 std::optional<SmoothScreen> screen_order_candidates(
     const TraceConstraints& constraints, std::size_t trace_cap,
@@ -22,12 +35,22 @@ std::optional<SmoothScreen> screen_order_candidates(
             if (order <= 0) {
                 throw std::logic_error("Hasse candidate produced a nonpositive order");
             }
-            const mpz_class smooth_part = extractor(order);
+            SmoothPartEvidence evidence = extractor(order);
+            const mpz_class& smooth_part = evidence_value(evidence);
             if (smooth_part <= 0 || order % smooth_part != 0) {
                 throw std::runtime_error("smooth-part extractor violated divisibility invariant");
             }
-            if (smooth_part > certificate_lower_bound_value) {
-                result.survivors.push_back({trace, twist, order, smooth_part});
+
+            // If a certificate factor m > L exists for the actual order, all
+            // primes of m are at most n^4, so m divides the exact full-n^4
+            // smooth part S and necessarily S > L.  Thus exact S <= L rules
+            // the candidate out.  A partial divisor is only a lower bound on
+            // S: it proves success when already > L, but can never prove
+            // rejection while unprocessed prime rungs remain.
+            const bool exact = std::holds_alternative<ExactN4SmoothPart>(evidence);
+            if (!exact || smooth_part > certificate_lower_bound_value) {
+                result.survivors.push_back(
+                    {trace, twist, order, std::move(evidence)});
             }
         }
     }

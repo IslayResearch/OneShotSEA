@@ -1,5 +1,6 @@
 #include "oneshotsea/schoof.hpp"
 
+#include "oneshotsea/isogeny.hpp"
 #include "oneshotsea/poly.hpp"
 #include "oneshotsea/torsion.hpp"
 #include "oneshotsea/trace.hpp"
@@ -643,9 +644,13 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
     return try_frobenius_eigenvalue_impl(curve, kernel, ell, true, true);
 }
 
-std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny_kernel(
-    const Curve& curve, const Poly& kernel, std::uint64_t ell) {
-    return try_frobenius_eigenvalue_impl(curve, kernel, ell, false, false);
+std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny(
+    const Curve& curve, const Curve& normalized_codomain,
+    const BmssIsogenyResult& isogeny, std::uint64_t ell) {
+    validate_rational_isogeny_reference(
+        curve, normalized_codomain, ell, isogeny);
+    return try_frobenius_eigenvalue_impl(
+        curve, isogeny.kernel, ell, false, false);
 }
 
 std::uint64_t frobenius_eigenvalue_reference(const Curve& curve,

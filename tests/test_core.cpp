@@ -7,6 +7,7 @@
 #include "oneshotsea/schoof.hpp"
 #include "oneshotsea/sea.hpp"
 #include "oneshotsea/trace.hpp"
+#include "oneshotsea/torsion.hpp"
 #include "oneshotsea/weber.hpp"
 
 #include <algorithm>
@@ -254,6 +255,18 @@ void test_trace_constraints() {
     check(exact_traces.has_value() &&
               *exact_traces == std::vector<mpz_class>{mpz_class(0)},
           "exact CRT candidate enumeration");
+
+    const mpz_class prior_modulus = exact.modulus();
+    const auto prior_residues = exact.residues();
+    bool rejected_corrupt_exact_residue = false;
+    try {
+        exact.refine_exact(43, 1);
+    } catch (const std::runtime_error&) {
+        rejected_corrupt_exact_residue = true;
+    }
+    check(rejected_corrupt_exact_residue && exact.modulus() == prior_modulus &&
+              exact.residues() == prior_residues && exact.candidate_count() == 1,
+          "corrupt exact residue hard-fails transactionally");
 }
 
 void test_weber_sea_runner() {
@@ -295,22 +308,56 @@ void test_early_abort() {
 
     oneshotsea::TraceConstraints constraints(101);
     constraints.refine(41, {0});  // only trace zero lies in [-20,20]
-    const auto rejected = oneshotsea::screen_order_candidates(
-        constraints, 4, 20,
-        [](const mpz_class& order) { return oneshotsea::trial_smooth_part(order, 3); });
-    check(rejected.has_value() && rejected->trace_count == 1,
+    const auto partial = oneshotsea::screen_order_candidates(
+        constraints, 4, 17, [](const mpz_class& order) {
+            return oneshotsea::PartialN4SmoothPart{
+                oneshotsea::trial_smooth_part(order, 3)};
+        });
+    check(partial.has_value() && partial->trace_count == 1,
           "early-abort exhaustive trace set");
-    check(rejected->rejects_curve(), "sound screen rejects both sides");
+    check(partial->survivors.size() == 2 && !partial->rejects_curve(),
+          "partial smoothness cannot reject candidates");
+    check(std::get<oneshotsea::PartialN4SmoothPart>(
+              partial->survivors.front().smooth_part)
+              .value == 6,
+          "partial smoothness records the known divisor");
 
-    const auto retained = oneshotsea::screen_order_candidates(
-        constraints, 4, 5,
-        [](const mpz_class& order) { return oneshotsea::trial_smooth_part(order, 3); });
-    check(retained.has_value() && retained->survivors.size() == 2,
-          "sound screen retains curve and twist");
+    const auto partial_sufficient = oneshotsea::screen_order_candidates(
+        constraints, 4, 5, [](const mpz_class& order) {
+            return oneshotsea::PartialN4SmoothPart{
+                oneshotsea::trial_smooth_part(order, 3)};
+        });
+    check(partial_sufficient.has_value() &&
+              partial_sufficient->survivors.size() == 2,
+          "partial smoothness above the bound retains both sides");
+
+    // Adversarial regression: N=102 has partial 3-smooth part 6 <= L=17,
+    // but its exact smooth part through B=7^4=2401 is 102 > L.
+    const auto completed = oneshotsea::screen_order_candidates(
+        constraints, 4, 17, [](const mpz_class& order) {
+            return oneshotsea::ExactN4SmoothPart{
+                oneshotsea::trial_smooth_part(order, 2401)};
+        });
+    check(completed.has_value() && completed->survivors.size() == 2,
+          "exact full-bound smoothness retains adversarial candidates");
+    check(std::get<oneshotsea::ExactN4SmoothPart>(
+              completed->survivors.front().smooth_part)
+              .value == 102,
+          "exact full-bound smoothness includes the missing factor");
+
+    const auto rejected = oneshotsea::screen_order_candidates(
+        constraints, 4, 200, [](const mpz_class& order) {
+            return oneshotsea::ExactN4SmoothPart{
+                oneshotsea::trial_smooth_part(order, 2401)};
+        });
+    check(rejected.has_value() && rejected->rejects_curve(),
+          "exact full-bound evidence can reject both sides");
 
     oneshotsea::TraceConstraints many(101);
     check(!oneshotsea::screen_order_candidates(
-               many, 4, 1, [](const mpz_class&) { return mpz_class(1); })
+               many, 4, 1, [](const mpz_class&) {
+                   return oneshotsea::PartialN4SmoothPart{1};
+               })
                .has_value(),
           "early-abort cap prevents incomplete enumeration");
 }
@@ -507,6 +554,8 @@ void test_elkies_residues() {
         5, "data/modpoly/weber_f/phi_5.txt");
     const auto weber_phi7 = oneshotsea::SparseModularPolynomial::load(
         7, "data/modpoly/weber_f/phi_7.txt");
+    const auto weber_phi11 = oneshotsea::SparseModularPolynomial::load(
+        11, "data/modpoly/weber_f/phi_11.txt");
     std::size_t normalized_level5_checks = 0;
     std::size_t normalized_level7_checks = 0;
     std::size_t bmss_level5_checks = 0;
@@ -603,6 +652,19 @@ void test_elkies_residues() {
         oneshotsea::Curve(oneshotsea::Field(157), 37, 13),
         phi7, weber_phi7);
 
+    // This Weber level has two distinct normalized codomains: one reconstructs
+    // the unique valid kernel and one is an incompatible class-invariant lift.
+    // The latter must be skipped through the narrow BMSS exception without
+    // suppressing unrelated reconstruction failures.
+    const auto mixed_weber_level =
+        oneshotsea::compute_weber_elkies_level_reference(
+            oneshotsea::Curve(oneshotsea::Field(277), 6, 10),
+            weber_phi11);
+    check(mixed_weber_level.kernels.size() == 1 &&
+              mixed_weber_level.timings.distinct_codomains == 2 &&
+              mixed_weber_level.timings.eigenvalue_attempts == 1,
+          "Weber skips only the typed incompatible BMSS neighbor");
+
     // BMSS, Section 5.1: the published worked fastElkies example over F_101.
     const oneshotsea::Curve worked_source(oneshotsea::Field(101), 1, 1);
     const oneshotsea::Curve worked_codomain(oneshotsea::Field(101), 75, 16);
@@ -612,6 +674,55 @@ void test_elkies_residues() {
               worked.kernel,
               oneshotsea::Poly(oneshotsea::Field(101), {5, 97, 24, 89, 76, 1})),
           "BMSS worked-example kernel polynomial");
+    oneshotsea::validate_rational_isogeny_reference(
+        worked_source, worked_codomain, 11, worked);
+
+    // Multiplying the identity map x/1 by h^2/h^2 leaves the cross-multiplied
+    // isogeny equation unchanged.  With deg(h)=5, the unreduced numerator has
+    // claimed degree 11, the denominator is h^2, and h is monic square-free:
+    // coprimality is the one condition that exposes this counterfeit.
+    const oneshotsea::Poly worked_x =
+        oneshotsea::Poly::x(worked_source.field());
+    oneshotsea::Poly counterfeit_kernel =
+        oneshotsea::Poly::constant(worked_source.field(), 1);
+    for (unsigned long root = 1; root <= 5; ++root) {
+        counterfeit_kernel = oneshotsea::mul(
+            counterfeit_kernel,
+            oneshotsea::sub(
+                worked_x,
+                oneshotsea::Poly::constant(worked_source.field(), root)));
+    }
+    const oneshotsea::Poly counterfeit_denominator =
+        oneshotsea::mul(counterfeit_kernel, counterfeit_kernel);
+    const oneshotsea::BmssIsogenyResult counterfeit{
+        counterfeit_kernel,
+        oneshotsea::mul(worked_x, counterfeit_denominator),
+        counterfeit_denominator};
+    bool rejected_common_factor = false;
+    try {
+        static_cast<void>(oneshotsea::try_frobenius_eigenvalue_from_isogeny(
+            worked_source, worked_source, counterfeit, 11));
+    } catch (const oneshotsea::BmssIncompatibleNeighborError&) {
+        rejected_common_factor = false;
+    } catch (const std::runtime_error& error) {
+        rejected_common_factor =
+            std::string(error.what()).find("not coprime") != std::string::npos;
+    }
+    check(rejected_common_factor,
+          "unexpected proof-object validation is not BMSS incompatibility");
+
+    bool generic_runtime_propagated = false;
+    try {
+        try {
+            throw std::runtime_error("simulated internal validation failure");
+        } catch (const oneshotsea::BmssIncompatibleNeighborError&) {
+            check(false, "generic runtime error was mistaken for BMSS incompatibility");
+        }
+    } catch (const std::runtime_error&) {
+        generic_runtime_propagated = true;
+    }
+    check(generic_runtime_propagated,
+          "narrow BMSS catch propagates unexpected runtime errors");
 
     check(oneshotsea::elkies_kernels_division_reference(
               oneshotsea::Curve(oneshotsea::Field(19), 0, 4), 5)

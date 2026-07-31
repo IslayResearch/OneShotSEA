@@ -108,6 +108,17 @@ void TraceConstraints::refine(std::uint64_t ell,
     residues_.assign(merged.begin(), merged.end());
 }
 
+void TraceConstraints::refine_exact(std::uint64_t ell,
+                                    std::uint64_t residue) {
+    TraceConstraints updated = *this;
+    updated.refine(ell, {residue});
+    if (updated.candidate_count() == 0) {
+        throw std::runtime_error(
+            "exact trace residue eliminated every Hasse-compatible trace");
+    }
+    *this = std::move(updated);
+}
+
 mpz_class TraceConstraints::candidate_count() const {
     const mpz_class lower = -hasse_radius_;
     const mpz_class upper = hasse_radius_;

@@ -87,7 +87,7 @@ WeberSeaResult run_weber_sea_reference(
             }
             result.compatible_source_lifts =
                 std::move(level.compatible_source_lifts);
-            result.constraints.refine(ell, {*residue});
+            result.constraints.refine_exact(ell, *residue);
         }
         WeberSeaLevelRecord record{
             ell,

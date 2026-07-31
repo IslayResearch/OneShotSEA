@@ -5,6 +5,7 @@
 #include "oneshotsea/poly.hpp"
 
 #include <cstdint>
+#include <stdexcept>
 
 namespace oneshotsea {
 
@@ -26,6 +27,27 @@ struct BmssIsogenyResult {
     Poly numerator;
     Poly denominator;
 };
+
+// A mathematically well-formed normalized-codomain candidate for which the
+// BMSS series does not reconstruct a degree-ell isogeny.  Weber modular
+// polynomials can produce such incompatible class-invariant lifts.  Callers
+// enumerating those lifts may skip this error specifically; all other BMSS
+// exceptions indicate invalid inputs or failed implementation invariants and
+// must propagate.
+class BmssIncompatibleNeighborError : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
+// Validate the complete x-coordinate map x |-> numerator/denominator before
+// treating `kernel` as a proved cyclic ell-isogeny kernel.  In particular the
+// map must be reduced, have exact degree ell, have denominator kernel^2, and
+// satisfy the Weierstrass isogeny identity.  This is intentionally public so
+// callers that skip the independent subgroup-closure check can revalidate the
+// full proof object at that trust boundary.
+void validate_rational_isogeny_reference(
+    const Curve& source, const Curve& normalized_codomain, std::uint64_t ell,
+    const BmssIsogenyResult& isogeny);
 
 // Correctness-first implementation of the odd-degree BMSS fastElkies' path.
 // It uses the paper's power-series equation and Pade reconstruction, with the

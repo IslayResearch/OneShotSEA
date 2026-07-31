@@ -25,6 +25,12 @@ public:
     // constraint inconsistent.
     void refine(std::uint64_t ell, const std::vector<std::uint64_t>& allowed);
 
+    // Add a residue claimed to be exact.  Unlike the classification-oriented
+    // refine() operation, an exact residue is required to leave at least one
+    // trace in the Hasse interval.  The update is transactional so a rejected
+    // residue cannot corrupt the preceding constraint state.
+    void refine_exact(std::uint64_t ell, std::uint64_t residue);
+
     mpz_class candidate_count() const;
     std::optional<std::vector<mpz_class>> enumerate(std::size_t cap) const;
 

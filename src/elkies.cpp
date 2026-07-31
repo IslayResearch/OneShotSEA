@@ -239,8 +239,8 @@ std::vector<ElkiesKernelResult> elkies_kernels_bmss_reference(
         }
         BmssIsogenyResult reconstruction =
             bmss_isogeny_reference(curve, codomain, ell);
-        const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny_kernel(
-            curve, reconstruction.kernel, ell);
+        const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny(
+            curve, codomain, reconstruction, ell);
         if (!eigenvalue.has_value()) {
             throw std::runtime_error(
                 "BMSS modular neighbor did not yield a Frobenius eigenkernel");
@@ -349,11 +349,12 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
             started = Clock::now();
             try {
                 reconstruction = bmss_isogeny_reference(curve, codomain, ell);
-            } catch (const std::runtime_error&) {
+            } catch (const BmssIncompatibleNeighborError&) {
                 measured.bmss_us += elapsed_us(started);
                 // For p=1 mod 12, roots of Psi^f need not all be compatible
-                // class-invariant lifts. Full BMSS validation is the required
-                // safe discriminator.
+                // class-invariant lifts. Only the explicitly typed
+                // candidate-dependent reconstruction failure is skippable;
+                // input, invariant, and internal-validation errors propagate.
                 continue;
             }
             measured.bmss_us += elapsed_us(started);
@@ -375,8 +376,8 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
             }
             started = Clock::now();
             ++measured.eigenvalue_attempts;
-            const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny_kernel(
-                curve, reconstruction.kernel, ell);
+            const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny(
+                curve, codomain, reconstruction, ell);
             measured.eigenvalue_us += elapsed_us(started);
             if (!eigenvalue.has_value()) {
                 continue;

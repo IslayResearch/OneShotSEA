@@ -8,6 +8,8 @@
 
 namespace oneshotsea {
 
+struct BmssIsogenyResult;
+
 // Slow division-polynomial construction used by independent Schoof/Elkies
 // reference paths. Production kernel reconstruction will not build full
 // psi_ell at target-sized levels.
@@ -25,10 +27,11 @@ std::uint64_t frobenius_eigenvalue_reference(const Curve& curve,
 std::optional<std::uint64_t> try_frobenius_eigenvalue_reference(
     const Curve& curve, const Poly& kernel, std::uint64_t ell);
 
-// Production-kernel form: the caller has already proved that `kernel` is the
-// denominator square root of a validated degree-ell rational isogeny, so this
-// skips construction of the full division polynomial.
-std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny_kernel(
-    const Curve& curve, const Poly& kernel, std::uint64_t ell);
+// Production-isogeny form: revalidate the complete rational map, including its
+// reduced degree and kernel-square denominator, before deliberately skipping
+// the independent division-polynomial and subgroup-closure checks.
+std::optional<std::uint64_t> try_frobenius_eigenvalue_from_isogeny(
+    const Curve& curve, const Curve& normalized_codomain,
+    const BmssIsogenyResult& isogeny, std::uint64_t ell);
 
 }  // namespace oneshotsea

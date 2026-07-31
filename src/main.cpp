@@ -199,6 +199,14 @@ int main(int argc, char** argv) {
                       << "\",\"compatible_source_lifts\":"
                       << result.compatible_source_lifts.size()
                       << ",\"levels_processed\":" << result.levels.size()
+                      << ",\"status\":\""
+                      << (result.compatible_source_lifts.empty() &&
+                                  result.levels.empty()
+                              ? "no_rational_weber_lift"
+                              : (result.traces.has_value()
+                                     ? "trace_set_enumerated"
+                                     : "level_limit"))
+                      << "\""
                       << ",\"complete\":"
                       << (result.traces.has_value() ? "true" : "false");
             if (result.traces.has_value()) {
@@ -243,9 +251,17 @@ int main(int argc, char** argv) {
                 kernels =
                     oneshotsea::elkies_kernels_division_reference(curve, level);
             }
+            const bool weber_unavailable =
+                command == "elkies-weber-residue" && kernels.empty();
             std::cout << "{\"p\":\"" << p << "\",\"a\":\"" << curve.a()
                       << "\",\"b\":\"" << curve.b() << "\",\"ell\":"
-                      << level << ",\"elkies\":" << (kernels.empty() ? "false" : "true")
+                      << level << ",\"status\":\""
+                      << (kernels.empty()
+                              ? (weber_unavailable ? "unavailable" : "atkin")
+                              : "exact")
+                      << "\",\"elkies\":"
+                      << (weber_unavailable ? "null"
+                                            : (kernels.empty() ? "false" : "true"))
                       << ",\"kernel_count\":" << kernels.size();
             if (!kernels.empty()) {
                 const std::uint64_t residue = kernels.front().trace_residue;

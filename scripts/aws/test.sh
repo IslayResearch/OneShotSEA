@@ -29,6 +29,12 @@ cost="$("${SCRIPT_DIR}/cost.sh" --start 2026-08-01 --end 2026-08-02 2>&1)"
 [[ "$cost" == *Project*OneShotSEA* && "$cost" == *get-cost-and-usage* ]] ||
   fail 'cost dry-run does not filter the OneShotSEA project tag'
 
+benchmark="$(AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/benchmark-sea.sh" \
+  --run-id p125-sea-test --prime 101 --a 2 --b 3 --max-level 193 \
+  --trace-cap 64 --threads 1,2,4 2>&1)"
+[[ "$benchmark" == *CAS-free*SEA* && "$benchmark" == *threads=1,2,4* ]] ||
+  fail 'SEA benchmark dry-run omits the bounded thread-scaling contract'
+
 provision="$("${SCRIPT_DIR}/provision.sh" \
   --launch-id test-20260801 --instance-type m8g.xlarge \
   --ami-id ami-0263206814db4826a --subnet-id subnet-0800205b8fbcd6777 \

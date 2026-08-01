@@ -88,6 +88,11 @@ scripts/aws/deploy.sh --jobs 4 --execute
 remote, so deployment deliberately fails when the worktree is dirty or the
 commit has not been pushed.
 
+Run a CAS-free thread-scaling benchmark against one explicitly recorded target
+curve with `benchmark-sea.sh`.  The fetched run contains the exact curve and
+command, per-thread JSONL and GNU-time records, build/runtime environments,
+commit and binary identities, and SHA-256 digests.
+
 The full production worker additionally needs the authenticated `p125` smooth
 cache under `/opt/oneshotsea/caches`.  `prepare-cache.sh` can reproduce it on
 the instance and records a cache manifest; a short thread-scaling trial should

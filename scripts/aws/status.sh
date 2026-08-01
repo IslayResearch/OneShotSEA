@@ -62,7 +62,7 @@ if (( remote == 1 )); then
   ssm_require_online "$instance_id"
   # shellcheck disable=SC2016
   printf -v remote_command \
-    'set -euo pipefail; root=%q; run_id=%q; tmux list-sessions 2>/dev/null || true; find "$root/runs/$run_id" -maxdepth 2 -type f -printf "%%p %%s bytes\\n" 2>/dev/null | sort; for path in "$root/runs/$run_id"/worker-*/progress.jsonl; do [[ -f "$path" ]] && tail -n 2 "$path"; done' \
+    'set -euo pipefail; root=%q; run_id=%q; tmux list-sessions 2>/dev/null || true; find "$root/runs/$run_id" -maxdepth 2 -type f -printf "%%p %%s bytes\\n" 2>/dev/null | sort; for path in "$root/runs/$run_id"/*.jsonl "$root/runs/$run_id"/worker-*/progress.jsonl; do if [[ -f "$path" ]]; then printf "==> %%s <==\\n" "$path"; tail -n 2 "$path"; fi; done; true' \
     "$AWS_REMOTE_ROOT" "$run_id"
   ssm_run_command "$instance_id" 'OneShotSEA worker status' "$remote_command" 300
 fi

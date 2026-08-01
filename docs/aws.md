@@ -40,6 +40,12 @@ The account initially allowed five Standard-instance vCPUs.  Quota request
 $0.08976 of instance charge at the recorded rate, plus EBS and data-transfer
 charges.  Price is rechecked at execution time.
 
+The completed fallback trial is recorded in `docs/aws_benchmark_20260801.md`.
+Its four-thread level-193 pass took 179.20 seconds versus 87.813 seconds of
+accounted SEA time for the same 42-level slice on the local M4 with ten
+threads.  Do not use `m8g.xlarge` as a latency replacement for local cores;
+use it only for additive shards or cloud-path validation.
+
 ## Current Ohio prerequisites
 
 The research instance profile is

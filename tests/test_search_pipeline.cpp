@@ -1,4 +1,5 @@
 #include "oneshotsea/search_pipeline.hpp"
+#include "oneshotsea/weber_table_trust.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -99,6 +100,67 @@ void test_sha256_fixtures() {
         check(oneshotsea::sha256_file(fixture) == expected,
               "SHA-256 block-boundary fixture " + std::to_string(size));
     }
+}
+
+void test_weber_table_authentication() {
+    const std::filesystem::path source = "data/modpoly/weber_f";
+    oneshotsea::authenticate_trusted_weber_table_set(source);
+
+    TemporaryDirectory temporary;
+    const std::filesystem::path copy = temporary.path() / "weber_f";
+    std::filesystem::create_directory(copy);
+    std::filesystem::copy_file(source / "MANIFEST.json",
+                               copy / "MANIFEST.json");
+    for (const auto& entry : std::filesystem::directory_iterator(source)) {
+        if (entry.path().filename().string().starts_with("phi_") &&
+            entry.path().extension() == ".txt") {
+            std::filesystem::create_symlink(
+                std::filesystem::absolute(entry.path()),
+                copy / entry.path().filename());
+        }
+    }
+    oneshotsea::authenticate_trusted_weber_table_set(copy);
+
+    std::filesystem::remove(copy / "phi_5.txt");
+    bool rejected_missing = false;
+    try {
+        oneshotsea::authenticate_trusted_weber_table_set(copy);
+    } catch (const std::runtime_error&) {
+        rejected_missing = true;
+    }
+    check(rejected_missing,
+          "trusted Weber authentication rejects missing files");
+
+    std::filesystem::create_symlink(
+        std::filesystem::absolute(source / "phi_5.txt"), copy / "phi_5.txt");
+    {
+        std::ofstream extra(copy / "phi_409.txt");
+        extra << "410 0 1\n";
+    }
+    bool rejected_extra = false;
+    try {
+        oneshotsea::authenticate_trusted_weber_table_set(copy);
+    } catch (const std::runtime_error&) {
+        rejected_extra = true;
+    }
+    check(rejected_extra,
+          "trusted Weber authentication rejects extra files");
+
+    std::filesystem::remove(copy / "phi_409.txt");
+    std::filesystem::remove(copy / "phi_5.txt");
+    std::filesystem::copy_file(source / "phi_5.txt", copy / "phi_5.txt");
+    {
+        std::ofstream altered(copy / "phi_5.txt", std::ios::app);
+        altered << "\n";
+    }
+    bool rejected_altered = false;
+    try {
+        oneshotsea::authenticate_trusted_weber_table_set(copy);
+    } catch (const std::runtime_error&) {
+        rejected_altered = true;
+    }
+    check(rejected_altered,
+          "trusted Weber authentication rejects altered files");
 }
 
 oneshotsea::SearchPipelineConfig small_config() {
@@ -375,6 +437,7 @@ void test_verifier_runtime_failure_is_not_a_rejection() {
 int main() {
     try {
         test_sha256_fixtures();
+        test_weber_table_authentication();
         test_non_python_success_program_is_rejected();
         test_verifier_runtime_failure_is_not_a_rejection();
         test_bounded_early_screen_default();

@@ -106,7 +106,7 @@ void usage() {
         << "  oneshotsea elkies-bmss-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
-        << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N]\n"
+        << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1]\n"
         << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--sea-threads N] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
@@ -431,10 +431,13 @@ int main(int argc, char** argv) {
             const std::uint64_t trace_cap_u64 = required_u64(options, "trace-cap");
             const std::uint64_t sea_threads_u64 = optional_u64(
                 options, "sea-threads", 0U);
+            const std::uint64_t root_orbit_reuse_u64 = optional_u64(
+                options, "root-orbit-reuse", 1U);
             if (trace_cap_u64 > std::numeric_limits<std::size_t>::max() ||
-                sea_threads_u64 > std::numeric_limits<std::size_t>::max()) {
+                sea_threads_u64 > std::numeric_limits<std::size_t>::max() ||
+                root_orbit_reuse_u64 > 1U) {
                 throw std::invalid_argument(
-                    "--trace-cap or --sea-threads is out of range");
+                    "SEA resource option is out of range");
             }
             const auto progress = [](const oneshotsea::WeberSeaLevelRecord& record) {
                 std::cout << "{\"type\":\"level\",\"ell\":" << record.ell
@@ -461,6 +464,13 @@ int main(int argc, char** argv) {
                           << record.compatible_source_lifts
                           << ",\"modular_root_workers\":"
                           << record.timings.modular_root_workers
+                          << ",\"modular_root_orbits\":"
+                          << record.timings.modular_root_orbits
+                          << ",\"modular_root_reused_lifts\":"
+                          << record.timings.modular_root_reused_lifts
+                          << ",\"modular_root_orbit_reuse\":"
+                          << (record.timings.modular_root_orbit_reuse
+                                  ? "true" : "false")
                           << ",\"timings_us\":{\"source_lifts\":"
                           << record.timings.source_lifts_us
                           << ",\"modular_roots\":"
@@ -482,7 +492,8 @@ int main(int argc, char** argv) {
             const auto result = oneshotsea::run_weber_sea_reference(
                 curve, required(options, "table-dir"), max_level,
                 static_cast<std::size_t>(trace_cap_u64), progress,
-                static_cast<std::size_t>(sea_threads_u64));
+                static_cast<std::size_t>(sea_threads_u64),
+                root_orbit_reuse_u64 != 0U);
             std::cout << "{\"type\":\"summary\",\"exact_modulus\":\""
                       << result.constraints.modulus()
                       << "\",\"constraint_modulus\":\""

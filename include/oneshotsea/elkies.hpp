@@ -23,6 +23,9 @@ struct ElkiesKernelResult {
 
 struct ElkiesStageTimings {
     std::size_t modular_root_workers = 0;
+    std::size_t modular_root_orbits = 0;
+    std::size_t modular_root_reused_lifts = 0;
+    bool modular_root_orbit_reuse = false;
     std::uint64_t source_lifts_us = 0;
     std::uint64_t modular_roots_us = 0;
     std::uint64_t normalized_codomain_us = 0;
@@ -91,7 +94,8 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
     const Curve& curve,
     const SparseModularPolynomial& weber_modular_polynomial,
     const std::vector<mpz_class>* restricted_source_lifts = nullptr,
-    std::size_t modular_root_threads = 0);
+    std::size_t modular_root_threads = 0,
+    bool enable_root_orbit_reuse = true);
 
 std::optional<std::uint64_t> elkies_trace_residue_weber_bmss_reference(
     const Curve& curve,

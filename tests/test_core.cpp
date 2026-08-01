@@ -307,8 +307,14 @@ void test_weber_sea_runner() {
     check(!serial_level.compatible_source_lifts.empty(),
           "positive Weber level identifies compatible source lifts");
     check(serial_level.timings.modular_root_workers == 1U &&
-              parallel_level.timings.modular_root_workers == 2U,
-          "Weber modular-root concurrency obeys its configured ceiling");
+              parallel_level.timings.modular_root_workers == 1U &&
+              serial_level.timings.modular_root_orbits == 1U &&
+              parallel_level.timings.modular_root_orbits == 1U &&
+              serial_level.timings.modular_root_reused_lifts == 23U &&
+              parallel_level.timings.modular_root_reused_lifts == 23U &&
+              serial_level.timings.modular_root_orbit_reuse &&
+              parallel_level.timings.modular_root_orbit_reuse,
+          "Weber modular roots reuse a verified 24th-root source orbit");
     check(parallel_level.compatible_source_lifts ==
                   serial_level.compatible_source_lifts &&
               parallel_level.kernels.size() == serial_level.kernels.size(),
@@ -322,6 +328,48 @@ void test_weber_sea_runner() {
                                     serial_level.kernels[index].kernel),
               "bounded parallel root extraction preserves kernel order");
     }
+
+    // Add a term whose coefficient vanishes in F_193 but whose exponent does
+    // not have the verified Weber weight.  This represents the same polynomial
+    // over the fixture field while forcing the exact per-lift fallback.
+    std::vector<oneshotsea::BivariateTerm> fallback_terms = phi5.terms();
+    fallback_terms.push_back({0, 0, 193});
+    const oneshotsea::SparseModularPolynomial fallback_phi5(
+        5, std::move(fallback_terms));
+    const auto fallback_level =
+        oneshotsea::compute_weber_elkies_level_reference(
+            curve, fallback_phi5, nullptr, 2);
+    check(!fallback_level.timings.modular_root_orbit_reuse &&
+              fallback_level.timings.modular_root_orbits == 24U &&
+              fallback_level.timings.modular_root_reused_lifts == 0U &&
+              fallback_level.timings.modular_root_workers == 2U,
+          "unverified Weber covariance preserves the per-lift root fallback");
+    check(fallback_level.compatible_source_lifts ==
+                  serial_level.compatible_source_lifts &&
+              fallback_level.kernels.size() == serial_level.kernels.size(),
+          "orbit reuse and the exact per-lift fallback agree");
+    for (std::size_t index = 0; index < serial_level.kernels.size(); ++index) {
+        check(fallback_level.kernels[index].trace_residue ==
+                      serial_level.kernels[index].trace_residue &&
+                  fallback_level.kernels[index].neighbor_j ==
+                      serial_level.kernels[index].neighbor_j &&
+                  oneshotsea::equal(fallback_level.kernels[index].kernel,
+                                    serial_level.kernels[index].kernel),
+              "orbit reuse preserves the per-lift kernel and residue");
+    }
+
+    const auto disabled_level =
+        oneshotsea::compute_weber_elkies_level_reference(
+            curve, phi5, nullptr, 2, false);
+    check(!disabled_level.timings.modular_root_orbit_reuse &&
+              disabled_level.timings.modular_root_orbits == 24U &&
+              disabled_level.timings.modular_root_reused_lifts == 0U &&
+              disabled_level.timings.modular_root_workers == 2U,
+          "the explicit orbit-reuse ablation selects the per-lift path");
+    check(disabled_level.compatible_source_lifts ==
+                  serial_level.compatible_source_lifts &&
+              disabled_level.kernels.size() == serial_level.kernels.size(),
+          "the explicit orbit-reuse ablation preserves Weber level results");
 
     const std::vector<mpz_class> mixed_lifts = {
         serial_level.compatible_source_lifts.front(), 0};

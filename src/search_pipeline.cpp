@@ -2,6 +2,7 @@
 
 #include "oneshotsea/atkin.hpp"
 #include "oneshotsea/sea.hpp"
+#include "oneshotsea/weber_table_trust.hpp"
 #include "oneshotsea/weber_curve_generator.hpp"
 
 #include <algorithm>
@@ -910,6 +911,9 @@ SearchCurveReport process_search_curve(
                 level.atkin_residue_count,
                 level.compatible_source_lifts,
                 level.timings.modular_root_workers,
+                level.timings.modular_root_orbits,
+                level.timings.modular_root_reused_lifts,
+                level.timings.modular_root_orbit_reuse,
                 level.timings.source_lifts_us,
                 level.timings.modular_roots_us,
                 level.timings.normalized_codomain_us,
@@ -1381,7 +1385,13 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                << level.compatible_source_lifts
                << "\",\"modular_root_workers\":\""
                << level.modular_root_workers
-               << "\",\"source_lifts_us\":\"" << level.source_lifts_us
+               << "\",\"modular_root_orbits\":\""
+               << level.modular_root_orbits
+               << "\",\"modular_root_reused_lifts\":\""
+               << level.modular_root_reused_lifts
+               << "\",\"modular_root_orbit_reuse\":"
+               << (level.modular_root_orbit_reuse ? "true" : "false")
+               << ",\"source_lifts_us\":\"" << level.source_lifts_us
                << "\",\"modular_roots_us\":\"" << level.modular_roots_us
                << "\",\"normalized_codomain_us\":\""
                << level.normalized_codomain_us << "\",\"bmss_us\":\""
@@ -1430,7 +1440,13 @@ std::string search_sea_level_json(std::uint64_t global_index,
            << level.compatible_source_lifts
            << "\",\"modular_root_workers\":\""
            << level.modular_root_workers
-           << "\",\"timings_us\":{\"source_lifts\":\""
+           << "\",\"modular_root_orbits\":\""
+           << level.modular_root_orbits
+           << "\",\"modular_root_reused_lifts\":\""
+           << level.modular_root_reused_lifts
+           << "\",\"modular_root_orbit_reuse\":"
+           << (level.modular_root_orbit_reuse ? "true" : "false")
+           << ",\"timings_us\":{\"source_lifts\":\""
            << level.source_lifts_us << "\",\"modular_roots\":\""
            << level.modular_roots_us
            << "\",\"normalized_codomain\":\""
@@ -1442,9 +1458,7 @@ std::string search_sea_level_json(std::uint64_t global_index,
 
 std::string weber_table_manifest_sha256(
     const std::filesystem::path& table_directory, std::uint64_t max_level) {
-    if (!std::filesystem::is_directory(table_directory)) {
-        throw std::invalid_argument("Weber table directory does not exist");
-    }
+    authenticate_trusted_weber_table_set(table_directory);
     const std::regex pattern(R"(^phi_([0-9]+)\.txt$)");
     std::vector<std::pair<std::uint64_t, std::filesystem::path>> tables;
     for (const auto& entry : std::filesystem::directory_iterator(table_directory)) {

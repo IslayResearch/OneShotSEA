@@ -82,6 +82,9 @@ struct SearchSeaLevelTiming {
     std::size_t atkin_residue_count = 0;
     std::size_t compatible_source_lifts = 0;
     std::size_t modular_root_workers = 0;
+    std::size_t modular_root_orbits = 0;
+    std::size_t modular_root_reused_lifts = 0;
+    bool modular_root_orbit_reuse = false;
     std::uint64_t source_lifts_us = 0;
     std::uint64_t modular_roots_us = 0;
     std::uint64_t normalized_codomain_us = 0;

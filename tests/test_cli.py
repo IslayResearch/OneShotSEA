@@ -231,6 +231,13 @@ class CliTests(unittest.TestCase):
             self.assertTrue(
                 all(record["index"] == "1" for record in level_records)
             )
+            self.assertTrue(
+                all("modular_root_orbits" in record for record in level_records)
+            )
+            self.assertTrue(
+                all("modular_root_reused_lifts" in record
+                    for record in level_records)
+            )
             self.assertEqual([record["index"] for record in curve_records],
                              ["1"])
             self.assertEqual(curve_records[-1]["status"],

@@ -47,7 +47,7 @@ WeberSeaResult run_weber_sea_reference(
     const Curve& curve, const std::string& table_directory,
     std::uint64_t max_level, std::size_t trace_cap,
     const WeberSeaProgress& progress,
-    std::size_t modular_root_threads) {
+    std::size_t modular_root_threads, bool enable_root_orbit_reuse) {
     if (curve.is_singular()) {
         throw std::invalid_argument("SEA requires a nonsingular curve");
     }
@@ -87,7 +87,7 @@ WeberSeaResult run_weber_sea_reference(
                 static_cast<unsigned>(ell), table.string());
         WeberElkiesLevelResult level = compute_weber_elkies_level_reference(
             curve, modular_polynomial, &result.compatible_source_lifts,
-            modular_root_threads);
+            modular_root_threads, enable_root_orbit_reuse);
         std::optional<std::uint64_t> residue;
         std::optional<AtkinConstraint> atkin;
         const std::filesystem::path classical_directory =

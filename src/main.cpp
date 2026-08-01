@@ -165,7 +165,7 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--sea-threads N] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-threads N] [--sea-threads N] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -189,6 +189,8 @@ int main(int argc, char** argv) {
                 options, "trace-cap", config.early_trace_cap);
             const std::uint64_t sea_threads = optional_u64(
                 options, "sea-threads", 0U);
+            const std::uint64_t curve_threads = optional_u64(
+                options, "curve-threads", 1U);
             const std::uint64_t assembly_attempts = optional_u64(
                 options, "assembly-attempts", 400U);
             const std::uint64_t max_certificate_candidates = optional_u64(
@@ -196,6 +198,8 @@ int main(int argc, char** argv) {
             const std::uint64_t max_candidate_search_nodes = optional_u64(
                 options, "max-candidate-search-nodes", 1000000U);
             if (trace_cap > std::numeric_limits<std::size_t>::max() ||
+                curve_threads == 0U ||
+                curve_threads > std::numeric_limits<std::size_t>::max() ||
                 sea_threads > std::numeric_limits<std::size_t>::max() ||
                 assembly_attempts > std::numeric_limits<std::size_t>::max() ||
                 max_certificate_candidates == 0U ||
@@ -348,6 +352,8 @@ int main(int argc, char** argv) {
             oneshotsea::SearchPipelineRunOptions run_options;
             run_options.max_curves = optional_u64(
                 options, "max-curves", remaining);
+            run_options.curve_threads =
+                static_cast<std::size_t>(curve_threads);
             run_options.checkpoint_every = optional_u64(
                 options, "checkpoint-every", 1U);
             run_options.checkpoint_path = checkpoint;
@@ -385,6 +391,8 @@ int main(int argc, char** argv) {
                       << smooth_root_auxiliary_bytes
                       << "\",\"smooth_build_segment_span\":\""
                       << smooth_build_segment_span
+                      << "\",\"curve_threads\":\""
+                      << run_options.curve_threads
                       << "\",\"sea_threads\":\"" << config.sea_threads
                       << "\",\"assembly_attempts\":\""
                       << config.assembly_attempts << "\",\"trace_cap\":\""

@@ -244,6 +244,7 @@ class CliTests(unittest.TestCase):
                 "--worker-count", 1,
                 "--max-level", 11,
                 "--trace-cap", 16,
+                "--curve-threads", 2,
                 "--sea-threads", 2,
                 "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
                 "--smooth-cache", root / "smooth.cache",
@@ -259,6 +260,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(len(records[0]["table_manifest_sha256"]), 64)
             self.assertEqual(len(records[0]["verifier_sha256"]), 64)
             self.assertFalse(records[0]["heuristic_rejection"])
+            self.assertEqual(records[0]["resources"]["curve_threads"], "2")
             self.assertEqual(records[0]["resources"]["sea_threads"], "2")
             self.assertEqual(
                 records[0]["resources"]["smooth_root_auxiliary_bytes"],
@@ -367,6 +369,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(built.returncode, 0, built.stderr)
             start = json.loads(built.stdout.splitlines()[0])
             self.assertEqual(start["resources"]["trace_cap"], "64")
+            self.assertEqual(start["resources"]["curve_threads"], "1")
             self.assertEqual(start["resources"]["smooth_max_batch"], "128")
             self.assertEqual(start["resources"]["sea_threads"], "0")
             self.assert_rejected(

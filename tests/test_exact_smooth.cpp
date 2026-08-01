@@ -5,6 +5,7 @@
 #include <array>
 #include <chrono>
 #include <filesystem>
+#include <future>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -308,6 +309,32 @@ void test_curve_twist_and_evidence_lifetime() {
                       oneshotsea::trial_smooth_part(
                           pairs[index].twist_order, engine.bound()),
               "curve/twist exact smooth parts");
+    }
+
+    // Parallel curve search must share this immutable product rather than
+    // loading one cache per curve. Exercise concurrent readers directly and
+    // compare every result with the serial fixture above.
+    std::array<std::future<std::vector<oneshotsea::CurveTwistSmoothParts>>, 4>
+        concurrent;
+    for (auto& future : concurrent) {
+        future = std::async(std::launch::async, [&] {
+            return engine.extract_curve_twist(traces);
+        });
+    }
+    for (auto& future : concurrent) {
+        const auto parallel = future.get();
+        check(parallel.size() == pairs.size(),
+              "concurrent shared-cache extraction output size");
+        for (std::size_t index = 0; index < pairs.size(); ++index) {
+            check(parallel[index].trace == pairs[index].trace &&
+                      parallel[index].curve_order == pairs[index].curve_order &&
+                      parallel[index].twist_order == pairs[index].twist_order &&
+                      parallel[index].curve_smooth_part.value ==
+                          pairs[index].curve_smooth_part.value &&
+                      parallel[index].twist_smooth_part.value ==
+                          pairs[index].twist_smooth_part.value,
+                  "concurrent shared-cache extraction matches serial result");
+        }
     }
 
     oneshotsea::SmoothPartExtractor retained_extractor;

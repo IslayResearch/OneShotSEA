@@ -14,10 +14,13 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
+#include <deque>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iomanip>
 #include <limits>
+#include <mutex>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -1173,6 +1176,9 @@ SearchPipelineRunResult run_search_pipeline(
     if (options.checkpoint_every == 0U) {
         throw std::invalid_argument("checkpoint interval must be positive");
     }
+    if (options.curve_threads == 0U) {
+        throw std::invalid_argument("curve thread count must be positive");
+    }
     require_distinct_pipeline_paths(options);
     SearchPipelineRunResult result;
     const CanonicalCertificateVerifier canonical = verifier
@@ -1237,29 +1243,105 @@ SearchPipelineRunResult run_search_pipeline(
         throw std::runtime_error(
             "checkpoint records a certificate but its durable artifact is missing");
     }
-    while (!state.complete() && result.curves_processed < options.max_curves) {
-        const std::uint64_t index = state.next_index();
-        if (weber_table_manifest_sha256(config.table_directory,
-                                        config.max_level) !=
-            state.identity().table_manifest_sha256) {
-            throw std::runtime_error(
-                "Weber table contents changed before curve processing");
-        }
-        SearchCurveReport report = process_search_curve(
-            config, smooth_engine, index, verifier,
-            options.sea_level_callback);
-        if (weber_table_manifest_sha256(config.table_directory,
-                                        config.max_level) !=
-            state.identity().table_manifest_sha256) {
-            throw std::runtime_error(
-                "Weber table contents changed during curve processing");
-        }
-        if (report.status == SearchCurveStatus::sea_level_limit ||
-            report.status == SearchCurveStatus::no_rational_weber_lift) {
-            // These are implementation/resource outcomes, not mathematical
-            // rejections.  Persist and report the unchanged cursor, then stop
-            // this chunk so a retry cannot silently skip the curve.
-            if (!options.checkpoint_path.empty()) {
+    std::mutex verifier_mutex;
+    const CanonicalCertificateVerifier serialized_verifier =
+        [&](const MontgomeryCertificate& certificate) {
+            const std::lock_guard<std::mutex> lock(verifier_mutex);
+            return canonical(certificate);
+        };
+    std::mutex sea_level_mutex;
+    const SearchSeaLevelCallback serialized_sea_level_callback =
+        options.sea_level_callback
+            ? SearchSeaLevelCallback(
+                  [&](std::uint64_t index,
+                      const SearchSeaLevelTiming& level) {
+                      const std::lock_guard<std::mutex> lock(sea_level_mutex);
+                      options.sea_level_callback(index, level);
+                  })
+            : SearchSeaLevelCallback{};
+    if (!state.complete() && options.max_curves != 0U) {
+        const std::uint64_t first_index = state.next_index();
+        const std::uint64_t budget = std::min(
+            options.max_curves, state.identity().range.end - first_index);
+        const std::uint64_t launch_end = first_index + budget;
+        std::uint64_t next_to_launch = first_index;
+        std::deque<std::future<SearchCurveReport>> pending;
+        const auto launch_until_full = [&] {
+            while (next_to_launch < launch_end &&
+                   pending.size() < options.curve_threads) {
+                if (weber_table_manifest_sha256(config.table_directory,
+                                                config.max_level) !=
+                    state.identity().table_manifest_sha256) {
+                    throw std::runtime_error(
+                        "Weber table contents changed before curve processing");
+                }
+                const std::uint64_t index = next_to_launch++;
+                pending.push_back(std::async(
+                    std::launch::async,
+                    [&, index] {
+                        return process_search_curve(
+                            config, smooth_engine, index,
+                            serialized_verifier,
+                            serialized_sea_level_callback);
+                    }));
+            }
+        };
+        launch_until_full();
+        while (!pending.empty()) {
+            SearchCurveReport report = pending.front().get();
+            pending.pop_front();
+            const std::uint64_t index = state.next_index();
+            if (report.global_index != index) {
+                throw std::logic_error(
+                    "parallel curve reports left deterministic index order");
+            }
+            if (weber_table_manifest_sha256(config.table_directory,
+                                            config.max_level) !=
+                state.identity().table_manifest_sha256) {
+                throw std::runtime_error(
+                    "Weber table contents changed during curve processing");
+            }
+            if (report.status == SearchCurveStatus::sea_level_limit ||
+                report.status == SearchCurveStatus::no_rational_weber_lift) {
+                // These are implementation/resource outcomes, not mathematical
+                // rejections. Persist and report the unchanged cursor, then
+                // discard later in-flight reports so a retry cannot skip it.
+                if (!options.checkpoint_path.empty()) {
+                    save_search_checkpoint(state, options.checkpoint_path);
+                }
+                if (!options.progress_path.empty()) {
+                    append_line(options.progress_path,
+                                search_curve_report_json(report, state));
+                }
+                if (report_callback) {
+                    report_callback(report, state);
+                }
+                break;
+            }
+            if (report.certificate.has_value()) {
+                // Anchor the exact winning cursor before exposing its artifacts.
+                // This makes crash recovery unambiguous even when the ordinary
+                // checkpoint interval is greater than one curve.
+                save_search_checkpoint(state, options.checkpoint_path);
+                save_text_atomic(options.certificate_path,
+                                 report.certificate->line() + '\n',
+                                 "certificate");
+                const std::string certificate_sha =
+                    sha256_file(options.certificate_path);
+                save_text_atomic(
+                    metadata_path,
+                    certificate_metadata(state.identity(), index,
+                                         *report.certificate,
+                                         certificate_sha),
+                    "certificate metadata");
+            }
+            state.record_completed(index, report.outcome);
+            ++result.curves_processed;
+
+            const bool should_checkpoint =
+                result.curves_processed % options.checkpoint_every == 0U ||
+                state.complete() || report.certificate.has_value();
+            if (should_checkpoint && !options.checkpoint_path.empty()) {
                 save_search_checkpoint(state, options.checkpoint_path);
             }
             if (!options.progress_path.empty()) {
@@ -1269,43 +1351,18 @@ SearchPipelineRunResult run_search_pipeline(
             if (report_callback) {
                 report_callback(report, state);
             }
-            break;
+            if (report.certificate.has_value()) {
+                result.verified = std::move(report);
+                break;
+            }
+            // Rolling replenishment avoids a fixed-wave barrier: as soon as
+            // the lowest pending index is durably retired, one new consecutive
+            // index may start while higher earlier indices remain in flight.
+            launch_until_full();
         }
-        if (report.certificate.has_value()) {
-            // Anchor the exact winning cursor before exposing its artifacts.
-            // This makes crash recovery unambiguous even when the ordinary
-            // checkpoint interval is greater than one curve.
-            save_search_checkpoint(state, options.checkpoint_path);
-            save_text_atomic(options.certificate_path,
-                             report.certificate->line() + '\n', "certificate");
-            const std::string certificate_sha =
-                sha256_file(options.certificate_path);
-            save_text_atomic(
-                metadata_path,
-                certificate_metadata(state.identity(), index,
-                                     *report.certificate, certificate_sha),
-                "certificate metadata");
-        }
-        state.record_completed(index, report.outcome);
-        ++result.curves_processed;
-
-        const bool should_checkpoint =
-            result.curves_processed % options.checkpoint_every == 0U ||
-            state.complete() || report.certificate.has_value();
-        if (should_checkpoint && !options.checkpoint_path.empty()) {
-            save_search_checkpoint(state, options.checkpoint_path);
-        }
-        if (!options.progress_path.empty()) {
-            append_line(options.progress_path,
-                        search_curve_report_json(report, state));
-        }
-        if (report_callback) {
-            report_callback(report, state);
-        }
-        if (report.certificate.has_value()) {
-            result.verified = std::move(report);
-            break;
-        }
+        // std::future destruction joins any in-flight reports discarded behind
+        // an earlier implementation limit or verified certificate. No worker
+        // mutates durable artifacts or the checkpoint coordinator.
     }
     result.exhausted_assigned_range = state.complete();
     return result;

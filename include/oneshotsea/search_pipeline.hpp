@@ -151,12 +151,22 @@ struct SearchPipelineRunOptions {
     // Zero means no curves; callers choose an explicit cap or the remaining
     // assigned range.  This makes accidental unbounded test runs impossible.
     std::uint64_t max_curves = 0;
+    // Maximum curves evaluated concurrently against the same immutable
+    // ExactSmoothEngine/cache. Reports and all durable artifacts are still
+    // committed strictly in increasing index order. This resource setting is
+    // deliberately absent from the resumable search identity. Per-curve SEA
+    // and smooth worker counts/caps are not silently divided, so callers must
+    // budget their product with this value explicitly.
+    std::size_t curve_threads = 1;
     std::uint64_t checkpoint_every = 1;
     std::filesystem::path checkpoint_path;
     std::filesystem::path progress_path;
     // Required for a nonempty run.  A canonical certificate is durably
     // published here before the checkpoint cursor advances.
     std::filesystem::path certificate_path;
+    // With curve_threads > 1 this callback can observe interleaved indices,
+    // but invocations are serialized so each live telemetry record is atomic.
+    // Level telemetry is diagnostic and never advances the checkpoint.
     SearchSeaLevelCallback sea_level_callback;
 };
 

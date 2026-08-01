@@ -1,12 +1,15 @@
 #include "oneshotsea/search_pipeline.hpp"
 #include "oneshotsea/weber_table_trust.hpp"
 
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 #include <unistd.h>
 
@@ -274,6 +277,225 @@ void test_small_prime_resume_and_canonical_verification() {
     check(event_count == 1U, "one NDJSON event per completed curve");
 }
 
+void test_parallel_curve_ordering_and_shared_checkpoint() {
+    TemporaryDirectory temporary;
+    oneshotsea::SearchPipelineConfig config = small_config();
+    // This fixture has four consecutive terminal curves at level eleven when
+    // the injected canonical verifier rejects each valid candidate.
+    config.seed = 11;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime,
+                                             {.thread_count = 1});
+    const std::filesystem::path smooth_cache =
+        temporary.path() / "parallel-smooth.cache";
+    smooth.save(smooth_cache);
+    const oneshotsea::SearchIdentity identity = oneshotsea::make_search_identity(
+        config, {0, 4}, 0, 1, oneshotsea::sha256_file(smooth_cache),
+        oneshotsea::sha256_file(config.canonical_verifier),
+        "parallel-pipeline-test-v1");
+    config.expected_schedule_sha256 = identity.schedule_sha256;
+    config.expected_table_manifest_sha256 = identity.table_manifest_sha256;
+
+    struct Observation {
+        std::vector<std::uint64_t> indices;
+        std::vector<oneshotsea::SearchCurveStatus> statuses;
+        oneshotsea::SearchCounters counters;
+        std::uint64_t next_index = 0;
+    };
+    const auto run = [&](std::size_t curve_threads,
+                         const std::string& name,
+                         bool audit_live_levels) {
+        oneshotsea::SearchState state(identity);
+        oneshotsea::SearchPipelineRunOptions options;
+        options.max_curves = 4;
+        options.curve_threads = curve_threads;
+        options.checkpoint_every = 2;
+        options.checkpoint_path = temporary.path() / (name + ".checkpoint");
+        options.progress_path = temporary.path() / (name + ".ndjson");
+        options.certificate_path = temporary.path() / (name + ".cert");
+
+        std::atomic<unsigned> active_callbacks{0};
+        std::atomic<unsigned> maximum_active_callbacks{0};
+        std::map<std::uint64_t,
+                 std::vector<std::pair<std::size_t, std::uint64_t>>>
+            live_levels;
+        std::map<std::uint64_t,
+                 std::vector<std::pair<std::size_t, std::uint64_t>>>
+            report_levels;
+        if (audit_live_levels) {
+            options.sea_level_callback =
+                [&](std::uint64_t index,
+                    const oneshotsea::SearchSeaLevelTiming& level) {
+                    const unsigned active =
+                        active_callbacks.fetch_add(1U) + 1U;
+                    unsigned maximum = maximum_active_callbacks.load();
+                    while (maximum < active &&
+                           !maximum_active_callbacks.compare_exchange_weak(
+                               maximum, active)) {
+                    }
+                    std::this_thread::sleep_for(std::chrono::microseconds(50));
+                    live_levels[index].emplace_back(level.pass, level.ell);
+                    active_callbacks.fetch_sub(1U);
+                };
+        }
+
+        Observation observation;
+        const auto result = oneshotsea::run_search_pipeline(
+            config, smooth, state, options,
+            [&](const oneshotsea::SearchCurveReport& report,
+                const oneshotsea::SearchState&) {
+                observation.indices.push_back(report.global_index);
+                observation.statuses.push_back(report.status);
+                auto& levels = report_levels[report.global_index];
+                for (const auto& level : report.sea_level_timings) {
+                    levels.emplace_back(level.pass, level.ell);
+                }
+            },
+            [](const oneshotsea::MontgomeryCertificate&) { return false; });
+        check(result.curves_processed == 4U &&
+                  result.exhausted_assigned_range &&
+                  !result.verified.has_value(),
+              "four-curve fixture exhausts under rejecting verifier");
+        observation.counters = state.counters();
+        observation.next_index = state.next_index();
+        const oneshotsea::SearchState saved =
+            oneshotsea::load_search_checkpoint(options.checkpoint_path,
+                                               identity);
+        check(saved.next_index() == state.next_index() &&
+                  saved.counters() == state.counters(),
+              "parallel coordinator publishes the complete ordered checkpoint");
+        if (audit_live_levels) {
+            check(maximum_active_callbacks.load() == 1U,
+                  "parallel live SEA callbacks are serialized atomically");
+            check(live_levels == report_levels,
+                  "each interleaved live index subsequence stays in SEA order");
+        }
+        return observation;
+    };
+
+    const Observation serial = run(1U, "serial", false);
+    const Observation parallel = run(2U, "parallel", true);
+    check(parallel.indices == std::vector<std::uint64_t>({0, 1, 2, 3}) &&
+              parallel.indices == serial.indices &&
+              parallel.statuses == serial.statuses &&
+              parallel.counters == serial.counters &&
+              parallel.next_index == serial.next_index,
+          "K=2 preserves K=1 report order, outcomes, counters, and cursor");
+
+    oneshotsea::SearchState invalid(identity);
+    oneshotsea::SearchPipelineRunOptions invalid_options;
+    invalid_options.curve_threads = 0;
+    bool rejected_zero = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            config, smooth, invalid, invalid_options);
+    } catch (const std::invalid_argument&) {
+        rejected_zero = true;
+    }
+    check(rejected_zero, "zero curve concurrency is rejected");
+}
+
+void test_parallel_stop_discards_later_reports() {
+    TemporaryDirectory temporary;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(101, {.thread_count = 1});
+    const std::filesystem::path smooth_cache =
+        temporary.path() / "stop-smooth.cache";
+    smooth.save(smooth_cache);
+    const std::string smooth_sha = oneshotsea::sha256_file(smooth_cache);
+
+    // Index zero is an implementation limit while the already-launched index
+    // one finds a canonical certificate. The coordinator must drain but never
+    // publish or checkpoint the later success across the unchanged cursor.
+    oneshotsea::SearchPipelineConfig limited = small_config();
+    const oneshotsea::SearchIdentity limited_identity =
+        oneshotsea::make_search_identity(
+            limited, {0, 2}, 0, 1, smooth_sha,
+            oneshotsea::sha256_file(limited.canonical_verifier),
+            "parallel-stop-limit-v1");
+    limited.expected_schedule_sha256 = limited_identity.schedule_sha256;
+    limited.expected_table_manifest_sha256 =
+        limited_identity.table_manifest_sha256;
+    oneshotsea::SearchState limited_state(limited_identity);
+    oneshotsea::SearchPipelineRunOptions limited_options;
+    limited_options.max_curves = 2;
+    limited_options.curve_threads = 2;
+    limited_options.checkpoint_path = temporary.path() / "limit.checkpoint";
+    limited_options.progress_path = temporary.path() / "limit.ndjson";
+    limited_options.certificate_path = temporary.path() / "limit.cert";
+    std::atomic<unsigned> later_verifications{0};
+    std::atomic<bool> saw_later_level{false};
+    limited_options.sea_level_callback =
+        [&](std::uint64_t index,
+            const oneshotsea::SearchSeaLevelTiming&) {
+            if (index == 1U) {
+                saw_later_level = true;
+            }
+        };
+    std::vector<std::uint64_t> limited_reports;
+    const auto limited_result = oneshotsea::run_search_pipeline(
+        limited, smooth, limited_state, limited_options,
+        [&](const oneshotsea::SearchCurveReport& report,
+            const oneshotsea::SearchState&) {
+            limited_reports.push_back(report.global_index);
+        },
+        [&](const oneshotsea::MontgomeryCertificate&) {
+            ++later_verifications;
+            return true;
+        });
+    check(limited_result.curves_processed == 0U &&
+              !limited_result.verified.has_value() &&
+              limited_state.next_index() == 0U &&
+              limited_reports == std::vector<std::uint64_t>{0U} &&
+              saw_later_level.load() && later_verifications.load() == 1U &&
+              !std::filesystem::exists(limited_options.certificate_path),
+          "earlier implementation limit drains and discards later certificate");
+
+    // Conversely, index one wins while the launched index two reaches an
+    // implementation limit. Only the lowest winning index may advance and
+    // publish, regardless of the later report's completion order.
+    oneshotsea::SearchIdentity winning_identity =
+        oneshotsea::make_search_identity(
+            limited, {1, 3}, 0, 1, smooth_sha,
+            oneshotsea::sha256_file(limited.canonical_verifier),
+            "parallel-stop-certificate-v1");
+    limited.expected_schedule_sha256 = winning_identity.schedule_sha256;
+    limited.expected_table_manifest_sha256 =
+        winning_identity.table_manifest_sha256;
+    oneshotsea::SearchState winning_state(winning_identity);
+    oneshotsea::SearchPipelineRunOptions winning_options;
+    winning_options.max_curves = 2;
+    winning_options.curve_threads = 2;
+    winning_options.checkpoint_path = temporary.path() / "winning.checkpoint";
+    winning_options.progress_path = temporary.path() / "winning.ndjson";
+    winning_options.certificate_path = temporary.path() / "winning.cert";
+    std::atomic<bool> saw_discarded_level{false};
+    winning_options.sea_level_callback =
+        [&](std::uint64_t index,
+            const oneshotsea::SearchSeaLevelTiming&) {
+            if (index == 2U) {
+                saw_discarded_level = true;
+            }
+        };
+    std::vector<std::uint64_t> winning_reports;
+    const auto winning_result = oneshotsea::run_search_pipeline(
+        limited, smooth, winning_state, winning_options,
+        [&](const oneshotsea::SearchCurveReport& report,
+            const oneshotsea::SearchState&) {
+            winning_reports.push_back(report.global_index);
+        },
+        [](const oneshotsea::MontgomeryCertificate&) { return true; });
+    check(winning_result.curves_processed == 1U &&
+              winning_result.verified.has_value() &&
+              winning_result.verified->global_index == 1U &&
+              winning_state.next_index() == 2U &&
+              winning_reports == std::vector<std::uint64_t>{1U} &&
+              saw_discarded_level.load() &&
+              std::filesystem::is_regular_file(
+                  winning_options.certificate_path),
+          "earlier certificate drains and discards later implementation report");
+}
+
 void test_sea_level_limit_does_not_advance_cursor() {
     TemporaryDirectory temporary;
     oneshotsea::SearchPipelineConfig limited = small_config();
@@ -443,6 +665,8 @@ int main() {
         test_bounded_early_screen_default();
         test_worker_partition_is_identity_bound();
         test_sea_level_limit_does_not_advance_cursor();
+        test_parallel_stop_discards_later_reports();
+        test_parallel_curve_ordering_and_shared_checkpoint();
         test_small_prime_resume_and_canonical_verification();
         std::cout << "search pipeline tests passed\n";
         return 0;

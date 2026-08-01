@@ -42,6 +42,24 @@ struct WeberSeaResult {
 
 using WeberSeaProgress = std::function<void(const WeberSeaLevelRecord&)>;
 
+// Benchmark-only scheduling input.  information_units may use any fixed
+// scale (for example measured microbits of trace-candidate reduction), while
+// expected_cost_us is the correspondingly measured level cost.  Production
+// search leaves this empty and therefore retains increasing-prime order.
+struct WeberSeaLevelEstimate {
+    std::uint64_t ell;
+    std::uint64_t information_units;
+    std::uint64_t expected_cost_us;
+};
+
+// Return a strict permutation of increasing_levels, sorted by decreasing
+// information_units / expected_cost_us.  Products are compared exactly and
+// equal scores retain increasing-prime order.  The estimates must cover every
+// available level exactly once and every measured cost must be nonzero.
+std::vector<std::uint64_t> expected_information_per_cost_order(
+    const std::vector<std::uint64_t>& increasing_levels,
+    const std::vector<WeberSeaLevelEstimate>& estimates);
+
 // Increasing-level correctness runner for the checked-in Weber table set.
 // Positive kernel evidence narrows the possible source lifts; empty/Atkin
 // levels never discard a lift. For trace_cap>1, independently certified
@@ -54,6 +72,7 @@ WeberSeaResult run_weber_sea_reference(
     const WeberSeaProgress& progress = {},
     std::size_t modular_root_threads = 0,
     bool enable_root_orbit_reuse = true,
-    bool enable_conjugate_eigenvalue_reuse = true);
+    bool enable_conjugate_eigenvalue_reuse = true,
+    const std::vector<WeberSeaLevelEstimate>& level_estimates = {});
 
 }  // namespace oneshotsea

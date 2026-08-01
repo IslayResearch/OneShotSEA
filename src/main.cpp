@@ -9,10 +9,12 @@
 #include <charconv>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <map>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -69,6 +71,62 @@ std::uint64_t optional_u64(const std::map<std::string, std::string>& options,
     return required_u64(options, name);
 }
 
+std::uint64_t parse_profile_u64(const std::string& text,
+                                const std::filesystem::path& path,
+                                std::size_t line_number) {
+    std::uint64_t value = 0;
+    const auto parsed =
+        std::from_chars(text.data(), text.data() + text.size(), value, 10);
+    if (text.empty() || parsed.ec != std::errc{} ||
+        parsed.ptr != text.data() + text.size()) {
+        throw std::invalid_argument(
+            "invalid unsigned integer in SEA level profile " + path.string() +
+            ":" + std::to_string(line_number));
+    }
+    return value;
+}
+
+std::vector<oneshotsea::WeberSeaLevelEstimate> load_level_profile(
+    const std::filesystem::path& path) {
+    std::ifstream input(path);
+    if (!input) {
+        throw std::invalid_argument("cannot open SEA level profile: " +
+                                    path.string());
+    }
+    std::vector<oneshotsea::WeberSeaLevelEstimate> estimates;
+    std::string line;
+    for (std::size_t line_number = 1U; std::getline(input, line);
+         ++line_number) {
+        std::istringstream parser(line);
+        std::string ell;
+        if (!(parser >> ell) || ell.starts_with('#')) {
+            continue;
+        }
+        std::string information;
+        std::string cost;
+        std::string trailing;
+        if (!(parser >> information >> cost) || parser >> trailing) {
+            throw std::invalid_argument(
+                "SEA level profile rows must be: ell information_units cost_us at " +
+                path.string() + ":" + std::to_string(line_number));
+        }
+        estimates.push_back({
+            parse_profile_u64(ell, path, line_number),
+            parse_profile_u64(information, path, line_number),
+            parse_profile_u64(cost, path, line_number),
+        });
+    }
+    if (!input.eof()) {
+        throw std::invalid_argument("cannot read SEA level profile: " +
+                                    path.string());
+    }
+    if (estimates.empty()) {
+        throw std::invalid_argument("SEA level profile is empty: " +
+                                    path.string());
+    }
+    return estimates;
+}
+
 std::string optional_string(const std::map<std::string, std::string>& options,
                             const std::string& name, std::string fallback) {
     const auto found = options.find(name);
@@ -106,7 +164,7 @@ void usage() {
         << "  oneshotsea elkies-bmss-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
-        << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1]\n"
+        << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
         << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--sea-threads N] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
@@ -442,6 +500,21 @@ int main(int argc, char** argv) {
                 throw std::invalid_argument(
                     "SEA resource option is out of range");
             }
+            const std::string prime_schedule = optional_string(
+                options, "prime-schedule", "increasing");
+            std::vector<oneshotsea::WeberSeaLevelEstimate> level_estimates;
+            if (prime_schedule == "increasing") {
+                if (options.contains("level-profile")) {
+                    throw std::invalid_argument(
+                        "--level-profile requires the expected-information-per-cost schedule");
+                }
+            } else if (prime_schedule == "expected-information-per-cost") {
+                level_estimates = load_level_profile(
+                    required(options, "level-profile"));
+            } else {
+                throw std::invalid_argument("unknown SEA prime schedule: " +
+                                            prime_schedule);
+            }
             const auto progress = [](const oneshotsea::WeberSeaLevelRecord& record) {
                 std::cout << "{\"type\":\"level\",\"ell\":" << record.ell
                           << ",\"exact\":" << (record.exact ? "true" : "false");
@@ -504,7 +577,8 @@ int main(int argc, char** argv) {
                 static_cast<std::size_t>(trace_cap_u64), progress,
                 static_cast<std::size_t>(sea_threads_u64),
                 root_orbit_reuse_u64 != 0U,
-                conjugate_eigenvalue_reuse_u64 != 0U);
+                conjugate_eigenvalue_reuse_u64 != 0U,
+                level_estimates);
             std::cout << "{\"type\":\"summary\",\"exact_modulus\":\""
                       << result.constraints.modulus()
                       << "\",\"constraint_modulus\":\""
@@ -518,6 +592,7 @@ int main(int argc, char** argv) {
                       << ",\"compatible_source_lifts\":"
                       << result.compatible_source_lifts.size()
                       << ",\"levels_processed\":" << result.levels.size()
+                      << ",\"prime_schedule\":\"" << prime_schedule << "\""
                       << ",\"status\":\""
                       << (result.compatible_source_lifts.empty() &&
                                   result.levels.empty()

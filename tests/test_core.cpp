@@ -343,6 +343,40 @@ void test_trace_constraints() {
 }
 
 void test_weber_sea_runner() {
+    const std::vector<std::uint64_t> increasing_levels = {5, 7, 11};
+    const std::vector<oneshotsea::WeberSeaLevelEstimate> estimates = {
+        {5, 4, 10}, {7, 7, 28}, {11, 6, 10}};
+    check(oneshotsea::expected_information_per_cost_order(
+              increasing_levels, estimates) ==
+              std::vector<std::uint64_t>({11, 5, 7}),
+          "measured information-per-cost schedule uses exact ratio ordering");
+    check(oneshotsea::expected_information_per_cost_order(
+              {5, 7}, {{5, 2, 4}, {7, 3, 6}}) ==
+              std::vector<std::uint64_t>({5, 7}),
+          "equal scheduling scores retain increasing-prime order");
+    for (const std::vector<oneshotsea::WeberSeaLevelEstimate>& invalid : {
+             std::vector<oneshotsea::WeberSeaLevelEstimate>{{5, 1, 1},
+                                                            {5, 2, 1},
+                                                            {11, 1, 1}},
+             std::vector<oneshotsea::WeberSeaLevelEstimate>{{5, 1, 1},
+                                                            {7, 1, 1}},
+             std::vector<oneshotsea::WeberSeaLevelEstimate>{{5, 1, 1},
+                                                            {7, 1, 1},
+                                                            {13, 1, 1}},
+             std::vector<oneshotsea::WeberSeaLevelEstimate>{{5, 1, 1},
+                                                            {7, 1, 0},
+                                                            {11, 1, 1}},
+         }) {
+        bool rejected = false;
+        try {
+            (void)oneshotsea::expected_information_per_cost_order(
+                increasing_levels, invalid);
+        } catch (const std::invalid_argument&) {
+            rejected = true;
+        }
+        check(rejected, "invalid scheduling profile is rejected");
+    }
+
     const auto phi5 = oneshotsea::SparseModularPolynomial::load(
         5, "data/modpoly/weber_f/phi_5.txt");
     const oneshotsea::Curve curve(oneshotsea::Field(193), 148, 168);
@@ -435,6 +469,9 @@ void test_weber_sea_runner() {
         curve, "data/modpoly/weber_f", 11, 1, {}, 1);
     const auto result = oneshotsea::run_weber_sea_reference(
         curve, "data/modpoly/weber_f", 11, 1, {}, 2);
+    const auto scheduled_result = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+        estimates);
     check(result.traces.has_value() &&
               *result.traces ==
                   std::vector<mpz_class>{oneshotsea::parse_integer("-6")},
@@ -443,6 +480,11 @@ void test_weber_sea_runner() {
               serial_result.compatible_source_lifts ==
                   result.compatible_source_lifts,
           "SEA result is independent of its modular-root thread limit");
+    check(scheduled_result.traces == result.traces &&
+              scheduled_result.levels.size() == 2U &&
+              scheduled_result.levels[0].ell == 11U &&
+              scheduled_result.levels[1].ell == 5U,
+          "alternate prime schedule preserves the exact trace and can stop earlier");
     check(std::all_of(
               result.levels.begin(), result.levels.end(),
               [](const oneshotsea::WeberSeaLevelRecord& record) {

@@ -169,7 +169,44 @@ class CliTests(unittest.TestCase):
         self.assertEqual(records[-1]["exact_modulus"], "55")
         self.assertEqual(records[-1]["constraint_modulus"], "385")
         self.assertEqual(records[-1]["atkin_constraints"], 1)
+        self.assertEqual(records[-1]["prime_schedule"], "increasing")
         self.assertEqual(records[-1]["traces"], ["-6"])
+
+    def test_measured_prime_schedule_is_explicit_and_strict(self) -> None:
+        common = (
+            "sea-weber-count", "--p", 193, "--a", 148, "--b", 168,
+            "--max-level", 11,
+            "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+            "--trace-cap", 1, "--sea-threads", 1,
+            "--prime-schedule", "expected-information-per-cost",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory) / "levels.txt"
+            profile.write_text(
+                "# ell information_units measured_cost_us\n"
+                "5 4 10\n7 7 28\n11 6 10\n"
+            )
+            result = self.run_cli(*common, "--level-profile", profile)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            records = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual([record["ell"] for record in records[:-1]],
+                             [11, 5])
+            self.assertEqual(records[-1]["traces"], ["-6"])
+            self.assertEqual(
+                records[-1]["prime_schedule"],
+                "expected-information-per-cost",
+            )
+
+            profile.write_text("5 4 10\n7 7 28\n")
+            self.assert_rejected(*common, "--level-profile", profile)
+            profile.write_text("# no measured levels\n")
+            self.assert_rejected(*common, "--level-profile", profile)
+            self.assert_rejected(
+                "sea-weber-count", "--p", 193, "--a", 148, "--b", 168,
+                "--max-level", 11,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--trace-cap", 1, "--level-profile", profile,
+            )
 
     def test_no_rational_weber_lift_is_explicitly_incomplete(self) -> None:
         result = self.run_cli(

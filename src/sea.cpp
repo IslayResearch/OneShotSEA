@@ -4,8 +4,10 @@
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/weber.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <limits>
+#include <map>
 #include <stdexcept>
 #include <utility>
 
@@ -41,14 +43,78 @@ std::optional<std::vector<mpz_class>> enumerate_completed(
                      : result.effective_constraints.enumerate(cap);
 }
 
+std::vector<std::uint64_t> available_weber_levels(
+    const std::filesystem::path& directory, std::uint64_t max_level) {
+    std::vector<std::uint64_t> levels;
+    for (std::uint64_t ell = 5U; ell <= max_level; ell += 2U) {
+        if (is_prime(ell) && ell % 3U != 0U &&
+            std::filesystem::is_regular_file(
+                directory / ("phi_" + std::to_string(ell) + ".txt"))) {
+            levels.push_back(ell);
+        }
+        if (ell > max_level - 2U) {
+            break;
+        }
+    }
+    return levels;
+}
+
 }  // namespace
+
+std::vector<std::uint64_t> expected_information_per_cost_order(
+    const std::vector<std::uint64_t>& increasing_levels,
+    const std::vector<WeberSeaLevelEstimate>& estimates) {
+    if (!std::is_sorted(increasing_levels.begin(), increasing_levels.end()) ||
+        std::adjacent_find(increasing_levels.begin(), increasing_levels.end()) !=
+            increasing_levels.end()) {
+        throw std::invalid_argument(
+            "available Weber levels must be strictly increasing");
+    }
+    std::map<std::uint64_t, WeberSeaLevelEstimate> by_level;
+    for (const WeberSeaLevelEstimate& estimate : estimates) {
+        if (estimate.expected_cost_us == 0U) {
+            throw std::invalid_argument(
+                "Weber scheduling estimate has zero measured cost");
+        }
+        if (!std::binary_search(increasing_levels.begin(),
+                                increasing_levels.end(), estimate.ell)) {
+            throw std::invalid_argument(
+                "Weber scheduling estimate names an unavailable level");
+        }
+        if (!by_level.emplace(estimate.ell, estimate).second) {
+            throw std::invalid_argument(
+                "Weber scheduling profile contains a duplicate level");
+        }
+    }
+    if (by_level.size() != increasing_levels.size()) {
+        throw std::invalid_argument(
+            "Weber scheduling profile must cover every available level");
+    }
+
+    std::vector<std::uint64_t> ordered = increasing_levels;
+    std::sort(ordered.begin(), ordered.end(), [&](std::uint64_t left,
+                                                   std::uint64_t right) {
+        const WeberSeaLevelEstimate& left_estimate = by_level.at(left);
+        const WeberSeaLevelEstimate& right_estimate = by_level.at(right);
+        const mpz_class left_product =
+            mpz_class(std::to_string(left_estimate.information_units)) *
+            mpz_class(std::to_string(right_estimate.expected_cost_us));
+        const mpz_class right_product =
+            mpz_class(std::to_string(right_estimate.information_units)) *
+            mpz_class(std::to_string(left_estimate.expected_cost_us));
+        return left_product == right_product ? left < right
+                                             : left_product > right_product;
+    });
+    return ordered;
+}
 
 WeberSeaResult run_weber_sea_reference(
     const Curve& curve, const std::string& table_directory,
     std::uint64_t max_level, std::size_t trace_cap,
     const WeberSeaProgress& progress,
     std::size_t modular_root_threads, bool enable_root_orbit_reuse,
-    bool enable_conjugate_eigenvalue_reuse) {
+    bool enable_conjugate_eigenvalue_reuse,
+    const std::vector<WeberSeaLevelEstimate>& level_estimates) {
     if (curve.is_singular()) {
         throw std::invalid_argument("SEA requires a nonsingular curve");
     }
@@ -74,15 +140,15 @@ WeberSeaResult run_weber_sea_reference(
         return result;
     }
 
-    for (std::uint64_t ell = 5U; ell <= max_level; ell += 2U) {
-        if (!is_prime(ell) || ell % 3U == 0U) {
-            continue;
-        }
+    std::vector<std::uint64_t> levels =
+        available_weber_levels(directory, max_level);
+    if (!level_estimates.empty()) {
+        levels = expected_information_per_cost_order(levels, level_estimates);
+    }
+
+    for (const std::uint64_t ell : levels) {
         const std::filesystem::path table =
             directory / ("phi_" + std::to_string(ell) + ".txt");
-        if (!std::filesystem::is_regular_file(table)) {
-            continue;
-        }
         const SparseModularPolynomial modular_polynomial =
             SparseModularPolynomial::load(
                 static_cast<unsigned>(ell), table.string());
@@ -148,9 +214,6 @@ WeberSeaResult run_weber_sea_reference(
         }
         if (completion_fits_cap(result, trace_cap)) {
             result.traces = enumerate_completed(result, trace_cap);
-            break;
-        }
-        if (ell > max_level - 2U) {
             break;
         }
     }

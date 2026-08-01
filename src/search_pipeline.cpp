@@ -880,7 +880,8 @@ bool verify_with_canonical_voneshot(
 SearchCurveReport process_search_curve(
     const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
     std::uint64_t global_index,
-    const CanonicalCertificateVerifier& injected_verifier) {
+    const CanonicalCertificateVerifier& injected_verifier,
+    const SearchSeaLevelCallback& sea_level_callback) {
     validate_config(config, &smooth_engine);
     const Clock::time_point total_start = Clock::now();
     SearchCurveReport report;
@@ -915,6 +916,10 @@ SearchCurveReport process_search_curve(
                 level.timings.bmss_us,
                 level.timings.eigenvalue_us,
             });
+            if (sea_level_callback) {
+                sea_level_callback(global_index,
+                                   report.sea_level_timings.back());
+            }
         };
         WeberSeaResult result = run_weber_sea_reference(
             pair.curve, config.table_directory.string(), config.max_level,
@@ -1233,7 +1238,8 @@ SearchPipelineRunResult run_search_pipeline(
                 "Weber table contents changed before curve processing");
         }
         SearchCurveReport report = process_search_curve(
-            config, smooth_engine, index, verifier);
+            config, smooth_engine, index, verifier,
+            options.sea_level_callback);
         if (weber_table_manifest_sha256(config.table_directory,
                                         config.max_level) !=
             state.identity().table_manifest_sha256) {
@@ -1394,6 +1400,43 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                << json_escape(report.certificate->line()) << "\"}";
     }
     output << ",\"state\":" << search_progress_json(state) << '}';
+    return output.str();
+}
+
+std::string search_sea_level_json(std::uint64_t global_index,
+                                  const SearchSeaLevelTiming& level) {
+    std::ostringstream output;
+    output << "{\"schema\":\"oneshotsea.search-sea-level.v1\",\"index\":\""
+           << global_index << "\",\"pass\":\"" << level.pass
+           << "\",\"ell\":\"" << level.ell << "\",\"exact\":"
+           << (level.exact ? "true" : "false");
+    if (level.trace_residue.has_value()) {
+        output << ",\"trace_residue\":\"" << *level.trace_residue << '"';
+    }
+    output << ",\"exact_modulus\":\"" << level.exact_modulus
+           << "\",\"constraint_modulus\":\"" << level.constraint_modulus
+           << "\",\"exact_trace_candidate_count\":\""
+           << level.exact_trace_candidate_count
+           << "\",\"trace_candidate_count\":\""
+           << level.trace_candidate_count
+           << "\",\"atkin_projective_order\":";
+    if (level.atkin_projective_order.has_value()) {
+        output << '"' << *level.atkin_projective_order << '"';
+    } else {
+        output << "null";
+    }
+    output << ",\"atkin_residue_count\":\"" << level.atkin_residue_count
+           << "\",\"compatible_source_lifts\":\""
+           << level.compatible_source_lifts
+           << "\",\"modular_root_workers\":\""
+           << level.modular_root_workers
+           << "\",\"timings_us\":{\"source_lifts\":\""
+           << level.source_lifts_us << "\",\"modular_roots\":\""
+           << level.modular_roots_us
+           << "\",\"normalized_codomain\":\""
+           << level.normalized_codomain_us << "\",\"bmss\":\""
+           << level.bmss_us << "\",\"eigenvalue\":\""
+           << level.eigenvalue_us << "\"}}";
     return output.str();
 }
 

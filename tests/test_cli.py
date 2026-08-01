@@ -215,7 +215,22 @@ class CliTests(unittest.TestCase):
             self.assertEqual(records[-1]["schema"],
                              "oneshotsea.search-summary.v1")
             self.assertTrue(records[-1]["verified"])
-            curve_records = records[1:-1]
+            level_records = [
+                record for record in records[1:-1]
+                if record["schema"] == "oneshotsea.search-sea-level.v1"
+            ]
+            curve_records = [
+                record for record in records[1:-1]
+                if record["schema"] == "oneshotsea.search-curve.v1"
+            ]
+            self.assertGreater(len(level_records), 0)
+            self.assertEqual(
+                [record["ell"] for record in level_records],
+                [level["ell"] for level in curve_records[-1]["sea_level_timings"]],
+            )
+            self.assertTrue(
+                all(record["index"] == "1" for record in level_records)
+            )
             self.assertEqual([record["index"] for record in curve_records],
                              ["1"])
             self.assertEqual(curve_records[-1]["status"],

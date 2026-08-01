@@ -112,6 +112,12 @@ struct SearchCurveReport {
     SearchCurveTimings timings;
 };
 
+// Emitted synchronously after one SEA level has completed.  This is
+// diagnostic observability only: partial level progress never advances or
+// alters the durable search checkpoint.
+using SearchSeaLevelCallback =
+    std::function<void(std::uint64_t, const SearchSeaLevelTiming&)>;
+
 // Injectable so a focused integration test can assert verifier invocation.
 // Production callers should leave this empty to invoke the unmodified script.
 using CanonicalCertificateVerifier =
@@ -131,7 +137,8 @@ bool verify_with_canonical_voneshot(
 SearchCurveReport process_search_curve(
     const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
     std::uint64_t global_index,
-    const CanonicalCertificateVerifier& verifier = {});
+    const CanonicalCertificateVerifier& verifier = {},
+    const SearchSeaLevelCallback& sea_level_callback = {});
 
 struct SearchPipelineRunOptions {
     // Zero means no curves; callers choose an explicit cap or the remaining
@@ -143,6 +150,7 @@ struct SearchPipelineRunOptions {
     // Required for a nonempty run.  A canonical certificate is durably
     // published here before the checkpoint cursor advances.
     std::filesystem::path certificate_path;
+    SearchSeaLevelCallback sea_level_callback;
 };
 
 struct SearchPipelineRunResult {
@@ -165,6 +173,8 @@ SearchPipelineRunResult run_search_pipeline(
 
 std::string search_curve_report_json(const SearchCurveReport& report,
                                      const SearchState& state);
+std::string search_sea_level_json(std::uint64_t global_index,
+                                  const SearchSeaLevelTiming& level);
 
 // Content identities used to bind resumable checkpoints.  The schedule hash
 // includes the exact smooth-cache and canonical-verifier digests.

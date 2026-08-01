@@ -295,6 +295,12 @@ int main(int argc, char** argv) {
             run_options.checkpoint_path = checkpoint;
             run_options.progress_path = progress;
             run_options.certificate_path = certificate_output;
+            run_options.sea_level_callback =
+                [](std::uint64_t index,
+                   const oneshotsea::SearchSeaLevelTiming& level) {
+                    std::cout << oneshotsea::search_sea_level_json(index, level)
+                              << '\n' << std::flush;
+                };
             std::cout << "{\"schema\":\"oneshotsea.search-start.v1\""
                       << ",\"prime\":\"" << config.prime
                       << "\",\"seed\":\"" << config.seed

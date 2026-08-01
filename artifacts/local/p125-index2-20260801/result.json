@@ -1,0 +1,46 @@
+{
+  "schema": "oneshotsea.local-search-gate.v1",
+  "date": "2026-08-01",
+  "host": "Apple M4, 10 SEA threads",
+  "git_commit": "43528617c6494202ecc6d3f5e8b97561e3139bfe",
+  "binary_sha256": "7e3348b3cdf9fa3abfa5f00eba50e504024c77e1d9b405b692ddfc92783369db",
+  "range": ["2", "1000000"],
+  "global_index": "2",
+  "status": "sound_smoothness_reject",
+  "heuristic": false,
+  "checkpoint_next_index": "3",
+  "sea": {
+    "passes": "1",
+    "levels": "66",
+    "exact_levels": "29",
+    "atkin_levels": "2",
+    "exact_trace_candidates": "25",
+    "effective_trace_candidates": [
+      "-501133242827342586855608877792997975571776335234326200755282794",
+      "-295707816916254928193132404079056461972998976766717511143285566",
+      "217855747861464218463058780205797322023944419402304212886707504"
+    ]
+  },
+  "timings_us": {
+    "curve_total": "1325776229",
+    "sea": "1320044568",
+    "smoothness": "5719594",
+    "modular_roots": "1156326777",
+    "eigenvalue": "143213345"
+  },
+  "cold_invocation_seconds": "1436.58",
+  "user_seconds": "6795.35",
+  "maximum_resident_set_bytes": "5457362944",
+  "peak_memory_footprint_bytes": "10808221568",
+  "identities": {
+    "schedule_sha256": "591cbfc1dd110a61f8bcc23a0fbf81049ae6a15d3acfe7cc8dc459296ebe5c18",
+    "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551"
+  },
+  "raw_artifact_sha256": {
+    "checkpoint.json": "ee846fa8a96250c666a63298f5c6278cab5611ed8ad780fd0429f52cc200b1ad",
+    "progress.jsonl": "59c3364b84da6183c30764c7766bb5261751a2bf47e93c57a172028420bd0b65",
+    "index-2.log": "8f7497d1895901f053371a2ea77ef93116e1fc76646ab28b1921c96be5eabf06"
+  },
+  "audit": "All three effective candidates independently replayed every logged exact CRT and certified Atkin residue-set constraint with tools/audit_sea_progress.py."
+}

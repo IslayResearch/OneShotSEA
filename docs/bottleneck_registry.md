@@ -17,12 +17,12 @@ completion gate remains acceptance by the unmodified pinned `voneshot.py`.
 
 | Priority | Item | Evidence / decision | Next gate |
 |---|---|---|---|
-| P0 | SEA cost per admitted curve | Filtered index 0: 584.850 s SEA of 598.318 s curve work; modular roots were 431.200 s and eigenvalues 143.382 s | Optimize the measured modular-root hot path while resuming the identity-bound range at index 1 |
+| P0 | SEA cost per admitted curve | Batched exact polynomial reduction replayed filtered index 1 with the same outcome and reduced SEA from 770.594 s to 293.641 s; modular roots fell from 603.731 s to 223.681 s and eigenvalues from 155.147 s to 59.865 s | Commit after the full oracle gate, then measure thread scaling and resume in a new identity-bound production directory |
 | P0 | Cloud launcher must run the production CLI | Audit found stale option names, nonexistent CMake build instructions, and double sharding | Real-command contract test, exactly-once range union, authenticated shared cache, manifest-bound argv/deployment |
 | P1 | Search parallelism | SEA modular-root work now uses a fixed worker group bounded by explicit `--sea-threads`; no CUDA SEA kernel exists | Measure the explicit CPU thread setting before cloud CPU/GPU comparison; use a GPU only after a throughput win |
 | P1 | Certificate hit-rate model | No production hit yet; curve/twist are already screened together | Measure exact-smooth survivor rate on admitted Hasse-near order pairs without overlapping a live timing run |
-| External | RunPod access | No `RUNPOD_*` credentials or saved pod state were present on 2026-07-31 | Authorized operator configures credentials; dry-run and local contract gates must pass first |
-| External | Local Magma process state | Two Rosetta Magma processes are stuck uninterruptibly; prior independent p125 trace/order result is retained | Do not put Magma in production path; recover oracle service before new mandatory oracle runs |
+| External | Cloud capacity | RunPod console access and AWS CLI identity are confirmed, but RunPod API/SSH variables remain unproven; AWS `us-east-2` Standard-instance quota is 5 vCPUs and a no-cost increase to 64 is pending | Finish dry-run AWS controls; benchmark CPU instances only after an explicit bounded launch configuration |
+| External | Local Magma launcher | The documented Magma V2.29-1 launcher is healthy but outside `PATH`; a 2026-08-01 smoke test returned the correct order/trace for `p=97,a=2,b=3` | Set `MAGMA=/Users/agent/Documents/Codex/t24-search/private/magma-local/install/magma` explicitly for mandatory oracle gates |
 
 ## Resolved or bounded items
 

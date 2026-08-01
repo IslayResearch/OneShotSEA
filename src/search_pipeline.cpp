@@ -891,6 +891,10 @@ SearchCurveReport process_search_curve(
                 pass,
                 level.ell,
                 level.exact,
+                level.trace_residue,
+                level.exact_modulus,
+                level.trace_candidate_count,
+                level.compatible_source_lifts,
                 level.timings.modular_root_workers,
                 level.timings.source_lifts_us,
                 level.timings.modular_roots_us,
@@ -1332,8 +1336,17 @@ std::string search_curve_report_json(const SearchCurveReport& report,
         const SearchSeaLevelTiming& level = report.sea_level_timings[index];
         output << "{\"pass\":\"" << level.pass << "\",\"ell\":\""
                << level.ell << "\",\"exact\":"
-               << (level.exact ? "true" : "false")
-               << ",\"modular_root_workers\":\""
+               << (level.exact ? "true" : "false");
+        if (level.trace_residue.has_value()) {
+            output << ",\"trace_residue\":\"" << *level.trace_residue
+                   << '"';
+        }
+        output << ",\"exact_modulus\":\"" << level.exact_modulus
+               << "\",\"trace_candidate_count\":\""
+               << level.trace_candidate_count
+               << "\",\"compatible_source_lifts\":\""
+               << level.compatible_source_lifts
+               << "\",\"modular_root_workers\":\""
                << level.modular_root_workers
                << "\",\"source_lifts_us\":\"" << level.source_lifts_us
                << "\",\"modular_roots_us\":\"" << level.modular_roots_us

@@ -72,6 +72,22 @@ tables through `--max-level` to isolate a unique trace for every candidate that
 survives early screening.  Increasing the range does not remedy an inadequate
 table schedule.
 
+Every per-level search record retains `trace_residue` for exact Elkies levels,
+the accumulated `exact_modulus`, the complete Hasse-interval
+`trace_candidate_count`, and the number of compatible Weber source lifts.
+After obtaining an independent final trace, audit these claims with:
+
+```sh
+python3 tools/audit_sea_progress.py \
+  --progress runs/p125/worker-0.ndjson \
+  --index GLOBAL_INDEX --trace MAGMA_TRACE
+```
+
+The auditor independently rebuilds the exact CRT, checks every residue against
+the supplied trace, recomputes the Hasse candidate count after every level,
+and reports the curve/twist orders and their `2p+2` sum.  Old progress files
+that predate these fields intentionally fail this stronger audit.
+
 Useful resource caps include `--max-curves`, `--checkpoint-every`,
 `--sea-threads`, `--smooth-threads`, `--smooth-max-batch`,
 `--smooth-root-auxiliary-bytes`, `--smooth-build-segment-span`,

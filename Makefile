@@ -29,7 +29,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-all clean
+.PHONY: all test test-atkin test-progress-audit test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -78,6 +78,10 @@ $(BUILD_DIR)/test_factor: tests/test_factor.cpp $(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
 		$(LDFLAGS) $(LDLIBS) -o $@
 
+$(BUILD_DIR)/test_atkin: tests/test_atkin.cpp $(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
 $(BUILD_DIR)/test_eigenvalue_mitm: tests/test_eigenvalue_mitm.cpp \
 		$(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
@@ -105,6 +109,12 @@ $(BUILD_DIR)/test_weber_curve_generator: \
 
 test: $(BUILD_DIR)/test_core
 	./$(BUILD_DIR)/test_core
+
+test-atkin: $(BUILD_DIR)/test_atkin
+	./$(BUILD_DIR)/test_atkin
+
+test-progress-audit:
+	python3 tests/test_progress_audit.py -v
 
 test-cli: all
 	python3 tests/test_cli.py -v
@@ -162,7 +172,10 @@ test-differential: all
 test-runpod: all
 	scripts/runpod/test.sh
 
-test-all: test test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod
+test-aws:
+	scripts/aws/test.sh
+
+test-all: test test-atkin test-progress-audit test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

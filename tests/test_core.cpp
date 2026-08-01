@@ -109,6 +109,29 @@ void test_polynomial() {
               std::vector<mpz_class>({2, 3, 5, 7}),
           "linear root extraction over the 416-bit target field");
 
+    // Exercise the batched modular-product reducer with a non-monic modulus
+    // and dense coefficients near p.  Its exact mpz_submul intermediates are
+    // deliberately much larger (and negative) before final normalization.
+    std::vector<mpz_class> target_modulus_coefficients(18, target_prime() - 1);
+    target_modulus_coefficients.back() = target_prime() - 2;
+    const oneshotsea::Poly target_modulus(
+        target_field, std::move(target_modulus_coefficients));
+    std::vector<mpz_class> target_left_coefficients(17);
+    std::vector<mpz_class> target_right_coefficients(17);
+    for (std::size_t index = 0; index < 17; ++index) {
+        target_left_coefficients[index] = target_prime() - 3 - index;
+        target_right_coefficients[index] = target_prime() - 41 - 2 * index;
+    }
+    const oneshotsea::Poly target_left(
+        target_field, std::move(target_left_coefficients));
+    const oneshotsea::Poly target_right(
+        target_field, std::move(target_right_coefficients));
+    check(oneshotsea::equal(
+              oneshotsea::mulmod(target_left, target_right, target_modulus),
+              oneshotsea::mod(oneshotsea::mul(target_left, target_right),
+                              target_modulus)),
+          "batched modular reduction matches generic non-monic division");
+
     bool rejected_composite_root_field = false;
     try {
         static_cast<void>(oneshotsea::linear_roots(

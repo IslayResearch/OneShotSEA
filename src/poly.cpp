@@ -240,16 +240,25 @@ void reduce_product_coefficients(std::vector<mpz_class>& coefficients,
         if (coefficients[degree] == 0) {
             continue;
         }
+        // Keep the intermediate remainder coefficients unreduced while
+        // eliminating high terms.  Reducing every multiply/subtract here
+        // performs O(n^2) divisions by p in the modular-powering hot path;
+        // mpz_submul can accumulate the exact integer representative and each
+        // coefficient only needs normalization when it becomes a pivot (or
+        // once at the end).
         const mpz_class factor = field.mul(coefficients[degree], inverse_lead);
         const std::size_t shift = degree - modulus_degree;
         for (std::size_t index = 0; index < modulus_degree; ++index) {
-            coefficients[shift + index] = field.sub(
-                coefficients[shift + index],
-                field.mul(factor, modulus.coefficient(index)));
+            mpz_submul(coefficients[shift + index].get_mpz_t(),
+                       factor.get_mpz_t(),
+                       modulus.coefficient(index).get_mpz_t());
         }
         coefficients[degree] = 0;
     }
     coefficients.resize(modulus_degree);
+    for (mpz_class& coefficient : coefficients) {
+        coefficient = field.normalize(coefficient);
+    }
 }
 
 const Poly& reduced_operand(const Poly& value, const Poly& modulus,

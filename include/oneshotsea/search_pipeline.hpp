@@ -73,6 +73,10 @@ struct SearchSeaLevelTiming {
     std::size_t pass = 0;
     std::uint64_t ell = 0;
     bool exact = false;
+    std::optional<std::uint64_t> trace_residue;
+    mpz_class exact_modulus = 1;
+    mpz_class trace_candidate_count = 0;
+    std::size_t compatible_source_lifts = 0;
     std::size_t modular_root_workers = 0;
     std::uint64_t source_lifts_us = 0;
     std::uint64_t modular_roots_us = 0;

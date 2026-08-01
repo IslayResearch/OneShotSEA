@@ -222,6 +222,25 @@ class CliTests(unittest.TestCase):
                     for level in curve_records[-1]["sea_level_timings"]
                 )
             )
+            levels = curve_records[-1]["sea_level_timings"]
+            self.assertTrue(all("exact_modulus" in level for level in levels))
+            self.assertTrue(
+                all("trace_candidate_count" in level for level in levels)
+            )
+            self.assertTrue(
+                all("compatible_source_lifts" in level for level in levels)
+            )
+            self.assertTrue(
+                all(
+                    ("trace_residue" in level) == level["exact"]
+                    for level in levels
+                )
+            )
+            exact_moduli = [
+                int(level["exact_modulus"])
+                for level in levels if level["exact"]
+            ]
+            self.assertEqual(exact_moduli, sorted(exact_moduli))
             self.assertEqual((root / "certificate.txt").read_text(),
                              "101 35 25 28\n")
             self.assertTrue((root / "checkpoint.json").is_file())

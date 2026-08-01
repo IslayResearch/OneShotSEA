@@ -407,6 +407,15 @@ form the companion matrix of `X^2-tau*X+p`, compute its order in `PGL(2,l)`,
 and retain exactly those of order `r`.  This costs little for `l<1000` and is
 easy to oracle-test.
 
+The table-independent PGL arithmetic and exact residue-set generator are now
+implemented and exhaustively tested through level 43, including differential
+checks against factor degrees of the classical level-5 and level-7 modular
+polynomials.  This is the arithmetic half of the Atkin path, not evidence that
+an empty rational Weber-root list is Atkin.  Production integration must first
+descend the specialized Weber relation through
+`j(z)=(z^24-16)^3/z^24`, certify the descended factor degree/projective order,
+and fail closed on repeated roots, collisions, or exceptional descent.
+
 Atkin constraints are ranked by
 
 ```text

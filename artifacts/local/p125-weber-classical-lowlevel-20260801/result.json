@@ -1,0 +1,58 @@
+{
+  "schema": "oneshotsea.weber-classical-lowlevel-benchmark.v1",
+  "date": "2026-08-01",
+  "host": "Apple M4",
+  "code_commit": "164814bbeb55c7408511d7a53dfedbc5c39db47a",
+  "binary_sha256": "83392eb8d362e21e894a0fad3c38f77c9ec68ca9264d124e2695e20f673c1421",
+  "curve": {
+    "p": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "a": "52686448651453494102076135641750566537378176439028339058269519908901270612945530952532243656628246462314469963477487790481132",
+    "b": "68457632434302329401384090427833711024918784292685559372179679939267513741963687301688162437752164308209646642318325193654167",
+    "production_index": "4"
+  },
+  "command_template": {
+    "classical": "build/oneshotsea elkies-bmss-residue --p P --a A --b B --ell L --file data/modpoly/j/phi_L.txt",
+    "weber": "build/oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file data/modpoly/weber_f/phi_L.txt",
+    "timing": "/usr/bin/time -p zsh -c 'set -e; for i in {1..20}; do COMMAND >/dev/null; done'"
+  },
+  "repetitions_per_mode": 20,
+  "levels": [
+    {
+      "ell": 5,
+      "classical_table_bytes": 1126,
+      "weber_table_bytes": 80,
+      "classical": {
+        "status": "exact",
+        "kernel_count": 2,
+        "trace_residue": 2,
+        "wall_seconds_20_invocations": 0.49
+      },
+      "weber": {
+        "status": "exact",
+        "kernel_count": 2,
+        "trace_residue": 2,
+        "wall_seconds_20_invocations": 6.10
+      },
+      "weber_over_classical_wall_ratio": 12.449
+    },
+    {
+      "ell": 7,
+      "classical_table_bytes": 2636,
+      "weber_table_bytes": 87,
+      "classical": {
+        "status": "exact",
+        "kernel_count": 2,
+        "trace_residue": 2,
+        "wall_seconds_20_invocations": 0.56
+      },
+      "weber": {
+        "status": "exact",
+        "kernel_count": 2,
+        "trace_residue": 2,
+        "wall_seconds_20_invocations": 6.15
+      },
+      "weber_over_classical_wall_ratio": 10.982
+    }
+  ],
+  "interpretation": "At the only two checked-in common levels, the classical-j reference is faster. The production Weber path pays exhaustive 24th-root source-lift discovery, while its value is providing an authenticated sparse 77-level schedule unavailable to the classical-j reference. This boundary is not a production-scale classical-j comparison and table-size ratios are not runtime speedups."
+}

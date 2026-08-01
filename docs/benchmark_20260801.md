@@ -145,3 +145,69 @@ The tested implementation is commit `b41311a`, with clean binary SHA-256
 The compact benchmark record, commands, identities, raw-output hashes, and
 canonical comparison hashes are retained in
 `artifacts/local/p125-weber-root-orbits-20260801/result.json`.
+
+## Exact conjugate Frobenius eigenvalue reuse
+
+At an Elkies prime, the Frobenius eigenvalues satisfy
+
+```text
+lambda * mu = p (mod ell).
+```
+
+After one validated kernel supplies `lambda`, a second distinct rational
+degree-`ell` isogeny has the forced eigenvalue
+`mu=(p mod ell)*lambda^-1 mod ell`.  The optimized path retains complete BMSS
+rational-map validation for every kernel and performs the quotient-ring
+Frobenius recovery for the first kernel only.  If Frobenius is scalar then
+`lambda=mu` is valid on every stable line; more than two distinct stable lines
+in the non-scalar case hard-fail.  The lower-level CLI exposes
+`--conjugate-eigenvalue-reuse 0|1` as an exact ablation.
+
+The same binary was run with reuse off and on for the level-193 `p125` slice:
+
+| Mode | Wall | Eigenvalue stage | Independent / derived |
+|---|---:|---:|---:|
+| Independent recovery | 62.44 s | 23.494 s | 42 / 0 |
+| Conjugate reuse | 47.64 s | 9.644 s | 21 / 21 |
+
+All 42 canonical level records were identical with SHA-256
+`22832ac4528da2264c6712d8853ecd7d78933e2bc1260b061d24d0ed7c9f5b0f`.
+The eigenvalue speedup was 2.436x and the wall speedup was 1.311x.
+
+The full production index-4 replay resolved 61 kernels as 31 independent
+recoveries plus 30 derivations.  All 64 canonical level records and final 15
+trace candidates again matched the retained production evidence, with SHA-256
+`7c4a5c85ac716d6d8a3ea11b588381c79c0d8c5909b81273ef22802397d30ecb`.
+Eigenvalue time fell from the orbit-only 148.418 seconds to 70.196 seconds
+(2.114x), and invocation wall fell from 377.42 to 291.43 seconds (1.295x).
+Against the pre-orbit production SEA time of 1,418.823 seconds, the combined
+exact improvements give a 4.868x comparison.
+
+The implementation is commit `164814b`.  The measured incremental binary
+SHA-256 was
+`476958f77860e0ed4a65c5d08eda82c8751651c8a6548d2b85f8a85d3a356d62`;
+the subsequent clean release build that passed `make test-all` hashes to
+`83392eb8d362e21e894a0fad3c38f77c9ec68ca9264d124e2695e20f673c1421`.
+The compact commands, identities, timing fields, and raw-output hashes are in
+`artifacts/local/p125-conjugate-eigenvalue-20260801/result.json`.
+
+## Tractable Weber/classical-j boundary
+
+The only checked-in levels shared by the production Weber path and the
+classical-j BMSS reference are 5 and 7.  The clean release binary above was
+run 20 times per mode on retained production index 4.  Both implementations
+returned exactly two kernels and trace residue 2 at both levels.
+
+| Level | Classical-j wall (20) | Weber-f wall (20) | Weber/classical |
+|---:|---:|---:|---:|
+| 5 | 0.49 s | 6.10 s | 12.449x slower |
+| 7 | 0.56 s | 6.15 s | 10.982x slower |
+
+The negative result is expected at these tiny levels: exhaustive Weber
+source-lift discovery dominates, whereas the classical specialization is
+already known.  It must not be inverted into a speed claim from table size.
+The production justification is that Weber supplies 77 authenticated sparse
+levels and admits the measured orbit and eigenvalue optimizations; the
+repository has no corresponding classical-j production schedule.  Exact
+curve identity, commands, table sizes, and interpretation are retained in
+`artifacts/local/p125-weber-classical-lowlevel-20260801/result.json`.

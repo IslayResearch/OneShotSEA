@@ -1,9 +1,9 @@
 # Local p125 search readiness audit, 2026-08-01
 
 This audit identifies the next non-overlapping production action on the Apple
-M4 after the retained searches through global index 5 and the exact Weber
-root-orbit optimization at Git commit
-`b41311aae5dea44eef147fb52dc8b40fee6b2990`.  It treats the ignored
+M4 after the retained searches through global index 7 and the exact conjugate
+Frobenius optimization at Git commit
+`164814bbeb55c7408511d7a53dfedbc5c39db47a`.  It treats the ignored
 `work/p125` tree as live evidence.  Older benchmark prose is not used as
 authority where that tree was subsequently extended.
 
@@ -36,8 +36,20 @@ authority where that tree was subsequently extended.
   `0e1076b163dcbd354cbdb43390ec12ab587d990a01d5c6d36e480db728751491`,
   `b090397fb954cffba19e86e95a218d18c3439cc6d8f6cad76c1cb7e130a5b8fa`,
   and `2361c19cd59c6a3fb3c950d72f5e08699dfe76de63e6e3ec0cb9067384a5d68f`.
-  Because orbit reuse changes the executable identity, this checkpoint is
-  evidence only; the next range must begin at 6 under a fresh checkpoint.
+  Because orbit reuse changed the executable identity, this checkpoint is now
+  historical evidence only.
+- The orbit-reuse production identity was commit
+  `deaeaf4ee5003348f158b93d875651e417c143fc`, executable SHA-256
+  `ba10fe7f7887e98d67e704e5322d740c0345122899e3faff339e2066a02fde48`,
+  and range `[6,1000000)`.  It soundly rejected indices 6 and 7 before being
+  stopped during the replayable prefix of index 8.  Its durable checkpoint is
+  `next_index=8`; checkpoint, progress, log, and launch-script SHA-256 values
+  are `659aa0b09d0f2af6423f2ac6c34ab1fbc6e47ad530b1bbfe70336d4cddaedc64`,
+  `9fa5faa0ddadf013fd34791f86179e4d895404b467f31702432938c701042391`,
+  `2c921f50db5bb7abc95941bb2ff1b1ed6f2e2d81868d214c772313e5202eb965`,
+  and `95d7cf0880373fc630289547367e6c1b68f019852c002127c3e64a2b38717998`.
+  The exact executable is retained locally with its original digest; the next
+  optimized identity must begin at 8 rather than resume this checkpoint.
 
 The filtered artifacts were extended after `docs/benchmark_20260731.md` was
 written.  Their current authoritative digests are:
@@ -82,10 +94,10 @@ committed result is under `artifacts/local/p125-index2-20260801`.
 
 ## Unique yield evidence
 
-Global indices 0--5 are the six independent production samples.  The old
+Global indices 0--7 are the eight independent production samples.  The old
 singleton point count, cap-4096 experiment, baseline index-1 record, optimized
-index-1 replay, and orbit-optimized index-4 replay duplicate those indices and
-must not inflate yield.
+index-1 replay, and optimized index-4 replays duplicate those indices and must
+not inflate yield.
 
 | Index | Generator rejects | SEA levels / exact | Traces screened | Result |
 |---:|---:|---:|---:|---|
@@ -95,9 +107,11 @@ must not inflate yield.
 | 3 | 0 | 59 / 31, plus 1 Atkin | 12 (24 curve/twist orders) | sound smoothness rejection |
 | 4 | 0 | 64 / 31 | 15 (30 curve/twist orders) | sound smoothness rejection |
 | 5 | 0 | 57 / 31, plus 1 Atkin | 17 (34 curve/twist orders) | sound smoothness rejection |
+| 6 | 0 | 50 / 32 | 10 (20 curve/twist orders) | sound smoothness rejection |
+| 7 | 0 | 67 / 29, plus 1 Atkin | 22 (44 curve/twist orders) | sound smoothness rejection |
 
-Thus the unique retained yield is zero smooth-enough orders out of 140 screened
-orders, zero assembly calls, and zero certificates from six curves.  This is
+Thus the unique retained yield is zero smooth-enough orders out of 204 screened
+orders, zero assembly calls, and zero certificates from eight curves.  This is
 too little evidence for a defensible certificate waiting-time estimate.  Even
 an independence-assuming binomial calculation is misleading because the
 orders within a curve and nearby smoothness events are not independent.  It
@@ -114,9 +128,16 @@ indices 2--5 was 1,325.776, 475.550, 1,441.080, and 509.937 seconds.  The
 root-orbit change then replayed the expensive 64-level index 4 in 377.42
 seconds of direct SEA wall time, with all mathematical level records
 identical.  That is a 3.759x comparison against the old 1,418.823-second SEA
-stage, but it excludes cache loading and final smoothness.  Use new complete
-production records from index 6 onward for the post-optimization throughput
-forecast; do not infer certificate waiting time from the replay alone.
+stage, but it excludes cache loading and final smoothness.  Complete
+orbit-optimized curve work was 180.496 seconds at index 6 and 525.564 seconds
+at the 36-lift index 7, a measured warm range of 6.85--19.95 curves/hour.
+
+Conjugate eigenvalue reuse then replayed index 4 in 291.43 seconds, with all 64
+canonical level records identical.  It reduced the orbit-only eigenvalue
+subtotal from 148.418 to 70.196 seconds by replacing 30 of 61 full recoveries
+with exact determinant-derived conjugates.  This is a controlled replay, not
+yet a complete search-curve observation; use production records from index 8
+for the next throughput update.
 
 On index 2, modular roots consumed 87.6% and eigenvalues 10.8% of SEA time.
 The ten-thread run accumulated 6,795.35 user-seconds during 1,436.58 wall
@@ -130,10 +151,10 @@ for the optimized cap-64 replay.  No retained evidence supports a larger cap.
 
 ## Next local action
 
-Publish the cleanly tested orbit-reuse implementation, then start a clean
-identity at global index 6.  A changed executable cannot reuse the
-`4eda927` checkpoint because build identity is deliberately authenticated; the
-new half-open range must therefore begin at 6 to avoid overlap.  The command
+Publish the cleanly tested conjugate-eigenvalue implementation, then start a
+clean identity at global index 8.  A changed executable cannot reuse the
+`deaeaf4` checkpoint because build identity is deliberately authenticated; the
+new half-open range must therefore begin at 8 to avoid overlap.  The command
 shape below is the audited template, but its build id and directory must be
 replaced with the new committed build before launch.
 
@@ -144,7 +165,7 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 6 --range-end 1000000 \
+  --range-start 8 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --max-level 401 --trace-cap 64 --sea-threads 10 \
   --table-dir data/modpoly/weber_f \

@@ -85,8 +85,10 @@ the accumulated `exact_modulus`, `exact_trace_candidate_count`, the combined
 `atkin_projective_order`, `atkin_residue_count`, and the number of compatible
 Weber source lifts.  It also logs the actual modular-root worker and orbit
 counts, the number of lifts served by exact orbit transport, whether verified
-orbit reuse occurred, and the per-stage timings.  These fields make the
-production optimization auditable without changing residue semantics.
+orbit reuse occurred, and the per-stage timings.  Eigen telemetry separately
+records total attempts, independent quotient-ring recoveries, and exact
+characteristic-polynomial conjugates.  These fields make the production
+optimizations auditable without changing residue semantics.
 After obtaining an independent final trace, audit these claims with:
 
 ```sh
@@ -124,8 +126,10 @@ each Weber SEA level.  Zero selects the host's reported hardware concurrency
 worker count is also capped by the number of verified `f^24` source-lift
 orbits.  Long or distributed runs should set it explicitly so their resource
 use is reproducible.  The lower-level `sea-weber-count` command exposes
-`--root-orbit-reuse 0|1` for controlled ablations; production search always
-uses the verified-on, exact-fallback behavior.
+`--root-orbit-reuse 0|1` and `--conjugate-eigenvalue-reuse 0|1` for controlled
+ablations; production search always uses the verified-on, exact-fallback
+behavior.  Conjugate reuse derives `p/lambda mod ell` only after complete
+rational-isogeny validation and one independent nonzero eigenvalue recovery.
 
 The search defaults to `--trace-cap 64` and `--smooth-max-batch 128`: each
 complete trace contributes a curve and twist order, so the largest default

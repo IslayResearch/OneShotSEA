@@ -104,9 +104,11 @@ For each accepted Weber lift `x` of `j(E)`:
                + ell^6*mtilde^2*ktilde/864.
    ```
 
-5. Hand `E` and this codomain to fastElkies' to recover the kernel polynomial.
-   Validate by constructing the dual with normalization factor `ell` and check
-   that the composition acts as multiplication by `ell` on random points.
+5. Reconstruct the normalized rational isogeny and kernel with the BMSS power
+   series and Padé path.  Validate exact degrees and normalizations,
+   square-freeness, numerator/denominator coprimality, the kernel-square
+   denominator, and the full rational isogeny equation.  At small levels an
+   additional division-polynomial and Vélu-codomain comparison is retained.
 
 Exceptional zeros of `A`, `j`, `j-1728`, `F'`, or either modular derivative
 must fall back to the classical-j/Schoof path; division through them is not
@@ -134,17 +136,41 @@ On retained production index 4, root evaluation time fell from 1,252.390 to
 207.917 seconds while all 64 level projections remained identical; see
 `docs/benchmark_20260801.md`.
 
+## Exact conjugate eigenvalue reuse
+
+Every validated rational `ell`-isogeny over `F_p` has a Frobenius-stable
+kernel.  If independent quotient-ring recovery on the first kernel gives
+`lambda`, the characteristic polynomial determinant forces the other value:
+
+```text
+mu = (p mod ell) * lambda^-1 mod ell.
+```
+
+The implementation still performs the complete rational-isogeny validation
+for every distinct kernel.  It derives `mu` only after one nonzero independent
+recovery, permits additional stable lines only when `lambda=mu` is scalar, and
+hard-fails if more than two distinct non-scalar stable kernels appear.  The
+independent path remains an explicit off/on ablation and telemetry partitions
+all attempts into independent recoveries and derived conjugates.
+
+The controlled level-193 ablation cut the eigenvalue stage from 23.494 to
+9.644 seconds, with all 42 canonical level records identical.  A production
+index-4 replay resolved 61 kernels as 31 independent plus 30 derived, reduced
+eigenvalue time from 148.418 to 70.196 seconds, and preserved all 64 canonical
+records and 15 final trace candidates.
+
 ## Remaining production work
 
 The end-to-end path is complete through the level-401 production schedule and
-has processed six unique `p125` curves soundly.  The checked-in manifest is
+has processed eight unique `p125` curves soundly.  The checked-in manifest is
 pinned by digest, and production startup verifies every table filename, byte
 count, and SHA-256 before SEA.  Differential tests cover classical-j/BMSS,
 native Schoof, the 416-bit target field, and Magma oracle traces.
 
 The remaining outcome blocker is not a missing large-level evaluator: it is
 finding a `p125` order whose exact smooth part supports a canonical certificate.
-The current performance tail is eigenvalue recovery after orbit reuse.  Faster
-fixed-limb field arithmetic, fast polynomial multiplication, and a measured
-small-prime Schoof fallback remain optimization opportunities, but must retain
-the exact fallback and oracle gates rather than becoming completion claims.
+The root/eigen balance now varies with the source-lift orbit count; new
+production telemetry must decide the next performance change.  Faster
+fixed-limb field arithmetic, cross-level batching, and a measured small-prime
+Schoof fallback remain optimization opportunities, but must retain the exact
+fallback and oracle gates rather than becoming completion claims.

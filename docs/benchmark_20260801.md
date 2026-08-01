@@ -211,3 +211,26 @@ levels and admits the measured orbit and eigenvalue optimizations; the
 repository has no corresponding classical-j production schedule.  Exact
 curve identity, commands, table sizes, and interpretation are retained in
 `artifacts/local/p125-weber-classical-lowlevel-20260801/result.json`.
+
+## Measured prime scheduling
+
+Commit `b684461` adds an opt-in `sea-weber-count` schedule that ranks a strict,
+complete profile by measured information/cost using exact cross-products.  It
+is benchmark-only; production search retains increasing order.
+
+The 42-level profile through 193 trained information on unique production
+indices 0--7 and current optimized cost on indices 4 and 8.  A disjoint
+held-out `p125` curve was run in the order increasing, scored, scored,
+increasing, using the same binary and all exact hot-path optimizations.
+
+| Schedule | Wall runs | Median wall | Median user |
+|---|---:|---:|---:|
+| Increasing | 58.57, 57.32 s | 57.945 s | 49.805 s |
+| Expected information/cost | 57.94, 58.78 s | 58.36 s | 50.15 s |
+
+The scored order was 0.716% slower.  All four final constraints and all sorted
+intrinsic/operation-count records were identical, so this is a negative
+performance result rather than a correctness difference.  The increasing
+production default remains justified.  The profile, exact order, curve,
+binary identity, equality projections, and raw hashes are in
+`artifacts/local/p125-prime-schedule-20260801/result.json`.

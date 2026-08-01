@@ -1,0 +1,59 @@
+{
+  "schema": "oneshotsea.prime-schedule-benchmark.v1",
+  "date": "2026-08-01",
+  "host": "Apple M4, 10 SEA threads",
+  "code_commit": "b6844613d6065a65dd2e72b1661b7b121b513af7",
+  "benchmark_binary_sha256": "6a1bb91901c62c8b416abd1f55d9dd3d8736bac5ac1c02b48e87bbdbf13e422d",
+  "clean_release_binary_sha256": "e05a393ff57ba9d0948fc8e91d1f2f91e0af427f73c27a7c699168f03ea0aeea",
+  "profile": {
+    "path": "profile.txt",
+    "sha256": "6ae82877c7726dd385c1947498fb300f959be6a000fdba1f407504b5789ab5de",
+    "levels": 42,
+    "max_level": 193,
+    "information_training_set": "unique deterministic production indices 0 through 7",
+    "information_formula": "sum log2(ell) microbits for exact residues and log2(ell/r) microbits for certified Atkin residue-set size r",
+    "cost_training_set": "current optimized production indices 4 and 8",
+    "cost_formula": "sum source-lift, modular-root, normalized-codomain, BMSS, and eigenvalue microseconds",
+    "information_samples_per_level": 8,
+    "cost_samples_per_level": 2
+  },
+  "held_out_curve": {
+    "p": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "a": "82574189722949072957728522659737830385005094873485824210996693879529527019787746889866491875855403894941918864621858709713497",
+    "b": "88382793148632715305152348439825220256670063248990549473997795919686351346525164593244327917236935929961279243081239139809077"
+  },
+  "common_options": "--max-level 193 --trace-cap 64 --sea-threads 10 --root-orbit-reuse 1 --conjugate-eigenvalue-reuse 1 --table-dir data/modpoly/weber_f",
+  "increasing": {
+    "wall_seconds": [58.57, 57.32],
+    "user_seconds": [50.23, 49.38],
+    "median_wall_seconds": 57.945,
+    "median_user_seconds": 49.805
+  },
+  "expected_information_per_cost": {
+    "wall_seconds": [57.94, 58.78],
+    "user_seconds": [49.83, 50.47],
+    "median_wall_seconds": 58.36,
+    "median_user_seconds": 50.15,
+    "order": [13, 7, 5, 11, 17, 23, 37, 19, 41, 29, 47, 59, 43, 53, 67, 61, 73, 31, 71, 101, 103, 79, 83, 107, 97, 127, 131, 139, 109, 89, 149, 113, 167, 151, 173, 137, 191, 157, 179, 181, 193, 163]
+  },
+  "expected_over_increasing_wall_ratio": 1.007162,
+  "expected_wall_delta_percent": 0.716,
+  "result": "no material out-of-sample benefit; retain increasing order in production",
+  "equality": {
+    "all_four_final_constraints_identical": true,
+    "final_summary_projection_sha256": "e8ce7e42077f60c5fa715ef7744ae3213557ba7dffc9ebd0cad5115a3741ea66",
+    "all_four_sorted_intrinsic_and_operation_count_records_identical": true,
+    "sorted_intrinsic_and_operation_count_sha256": "4bf0522c292002a1b9c51726684b9feae0c3bc05119867afcecd4d6622ce0d98"
+  },
+  "raw_sha256": {
+    "increasing_jsonl": "4641af7671288ac3adb81da00d9d2ddc880590271e9eb4920c19b870b14fe12a",
+    "increasing_time": "21cda16e558acf7c4ae6bd8b32fc084cc76a73228562b30ad8e0c5228d809c01",
+    "expected_jsonl": "423ae52db89722c2223584e8c006c80ebe6ffab0bd118488927b3a99b7e45b0a",
+    "expected_time": "fc7619564b20723271d5f322f018db548ac644f3b50f317944627784b40e8de8",
+    "expected_2_jsonl": "05a9b62ece1e81010a59b3cd3c9aae04f9dc0088c0dd343ec1ed5c7c60fe0853",
+    "expected_2_time": "93cf55bf6c0f3011079fec119e2dc9388e8575ac506f285cde90f8b5cc6d0bb2",
+    "increasing_2_jsonl": "a56f6977e27acadbecf2c9f91433da4db4fc0bd68cff562d8149a3514a705427",
+    "increasing_2_time": "dbd523a0ad287c08e146383145ec2174162d34c2303c35e1f5a030dcc522d662"
+  },
+  "validation": "A subsequent clean build passed make test-all with the explicit local Magma launcher, including native, adversarial, canonical-verifier, Magma differential, RunPod, and AWS tests."
+}

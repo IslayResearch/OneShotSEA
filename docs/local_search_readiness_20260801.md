@@ -1,9 +1,11 @@
 # Local p125 search readiness audit, 2026-08-01
 
 This audit identifies the next non-overlapping production action on the Apple
-M4 after the retained searches through global index 7 and the exact conjugate
-Frobenius optimization at Git commit
-`164814bbeb55c7408511d7a53dfedbc5c39db47a`.  It treats the ignored
+M4 after the retained searches through global index 8 and the complete clean
+gate for measured scheduling commit
+`b6844613d6065a65dd2e72b1661b7b121b513af7`.  The clean release executable
+hashes to `e05a393ff57ba9d0948fc8e91d1f2f91e0af427f73c27a7c699168f03ea0aeea`.
+It treats the ignored
 `work/p125` tree as live evidence.  Older benchmark prose is not used as
 authority where that tree was subsequently extended.
 
@@ -50,6 +52,16 @@ authority where that tree was subsequently extended.
   and `95d7cf0880373fc630289547367e6c1b68f019852c002127c3e64a2b38717998`.
   The exact executable is retained locally with its original digest; the next
   optimized identity must begin at 8 rather than resume this checkpoint.
+- The conjugate-optimized production identity was commit
+  `9fd6fa35323a045d7f1e03cce33597bf7abae10c`, executable SHA-256
+  `83392eb8d362e21e894a0fad3c38f77c9ec68ca9264d124e2695e20f673c1421`,
+  and range `[8,1000000)`.  Index 8 completed as a sound rejection before the
+  worker was stopped during a replayable prefix of index 9.  Its durable
+  checkpoint is `next_index=9`; checkpoint, progress, and log SHA-256 values
+  are `794b8258d45e5339b0e309716ff960f7cdff7003a1a264858dd1a810a2300a68`,
+  `8930229042226cb5d5a973b835b17ebda57e9178f1a026575c8313923f0266f7`,
+  and `46d5de047baceaadef9100b73a652d91e82245b12dbbbe13868707ab74a5024b`.
+  The next changed executable must start a fresh range at 9.
 
 The filtered artifacts were extended after `docs/benchmark_20260731.md` was
 written.  Their current authoritative digests are:
@@ -94,7 +106,7 @@ committed result is under `artifacts/local/p125-index2-20260801`.
 
 ## Unique yield evidence
 
-Global indices 0--7 are the eight independent production samples.  The old
+Global indices 0--8 are the nine independent production samples.  The old
 singleton point count, cap-4096 experiment, baseline index-1 record, optimized
 index-1 replay, and optimized index-4 replays duplicate those indices and must
 not inflate yield.
@@ -109,9 +121,10 @@ not inflate yield.
 | 5 | 0 | 57 / 31, plus 1 Atkin | 17 (34 curve/twist orders) | sound smoothness rejection |
 | 6 | 0 | 50 / 32 | 10 (20 curve/twist orders) | sound smoothness rejection |
 | 7 | 0 | 67 / 29, plus 1 Atkin | 22 (44 curve/twist orders) | sound smoothness rejection |
+| 8 | 0 | 65 / 31, plus 1 Atkin | 2 (4 curve/twist orders) | sound smoothness rejection |
 
-Thus the unique retained yield is zero smooth-enough orders out of 204 screened
-orders, zero assembly calls, and zero certificates from eight curves.  This is
+Thus the unique retained yield is zero smooth-enough orders out of 208 screened
+orders, zero assembly calls, and zero certificates from nine curves.  This is
 too little evidence for a defensible certificate waiting-time estimate.  Even
 an independence-assuming binomial calculation is misleading because the
 orders within a curve and nearby smoothness events are not independent.  It
@@ -136,8 +149,9 @@ Conjugate eigenvalue reuse then replayed index 4 in 291.43 seconds, with all 64
 canonical level records identical.  It reduced the orbit-only eigenvalue
 subtotal from 148.418 to 70.196 seconds by replacing 30 of 61 full recoveries
 with exact determinant-derived conjugates.  This is a controlled replay, not
-yet a complete search-curve observation; use production records from index 8
-for the next throughput update.
+and index 8 supplied the first complete search-curve observation: 318.729
+seconds of SEA, 10.518 seconds of exact smoothness, and 329.264 seconds of
+warm curve work for two final traces.  Peak RSS was 5,441,470,464 bytes.
 
 On index 2, modular roots consumed 87.6% and eigenvalues 10.8% of SEA time.
 The ten-thread run accumulated 6,795.35 user-seconds during 1,436.58 wall
@@ -151,12 +165,13 @@ for the optimized cap-64 replay.  No retained evidence supports a larger cap.
 
 ## Next local action
 
-Publish the cleanly tested conjugate-eigenvalue implementation, then start a
-clean identity at global index 8.  A changed executable cannot reuse the
-`deaeaf4` checkpoint because build identity is deliberately authenticated; the
-new half-open range must therefore begin at 8 to avoid overlap.  The command
-shape below is the audited template, but its build id and directory must be
-replaced with the new committed build before launch.
+Publish the cleanly tested scheduling milestone, then start a clean identity
+at global index 9.  A changed executable cannot reuse the `9fd6fa3` checkpoint
+because build identity is deliberately authenticated; the new half-open range
+must therefore begin at 9 to avoid overlap.  The held-out scheduling A/B found
+the measured alternate 0.7% slower, so production remains increasing-order.
+The command shape below is the audited template, but its build id and directory
+must be replaced with the new committed build before launch.
 
 ```sh
 set -o pipefail
@@ -165,7 +180,7 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 8 --range-end 1000000 \
+  --range-start 9 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --max-level 401 --trace-cap 64 --sea-threads 10 \
   --table-dir data/modpoly/weber_f \

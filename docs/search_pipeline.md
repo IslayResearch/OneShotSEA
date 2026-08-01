@@ -130,6 +130,12 @@ use is reproducible.  The lower-level `sea-weber-count` command exposes
 ablations; production search always uses the verified-on, exact-fallback
 behavior.  Conjugate reuse derives `p/lambda mod ell` only after complete
 rational-isogeny validation and one independent nonzero eigenvalue recovery.
+The same lower-level command exposes
+`--prime-schedule expected-information-per-cost --level-profile PATH` for a
+strict measured scheduling ablation.  The profile must cover every available
+level exactly once and every cost must be nonzero.  The held-out `p125` A/B
+found this order 0.7% slower than increasing order, so production deliberately
+keeps the simpler increasing schedule and does not accept a profile.
 
 The search defaults to `--trace-cap 64` and `--smooth-max-batch 128`: each
 complete trace contributes a curve and twist order, so the largest default

@@ -11,17 +11,18 @@ appropriate comparison exist.
 
 | Required dimension | Implemented path | Best retained evidence | Status |
 |---|---|---|---|
-| Early abort | Complete bounded trace enumeration followed by exact full-`n^4` smooth screening of both signs | Raising the screen from the default path to 195 traces would have made the measured index-0 run 27.8 s slower; eight retained production curves were soundly rejected from 102 trace candidates (204 curve/twist orders) without completing a point count | Implemented and policy-calibrated; no same-build off/on wall-time speedup yet |
+| Early abort | Complete bounded trace enumeration followed by exact full-`n^4` smooth screening of both signs | Raising the screen from the default path to 195 traces would have made the measured index-0 run 27.8 s slower; nine retained production curves were soundly rejected from 104 trace candidates (208 curve/twist orders) without completing a point count | Implemented and policy-calibrated; no same-build off/on wall-time speedup yet |
 | Batching | Batched exact accumulation in polynomial reduction and batched remainder-tree smooth extraction | Controlled reducer A/B: 2.07x synthetic median, 2.32x invocation wall and 2.59x complete curve work on a deterministic `p125` replay | Measured for two hot-path batching mechanisms; no cross-curve SEA batch A/B |
-| Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first eight retained curves produced 102 trace candidates and 204 order screens from eight SEA executions | Exact work-count reduction; no wall-time ablation |
-| Prime scheduling | Available Weber levels are processed in increasing prime order | No alternate schedule has been run.  The current loop is increasing-order, not a measured information-per-cost policy | Missing required ablation |
+| Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first nine retained curves produced 104 trace candidates and 208 order screens from nine SEA executions | Exact work-count reduction; no wall-time ablation |
+| Prime scheduling | Available Weber levels are processed in increasing prime order | Held-out two-pair A/B: trained information/cost order 58.36 s median versus increasing 57.945 s, with identical final constraints and intrinsic evidence | Measured alternate was 0.7% slower; retain increasing order |
 | Specialized modular-polynomial path | Authenticated Weber-f tables, BMSS kernel recovery, and verified 24th-root orbit transport | Controlled orbit off/on A/B: 2.366x median wall and 3.445x modular-root speedup through level 193; at common levels 5/7, classical-j is honestly 12.449x/10.982x faster because Weber source-lift discovery dominates | Specialized hot-path ablation and tractable classical boundary measured; production-scale classical-j is unavailable |
 
-The report is therefore evidence for substantial performance progress, not a
-claim that deliverable 5 is fully closed.  Prime scheduling remains an open
-measurement.  The direct classical comparison is bounded to the only two
-common checked-in levels; no classical schedule comparable to the 77 Weber
-levels exists in this repository.
+Every requested dimension now has either a controlled wall-time A/B or an
+exact algebraic work-count comparison.  Limitations remain explicit: early
+abort and curve/twist sharing do not have artificial same-binary duplicated-
+work baselines, and the direct classical comparison is bounded to the only two
+common checked-in levels because no classical schedule comparable to the 77
+Weber levels exists in this repository.
 
 ## 1. Sound early abort
 
@@ -45,8 +46,8 @@ spent 465.623 s screening 2,376 orders and 1,097.637 s total.  It was a sound
 rejection, but it is not a valid speedup comparison with the later optimized
 index-1 run because the binaries differ.
 
-The retained production history through global index 7 contains eight sound
-smoothness rejections.  In total, 102 complete trace candidates generated 204
+The retained production history through global index 8 contains nine sound
+smoothness rejections.  In total, 104 complete trace candidates generated 208
 exact curve/twist order screens, and no exact point count was completed.  This
 quantifies useful early-exit incidence, but the missing same-build `cap=64`
 versus `cap=1` replay means there is not yet an attributable early-abort wall
@@ -100,8 +101,8 @@ passes the entire interleaved list to the exact-smooth engine.  No second SEA
 run is needed for the twist.
 
 The exact operation count is therefore two order candidates per SEA trace.
-For the first eight retained `p125` curves, eight SEA executions produced 102
-bounded trace candidates and 204 exact order screens.  Relative to separately
+For the first nine retained `p125` curves, nine SEA executions produced 104
+bounded trace candidates and 208 exact order screens.  Relative to separately
 point-counting both members of each curve/twist pair, this removes one of two
 SEA invocations per generated pair (**50% of SEA invocation count**).  That is
 an algebraic work-count result, not a measured 2x wall speedup: smoothness and
@@ -115,25 +116,31 @@ sides.  See [search pipeline](search_pipeline.md) and `tests/test_core.cpp` /
 
 ## 4. Prime scheduling
 
-The current production loop visits authenticated, available prime levels in
-strictly increasing order (starting at 5 and skipping 3 and missing tables).
-It does not rank levels from measured information probability divided by cost,
-and no alternate ordering has been replayed on the same curves.
+The benchmark-only scheduler ranks a complete level profile by decreasing
+measured information per cost.  Cross-products are compared with exact integer
+arithmetic, ties retain increasing-prime order, and malformed, duplicate,
+missing, extra, or zero-cost rows fail closed.  Production does not consume a
+profile and therefore remains strictly increasing-order.
 
-There is useful input to a future scheduler, but not yet an ablation:
+The profile used all eight unique production indices 0--7 for information:
+an exact residue contributes `log2(ell)`, while a certified Atkin set of size
+`r` contributes `log2(ell/r)`.  Current optimized indices 4 and 8 supplied
+the complete per-level cost sample.  A separate held-out `p125` curve was run
+through every available level at or below 193 in two interleaved pairs.
 
-- the certified level-7 Atkin slice removed exactly `5/7` of the current
-  ambiguity (1.807354922 bits) while levels 5 and 7 together took 0.34 s;
-- production index 4 used 64 levels, 31 exact residues, and finished with 15
-  traces; and
-- retained per-level records contain modular-root, codomain, BMSS, and
-  eigenvalue times, plus exact/Atkin information gain.
+| Schedule | Wall runs | Median wall | Median user |
+|---|---:|---:|---:|
+| Increasing prime | 58.57, 57.32 s | 57.945 s | 49.805 s |
+| Expected information/cost | 57.94, 58.78 s | 58.36 s | 50.15 s |
 
-The level-7 measurement does not isolate level-7 cost, and a single curve does
-not estimate its probability of supplying information.  Consequently no
-schedule speedup is claimed.  Closing this row requires a frozen curve set and
-same-binary replays of increasing order versus a schedule trained on a
-disjoint curve set, with terminal trace sets checked for equality.
+All four runs produced identical final exact/effective constraints and the
+same sorted intrinsic/operation-count SHA-256
+`4bf0522c292002a1b9c51726684b9feae0c3bc05119867afcecd4d6622ce0d98`.
+The scored order was 0.716% slower by median wall time, which is noise rather
+than evidence of benefit.  Increasing order therefore remains the measured,
+simpler production policy.  The profile, command identity, order, and raw
+hashes are retained in
+`artifacts/local/p125-prime-schedule-20260801/`.
 
 ## 5. Specialized Weber modular-polynomial path
 
@@ -257,6 +264,9 @@ Source: [AWS benchmark](aws_benchmark_20260801.md), [AWS operations](aws.md), an
 - The same-binary level-5/7 Weber/classical commands and negative timing
   boundary are in
   [the low-level comparison artifact](../artifacts/local/p125-weber-classical-lowlevel-20260801/result.json).
+- The trained profile, held-out two-pair scheduling A/B, equality hashes, and
+  negative result are in
+  [the prime-scheduling artifact](../artifacts/local/p125-prime-schedule-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

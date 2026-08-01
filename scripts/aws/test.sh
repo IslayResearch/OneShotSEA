@@ -60,6 +60,10 @@ launch="$(AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
   fail 'unbounded benchmark was accepted'
 fi
 
+if grep -E 'version[[:space:]]*\|[[:space:]]*head' "${SCRIPT_DIR}/deploy.sh" >/dev/null; then
+  fail 'deploy version probe can trigger SIGPIPE under pipefail'
+fi
+
 python3 - "$PROJECT_ROOT" <<'PY'
 import importlib.util
 import pathlib

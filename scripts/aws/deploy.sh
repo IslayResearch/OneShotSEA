@@ -86,8 +86,10 @@ git -C "$deploy_dir" remote remove origin
   uname -a
   lscpu || true
   free -h || true
-  c++ --version | head -n 1
-  make --version | head -n 1
+  # sed consumes the complete producer output.  With pipefail, head can close
+  # the pipe early and turn an otherwise healthy deployment into SIGPIPE 141.
+  c++ --version | sed -n "1p"
+  make --version | sed -n "1p"
   rpm -q gmp-devel libgomp 2>/dev/null || true
 } >"$deploy_dir/environment.txt"
 (cd "$deploy_dir" && make -j "$jobs" all) 2>&1 | tee "$deploy_dir/build.log"

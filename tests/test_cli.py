@@ -145,9 +145,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual(
             [record["exact"] for record in records[:-1]], [True, False, True]
         )
+        self.assertEqual(records[1]["atkin_projective_order"], 4)
+        self.assertEqual(records[1]["atkin_residue_count"], 2)
+        self.assertEqual(records[1]["exact_trace_candidates"], "11")
+        self.assertEqual(records[1]["trace_candidates"], "2")
         self.assertEqual(records[-1]["type"], "summary")
         self.assertEqual(records[-1]["status"], "trace_set_enumerated")
         self.assertEqual(records[-1]["exact_modulus"], "55")
+        self.assertEqual(records[-1]["constraint_modulus"], "385")
+        self.assertEqual(records[-1]["atkin_constraints"], 1)
         self.assertEqual(records[-1]["traces"], ["-6"])
 
     def test_no_rational_weber_lift_is_explicitly_incomplete(self) -> None:

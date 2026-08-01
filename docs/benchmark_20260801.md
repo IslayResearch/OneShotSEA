@@ -68,3 +68,30 @@ Retained evaluation artifacts:
 
 The host was the same Apple M4 Mac mini (10 cores, 16 GB) used by the earlier
 records, running macOS 26.5.1 with Apple clang 21.0.0.
+
+## Certified level-7 Atkin reduction
+
+The first production-safe Atkin slice was measured on the exact `p125` curve
+used by the retained AWS level-193 benchmark:
+
+```sh
+./build/oneshotsea sea-weber-count \
+  --p "$p" --a "$a" --b "$b" \
+  --max-level 7 --table-dir data/modpoly/weber_f \
+  --trace-cap 64 --sea-threads 1
+```
+
+Level 5 supplied the exact residue `t = 3 (mod 5)`.  The independently
+generated classical `Phi_7` specialization was square-free with uniform
+irreducible factor degree `r=4`, proving the two allowed Atkin residues at
+level 7.  The exact-only and effective Hasse counts were:
+
+```text
+exact-only = 252982212813470346559911483554617482697564411146017346148600388
+effective  =  72280632232420099017117566729890709342161260327433527471028682
+```
+
+This removes exactly `5/7` of the ambiguity, a factor of `3.5` or
+`1.807354922` bits, in 0.34 seconds wall time for both levels on the Apple M4.
+It is not a complete count or a search-speedup claim.  Only levels 5 and 7 are
+enabled, and a trace-cap-one run still requires exact Elkies uniqueness.

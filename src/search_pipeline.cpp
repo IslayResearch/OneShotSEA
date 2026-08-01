@@ -1,5 +1,6 @@
 #include "oneshotsea/search_pipeline.hpp"
 
+#include "oneshotsea/atkin.hpp"
 #include "oneshotsea/sea.hpp"
 #include "oneshotsea/weber_curve_generator.hpp"
 
@@ -273,6 +274,14 @@ std::size_t exact_level_count(const WeberSeaResult& result) {
     return static_cast<std::size_t>(std::count_if(
         result.levels.begin(), result.levels.end(),
         [](const WeberSeaLevelRecord& level) { return level.exact; }));
+}
+
+std::size_t atkin_level_count(const WeberSeaResult& result) {
+    return static_cast<std::size_t>(std::count_if(
+        result.levels.begin(), result.levels.end(),
+        [](const WeberSeaLevelRecord& level) {
+            return level.atkin_projective_order.has_value();
+        }));
 }
 
 bool has_large_enough_smooth_part(
@@ -893,7 +902,11 @@ SearchCurveReport process_search_curve(
                 level.exact,
                 level.trace_residue,
                 level.exact_modulus,
+                level.constraint_modulus,
+                level.exact_trace_candidate_count,
                 level.trace_candidate_count,
+                level.atkin_projective_order,
+                level.atkin_residue_count,
                 level.compatible_source_lifts,
                 level.timings.modular_root_workers,
                 level.timings.source_lifts_us,
@@ -910,6 +923,7 @@ SearchCurveReport process_search_curve(
         ++report.sea_passes;
         report.sea_levels += result.levels.size();
         report.exact_sea_levels += exact_level_count(result);
+        report.atkin_sea_levels += atkin_level_count(result);
         return result;
     };
 
@@ -1310,7 +1324,8 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << report.rejected_generator_samples << "\",\"sea_passes\":\""
            << report.sea_passes << "\",\"sea_levels\":\""
            << report.sea_levels << "\",\"exact_sea_levels\":\""
-           << report.exact_sea_levels << "\",\"initial_trace_count\":\""
+           << report.exact_sea_levels << "\",\"atkin_sea_levels\":\""
+           << report.atkin_sea_levels << "\",\"initial_trace_count\":\""
            << report.initial_trace_count << '"';
     if (report.exact_trace.has_value()) {
         output << ",\"trace\":\"" << *report.exact_trace << '"';
@@ -1342,8 +1357,20 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                    << '"';
         }
         output << ",\"exact_modulus\":\"" << level.exact_modulus
+               << "\",\"constraint_modulus\":\""
+               << level.constraint_modulus
+               << "\",\"exact_trace_candidate_count\":\""
+               << level.exact_trace_candidate_count
                << "\",\"trace_candidate_count\":\""
                << level.trace_candidate_count
+               << "\",\"atkin_projective_order\":";
+        if (level.atkin_projective_order.has_value()) {
+            output << '"' << *level.atkin_projective_order << '"';
+        } else {
+            output << "null";
+        }
+        output << ",\"atkin_residue_count\":\""
+               << level.atkin_residue_count
                << "\",\"compatible_source_lifts\":\""
                << level.compatible_source_lifts
                << "\",\"modular_root_workers\":\""
@@ -1408,11 +1435,27 @@ std::string weber_table_manifest_sha256(
         throw std::invalid_argument("no Weber tables exist through max level");
     }
     Sha256 manifest;
-    manifest.update("oneshotsea.weber-table-manifest.v1\n");
+    manifest.update("oneshotsea.sea-table-manifest.v2\n");
     for (const auto& [level, path] : tables) {
-        const std::string record = std::to_string(level) + " " +
+        const std::string record = "weber-f " + std::to_string(level) + " " +
             path.filename().string() + " " + sha256_file(path) + "\n";
         manifest.update(record);
+    }
+    const std::filesystem::path classical_directory =
+        table_directory.parent_path() / "j";
+    for (const std::uint64_t ell : {5U, 7U}) {
+        if (ell > max_level) {
+            continue;
+        }
+        if (load_trusted_classical_atkin_table(
+                classical_directory, ell).has_value()) {
+            const std::filesystem::path path = classical_directory /
+                ("phi_" + std::to_string(ell) + ".txt");
+            const std::string record = "classical-j-atkin " +
+                std::to_string(ell) + " " + path.filename().string() + " " +
+                sha256_file(path) + "\n";
+            manifest.update(record);
+        }
     }
     return manifest.hex_digest();
 }
@@ -1427,7 +1470,7 @@ std::string search_schedule_sha256(
     std::ostringstream canonical;
     canonical << "oneshotsea.search-schedule.v1\n"
               << "curve_generator=weber-f-montgomery-filtered-v2\n"
-              << "sea=weber-reference-two-pass-v1\n"
+              << "sea=weber-reference-two-pass-classical-atkin-v2\n"
               << "heuristic_rejection=disabled\n"
               << "prime=" << config.prime << '\n'
               << "max_level=" << config.max_level << '\n'

@@ -1,3 +1,4 @@
+#include "oneshotsea/atkin.hpp"
 #include "oneshotsea/curve.hpp"
 #include "oneshotsea/factor.hpp"
 #include "oneshotsea/modpoly.hpp"
@@ -5,11 +6,15 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <numeric>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include <unistd.h>
 
 namespace {
 
@@ -156,10 +161,15 @@ void test_classical_factor_degrees() {
                                   static_cast<int>(order);
                           }),
                       "classical modular factor degree equals PGL order");
-                const auto allowed =
-                    oneshotsea::atkin_trace_residues_from_projective_order(
-                        fixture.ell, mpz_class(p), order);
-                check(std::binary_search(allowed.begin(), allowed.end(), residue),
+                const auto evidence =
+                    oneshotsea::classical_atkin_constraint_reference(
+                        curve, modular_polynomial);
+                check(evidence.has_value() &&
+                          evidence->projective_order == order &&
+                          evidence->ell == fixture.ell,
+                      "production classifier recovers the factor degree");
+                check(std::binary_search(evidence->trace_residues.begin(),
+                                         evidence->trace_residues.end(), residue),
                       "factor-derived Atkin constraint retains the true trace");
                 ++checked;
             }
@@ -169,12 +179,64 @@ void test_classical_factor_degrees() {
           "classical factor-degree differential has broad Atkin coverage");
 }
 
+void test_trust_boundary_and_adversarial_specializations() {
+    const auto phi5 = oneshotsea::load_trusted_classical_atkin_table(
+        "data/modpoly/j", 5);
+    const auto phi7 = oneshotsea::load_trusted_classical_atkin_table(
+        "data/modpoly/j", 7);
+    check(phi5.has_value() && phi7.has_value(),
+          "production Atkin tables pass their pinned digests");
+    check(!oneshotsea::load_trusted_classical_atkin_table(
+               "data/modpoly/j", 11).has_value(),
+          "untrusted classical levels are not admitted");
+
+    const oneshotsea::Curve fixture(oneshotsea::Field(193), 148, 168);
+    const auto atkin = oneshotsea::classical_atkin_constraint_reference(
+        fixture, *phi7);
+    check(atkin.has_value() && atkin->projective_order == 4U &&
+              atkin->trace_residues == std::vector<std::uint64_t>({1U, 6U}),
+          "level-7 factor evidence recovers the oracle Atkin constraint");
+    check(!oneshotsea::classical_atkin_constraint_reference(
+               fixture, *phi5).has_value(),
+          "a rational modular root is not mislabeled Atkin");
+
+    const oneshotsea::SparseModularPolynomial repeated(
+        7, {{0U, 8U, 1}});
+    check(!oneshotsea::classical_atkin_constraint_reference(
+               fixture, repeated).has_value(),
+          "a repeated specialization fails closed");
+
+    const std::filesystem::path temporary =
+        std::filesystem::temp_directory_path() /
+        ("oneshotsea-atkin-" + std::to_string(::getpid()));
+    std::filesystem::create_directories(temporary);
+    const std::filesystem::path corrupt = temporary / "phi_5.txt";
+    std::filesystem::copy_file(
+        "data/modpoly/j/phi_5.txt", corrupt,
+        std::filesystem::copy_options::overwrite_existing);
+    {
+        std::ofstream output(corrupt, std::ios::app);
+        output << "# digest corruption\n";
+    }
+    bool rejected_corrupt_table = false;
+    try {
+        static_cast<void>(
+            oneshotsea::load_trusted_classical_atkin_table(temporary, 5));
+    } catch (const std::runtime_error&) {
+        rejected_corrupt_table = true;
+    }
+    std::filesystem::remove_all(temporary);
+    check(rejected_corrupt_table,
+          "a present classical table with the wrong digest hard-fails");
+}
+
 }  // namespace
 
 int main() {
     try {
         test_projective_order_and_residue_sets();
         test_classical_factor_degrees();
+        test_trust_boundary_and_adversarial_specializations();
         std::cout << "Atkin projective-order tests passed\n";
         return 0;
     } catch (const std::exception& error) {

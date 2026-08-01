@@ -437,9 +437,21 @@ int main(int argc, char** argv) {
                     std::cout << ",\"trace_residue\":" << *record.trace_residue;
                 }
                 std::cout << ",\"exact_modulus\":\"" << record.exact_modulus
+                          << "\",\"constraint_modulus\":\""
+                          << record.constraint_modulus
+                          << "\",\"exact_trace_candidates\":\""
+                          << record.exact_trace_candidate_count
                           << "\",\"trace_candidates\":\""
                           << record.trace_candidate_count
-                          << "\",\"compatible_source_lifts\":"
+                          << "\",\"atkin_projective_order\":";
+                if (record.atkin_projective_order.has_value()) {
+                    std::cout << *record.atkin_projective_order;
+                } else {
+                    std::cout << "null";
+                }
+                std::cout << ",\"atkin_residue_count\":"
+                          << record.atkin_residue_count
+                          << ",\"compatible_source_lifts\":"
                           << record.compatible_source_lifts
                           << ",\"modular_root_workers\":"
                           << record.timings.modular_root_workers
@@ -467,9 +479,15 @@ int main(int argc, char** argv) {
                 static_cast<std::size_t>(sea_threads_u64));
             std::cout << "{\"type\":\"summary\",\"exact_modulus\":\""
                       << result.constraints.modulus()
-                      << "\",\"trace_candidates\":\""
+                      << "\",\"constraint_modulus\":\""
+                      << result.effective_constraints.modulus()
+                      << "\",\"exact_trace_candidates\":\""
                       << result.constraints.candidate_count()
-                      << "\",\"compatible_source_lifts\":"
+                      << "\",\"trace_candidates\":\""
+                      << result.effective_constraints.candidate_count()
+                      << "\",\"atkin_constraints\":"
+                      << result.atkin_constraints.size()
+                      << ",\"compatible_source_lifts\":"
                       << result.compatible_source_lifts.size()
                       << ",\"levels_processed\":" << result.levels.size()
                       << ",\"status\":\""

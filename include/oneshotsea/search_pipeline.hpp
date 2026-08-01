@@ -75,7 +75,11 @@ struct SearchSeaLevelTiming {
     bool exact = false;
     std::optional<std::uint64_t> trace_residue;
     mpz_class exact_modulus = 1;
+    mpz_class constraint_modulus = 1;
+    mpz_class exact_trace_candidate_count = 0;
     mpz_class trace_candidate_count = 0;
+    std::optional<std::uint64_t> atkin_projective_order;
+    std::size_t atkin_residue_count = 0;
     std::size_t compatible_source_lifts = 0;
     std::size_t modular_root_workers = 0;
     std::uint64_t source_lifts_us = 0;
@@ -93,6 +97,7 @@ struct SearchCurveReport {
     std::size_t sea_passes = 0;
     std::size_t sea_levels = 0;
     std::size_t exact_sea_levels = 0;
+    std::size_t atkin_sea_levels = 0;
     std::vector<SearchSeaLevelTiming> sea_level_timings;
     std::size_t initial_trace_count = 0;
     std::optional<mpz_class> exact_trace;

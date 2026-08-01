@@ -416,6 +416,22 @@ descend the specialized Weber relation through
 `j(z)=(z^24-16)^3/z^24`, certify the descended factor degree/projective order,
 and fail closed on repeated roots, collisions, or exceptional descent.
 
+As a production-safe first slice, the independently generated and checksummed
+classical `Phi_5` and `Phi_7` tables are used directly.  A specialization
+supplies Atkin evidence only when it is monic and square-free of degree
+`l+1`, has no linear factor, and every irreducible factor has one common degree
+`r | l+1`.  Repeated roots, mixed degrees, rational roots, exceptional source
+invariants, absent tables, and untrusted levels supply no Atkin constraint; a
+present level-5 or level-7 table with the wrong pinned digest is a hard error.
+Thus an empty Weber result is never the premise of the classification.
+
+The resulting constraint is held separately from exact Elkies CRT state.  It
+may reduce a complete bounded trace set for sound smoothness rejection, but a
+trace-cap-one pass ignores Atkin uniqueness and continues until the exact
+Elkies CRT alone identifies the trace.  Full Weber-to-`j` descent remains the
+route to extending this optimization beyond the two authenticated classical
+levels.
+
 Atkin constraints are ranked by
 
 ```text

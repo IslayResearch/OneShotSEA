@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 AUDITOR = ROOT / "tools" / "audit_sea_progress.py"
 
 
-def fixture(second_residue: str = "1") -> dict[str, object]:
+def fixture(second_residue: str = "5") -> dict[str, object]:
     return {
         "schema": "oneshotsea.search-curve.v1",
         "index": "7",
@@ -25,21 +25,29 @@ def fixture(second_residue: str = "1") -> dict[str, object]:
                 "exact": True,
                 "trace_residue": "4",
                 "exact_modulus": "5",
+                "constraint_modulus": "5",
+                "exact_trace_candidate_count": "8",
                 "trace_candidate_count": "8",
             },
             {
                 "pass": "1",
                 "ell": "7",
-                "exact": True,
-                "trace_residue": second_residue,
-                "exact_modulus": "35",
-                "trace_candidate_count": "1",
+                "exact": False,
+                "exact_modulus": "5",
+                "constraint_modulus": "35",
+                "exact_trace_candidate_count": "8",
+                "trace_candidate_count": "5",
+                "atkin_projective_order": "8",
+                "atkin_residue_count": "4",
             },
             {
                 "pass": "1",
                 "ell": "11",
-                "exact": False,
-                "exact_modulus": "35",
+                "exact": True,
+                "trace_residue": second_residue,
+                "exact_modulus": "55",
+                "constraint_modulus": "385",
+                "exact_trace_candidate_count": "1",
                 "trace_candidate_count": "1",
             },
         ],
@@ -70,12 +78,20 @@ class ProgressAuditTests(unittest.TestCase):
         self.assertEqual(result["curve_order"], "108")
         self.assertEqual(result["twist_order"], "96")
         self.assertEqual(result["exact_levels"], 2)
-        self.assertEqual(result["passes"], [{"pass": 1, "modulus": "35"}])
+        self.assertEqual(result["atkin_levels"], 1)
+        self.assertEqual(result["passes"], [{"pass": 1, "modulus": "55"}])
 
     def test_rejects_residue_disagreement(self) -> None:
         completed = self.run_audit(fixture(second_residue="2"))
         self.assertEqual(completed.returncode, 1)
-        self.assertIn("independent trace disagrees at ell=7", completed.stderr)
+        self.assertIn("independent trace disagrees at ell=11", completed.stderr)
+
+    def test_rejects_corrupt_atkin_order(self) -> None:
+        value = fixture()
+        value["sea_level_timings"][1]["atkin_projective_order"] = "4"
+        completed = self.run_audit(value)
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("Atkin order 4", completed.stderr)
 
 
 if __name__ == "__main__":

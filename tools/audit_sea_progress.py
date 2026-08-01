@@ -36,6 +36,57 @@ def combine_crt(residue: int, modulus: int, small: int, ell: int) -> int:
     return (residue + modulus * step) % (modulus * ell)
 
 
+def matrix_multiply(
+    left: tuple[int, int, int, int],
+    right: tuple[int, int, int, int],
+    ell: int,
+) -> tuple[int, int, int, int]:
+    a, b, c, d = left
+    e, f, g, h = right
+    return (
+        (a * e + b * g) % ell,
+        (a * f + b * h) % ell,
+        (c * e + d * g) % ell,
+        (c * f + d * h) % ell,
+    )
+
+
+def projective_order(ell: int, prime: int, trace: int) -> int:
+    matrix = (0, -prime % ell, 1, trace % ell)
+    power = (1, 0, 0, 1)
+    # The nonsplit Atkin case has order dividing ell+1. This deliberately
+    # uses independent repeated multiplication rather than mirroring the
+    # optimized order-reduction code in src/trace.cpp.
+    for order in range(1, ell + 2):
+        power = matrix_multiply(power, matrix, ell)
+        if power[1] == 0 and power[2] == 0 and power[0] == power[3]:
+            return order
+    fail(f"Frobenius did not become scalar through ell+1 at ell={ell}")
+
+
+def atkin_residues(ell: int, prime: int, order: int) -> list[int]:
+    if order < 2 or (ell + 1) % order:
+        fail(f"invalid Atkin projective order {order} at ell={ell}")
+    values: list[int] = []
+    for trace in range(ell):
+        discriminant = (trace * trace - 4 * prime) % ell
+        if (
+            discriminant
+            and pow(discriminant, (ell - 1) // 2, ell) == ell - 1
+            and projective_order(ell, prime, trace) == order
+        ):
+            values.append(trace)
+    if not values:
+        fail(f"Atkin order {order} produced no residues at ell={ell}")
+    return values
+
+
+def residue_set_candidate_count(
+    radius: int, residues: list[int], modulus: int
+) -> int:
+    return sum(candidate_count(radius, residue, modulus) for residue in residues)
+
+
 def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
     if record.get("schema") != "oneshotsea.search-curve.v1":
         fail("selected record is not a search-curve record")
@@ -54,7 +105,10 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
     prior_ell = 0
     residue = 0
     modulus = 1
+    effective_residues = [0]
+    effective_modulus = 1
     exact_levels = 0
+    atkin_levels = 0
     passes: list[dict[str, object]] = []
     for position, raw_level in enumerate(levels):
         if not isinstance(raw_level, dict):
@@ -70,6 +124,8 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
             prior_ell = 0
             residue = 0
             modulus = 1
+            effective_residues = [0]
+            effective_modulus = 1
         if ell <= prior_ell:
             fail(f"SEA levels are not increasing within pass {current_pass}")
         prior_ell = ell
@@ -89,16 +145,46 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
                 )
             residue = combine_crt(residue, modulus, small, ell)
             modulus *= ell
+            effective_residues = [
+                combine_crt(value, effective_modulus, small, ell)
+                for value in effective_residues
+            ]
+            effective_modulus *= ell
             exact_levels += 1
         elif claimed_residue is not None:
             fail(f"nonexact level ell={ell} unexpectedly claims a residue")
 
+        claimed_atkin_order = raw_level.get("atkin_projective_order")
+        if claimed_atkin_order is not None:
+            if exact:
+                fail(f"exact level ell={ell} also claims Atkin evidence")
+            order = decimal(
+                claimed_atkin_order,
+                f"level[{position}].atkin_projective_order",
+            )
+            allowed = atkin_residues(ell, prime, order)
+            logged_residue_count = decimal(
+                raw_level.get("atkin_residue_count"),
+                f"level[{position}].atkin_residue_count",
+            )
+            if logged_residue_count != len(allowed):
+                fail(
+                    f"Atkin residue-count mismatch at ell={ell}: expected "
+                    f"{len(allowed)}, logged {logged_residue_count}"
+                )
+            if trace % ell not in allowed:
+                fail(f"independent trace violates Atkin constraint at ell={ell}")
+            effective_residues = [
+                combine_crt(value, effective_modulus, small, ell)
+                for value in effective_residues
+                for small in allowed
+            ]
+            effective_residues = sorted(set(effective_residues))
+            effective_modulus *= ell
+            atkin_levels += 1
+
         logged_modulus = decimal(
             raw_level.get("exact_modulus"), f"level[{position}].exact_modulus"
-        )
-        logged_count = decimal(
-            raw_level.get("trace_candidate_count"),
-            f"level[{position}].trace_candidate_count",
         )
         if logged_modulus != modulus:
             fail(
@@ -106,11 +192,41 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
                 f"logged {logged_modulus}"
             )
         expected_count = candidate_count(radius, residue, modulus)
-        if logged_count != expected_count:
+        logged_exact_count_value = raw_level.get("exact_trace_candidate_count")
+        # Backward compatibility for retained pre-Atkin v1 records.
+        logged_exact_count = decimal(
+            raw_level.get("trace_candidate_count")
+            if logged_exact_count_value is None else logged_exact_count_value,
+            f"level[{position}].exact_trace_candidate_count",
+        )
+        if logged_exact_count != expected_count:
             fail(
-                f"candidate count mismatch at ell={ell}: expected "
-                f"{expected_count}, logged {logged_count}"
+                f"exact candidate-count mismatch at ell={ell}: expected "
+                f"{expected_count}, logged {logged_exact_count}"
             )
+        logged_constraint_modulus_value = raw_level.get("constraint_modulus")
+        if logged_constraint_modulus_value is not None:
+            logged_constraint_modulus = decimal(
+                logged_constraint_modulus_value,
+                f"level[{position}].constraint_modulus",
+            )
+            if logged_constraint_modulus != effective_modulus:
+                fail(
+                    f"effective modulus mismatch at ell={ell}: expected "
+                    f"{effective_modulus}, logged {logged_constraint_modulus}"
+                )
+            effective_count = residue_set_candidate_count(
+                radius, effective_residues, effective_modulus
+            )
+            logged_effective_count = decimal(
+                raw_level.get("trace_candidate_count"),
+                f"level[{position}].trace_candidate_count",
+            )
+            if logged_effective_count != effective_count:
+                fail(
+                    f"effective candidate-count mismatch at ell={ell}: "
+                    f"expected {effective_count}, logged {logged_effective_count}"
+                )
     passes.append({"pass": current_pass, "modulus": str(modulus)})
     return {
         "schema": "oneshotsea.sea-progress-audit.v1",
@@ -122,6 +238,7 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
         "curve_twist_sum": str(2 * prime + 2),
         "levels": len(levels),
         "exact_levels": exact_levels,
+        "atkin_levels": atkin_levels,
         "passes": passes,
         "verified": True,
     }

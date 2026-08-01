@@ -354,8 +354,29 @@ void test_weber_sea_runner() {
           "every SEA level reports bounded modular-root workers");
     check(result.constraints.modulus() == 55 && result.levels.size() == 3,
           "stateful Weber SEA runner accumulates exact levels only");
-    check(result.levels[1].ell == 7 && !result.levels[1].exact,
-          "empty Weber level preserves the accumulated exact state");
+    check(result.levels[1].ell == 7 && !result.levels[1].exact &&
+              result.levels[1].atkin_projective_order == 4U &&
+              result.levels[1].exact_trace_candidate_count == 11 &&
+              result.levels[1].trace_candidate_count == 2 &&
+              result.effective_constraints.modulus() == 385,
+          "trusted classical factor degree safely constrains an empty Weber level");
+    check(result.atkin_constraints.size() == 1U &&
+              result.atkin_constraints.front().trace_residues ==
+                  std::vector<std::uint64_t>({1U, 6U}),
+          "SEA result retains auditable Atkin evidence");
+
+    const auto atkin_screen = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 7, 2, {}, 1);
+    check(atkin_screen.traces ==
+              std::optional<std::vector<mpz_class>>(
+                  std::vector<mpz_class>{-6, -1}) &&
+              atkin_screen.constraints.candidate_count() == 11,
+          "Atkin evidence supplies a complete bounded early-screen set");
+    const auto exact_gate = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 7, 1, {}, 1);
+    check(!exact_gate.traces.has_value() &&
+              exact_gate.effective_constraints.candidate_count() == 2,
+          "Atkin evidence cannot satisfy the exact unique-trace gate");
 }
 
 void test_early_abort() {

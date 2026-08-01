@@ -1,5 +1,6 @@
 #include "oneshotsea/sea.hpp"
 
+#include "oneshotsea/atkin.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/weber.hpp"
 
@@ -28,6 +29,18 @@ bool count_fits_cap(const mpz_class& count, std::size_t cap) {
     return count <= cap_integer;
 }
 
+bool completion_fits_cap(const WeberSeaResult& result, std::size_t cap) {
+    return cap == 1U
+        ? count_fits_cap(result.constraints.candidate_count(), cap)
+        : count_fits_cap(result.effective_constraints.candidate_count(), cap);
+}
+
+std::optional<std::vector<mpz_class>> enumerate_completed(
+    const WeberSeaResult& result, std::size_t cap) {
+    return cap == 1U ? result.constraints.enumerate(cap)
+                     : result.effective_constraints.enumerate(cap);
+}
+
 }  // namespace
 
 WeberSeaResult run_weber_sea_reference(
@@ -53,7 +66,8 @@ WeberSeaResult run_weber_sea_reference(
     }
 
     WeberSeaResult result{
-        TraceConstraints(curve.field().modulus()), {},
+        TraceConstraints(curve.field().modulus()),
+        TraceConstraints(curve.field().modulus()), {}, {},
         weber_f_lifts(curve.field(), curve.j_invariant()), std::nullopt};
     if (result.compatible_source_lifts.empty()) {
         return result;
@@ -75,6 +89,13 @@ WeberSeaResult run_weber_sea_reference(
             curve, modular_polynomial, &result.compatible_source_lifts,
             modular_root_threads);
         std::optional<std::uint64_t> residue;
+        std::optional<AtkinConstraint> atkin;
+        const std::filesystem::path classical_directory =
+            directory.parent_path() / "j";
+        if (const auto classical = load_trusted_classical_atkin_table(
+                classical_directory, ell); classical.has_value()) {
+            atkin = classical_atkin_constraint_reference(curve, *classical);
+        }
         if (!level.kernels.empty()) {
             residue = level.kernels.front().trace_residue;
             for (const ElkiesKernelResult& kernel : level.kernels) {
@@ -90,13 +111,32 @@ WeberSeaResult run_weber_sea_reference(
             result.compatible_source_lifts =
                 std::move(level.compatible_source_lifts);
             result.constraints.refine_exact(ell, *residue);
+            result.effective_constraints.refine_exact(ell, *residue);
+            if (atkin.has_value()) {
+                throw std::runtime_error(
+                    "classical Atkin evidence contradicts an exact Weber residue");
+            }
+        } else if (atkin.has_value()) {
+            result.effective_constraints.refine(
+                ell, atkin->trace_residues);
+            if (result.effective_constraints.candidate_count() == 0) {
+                throw std::runtime_error(
+                    "certified Atkin constraint eliminated the Hasse interval");
+            }
+            result.atkin_constraints.push_back(*atkin);
         }
         WeberSeaLevelRecord record{
             ell,
             residue.has_value(),
             residue,
             result.constraints.modulus(),
+            result.effective_constraints.modulus(),
             result.constraints.candidate_count(),
+            result.effective_constraints.candidate_count(),
+            atkin.has_value()
+                ? std::optional<std::uint64_t>(atkin->projective_order)
+                : std::nullopt,
+            atkin.has_value() ? atkin->trace_residues.size() : 0U,
             result.compatible_source_lifts.size(),
             level.timings,
         };
@@ -104,17 +144,16 @@ WeberSeaResult run_weber_sea_reference(
         if (progress) {
             progress(result.levels.back());
         }
-        if (count_fits_cap(record.trace_candidate_count, trace_cap)) {
-            result.traces = result.constraints.enumerate(trace_cap);
+        if (completion_fits_cap(result, trace_cap)) {
+            result.traces = enumerate_completed(result, trace_cap);
             break;
         }
         if (ell > max_level - 2U) {
             break;
         }
     }
-    if (!result.traces.has_value() &&
-        count_fits_cap(result.constraints.candidate_count(), trace_cap)) {
-        result.traces = result.constraints.enumerate(trace_cap);
+    if (!result.traces.has_value() && completion_fits_cap(result, trace_cap)) {
+        result.traces = enumerate_completed(result, trace_cap);
     }
     return result;
 }

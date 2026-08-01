@@ -14,10 +14,13 @@ part, validates the result natively, and finally invokes the unmodified pinned
 successfully.
 
 The first SEA pass may stop at a bounded, complete set of Hasse-compatible
-traces.  If every curve and twist order in that set has exact smooth part at or
-below the certificate lower bound, rejection is sound.  Otherwise the curve is
-rerun with trace cap one and cannot enter certificate assembly until SEA returns
-exactly one trace.  Heuristic rejection is disabled in this command.
+traces.  This set includes exact Elkies residues and may also include certified
+factor-degree constraints from the authenticated classical level-5 and
+level-7 tables. If every curve and twist order in that set has exact smooth
+part at or below the certificate lower bound, rejection is sound. Otherwise
+the curve is rerun with trace cap one; Atkin constraints cannot satisfy that
+unique-trace gate, so certificate assembly still requires uniqueness from the
+exact Elkies CRT. Heuristic rejection is disabled in this command.
 
 An example local run is:
 
@@ -73,8 +76,10 @@ survives early screening.  Increasing the range does not remedy an inadequate
 table schedule.
 
 Every per-level search record retains `trace_residue` for exact Elkies levels,
-the accumulated `exact_modulus`, the complete Hasse-interval
-`trace_candidate_count`, and the number of compatible Weber source lifts.
+the accumulated `exact_modulus`, `exact_trace_candidate_count`, the combined
+`constraint_modulus`, effective `trace_candidate_count`, optional
+`atkin_projective_order`, `atkin_residue_count`, and the number of compatible
+Weber source lifts.
 After obtaining an independent final trace, audit these claims with:
 
 ```sh
@@ -83,10 +88,12 @@ python3 tools/audit_sea_progress.py \
   --index GLOBAL_INDEX --trace MAGMA_TRACE
 ```
 
-The auditor independently rebuilds the exact CRT, checks every residue against
-the supplied trace, recomputes the Hasse candidate count after every level,
-and reports the curve/twist orders and their `2p+2` sum.  Old progress files
-that predate these fields intentionally fail this stronger audit.
+The auditor independently rebuilds the exact CRT, checks every exact residue
+against the supplied trace, reconstructs each logged PGL order by repeated
+matrix multiplication, regenerates its Atkin residue set, and recomputes both
+exact and effective Hasse candidate counts after every level. It reports the
+curve/twist orders and their `2p+2` sum. Retained pre-Atkin v1 records remain
+auditable with their original exact-count semantics.
 
 Useful resource caps include `--max-curves`, `--checkpoint-every`,
 `--sea-threads`, `--smooth-threads`, `--smooth-max-batch`,

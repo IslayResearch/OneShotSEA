@@ -1,11 +1,12 @@
 # Weber-f specialized modular-polynomial path
 
-This is the executable reference path for the specialized modular function
-proposed in the task. It follows Section 7.3 of
+This is the executable CPU production path for the specialized modular
+function proposed in the task. It follows Section 7.3 of
 [Broeker-Lauter-Sutherland](https://arxiv.org/abs/1001.0402) and Sections 3.8
 and 3.9 of [Sutherland](https://arxiv.org/abs/1202.3985).
-The current checked-in levels are an end-to-end reference, not yet a
-large-level production CRT evaluator.
+The checked-in authenticated table set contains 77 admissible prime levels
+through 401.  Its finite-field polynomial arithmetic is still the GMP-backed
+exact implementation rather than the aspirational fixed-limb/Newton backend.
 
 ## Exact normalization
 
@@ -111,16 +112,39 @@ Exceptional zeros of `A`, `j`, `j-1728`, `F'`, or either modular derivative
 must fall back to the classical-j/Schoof path; division through them is not
 valid.
 
+## Exact source-lift orbit reuse
+
+For the table orientation used by the evaluator, every nonzero `X^a Y^b`
+term obeys `a+ell*b=ell+1 (mod 24)`.  Thus, for every 24th root of unity,
+
+```text
+Phi_ell(zeta*f, zeta^ell*y) = zeta^(ell+1) Phi_ell(f,y).
+```
+
+Source lifts with the same `f^24` therefore share one specialization and
+factorization.  The implementation evaluates a representative, transports
+each root by `zeta^ell`, sorts the transported root set, and then continues
+through the unchanged codomain, BMSS, and eigenvalue checks.  It verifies the
+weight identity term-by-term from the loaded table and confirms the lift ratio
+is a 24th root in the field.  Composite fields, unverified tables, disabled
+ablation runs, and an exceptional zero lift retain exact per-lift evaluation.
+
+The 2026-08-01 controlled ablation produced identical canonical SEA records.
+On retained production index 4, root evaluation time fell from 1,252.390 to
+207.917 seconds while all 64 level projections remained identical; see
+`docs/benchmark_20260801.md`.
+
 ## Remaining production work
 
-The exhaustive root/codomain experiment is complete at levels 5 and 7. Weber
-and classical-j paths recover identical kernels and trace residues on the
-admitted fixtures, and the Weber path produces an independently Schoof-checked
-level-7 residue over the 416-bit `p125` field. A curve with no compatible Weber
-class-invariant lift safely returns no result so the scheduler can fall back.
+The end-to-end path is complete through the level-401 production schedule and
+has processed six unique `p125` curves soundly.  The checked-in manifest is
+pinned by digest, and production startup verifies every table filename, byte
+count, and SHA-256 before SEA.  Differential tests cover classical-j/BMSS,
+native Schoof, the 416-bit target field, and Magma oracle traces.
 
-The remaining blockers are the large-level instantiated evaluator and the fast
-arithmetic behind it: generate or explicitly evaluate the levels selected by
-the SEA scheduler, replace quadratic reference power-series arithmetic with
-Newton doubling and fast multiplication, and use dual-composition validation
-when full division polynomials are no longer a practical independent check.
+The remaining outcome blocker is not a missing large-level evaluator: it is
+finding a `p125` order whose exact smooth part supports a canonical certificate.
+The current performance tail is eigenvalue recovery after orbit reuse.  Faster
+fixed-limb field arithmetic, fast polynomial multiplication, and a measured
+small-prime Schoof fallback remain optimization opportunities, but must retain
+the exact fallback and oracle gates rather than becoming completion claims.

@@ -1,12 +1,19 @@
 # SEA search design for one-shot primality certificates
 
-Status: implementation contract.  The bootstrap code currently in `include/` and
-`src/` is a correctness scaffold, not the production implementation described
-here.
+Status: original implementation contract plus target architecture.  The
+repository now has an executable, deterministic CPU production search using
+authenticated Weber tables through level 401, exact GMP-backed arithmetic,
+certified low-level Atkin constraints, exact smoothness, crash-safe identity
+binding, and the pinned canonical verifier.  The fixed-limb/Newton/GPU items
+below remain performance targets, not claims about the current binary.  See
+`docs/search_pipeline.md`, `docs/weber_implementation.md`, and
+`docs/bottleneck_registry.md` for authoritative current behavior and gaps.
 
 ## 1. Decisions
 
-The first production search will make the following choices.
+The original target architecture made the following choices.  Where an item
+is aspirational, the current implementation documents its exact fallback in
+the files cited above.
 
 1. Use C++20 for orchestration and a fixed-modulus, fixed-limb `Fp` backend for
    the hot path.  GMP remains the reference backend and handles integers, CRT,

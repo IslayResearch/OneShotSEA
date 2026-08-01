@@ -41,6 +41,10 @@ The global half-open range is split into deterministic, contiguous, disjoint
 worker shards.  A pre-existing checkpoint is resumed automatically and is
 accepted only when the prime, seed, worker, shard, schedule, table-content
 manifest, cache content, verifier content, and build identity agree.  The
+checked-in Weber manifest is itself pinned by digest, and production startup
+authenticates the complete table filename set, byte counts, and per-file
+SHA-256 values before deriving the schedule identity.  Missing, extra, or
+altered tables fail before a curve is processed.  The
 schedule identity explicitly versions the Montgomery-compatibility filter, so
 checkpoints from the earlier unfiltered generator cannot be mistaken for the
 same deterministic index distribution.  The
@@ -79,7 +83,10 @@ Every per-level search record retains `trace_residue` for exact Elkies levels,
 the accumulated `exact_modulus`, `exact_trace_candidate_count`, the combined
 `constraint_modulus`, effective `trace_candidate_count`, optional
 `atkin_projective_order`, `atkin_residue_count`, and the number of compatible
-Weber source lifts.
+Weber source lifts.  It also logs the actual modular-root worker and orbit
+counts, the number of lifts served by exact orbit transport, whether verified
+orbit reuse occurred, and the per-stage timings.  These fields make the
+production optimization auditable without changing residue semantics.
 After obtaining an independent final trace, audit these claims with:
 
 ```sh
@@ -114,8 +121,11 @@ not part of the semantic schedule identity.
 `--sea-threads N` bounds the number of concurrent modular-root jobs within
 each Weber SEA level.  Zero selects the host's reported hardware concurrency
 (falling back to one); a positive value is a strict ceiling and the actual
-worker count is also capped by the number of source lifts.  Long or distributed
-runs should set it explicitly so their resource use is reproducible.
+worker count is also capped by the number of verified `f^24` source-lift
+orbits.  Long or distributed runs should set it explicitly so their resource
+use is reproducible.  The lower-level `sea-weber-count` command exposes
+`--root-orbit-reuse 0|1` for controlled ablations; production search always
+uses the verified-on, exact-fallback behavior.
 
 The search defaults to `--trace-cap 64` and `--smooth-max-batch 128`: each
 complete trace contributes a curve and twist order, so the largest default

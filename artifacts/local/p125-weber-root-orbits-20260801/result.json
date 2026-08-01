@@ -1,0 +1,84 @@
+{
+  "schema": "oneshotsea.weber-root-orbit-benchmark.v1",
+  "date": "2026-08-01",
+  "host": "Apple M4, 10 SEA threads",
+  "code_commit": "b41311aae5dea44eef147fb52dc8b40fee6b2990",
+  "binary_sha256": "ba10fe7f7887e98d67e704e5322d740c0345122899e3faff339e2066a02fde48",
+  "identity": {
+    "relation": "Phi(zeta*f,zeta^ell*y)=zeta^(ell+1)*Phi(f,y) for zeta^24=1",
+    "verified_condition": "a+ell*b == ell+1 (mod 24) for every nonzero X^a Y^b table term",
+    "fallback": "exact per-source-lift evaluation when covariance is disabled or unverified"
+  },
+  "matched_level_193_ablation": {
+    "curve": {
+      "p": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+      "a": "82574189722949072957728522659737830385005094873485824210996693879529527019787746889866491875855403894941918864621858709713497",
+      "b": "88382793148632715305152348439825220256670063248990549473997795919686351346525164593244327917236935929961279243081239139809077"
+    },
+    "common_options": "--max-level 193 --trace-cap 64 --sea-threads 10 --table-dir data/modpoly/weber_f",
+    "baseline_option": "--root-orbit-reuse 0",
+    "optimized_option": "--root-orbit-reuse 1",
+    "baseline": {
+      "wall_seconds": [154.52, 154.62],
+      "user_seconds": [513.24, 514.29],
+      "modular_root_seconds": [125.713996, 125.871464],
+      "eigenvalue_seconds": [24.667619, 24.546621],
+      "root_evaluations": 504
+    },
+    "optimized": {
+      "wall_seconds": [64.88, 65.76],
+      "user_seconds": [60.48, 61.27],
+      "modular_root_seconds": [36.207442, 36.825372],
+      "eigenvalue_seconds": [24.548540, 24.847144],
+      "root_evaluations": 42,
+      "reused_source_lifts": 462
+    },
+    "median_wall_speedup": 2.366,
+    "mean_modular_root_speedup": 3.445,
+    "canonical_math_sha256": "2f498e0079d09a4433815c528affe5f868ce8466ed0ca7cf71a7192919b5ba77",
+    "canonical_math_identical": true
+  },
+  "production_index_4_replay": {
+    "curve": {
+      "p": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+      "a": "52686448651453494102076135641750566537378176439028339058269519908901270612945530952532243656628246462314469963477487790481132",
+      "b": "68457632434302329401384090427833711024918784292685559372179679939267513741963687301688162437752164308209646642318325193654167"
+    },
+    "common_options": "--max-level 317 --trace-cap 64 --sea-threads 10 --table-dir data/modpoly/weber_f",
+    "retained_baseline": {
+      "git_commit": "4eda9277ebec63bab99dc42f2a9bd591be350070",
+      "sea_seconds": 1418.822979,
+      "modular_root_seconds": 1252.390004,
+      "eigenvalue_seconds": 145.322902,
+      "bmss_seconds": 15.572389,
+      "normalized_codomain_seconds": 4.985080
+    },
+    "optimized": {
+      "invocation_wall_seconds": 377.42,
+      "user_seconds": 617.61,
+      "modular_root_seconds": 207.917357,
+      "eigenvalue_seconds": 148.417950,
+      "bmss_seconds": 15.564150,
+      "normalized_codomain_seconds": 5.035330,
+      "root_evaluations": 192,
+      "reused_source_lifts": 2112
+    },
+    "modular_root_speedup": 6.023,
+    "baseline_sea_to_optimized_invocation_speedup": 3.759,
+    "levels": 64,
+    "exact_levels": 31,
+    "atkin_levels": 0,
+    "terminal_trace_candidates": 15,
+    "canonical_level_projection_sha256": "7c4a5c85ac716d6d8a3ea11b588381c79c0d8c5909b81273ef22802397d30ecb",
+    "all_64_canonical_level_records_identical": true
+  },
+  "observed_raw_sha256": {
+    "baseline_run_1_jsonl": "ccbd6502fb9c253a1ec54e58bc76e8f909435296f1f5af537e8d60f0b93125ed",
+    "optimized_run_1_jsonl": "031414666fb580e0c3945883be98038d610a3bbac4d1996fde5230612f7f7eb2",
+    "baseline_run_2_jsonl": "02fc840dc38132ac8c438037ca50845c398188b4aa1fdabc6f7d78394e7d7972",
+    "optimized_run_2_jsonl": "98117aab678828cc141a38c7b1b7162c7ff1078162d94f5f71a7c07ae53c69d2",
+    "index_4_optimized_jsonl": "ce7353c3541bb3836fa332f4df5527e325b470393fa5988aecae4aa8af997435",
+    "index_4_time": "9770abef930de5038a6253dd46fb1a172a64abdb275949db1ae5e02f97532bda"
+  },
+  "validation": "Clean make test-all passed with MAGMA=/Users/agent/Documents/Codex/t24-search/private/magma-local/install/magma, including eight native differential oracle cases."
+}

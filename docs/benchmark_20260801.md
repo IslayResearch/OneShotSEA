@@ -95,3 +95,53 @@ This removes exactly `5/7` of the ambiguity, a factor of `3.5` or
 `1.807354922` bits, in 0.34 seconds wall time for both levels on the Apple M4.
 It is not a complete count or a search-speedup claim.  Only levels 5 and 7 are
 enabled, and a trace-cap-one run still requires exact Elkies uniqueness.
+
+## Exact Weber 24th-root orbit reuse
+
+Every nonzero term `X^a Y^b` in the 77 authenticated Weber tables through
+level 401 satisfies
+
+```text
+a + ell*b = ell + 1 (mod 24).
+```
+
+Consequently, for `zeta^24=1`,
+
+```text
+Phi_ell(zeta*f, zeta^ell*y) = zeta^(ell+1) Phi_ell(f,y).
+```
+
+The production path now verifies this covariance from the loaded table,
+groups source lifts by `f^24`, evaluates and factors one specialization per
+orbit, and transports its roots by `y -> zeta^ell*y`.  If the identity is
+disabled or cannot be verified, the old exact per-lift path remains active.
+The CLI exposes `--root-orbit-reuse 0|1` solely for an explicit ablation.
+
+Two interleaved runs of the same `p125` curve through level 193 used the same
+binary and ten-thread configuration.  Both modes emitted identical canonical
+mathematical projections with SHA-256
+`2f498e0079d09a4433815c528affe5f868ce8466ed0ca7cf71a7192919b5ba77`.
+
+| Mode | Wall runs | Modular-root runs | Root evaluations |
+|---|---:|---:|---:|
+| Exact per lift | 154.52, 154.62 s | 125.714, 125.871 s | 504 |
+| Verified orbit reuse | 64.88, 65.76 s | 36.207, 36.825 s | 42 |
+
+The median wall speedup was 2.366x and the mean modular-root speedup was
+3.445x.  Eigenvalue time stayed at 24.5--24.8 seconds, confirming that the
+change affected the intended stage.
+
+The stronger replay used retained production global index 4.  All 64
+per-level projections matched the old production evidence exactly, including
+31 exact residues, accumulated moduli, Atkin state, and the final 15 trace
+candidates.  Modular-root time fell from 1,252.390 to 207.917 seconds (6.023x),
+while eigenvalue time changed only from 145.323 to 148.418 seconds.  The full
+optimized SEA invocation took 377.42 seconds, versus 1,418.823 seconds of SEA
+in the retained baseline (3.759x).  This replay performed 192 root evaluations
+and reused 2,112 source lifts.
+
+The tested implementation is commit `b41311a`, with clean binary SHA-256
+`ba10fe7f7887e98d67e704e5322d740c0345122899e3faff339e2066a02fde48`.
+The compact benchmark record, commands, identities, raw-output hashes, and
+canonical comparison hashes are retained in
+`artifacts/local/p125-weber-root-orbits-20260801/result.json`.

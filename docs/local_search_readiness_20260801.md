@@ -1,10 +1,11 @@
 # Local p125 search readiness audit, 2026-08-01
 
 This audit identifies the next non-overlapping production action on the Apple
-M4 after the bounded gate at Git commit
-`43528617c6494202ecc6d3f5e8b97561e3139bfe`.  It treats the
-ignored `work/p125` tree as live evidence.  Older benchmark prose is not used
-as authority where that tree was subsequently extended.
+M4 after the retained searches through global index 5 and the exact Weber
+root-orbit optimization at Git commit
+`b41311aae5dea44eef147fb52dc8b40fee6b2990`.  It treats the ignored
+`work/p125` tree as live evidence.  Older benchmark prose is not used as
+authority where that tree was subsequently extended.
 
 ## Authenticated inputs
 
@@ -27,6 +28,16 @@ as authority where that tree was subsequently extended.
   and schedule SHA-256
   `e02abdd93ff5327f5ffadbe128b423a0ae32299871cf07c275ecf23abae92a2f`.
   Its range is `[0,1000000)`, seed `202607300000`, and cursor 2.
+- The most recent production identity before orbit reuse was commit
+  `4eda9277ebec63bab99dc42f2a9bd591be350070`, executable SHA-256
+  `0a973fc7cc00c1ca0910aa2b2e7be66213143c1103c05d0d282c171843c60d93`,
+  and range `[3,1000000)`.  Its retained checkpoint is at `next_index=6` after
+  three sound rejections.  Checkpoint, progress, and log SHA-256 values are
+  `0e1076b163dcbd354cbdb43390ec12ab587d990a01d5c6d36e480db728751491`,
+  `b090397fb954cffba19e86e95a218d18c3439cc6d8f6cad76c1cb7e130a5b8fa`,
+  and `2361c19cd59c6a3fb3c950d72f5e08699dfe76de63e6e3ec0cb9067384a5d68f`.
+  Because orbit reuse changes the executable identity, this checkpoint is
+  evidence only; the next range must begin at 6 under a fresh checkpoint.
 
 The filtered artifacts were extended after `docs/benchmark_20260731.md` was
 written.  Their current authoritative digests are:
@@ -71,23 +82,26 @@ committed result is under `artifacts/local/p125-index2-20260801`.
 
 ## Unique yield evidence
 
-Global indices 0 and 1 in the filtered log and the new index-2 gate are the
-three independent production samples.  The old singleton point count,
-cap-4096 experiment, baseline index-1 record, and optimized index-1 replay
-duplicate one of those indices and must not inflate yield.
+Global indices 0--5 are the six independent production samples.  The old
+singleton point count, cap-4096 experiment, baseline index-1 record, optimized
+index-1 replay, and orbit-optimized index-4 replay duplicate those indices and
+must not inflate yield.
 
 | Index | Generator rejects | SEA levels / exact | Traces screened | Result |
 |---:|---:|---:|---:|---|
 | 0 | 1 | 54 / 31 | 19 (38 curve/twist orders) | sound smoothness rejection |
 | 1 | 0 | 60 / 31 | 4 (8 curve/twist orders) | sound smoothness rejection |
 | 2 | 0 | 66 / 29, plus 2 Atkin | 3 (6 curve/twist orders) | sound smoothness rejection |
+| 3 | 0 | 59 / 31, plus 1 Atkin | 12 (24 curve/twist orders) | sound smoothness rejection |
+| 4 | 0 | 64 / 31 | 15 (30 curve/twist orders) | sound smoothness rejection |
+| 5 | 0 | 57 / 31, plus 1 Atkin | 17 (34 curve/twist orders) | sound smoothness rejection |
 
-Thus the unique retained yield is zero smooth-enough orders out of 52 screened
-orders, zero assembly calls, and zero certificates from three curves.  This is
+Thus the unique retained yield is zero smooth-enough orders out of 140 screened
+orders, zero assembly calls, and zero certificates from six curves.  This is
 too little evidence for a defensible certificate waiting-time estimate.  Even
-an independence-assuming binomial calculation gives only a 5.60% one-sided
-95% upper bound per screened order, and the orders within a curve are not
-independent.  It must not be presented as a certificate probability.
+an independence-assuming binomial calculation is misleading because the
+orders within a curve and nearby smoothness events are not independent.  It
+must not be presented as a certificate probability.
 
 The larger generator probe admitted 32 curves after 41 incompatible images,
 or about 43.8% admission.  Generation takes milliseconds and is immaterial
@@ -95,13 +109,14 @@ next to SEA, so it does not change the compute forecast.
 
 ## Throughput and trace-cap decision
 
-The production tail variance is material.  The deterministic index-1 reducer
-replay took 299.917 seconds, while the committed index-2 gate took 1,325.776
-seconds after the cache was resident.  The new direct observation is only 2.72
-curves/hour warm (2.51/hour including its cold cache load), not the prior
-single-curve estimate of 12/hour.  A defensible forecast therefore remains a
-measured range of roughly 2.7--12 curves/hour until more unique curves finish;
-do not extrapolate a certificate waiting time from either endpoint.
+The pre-orbit production tail variance is material.  Complete curve work for
+indices 2--5 was 1,325.776, 475.550, 1,441.080, and 509.937 seconds.  The
+root-orbit change then replayed the expensive 64-level index 4 in 377.42
+seconds of direct SEA wall time, with all mathematical level records
+identical.  That is a 3.759x comparison against the old 1,418.823-second SEA
+stage, but it excludes cache loading and final smoothness.  Use new complete
+production records from index 6 onward for the post-optimization throughput
+forecast; do not infer certificate waiting time from the replay alone.
 
 On index 2, modular roots consumed 87.6% and eigenvalues 10.8% of SEA time.
 The ten-thread run accumulated 6,795.35 user-seconds during 1,436.58 wall
@@ -115,10 +130,10 @@ for the optimized cap-64 replay.  No retained evidence supports a larger cap.
 
 ## Next local action
 
-Commit and test the per-level live telemetry added after this gate, then start
-a clean identity at global index 3.  A changed executable cannot reuse the
-index-2 checkpoint because build identity is deliberately authenticated; the
-new half-open range must therefore begin at 3 to avoid overlap.  The command
+Publish the cleanly tested orbit-reuse implementation, then start a clean
+identity at global index 6.  A changed executable cannot reuse the
+`4eda927` checkpoint because build identity is deliberately authenticated; the
+new half-open range must therefore begin at 6 to avoid overlap.  The command
 shape below is the audited template, but its build id and directory must be
 replaced with the new committed build before launch.
 
@@ -129,7 +144,7 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 3 --range-end 1000000 \
+  --range-start 6 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --max-level 401 --trace-cap 64 --sea-threads 10 \
   --table-dir data/modpoly/weber_f \

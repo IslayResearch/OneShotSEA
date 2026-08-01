@@ -184,6 +184,37 @@ void test_curves() {
     const auto m0 = oneshotsea::deterministic_montgomery_curve(101, 19, 23);
     const auto m1 = oneshotsea::deterministic_montgomery_curve(101, 19, 23);
     check(m0.coefficient() == m1.coefficient(), "deterministic Montgomery mapping");
+
+    const oneshotsea::Curve singular(oneshotsea::Field(7), 0, 0);
+    check(singular.is_singular(), "singular short-Weierstrass fixture");
+    bool rejected_singular_j = false;
+    bool rejected_singular_bruteforce = false;
+    bool rejected_singular_schoof = false;
+    bool rejected_singular_sea = false;
+    try {
+        static_cast<void>(singular.j_invariant());
+    } catch (const std::domain_error&) {
+        rejected_singular_j = true;
+    }
+    try {
+        static_cast<void>(oneshotsea::count_points_bruteforce(singular));
+    } catch (const std::invalid_argument&) {
+        rejected_singular_bruteforce = true;
+    }
+    try {
+        static_cast<void>(oneshotsea::schoof_count_reference(singular, 7));
+    } catch (const std::invalid_argument&) {
+        rejected_singular_schoof = true;
+    }
+    try {
+        static_cast<void>(oneshotsea::run_weber_sea_reference(
+            singular, "data/modpoly/weber_f", 7, 1));
+    } catch (const std::invalid_argument&) {
+        rejected_singular_sea = true;
+    }
+    check(rejected_singular_j && rejected_singular_bruteforce &&
+              rejected_singular_schoof && rejected_singular_sea,
+          "all native point-count entry points reject singular curves");
 }
 
 void test_modular_polynomials() {
@@ -278,6 +309,25 @@ void test_trace_constraints() {
     check(exact_traces.has_value() &&
               *exact_traces == std::vector<mpz_class>{mpz_class(0)},
           "exact CRT candidate enumeration");
+
+    // The Hasse interval for p=89 is [-18,18].  A modulus one below its
+    // width admits the endpoint pair -18 and 17 in the same residue class;
+    // one more coprime exact residue must cross the uniqueness threshold.
+    oneshotsea::TraceConstraints boundary(89);
+    boundary.refine_exact(5, 2);
+    boundary.refine_exact(7, 3);
+    check(boundary.modulus() == 35 && boundary.candidate_count() == 2,
+          "CRT immediately below the Hasse-width threshold has two traces");
+    const auto boundary_pair = boundary.enumerate(2);
+    check(boundary_pair.has_value() &&
+              *boundary_pair == std::vector<mpz_class>({-18, 17}),
+          "CRT retains both Hasse endpoint-collision traces");
+    boundary.refine_exact(3, 2);
+    const auto boundary_unique = boundary.enumerate(1);
+    check(boundary.modulus() == 105 && boundary.candidate_count() == 1 &&
+              boundary_unique.has_value() &&
+              *boundary_unique == std::vector<mpz_class>{17},
+          "CRT immediately above the threshold isolates the exact trace");
 
     const mpz_class prior_modulus = exact.modulus();
     const auto prior_residues = exact.residues();
@@ -412,6 +462,23 @@ void test_weber_sea_runner() {
               result.atkin_constraints.front().trace_residues ==
                   std::vector<std::uint64_t>({1U, 6U}),
           "SEA result retains auditable Atkin evidence");
+    const mpz_class final_trace = -6;
+    for (const auto& level : result.levels) {
+        if (level.exact) {
+            check(level.trace_residue.has_value() &&
+                      mpz_fdiv_ui(final_trace.get_mpz_t(), level.ell) ==
+                          *level.trace_residue,
+                  "every stateful Weber exact residue matches the final trace");
+        }
+    }
+    for (const auto& constraint : result.atkin_constraints) {
+        const std::uint64_t final_residue =
+            mpz_fdiv_ui(final_trace.get_mpz_t(), constraint.ell);
+        check(std::binary_search(constraint.trace_residues.begin(),
+                                 constraint.trace_residues.end(),
+                                 final_residue),
+              "every stateful Atkin residue set retains the final trace");
+    }
 
     const auto atkin_screen = oneshotsea::run_weber_sea_reference(
         curve, "data/modpoly/weber_f", 7, 2, {}, 1);
@@ -563,6 +630,13 @@ void test_elkies_residues() {
     // supersingular/collision cases.  This curve has two rational modular
     // neighbors but no rational degree-one factor of psi_3.
     const oneshotsea::Curve collision(oneshotsea::Field(19), 8, 14);
+    const mpz_class collision_order =
+        oneshotsea::count_points_bruteforce(collision);
+    check(collision_order == 20, "supersingular collision fixture point count");
+    check(mpz_class(20) - collision_order == 0,
+          "collision fixture has trace zero");
+    check(oneshotsea::schoof_trace_mod_ell(collision, 3) == 0,
+          "native Schoof recovers the supersingular trace residue");
     check(!oneshotsea::linear_roots(
                phi3.evaluate_x(collision.field(), collision.j_invariant()))
                .empty(),

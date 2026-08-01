@@ -206,6 +206,21 @@ void test_trust_boundary_and_adversarial_specializations() {
                fixture, repeated).has_value(),
           "a repeated specialization fails closed");
 
+    const oneshotsea::Curve genuine_repeated_fixture(
+        oneshotsea::Field(7), 1, 1);
+    const oneshotsea::Poly genuine_specialization = phi5->evaluate_x(
+        genuine_repeated_fixture.field(),
+        genuine_repeated_fixture.j_invariant());
+    const auto genuine_factors =
+        oneshotsea::factor_polynomial(genuine_specialization);
+    check(std::any_of(
+              genuine_factors.begin(), genuine_factors.end(),
+              [](const auto& factor) { return factor.multiplicity > 1UL; }),
+          "checked-in Phi_5 has a genuine repeated-root specialization");
+    check(!oneshotsea::classical_atkin_constraint_reference(
+               genuine_repeated_fixture, *phi5).has_value(),
+          "a genuine repeated modular specialization fails closed");
+
     const std::filesystem::path temporary =
         std::filesystem::temp_directory_path() /
         ("oneshotsea-atkin-" + std::to_string(::getpid()));

@@ -90,6 +90,10 @@ struct SearchSeaLevelTiming {
     std::uint64_t normalized_codomain_us = 0;
     std::uint64_t bmss_us = 0;
     std::uint64_t eigenvalue_us = 0;
+    bool conjugate_eigenvalue_reuse = false;
+    std::uint64_t eigenvalue_attempts = 0;
+    std::uint64_t independent_eigenvalue_recoveries = 0;
+    std::uint64_t conjugate_eigenvalues_derived = 0;
 };
 
 struct SearchCurveReport {

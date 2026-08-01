@@ -919,6 +919,10 @@ SearchCurveReport process_search_curve(
                 level.timings.normalized_codomain_us,
                 level.timings.bmss_us,
                 level.timings.eigenvalue_us,
+                level.timings.conjugate_eigenvalue_reuse,
+                level.timings.eigenvalue_attempts,
+                level.timings.independent_eigenvalue_recoveries,
+                level.timings.conjugate_eigenvalues_derived,
             });
             if (sea_level_callback) {
                 sea_level_callback(global_index,
@@ -1396,7 +1400,15 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                << "\",\"normalized_codomain_us\":\""
                << level.normalized_codomain_us << "\",\"bmss_us\":\""
                << level.bmss_us << "\",\"eigenvalue_us\":\""
-               << level.eigenvalue_us << "\"}";
+               << level.eigenvalue_us
+               << "\",\"conjugate_eigenvalue_reuse\":"
+               << (level.conjugate_eigenvalue_reuse ? "true" : "false")
+               << ",\"eigenvalue_attempts\":\""
+               << level.eigenvalue_attempts
+               << "\",\"independent_eigenvalue_recoveries\":\""
+               << level.independent_eigenvalue_recoveries
+               << "\",\"conjugate_eigenvalues_derived\":\""
+               << level.conjugate_eigenvalues_derived << "\"}";
     }
     output << ']';
     if (report.certificate.has_value()) {
@@ -1452,7 +1464,15 @@ std::string search_sea_level_json(std::uint64_t global_index,
            << "\",\"normalized_codomain\":\""
            << level.normalized_codomain_us << "\",\"bmss\":\""
            << level.bmss_us << "\",\"eigenvalue\":\""
-           << level.eigenvalue_us << "\"}}";
+           << level.eigenvalue_us
+           << "\",\"conjugate_eigenvalue_reuse\":"
+           << (level.conjugate_eigenvalue_reuse ? "true" : "false")
+           << ",\"eigenvalue_attempts\":\""
+           << level.eigenvalue_attempts
+           << "\",\"independent_eigenvalue_recoveries\":\""
+           << level.independent_eigenvalue_recoveries
+           << "\",\"conjugate_eigenvalues_derived\":\""
+           << level.conjugate_eigenvalues_derived << "\"}}";
     return output.str();
 }
 

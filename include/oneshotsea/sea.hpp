@@ -53,6 +53,7 @@ WeberSeaResult run_weber_sea_reference(
     std::uint64_t max_level, std::size_t trace_cap,
     const WeberSeaProgress& progress = {},
     std::size_t modular_root_threads = 0,
-    bool enable_root_orbit_reuse = true);
+    bool enable_root_orbit_reuse = true,
+    bool enable_conjugate_eigenvalue_reuse = true);
 
 }  // namespace oneshotsea

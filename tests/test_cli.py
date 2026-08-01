@@ -135,6 +135,8 @@ class CliTests(unittest.TestCase):
             1,
             "--sea-threads",
             1,
+            "--conjugate-eigenvalue-reuse",
+            1,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         records = [json.loads(line) for line in result.stdout.splitlines()]
@@ -149,6 +151,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(records[1]["atkin_residue_count"], 2)
         self.assertEqual(records[1]["exact_trace_candidates"], "11")
         self.assertEqual(records[1]["trace_candidates"], "2")
+        exact_records = [record for record in records[:-1] if record["exact"]]
+        self.assertTrue(
+            all(record["timings_us"]["conjugate_eigenvalue_reuse"]
+                for record in exact_records)
+        )
+        self.assertTrue(
+            all(
+                record["timings_us"]["eigenvalue_attempts"]
+                == record["timings_us"]["independent_eigenvalue_recoveries"]
+                + record["timings_us"]["conjugate_eigenvalues_derived"]
+                for record in exact_records
+            )
+        )
         self.assertEqual(records[-1]["type"], "summary")
         self.assertEqual(records[-1]["status"], "trace_set_enumerated")
         self.assertEqual(records[-1]["exact_modulus"], "55")
@@ -236,6 +251,14 @@ class CliTests(unittest.TestCase):
             )
             self.assertTrue(
                 all("modular_root_reused_lifts" in record
+                    for record in level_records)
+            )
+            self.assertTrue(
+                all("independent_eigenvalue_recoveries" in record["timings_us"]
+                    for record in level_records)
+            )
+            self.assertTrue(
+                all("conjugate_eigenvalues_derived" in record["timings_us"]
                     for record in level_records)
             )
             self.assertEqual([record["index"] for record in curve_records],

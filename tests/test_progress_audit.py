@@ -93,6 +93,47 @@ class ProgressAuditTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 1)
         self.assertIn("Atkin order 4", completed.stderr)
 
+    def test_replays_every_level_from_exact_trace_prior(self) -> None:
+        value = fixture()
+        value["trace_prior"] = {"modulus": "4", "residue": "2"}
+        levels = value["sea_level_timings"]
+        levels[0].update(
+            {
+                "exact_modulus": "20",
+                "constraint_modulus": "20",
+                "exact_trace_candidate_count": "2",
+                "trace_candidate_count": "2",
+            }
+        )
+        levels[1].update(
+            {
+                "exact_modulus": "20",
+                "constraint_modulus": "140",
+                "exact_trace_candidate_count": "2",
+                "trace_candidate_count": "1",
+            }
+        )
+        levels[2].update(
+            {
+                "exact_modulus": "220",
+                "constraint_modulus": "1540",
+                "exact_trace_candidate_count": "1",
+                "trace_candidate_count": "1",
+            }
+        )
+        completed = self.run_audit(value)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["trace_prior"], {"modulus": "4", "residue": "2"})
+        self.assertEqual(result["passes"], [{"pass": 1, "modulus": "220"}])
+
+    def test_rejects_trace_prior_disagreement(self) -> None:
+        value = fixture()
+        value["trace_prior"] = {"modulus": "4", "residue": "1"}
+        completed = self.run_audit(value)
+        self.assertEqual(completed.returncode, 1)
+        self.assertIn("independent trace disagrees with trace_prior", completed.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

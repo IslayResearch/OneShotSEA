@@ -4,24 +4,43 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import ExitStack
-from datetime import datetime, timezone
-import hashlib
-import json
-import marshal
 import math
 import os
 from pathlib import Path
-import platform
-import re
-import signal
-import shutil
-import subprocess
 import sys
-import tempfile
-import time
-import types
 from typing import Any
+
+import audit_common
+from audit_common import (
+    AuditError,
+    MAGMA_ENVIRONMENT_KEYS,
+    MAX_OUTPUT_CAP_BYTES,
+    MAX_U64,
+    canonical_decimal,
+    canonical_json,
+    deterministic_prime,
+    digest,
+    directory_path,
+    executable_dependency_identity,
+    exact_integer,
+    executable_path,
+    git_identity,
+    host_identity,
+    integer_list,
+    loaded_module_code_digest,
+    magma_dependency_identity,
+    magma_count_curve,
+    magma_runtime_identity,
+    nonnegative_integer,
+    positive_integer,
+    probably_prime,
+    run_json,
+    snapshot_file,
+    source_module_code_digest,
+    utc_now,
+    verify_file_identities,
+    write_manifest,
+)
 
 ROOT = Path(
     os.environ.get(
@@ -42,459 +61,53 @@ ORIGINAL_POINT_COUNT = Path(
 ORIGINAL_PRIME_CHECK = Path(
     os.environ.get("ONESHOTSEA_AUDIT_ORIGINAL_PRIME_CHECK", PRIME_CHECK_SCRIPT)
 ).resolve()
+ORIGINAL_COMMON = Path(
+    os.environ.get("ONESHOTSEA_AUDIT_ORIGINAL_COMMON", audit_common.__file__)
+).resolve()
 SCHEMA = "oneshotsea.oracle-corpus.v1"
 RECORD_SCHEMA = "oneshotsea.oracle-curve.v1"
-MAX_U64 = (1 << 64) - 1
-MAX_OUTPUT_CAP_BYTES = 64 * 1024 * 1024
-MAGMA_ENVIRONMENT_KEYS = (
-    "MAGMA_CMD",
-    "MAGMAPASSFILE",
-    "MAGMA_SYSTEM_SPEC",
-    "MAGMA_SYSTEM_PACKAGE_ROOT",
-    "MAGMA_LIBRARY_ROOT",
-    "MAGMA_LIBRARIES",
-    "MAGMA_HELP_DIR",
-    "MAGMA_HTML_DIR",
-    "MAGMA_STARTUP_FILE",
-)
-SMALL_PRIMES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47)
-MILLER_RABIN_BASES = (
-    2,
-    3,
-    5,
-    7,
-    11,
-    13,
-    17,
-    19,
-    23,
-    29,
-    31,
-    37,
-    41,
-    43,
-    47,
-    53,
-    59,
-    61,
-    67,
-    71,
-    73,
-    79,
-    83,
-    89,
-    97,
-)
 
 
-class AuditError(RuntimeError):
-    """A fail-closed corpus or identity error."""
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def positive_integer(value: str) -> int:
-    try:
-        result = int(value, 10)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(f"not a base-10 integer: {value!r}") from exc
-    if result <= 0:
-        raise argparse.ArgumentTypeError("value must be positive")
-    return result
-
-
-def nonnegative_integer(value: str) -> int:
-    try:
-        result = int(value, 10)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(f"not a base-10 integer: {value!r}") from exc
-    if result < 0:
-        raise argparse.ArgumentTypeError("value must be nonnegative")
-    return result
-
-
-def integer_list(value: str, *, minimum: int, label: str) -> tuple[int, ...]:
-    try:
-        result = tuple(int(item, 10) for item in value.split(","))
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError(f"{label} must be comma-separated integers") from exc
-    if not result or any(item < minimum for item in result) or len(set(result)) != len(result):
-        raise argparse.ArgumentTypeError(
-            f"{label} must contain distinct integers greater than or equal to {minimum}"
-        )
-    return result
-
-
-def digest(path: Path) -> str:
-    value = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            value.update(block)
-    return value.hexdigest()
-
-
-def loaded_module_code_digest(module: types.ModuleType) -> str:
-    value = hashlib.sha256()
-    functions = [
-        (name, candidate)
-        for name, candidate in vars(module).items()
-        if isinstance(candidate, types.FunctionType)
-        and candidate.__module__ == module.__name__
-    ]
-    for name, function in sorted(functions):
-        value.update(name.encode("utf-8"))
-        value.update(b"\0")
-        value.update(marshal.dumps(function.__code__))
-    return value.hexdigest()
-
-
-def magma_environment(magma_root: Path, magma_runtime: Path) -> dict[str, str]:
-    environment = os.environ.copy()
-    for key in MAGMA_ENVIRONMENT_KEYS:
-        environment.pop(key, None)
-    passfile = magma_root / "magmapassfile"
-    if not passfile.is_file() and passfile.with_suffix(".txt").is_file():
-        passfile = passfile.with_suffix(".txt")
-    environment.update(
-        {
-            "MAGMA_CMD": str(magma_runtime),
-            "MAGMAPASSFILE": str(passfile),
-            "MAGMA_SYSTEM_SPEC": str(magma_root / "package" / "spec"),
-            "MAGMA_SYSTEM_PACKAGE_ROOT": str(magma_root / "package"),
-            "MAGMA_LIBRARY_ROOT": str(magma_root / "libs"),
-            "MAGMA_LIBRARIES": (
-                "c9lattices:examples:galpols:intro:isolgps:matgps:"
-                "pergps:simgps:solgps"
-            ),
-            "MAGMA_HELP_DIR": str(magma_root / "InternalHelp"),
-            "MAGMA_HTML_DIR": str(magma_root / "doc" / "html"),
-            "MAGMA_STARTUP_FILE": os.devnull,
-            "MKL_SERIAL": "YES",
-            "OMP_NUM_THREADS": "1",
-            "OPENBLAS_NUM_THREADS": "1",
-        }
+def require_bootstrap_context() -> str:
+    required = (
+        "ONESHOTSEA_AUDIT_ORIGINAL_BOOTSTRAP",
+        "ONESHOTSEA_AUDIT_ORIGINAL_DRIVER",
+        "ONESHOTSEA_AUDIT_ORIGINAL_COMMON",
+        "ONESHOTSEA_AUDIT_ORIGINAL_POINT_COUNT",
+        "ONESHOTSEA_AUDIT_ORIGINAL_PRIME_CHECK",
+        "ONESHOTSEA_AUDIT_EXECUTION_SNAPSHOT_DIR",
+        "ONESHOTSEA_AUDIT_LOADED_BOOTSTRAP_CODE_SHA256",
     )
-    return environment
-
-
-def snapshot_file(source: Path, destination: Path) -> Path:
-    shutil.copy2(source, destination)
-    if digest(source) != digest(destination):
-        raise AuditError(f"snapshot digest mismatch for {source}")
-    return destination
-
-
-def verify_file_identities(expected: dict[str, tuple[Path, str]]) -> None:
-    for label, (path, expected_digest) in expected.items():
-        try:
-            observed_digest = digest(path)
-        except OSError as exc:
-            raise AuditError(f"{label} identity path became unreadable: {path}") from exc
-        if observed_digest != expected_digest:
-            raise AuditError(f"{label} identity changed during the corpus run")
-
-
-def executable_path(value: str, label: str) -> Path:
-    candidate = Path(value).expanduser()
-    if candidate.parent == Path("."):
-        resolved = shutil.which(value)
-        if resolved:
-            candidate = Path(resolved)
-    candidate = candidate.resolve()
-    if not candidate.is_file() or not os.access(candidate, os.X_OK):
-        raise AuditError(f"{label} executable is missing or not executable: {candidate}")
-    return candidate
-
-
-def directory_path(value: str, label: str) -> Path:
-    candidate = Path(value).expanduser().resolve()
-    if not candidate.is_dir():
-        raise AuditError(f"{label} directory is missing: {candidate}")
-    return candidate
-
-
-def kill_process_group(process: subprocess.Popen[Any]) -> None:
-    if process.poll() is not None:
-        return
-    try:
-        os.killpg(process.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=5)
-
-
-def run_bounded(
-    argv: list[str],
-    label: str,
-    *,
-    timeout_seconds: int,
-    max_output_bytes: int,
-    environment: dict[str, str] | None = None,
-    standard_input: bytes | None = None,
-) -> subprocess.CompletedProcess[str]:
-    with ExitStack() as stack:
-        stdout_file = stack.enter_context(tempfile.TemporaryFile())
-        stderr_file = stack.enter_context(tempfile.TemporaryFile())
-        standard_input_file = None
-        if standard_input is not None:
-            standard_input_file = stack.enter_context(tempfile.TemporaryFile())
-            standard_input_file.write(standard_input)
-            standard_input_file.seek(0)
-        process = subprocess.Popen(
-            argv,
-            cwd=ROOT,
-            stdin=(
-                subprocess.DEVNULL
-                if standard_input_file is None
-                else standard_input_file
-            ),
-            stdout=stdout_file,
-            stderr=stderr_file,
-            env=environment,
-            start_new_session=True,
-        )
-        try:
-            deadline = time.monotonic() + timeout_seconds
-            failure = ""
-            while process.poll() is None:
-                stdout_size = os.fstat(stdout_file.fileno()).st_size
-                stderr_size = os.fstat(stderr_file.fileno()).st_size
-                if stdout_size > max_output_bytes or stderr_size > max_output_bytes:
-                    failure = f"output exceeded {max_output_bytes} bytes"
-                    break
-                if time.monotonic() >= deadline:
-                    failure = f"timed out after {timeout_seconds} seconds"
-                    break
-                time.sleep(0.02)
-            if failure:
-                kill_process_group(process)
-            stdout_size = os.fstat(stdout_file.fileno()).st_size
-            stderr_size = os.fstat(stderr_file.fileno()).st_size
-            if not failure and (
-                stdout_size > max_output_bytes or stderr_size > max_output_bytes
-            ):
-                failure = f"output exceeded {max_output_bytes} bytes"
-            stdout_file.seek(0)
-            stderr_file.seek(0)
-            stdout = stdout_file.read(max_output_bytes + 1).decode(
-                "utf-8", errors="replace"
-            )
-            stderr = stderr_file.read(max_output_bytes + 1).decode(
-                "utf-8", errors="replace"
-            )
-            if failure:
-                raise AuditError(f"{label} {failure}")
-            return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
-        except BaseException:
-            kill_process_group(process)
-            raise
-
-
-def run_json(
-    argv: list[str],
-    label: str,
-    *,
-    timeout_seconds: int,
-    max_output_bytes: int,
-    environment: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    completed = run_bounded(
-        argv,
-        label,
-        timeout_seconds=timeout_seconds,
-        max_output_bytes=max_output_bytes,
-        environment=environment,
-    )
-    if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip() or "no diagnostic"
-        raise AuditError(f"{label} failed with status {completed.returncode}: {detail}")
-    try:
-        result = json.loads(completed.stdout, object_pairs_hook=unique_json_object)
-    except json.JSONDecodeError as exc:
-        raise AuditError(f"{label} returned invalid JSON") from exc
-    if not isinstance(result, dict):
-        raise AuditError(f"{label} did not return a JSON object")
-    return result
-
-
-def unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise AuditError(f"JSON response contains duplicate key {key!r}")
-        result[key] = value
-    return result
-
-
-def probably_prime(value: int) -> bool:
-    if value < 2:
-        return False
-    for prime in SMALL_PRIMES:
-        if value == prime:
-            return True
-        if value % prime == 0:
-            return False
-    exponent = value - 1
-    shifts = 0
-    while exponent % 2 == 0:
-        exponent //= 2
-        shifts += 1
-    for base in MILLER_RABIN_BASES:
-        if base >= value:
-            continue
-        residue = pow(base, exponent, value)
-        if residue in (1, value - 1):
-            continue
-        for _ in range(shifts - 1):
-            residue = residue * residue % value
-            if residue == value - 1:
-                break
-        else:
-            return False
-    return True
-
-
-def deterministic_prime(
-    magma: Path,
-    magma_root: Path,
-    prime_check_script: Path,
-    seed: int,
-    bits: int,
-    bucket_ordinal: int,
-    *,
-    timeout_seconds: int,
-    max_output_bytes: int,
-    max_attempts: int,
-) -> tuple[int, int]:
-    byte_count = (bits + 7) // 8
-    attempt = 0
-    while attempt < max_attempts:
-        material = f"{SCHEMA}:{seed}:{bits}:{bucket_ordinal}:{attempt}".encode()
-        block = hashlib.shake_256(material).digest(byte_count)
-        candidate = int.from_bytes(block, "big")
-        candidate &= (1 << bits) - 1
-        candidate |= (1 << (bits - 1)) | 1
-        if probably_prime(candidate):
-            environment = magma_environment(magma_root, magma)
-            environment["ONESHOT_SEA_ORACLE_P"] = str(candidate)
-            result = run_json(
-                [str(magma), "-b", str(prime_check_script)],
-                "Magma prime validation",
-                timeout_seconds=timeout_seconds,
-                max_output_bytes=max_output_bytes,
-                environment=environment,
-            )
-            if set(result) != {"p", "is_prime"}:
-                raise AuditError("Magma prime validation returned an unexpected schema")
-            if type(result["p"]) is not int or type(result["is_prime"]) is not bool:
-                raise AuditError("Magma prime validation returned invalid field types")
-            if result["p"] != candidate:
-                raise AuditError("Magma prime validation returned a mismatched input")
-            if result["is_prime"]:
-                return candidate, attempt + 1
-        attempt += 1
-    raise AuditError(f"prime generation exhausted {max_attempts} candidates")
-
-
-def magma_count_curve(
-    magma: Path,
-    magma_root: Path,
-    point_count_script: Path,
-    p: int,
-    a: int,
-    b: int,
-    *,
-    timeout_seconds: int,
-    max_output_bytes: int,
-) -> dict[str, int]:
-    environment = magma_environment(magma_root, magma)
-    environment.update(
-        {
-            "ONESHOT_SEA_ORACLE_P": str(p),
-            "ONESHOT_SEA_ORACLE_A": str(a),
-            "ONESHOT_SEA_ORACLE_B": str(b),
-        }
-    )
-    result = run_json(
-        [str(magma), "-b", str(point_count_script)],
-        "Magma point count",
-        timeout_seconds=timeout_seconds,
-        max_output_bytes=max_output_bytes,
-        environment=environment,
-    )
-    expected_keys = {"p", "a", "b", "order", "trace"}
-    if set(result) != expected_keys or any(type(result[key]) is not int for key in expected_keys):
-        raise AuditError("Magma point count returned an unexpected schema or field type")
-    if result["p"] != p or result["a"] != a % p or result["b"] != b % p:
-        raise AuditError("Magma point count returned mismatched inputs")
-    if result["trace"] != p + 1 - result["order"]:
-        raise AuditError("Magma point count returned an inconsistent order and trace")
-    if result["order"] <= 0 or abs(result["trace"]) > math.isqrt(4 * p):
-        raise AuditError("Magma point count violated the Hasse bound")
-    return result
-
-
-def magma_runtime_identity(
-    magma: Path,
-    magma_root: Path,
-    *,
-    timeout_seconds: int,
-    max_output_bytes: int,
-) -> dict[str, str]:
-    environment = magma_environment(magma_root, magma)
-    completed = run_bounded(
-        [str(magma)],
-        "Magma runtime identity",
-        timeout_seconds=timeout_seconds,
-        max_output_bytes=max_output_bytes,
-        environment=environment,
-        standard_input=b"quit;\n",
-    )
-    if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip() or "no diagnostic"
+    missing = [name for name in required if not os.environ.get(name)]
+    if missing:
         raise AuditError(
-            f"Magma runtime identity failed with status {completed.returncode}: {detail}"
+            "oracle corpus driver requires the pre-import bootstrap; missing "
+            + ", ".join(missing)
         )
-    transcript = completed.stdout + completed.stderr
-    match = re.search(r"\bMagma V[0-9][A-Za-z0-9_.-]*", transcript)
-    if match is None:
-        raise AuditError("Magma runtime identity did not report a version")
-    return {"version": match.group(0)}
-
-
-def canonical_json(value: object) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"))
-
-
-def canonical_decimal(value: object, label: str, *, signed: bool = False) -> int:
-    if type(value) is not str or not value:
-        raise AuditError(f"{label} is not a canonical decimal string")
-    digits = value[1:] if signed and value.startswith("-") else value
-    if not digits or not digits.isascii() or not digits.isdecimal():
-        raise AuditError(f"{label} is not a canonical decimal string")
-    if len(digits) > 1 and digits.startswith("0"):
-        raise AuditError(f"{label} is not a canonical decimal string")
-    if value.startswith("-") and digits == "0":
-        raise AuditError(f"{label} is not a canonical decimal string")
-    return int(value, 10)
-
-
-def exact_integer(value: object, label: str) -> int:
-    if type(value) is not int:
-        raise AuditError(f"{label} is not a JSON integer")
-    return value
-
-
-def write_manifest(path: Path, value: dict[str, Any]) -> None:
-    temporary = path.with_name(f"{path.name}.tmp.{os.getpid()}")
-    temporary.write_text(canonical_json(value) + "\n", encoding="utf-8")
-    temporary.replace(path)
+    snapshot_directory = Path(
+        os.environ["ONESHOTSEA_AUDIT_EXECUTION_SNAPSHOT_DIR"]
+    ).resolve()
+    if Path(__file__).resolve().parent != snapshot_directory:
+        raise AuditError("oracle corpus driver is not executing from its bootstrap snapshot")
+    for filename in (
+        "corpus_audit_driver.py",
+        "audit_common.py",
+        "point_count.m",
+        "prime_check.m",
+    ):
+        if not (snapshot_directory / filename).is_file():
+            raise AuditError(f"bootstrap execution snapshot is incomplete: {filename}")
+    loaded_digest = os.environ["ONESHOTSEA_AUDIT_LOADED_BOOTSTRAP_CODE_SHA256"]
+    if (
+        len(loaded_digest) != 64
+        or any(character not in "0123456789abcdef" for character in loaded_digest)
+        or source_module_code_digest(
+            ORIGINAL_BOOTSTRAP, "oneshotsea_reference_bootstrap_probe"
+        )
+        != loaded_digest
+    ):
+        raise AuditError("loaded oracle corpus bootstrap differs from its source bytes")
+    return loaded_digest
 
 
 def native_schoof_residue(
@@ -577,6 +190,7 @@ def curve_record(
         seed,
         bits,
         bucket_ordinal,
+        domain=SCHEMA,
         timeout_seconds=timeout_seconds,
         max_output_bytes=max_output_bytes,
         max_attempts=max_prime_attempts,
@@ -840,43 +454,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return args
 
 
-def git_identity() -> dict[str, Any]:
-    completed = run_bounded(
-        ["git", "rev-parse", "HEAD"],
-        "Git commit identity",
-        timeout_seconds=30,
-        max_output_bytes=1024 * 1024,
-    )
-    value = completed.stdout.strip()
-    if (
-        completed.returncode != 0
-        or len(value) != 40
-        or any(character not in "0123456789abcdef" for character in value)
-    ):
-        raise AuditError("unable to bind the corpus to a Git commit")
-    status = run_bounded(
-        ["git", "status", "--porcelain=v1", "--untracked-files=normal"],
-        "Git worktree identity",
-        timeout_seconds=30,
-        max_output_bytes=1024 * 1024,
-    )
-    if status.returncode != 0:
-        raise AuditError("unable to inspect Git worktree state")
-    return {"commit": value, "worktree_clean": status.stdout == ""}
-
-
-def host_identity() -> dict[str, Any]:
-    return {
-        "platform": platform.platform(),
-        "machine": platform.machine(),
-        "processor": platform.processor(),
-        "logical_cpu_count": os.cpu_count(),
-        "python_version": platform.python_version(),
-        "python_executable": str(Path(sys.executable).resolve()),
-        "python_sha256": digest(Path(sys.executable).resolve()),
-    }
-
-
 def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
     source = git_identity()
     output = args.output_dir.expanduser().resolve()
@@ -903,6 +480,11 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
     }
     write_manifest(manifest_path, base)
     tracked_inputs: dict[str, tuple[Path, str]] = {}
+    native_dependencies_start: dict[str, Any] | None = None
+    magma_dependencies_start: dict[str, Any] | None = None
+    native_for_identity: Path | None = None
+    magma_for_identity: Path | None = None
+    magma_root_for_identity: Path | None = None
     try:
         native_source = executable_path(args.native, "native")
         magma = executable_path(args.magma_runtime, "Magma runtime")
@@ -911,15 +493,18 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
         if not magma_system_spec.is_file():
             raise AuditError(f"Magma system spec is missing: {magma_system_spec}")
         driver_source = Path(__file__).resolve()
+        common_source = Path(audit_common.__file__).resolve()
         source_inputs = {
             "native source": native_source,
             "Magma runtime executable": magma,
             "Magma system spec": magma_system_spec,
             "original corpus bootstrap": ORIGINAL_BOOTSTRAP,
             "original corpus driver": ORIGINAL_DRIVER,
+            "original audit common": ORIGINAL_COMMON,
             "original point-count script": ORIGINAL_POINT_COUNT,
             "original prime-check script": ORIGINAL_PRIME_CHECK,
             "executing corpus driver": driver_source,
+            "executing audit common": common_source,
             "executing point-count script": POINT_COUNT_SCRIPT,
             "executing prime-check script": PRIME_CHECK_SCRIPT,
         }
@@ -928,6 +513,8 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
         }
         if digest(ORIGINAL_DRIVER) != digest(driver_source):
             raise AuditError("executing corpus driver differs from its source snapshot")
+        if digest(ORIGINAL_COMMON) != digest(common_source):
+            raise AuditError("executing audit common differs from its source snapshot")
         if digest(ORIGINAL_POINT_COUNT) != digest(POINT_COUNT_SCRIPT):
             raise AuditError("executing point-count script differs from its source snapshot")
         if digest(ORIGINAL_PRIME_CHECK) != digest(PRIME_CHECK_SCRIPT):
@@ -947,12 +534,16 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
         driver_snapshot = snapshot_file(
             driver_source, inputs_directory / "corpus_audit_driver.py"
         )
+        common_snapshot = snapshot_file(
+            common_source, inputs_directory / "audit_common.py"
+        )
         snapshot_inputs = {
             "native snapshot": native,
             "point-count script snapshot": point_count_script,
             "prime-check script snapshot": prime_check_script,
             "corpus bootstrap snapshot": bootstrap_snapshot,
             "corpus driver snapshot": driver_snapshot,
+            "audit common snapshot": common_snapshot,
         }
         tracked_inputs.update(
             {
@@ -960,6 +551,11 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
                 for label, path in snapshot_inputs.items()
             }
         )
+        native_for_identity = native
+        magma_for_identity = magma
+        magma_root_for_identity = magma_root
+        native_dependencies_start = executable_dependency_identity(native)
+        magma_dependencies_start = magma_dependency_identity(magma_root, magma)
         magma_version_identity = magma_runtime_identity(
             magma,
             magma_root,
@@ -973,11 +569,13 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
             "native_source_path": str(native_source),
             "native_path": str(native),
             "native_sha256": digest(native),
+            "native_dynamic_dependencies": native_dependencies_start,
             "magma_root": str(magma_root),
             "magma_runtime_path": str(magma),
             "magma_runtime_sha256": digest(magma),
             "magma_system_spec_sha256": digest(magma_system_spec),
             "magma_runtime": magma_version_identity,
+            "magma_dependencies": magma_dependencies_start,
             "magma_environment_policy": {
                 "cleared": list(MAGMA_ENVIRONMENT_KEYS),
                 "mode": "direct-runtime-controlled-root",
@@ -987,10 +585,19 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
             "loaded_corpus_code_sha256": loaded_module_code_digest(
                 sys.modules[__name__]
             ),
+            "loaded_bootstrap_code_sha256": os.environ[
+                "ONESHOTSEA_AUDIT_LOADED_BOOTSTRAP_CODE_SHA256"
+            ],
+            "loaded_audit_common_code_sha256": loaded_module_code_digest(
+                audit_common
+            ),
             "point_count_script_sha256": digest(point_count_script),
             "prime_check_script_sha256": digest(prime_check_script),
             "corpus_bootstrap_sha256": digest(bootstrap_snapshot),
             "corpus_driver_sha256": digest(driver_snapshot),
+            "audit_common_original_sha256": digest(ORIGINAL_COMMON),
+            "audit_common_executing_sha256": digest(common_source),
+            "audit_common_artifact_sha256": digest(common_snapshot),
             "snapshots_directory": inputs_directory.name,
             "host": host_identity(),
         }
@@ -1027,6 +634,10 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
                     os.fsync(stream.fileno())
                     count += 1
         verify_file_identities(tracked_inputs)
+        if executable_dependency_identity(native) != native_dependencies_start:
+            raise AuditError("native executable dependency identity changed during the corpus run")
+        if magma_dependency_identity(magma_root, magma) != magma_dependencies_start:
+            raise AuditError("Magma dependency identity changed during the corpus run")
         if magma_runtime_identity(
             magma,
             magma_root,
@@ -1080,6 +691,31 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
                 base["identity_verification_error"] = (
                     f"{type(identity_exc).__name__}: {identity_exc}"
                 )
+        for label, start, probe in (
+            (
+                "native dependency",
+                native_dependencies_start,
+                lambda: executable_dependency_identity(native_for_identity),
+            ),
+            (
+                "Magma dependency",
+                magma_dependencies_start,
+                lambda: magma_dependency_identity(
+                    magma_root_for_identity, magma_for_identity
+                ),
+            ),
+        ):
+            if start is None:
+                continue
+            try:
+                if probe() != start:
+                    base[f"{label.replace(' ', '_')}_verification_error"] = (
+                        f"{label} identity changed during the corpus run"
+                    )
+            except BaseException as identity_exc:
+                base[f"{label.replace(' ', '_')}_verification_error"] = (
+                    f"{type(identity_exc).__name__}: {identity_exc}"
+                )
         write_manifest(manifest_path, base)
         raise
 
@@ -1087,6 +723,7 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     actual_argv = sys.argv[1:] if argv is None else argv
     try:
+        require_bootstrap_context()
         args = parse_args(actual_argv)
         result = audit(args, [str(ORIGINAL_BOOTSTRAP), *actual_argv])
     except (AuditError, RuntimeError, OSError, ValueError) as exc:

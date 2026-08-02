@@ -97,16 +97,34 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
     radius = isqrt(4 * prime)
     if not -radius <= trace <= radius:
         fail("independent trace is outside the Hasse interval")
+    raw_prior = record.get("trace_prior")
+    if raw_prior is None:
+        prior_modulus = 1
+        prior_residue = 0
+    else:
+        if not isinstance(raw_prior, dict) or set(raw_prior) != {
+            "modulus",
+            "residue",
+        }:
+            fail("trace_prior must be null or an exact modulus/residue object")
+        prior_modulus = decimal(raw_prior.get("modulus"), "trace_prior.modulus")
+        prior_residue = decimal(raw_prior.get("residue"), "trace_prior.residue")
+        if prior_modulus < 2 or prior_residue >= prior_modulus:
+            fail("trace_prior is not canonical")
+        if gcd(prime, prior_modulus) != 1:
+            fail("trace_prior modulus is not coprime to the field characteristic")
+        if trace % prior_modulus != prior_residue:
+            fail("independent trace disagrees with trace_prior")
     levels = record.get("sea_level_timings")
     if not isinstance(levels, list) or not levels:
         fail("search-curve record has no SEA levels")
 
     current_pass = 0
     prior_ell = 0
-    residue = 0
-    modulus = 1
-    effective_residues = [0]
-    effective_modulus = 1
+    residue = prior_residue
+    modulus = prior_modulus
+    effective_residues = [prior_residue]
+    effective_modulus = prior_modulus
     exact_levels = 0
     atkin_levels = 0
     passes: list[dict[str, object]] = []
@@ -122,10 +140,10 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
                 passes.append({"pass": current_pass, "modulus": str(modulus)})
             current_pass = pass_number
             prior_ell = 0
-            residue = 0
-            modulus = 1
-            effective_residues = [0]
-            effective_modulus = 1
+            residue = prior_residue
+            modulus = prior_modulus
+            effective_residues = [prior_residue]
+            effective_modulus = prior_modulus
         if ell <= prior_ell:
             fail(f"SEA levels are not increasing within pass {current_pass}")
         prior_ell = ell
@@ -233,6 +251,11 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
         "index": str(record.get("index")),
         "prime": str(prime),
         "trace": str(trace),
+        "trace_prior": (
+            None
+            if raw_prior is None
+            else {"modulus": str(prior_modulus), "residue": str(prior_residue)}
+        ),
         "curve_order": str(prime + 1 - trace),
         "twist_order": str(prime + 1 + trace),
         "curve_twist_sum": str(2 * prime + 2),

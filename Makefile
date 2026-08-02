@@ -30,7 +30,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-poly-square test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-poly-square test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -111,6 +111,11 @@ $(BUILD_DIR)/test_weber_curve_generator: \
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
 		$(LDFLAGS) $(LDLIBS) -o $@
 
+$(BUILD_DIR)/oracle_weber_audit: \
+		oracle/weber_audit.cpp $(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
 $(BUILD_DIR)/test_x1_11_probe: \
 		tests/test_x1_11_probe.cpp $(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
@@ -161,6 +166,19 @@ test-weber-modpoly:
 test-weber-curve-generator: $(BUILD_DIR)/test_weber_curve_generator
 	./$(BUILD_DIR)/test_weber_curve_generator
 
+test-weber-audit: $(BUILD_DIR)/oracle_weber_audit
+	./$(BUILD_DIR)/oracle_weber_audit --p 101 --seed 17 --range-start 0 \
+		--count 1 --max-level 5 --trace-cap 4 --sea-threads 1 \
+		--table-dir data/modpoly/weber_f --schoof-fallback 1 | \
+		python3 -c 'import json,sys; rows=[json.loads(line) for line in sys.stdin]; assert len(rows)==1; row=rows[0]; p=int(row["p"]); trace=int(row["final_exact_trace"]); d=int(row["twist_parameter"]); curve={k:int(v) for k,v in row["curve"].items()}; twist={k:int(v) for k,v in row["twist"].items()}; discriminant=lambda side:(4*pow(side["a"],3,p)+27*pow(side["b"],2,p))%p; invariant=lambda side:(1728*4*pow(side["a"],3,p)*pow(discriminant(side),-1,p))%p; point_trace=lambda side:p+1-(1+sum(1+(0 if (rhs:=(pow(x,3,p)+side["a"]*x+side["b"])%p)==0 else 1 if pow(rhs,(p-1)//2,p)==1 else -1) for x in range(p))); assert row["schema"]=="oneshotsea.weber-audit.v1" and row["index"]=="0"; assert row["complete"] and row["final_exact_only"] and not row["smoothness_audited"]; assert row["final"]["exact_trace_candidate_count"]=="1"; assert int(row["early"]["trace_count"])==len(row["early"]["traces"]); assert all(level["classification"] in {"exact_elkies","certified_atkin","unconstrained"} for level in row["early"]["levels"]+row["final"]["levels"]); assert all(item["trace_residues"] for item in row["early"]["atkin_constraints"]+row["final"]["atkin_constraints"]); assert isinstance(row["final"]["exact_residue_classes"],list) and isinstance(row["final"]["effective_residue_classes"],list); assert pow(d,(p-1)//2,p)==p-1 and all(pow(candidate,(p-1)//2,p)!=p-1 for candidate in range(2,d)); assert twist["a"]==curve["a"]*pow(d,2,p)%p and twist["b"]==curve["b"]*pow(d,3,p)%p; assert discriminant(curve)!=0 and discriminant(twist)!=0; assert invariant(curve)==invariant(twist)==int(row["j"]); assert point_trace(curve)==trace and point_trace(twist)==-trace'
+	./$(BUILD_DIR)/oracle_weber_audit --p 101 --seed 17 --range-start 0 \
+		--count 1 --max-level 5 --trace-cap 4 --sea-threads 1 \
+		--table-dir data/modpoly/weber_f --schoof-fallback 0 | \
+		python3 -c 'import json,sys; rows=[json.loads(line) for line in sys.stdin]; assert len(rows)==1; row=rows[0]; assert not row["complete"] and not row["final_exact_only"]; assert row["unique_mode"]=="fresh_cap_one" and row["final_exact_trace"] is None; assert row["final"]["status"]=="level_limit" and row["final"]["traces"] is None; assert row["early"]["fallback_levels"]==row["final"]["fallback_levels"]==[]'
+
+test-weber-corpus: $(BUILD_DIR)/oracle_weber_audit
+	python3 tests/test_weber_corpus_audit.py -v
+
 test-x1-11-probe: $(BUILD_DIR)/test_x1_11_probe
 	./$(BUILD_DIR)/test_x1_11_probe
 
@@ -204,7 +222,7 @@ test-runpod: all
 test-aws:
 	scripts/aws/test.sh
 
-test-all: test test-poly-square test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
+test-all: test test-poly-square test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

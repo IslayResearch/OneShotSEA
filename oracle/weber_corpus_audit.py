@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Snapshot and execute the deterministic Schoof corpus driver."""
+"""Snapshot and execute the production-Weber/Magma corpus driver."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ LOADED_MODULE_CODE = sys._getframe().f_code
 
 HERE = Path(__file__).resolve().parent
 REPOSITORY_ROOT = HERE.parent
-DRIVER_SOURCE = HERE / "corpus_audit_driver.py"
+DRIVER_SOURCE = HERE / "weber_corpus_audit_driver.py"
 COMMON_SOURCE = HERE / "audit_common.py"
 POINT_COUNT_SOURCE = HERE / "point_count.m"
 PRIME_CHECK_SOURCE = HERE / "prime_check.m"
@@ -60,7 +60,7 @@ def loaded_bootstrap_code_digest() -> str:
 def main(argv: list[str] | None = None) -> int:
     actual_argv = sys.argv[1:] if argv is None else argv
     snapshot_directory = Path(
-        tempfile.mkdtemp(prefix="oneshotsea-oracle-audit-")
+        tempfile.mkdtemp(prefix="oneshotsea-weber-oracle-audit-")
     ).resolve()
     try:
         driver = snapshot_directory / DRIVER_SOURCE.name
@@ -72,13 +72,21 @@ def main(argv: list[str] | None = None) -> int:
         environment.update(
             {
                 "ONESHOTSEA_AUDIT_REPOSITORY_ROOT": str(REPOSITORY_ROOT),
-                "ONESHOTSEA_AUDIT_ORIGINAL_BOOTSTRAP": str(Path(__file__).resolve()),
-                "ONESHOTSEA_AUDIT_ORIGINAL_DRIVER": str(DRIVER_SOURCE),
-                "ONESHOTSEA_AUDIT_ORIGINAL_COMMON": str(COMMON_SOURCE),
-                "ONESHOTSEA_AUDIT_ORIGINAL_POINT_COUNT": str(POINT_COUNT_SOURCE),
-                "ONESHOTSEA_AUDIT_ORIGINAL_PRIME_CHECK": str(PRIME_CHECK_SOURCE),
-                "ONESHOTSEA_AUDIT_EXECUTION_SNAPSHOT_DIR": str(snapshot_directory),
-                "ONESHOTSEA_AUDIT_LOADED_BOOTSTRAP_CODE_SHA256": (
+                "ONESHOTSEA_WEBER_AUDIT_ORIGINAL_BOOTSTRAP": str(
+                    Path(__file__).resolve()
+                ),
+                "ONESHOTSEA_WEBER_AUDIT_ORIGINAL_DRIVER": str(DRIVER_SOURCE),
+                "ONESHOTSEA_WEBER_AUDIT_ORIGINAL_COMMON": str(COMMON_SOURCE),
+                "ONESHOTSEA_WEBER_AUDIT_ORIGINAL_POINT_COUNT": str(
+                    POINT_COUNT_SOURCE
+                ),
+                "ONESHOTSEA_WEBER_AUDIT_ORIGINAL_PRIME_CHECK": str(
+                    PRIME_CHECK_SOURCE
+                ),
+                "ONESHOTSEA_WEBER_AUDIT_EXECUTION_SNAPSHOT_DIR": str(
+                    snapshot_directory
+                ),
+                "ONESHOTSEA_WEBER_AUDIT_LOADED_BOOTSTRAP_CODE_SHA256": (
                     loaded_bootstrap_code_digest()
                 ),
                 "PYTHONHASHSEED": "0",

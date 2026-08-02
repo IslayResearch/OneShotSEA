@@ -64,9 +64,10 @@ order and trace. Echoed inputs, canonical encodings, the Hasse bound, the list
 and product of completed Schoof levels, and the sufficient CRT modulus are all
 checked fail-closed. The output directory is create-only and contains a
 line-oriented record stream plus a manifest binding the complete invocation,
-Git commit and worktree state, host and Python identity, native executable,
-Magma engine and parsed runtime version, both Magma programs, bootstrap,
-driver, record count, and SHA-256 digest. The native executable and
+Git commit and worktree state, host and Python identity, native executable and
+its non-system dynamic dependencies, Magma engine, installation dependency
+tree, and parsed runtime version, both Magma programs, bootstrap, driver,
+record count, and SHA-256 digest. The native executable and
 oracle sources are copied into a per-run `inputs/` snapshot directory and
 executed from there. All source and snapshot hashes are rechecked before a run
 can be marked complete.
@@ -131,9 +132,12 @@ installation these are, respectively:
 The driver clears runtime path overrides, reconstructs the standard Magma paths
 from the bound root, disables user startup files, and forces single-threaded
 numerical-library settings for oracle calls. A small bootstrap copies the
-scientific driver and both Magma programs before a fresh Python interpreter
-loads them; those exact executing bytes are then copied into the artifact and
-rechecked at completion.
+scientific driver, shared audit module, and both Magma programs before a fresh
+Python interpreter loads them. The driver refuses direct execution outside
+that bootstrap context and attests the complete loaded module code, including
+nested code objects, against the copied source without executing the original
+source. Those exact executing bytes and the native/Magma dependency identities
+are copied into the artifact and rechecked at completion.
 
 This driver audits the independent native Schoof path. It does **not** expose
 or certify every intermediate root/classification in the production Weber-f
@@ -143,6 +147,52 @@ from a successful corpus run. A failed comparison writes a failed manifest and
 stops at the first mismatch; completed records already flushed to disk remain
 hashed as a partial artifact. An interrupt is recorded separately and exits
 with status 130.
+
+## Production Weber-state corpus audit
+
+`weber_corpus_audit.py` exercises the actual deterministic Weber curve
+generator and production Weber SEA runner.  For each deterministically generated
+prime it asks Magma for the curve and twist orders, then independently replays
+every emitted exact and effective CRT state.  The replay checks the known
+Weber-f lift and its map to `j`, the canonical curve model, the least-nonsquare
+quadratic twist, the full-rational-2-torsion trace prior, exact Elkies residues,
+certified Atkin projective orders and their complete allowed residue sets,
+retained exact Schoof fallback state, all candidate counts and trace lists, and
+the final exact-only singleton.  The curve and twist orders must sum to
+`2*p+2`, and no intermediate constraint may eliminate the Magma trace.
+
+The table source is copied into the create-only artifact before execution.  The
+native emitter authenticates that copied table set, while the driver binds and
+completion-rechecks every original and copied Weber/classical-j table file.
+Nondeterministic timing counters are type/range checked but deliberately omitted
+from `records.ndjson`, so two identical scientific runs have the same record
+digest.  This first production-state slice explicitly records
+`smoothness_audited:false`; it must not be cited as an audit of the smooth-part
+engine or sound/heuristic early-abort decision.
+
+A direct-runtime breadth smoke is:
+
+```sh
+python3 oracle/weber_corpus_audit.py \
+  --magma-runtime /path/to/actual/magma-executable \
+  --magma-root /path/to/magma-installation \
+  --native build/oracle_weber_audit \
+  --table-dir data/modpoly/weber_f \
+  --output-dir artifacts/local/weber-oracle-smoke-20260802 \
+  --seed 202608020003 \
+  --bit-sizes 16,24,32,48,64,96,128,192,256 \
+  --curves-per-size 1 --max-level 193 --trace-cap 16 --sea-threads 1 \
+  --command-timeout-seconds 3600 --max-output-bytes 8388608 \
+  --max-prime-attempts 1000000
+```
+
+The same create-only, bounded-child, direct Magma runtime/root, full-module
+bootstrap attestation, source/dependency snapshot, identity drift,
+partial-manifest, interrupt, and `UINT64_MAX` cursor contracts as the
+reference-Schoof corpus apply. `--trace-cap` may not exceed 4096, and the
+deterministic Weber generator is rejected if it requires more than 4096
+admission candidates for a record; these hard bounds prevent hostile or corrupt
+native output from turning the independent replay into unbounded work.
 
 ## Tests
 
@@ -157,6 +207,14 @@ executables and need no Magma license:
 
 ```sh
 python3 tests/test_oracle_corpus_audit.py -v
+```
+
+The production Weber emitter and corpus replay have a real native p=101 Atkin
+plus retained-fallback fixture and a reproducible fake-Magma end-to-end run:
+
+```sh
+make test-weber-audit
+make test-weber-corpus
 ```
 
 The fixtures include `j=0`, `j=1728`/supersingular, ordinary, negative

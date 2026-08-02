@@ -14,10 +14,13 @@ import tempfile
 import textwrap
 import time
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DRIVER = ROOT / "oracle" / "corpus_audit.py"
+sys.path.insert(0, str(ROOT / "oracle"))
+import audit_common  # noqa: E402
 
 
 FAKE_NATIVE = r"""
@@ -102,9 +105,16 @@ class OracleCorpusAuditTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.native = self.root / "native"
-        self.magma = self.root / "magma"
-        (self.root / "package").mkdir()
-        (self.root / "package" / "spec").write_text("fake spec\n", encoding="utf-8")
+        self.magma_root = self.root / "magma-install"
+        self.magma = self.magma_root / "bin" / "magma"
+        for directory in ("bin", "package", "libs", "InternalHelp"):
+            (self.magma_root / directory).mkdir(parents=True, exist_ok=True)
+        (self.magma_root / "package" / "spec").write_text(
+            "fake spec\n", encoding="utf-8"
+        )
+        (self.magma_root / "magmapassfile").write_text(
+            "fake passfile\n", encoding="utf-8"
+        )
         self._write_executable(self.native, FAKE_NATIVE)
         self._write_executable(self.magma, FAKE_MAGMA)
 
@@ -158,7 +168,7 @@ class OracleCorpusAuditTests(unittest.TestCase):
             "--magma-runtime",
             str(self.magma if magma is None else magma),
             "--magma-root",
-            str(self.root),
+            str(self.magma_root),
             "--seed",
             "20260802",
             "--bit-sizes",
@@ -193,6 +203,10 @@ class OracleCorpusAuditTests(unittest.TestCase):
         self.assertEqual(
             len(first_manifest["identity"]["loaded_corpus_code_sha256"]), 64
         )
+        self.assertEqual(
+            len(first_manifest["identity"]["loaded_audit_common_code_sha256"]),
+            64,
+        )
         self.assertTrue(first_manifest["identity"]["validated_at_completion"])
         self.assertIn("corpus_bootstrap_sha256", first_manifest["identity"])
         self.assertIn("prime_check_script_sha256", first_manifest["identity"])
@@ -205,6 +219,21 @@ class OracleCorpusAuditTests(unittest.TestCase):
             hashlib.sha256(
                 (first / "inputs" / "corpus_audit_driver.py").read_bytes()
             ).hexdigest(),
+        )
+        common_artifact_digest = hashlib.sha256(
+            (first / "inputs" / "audit_common.py").read_bytes()
+        ).hexdigest()
+        self.assertEqual(
+            first_manifest["identity"]["audit_common_original_sha256"],
+            common_artifact_digest,
+        )
+        self.assertEqual(
+            first_manifest["identity"]["audit_common_executing_sha256"],
+            common_artifact_digest,
+        )
+        self.assertEqual(
+            first_manifest["identity"]["audit_common_artifact_sha256"],
+            common_artifact_digest,
         )
         records_bytes = (first / "records.ndjson").read_bytes()
         self.assertEqual(
@@ -223,6 +252,57 @@ class OracleCorpusAuditTests(unittest.TestCase):
                 for record in records
             )
         )
+
+    def test_pinned_deterministic_prime_vectors(self) -> None:
+        output = self.root / "prime-vectors"
+        completed = self.run_driver(output)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        records = [
+            json.loads(line)
+            for line in (output / "records.ndjson").read_text().splitlines()
+        ]
+        self.assertEqual(
+            [
+                (
+                    record["requested_bits"],
+                    record["bucket_ordinal"],
+                    record["prime"],
+                    record["prime_generation_attempts"],
+                )
+                for record in records
+            ],
+            [
+                (8, 0, "163", 2),
+                (8, 1, "157", 1),
+                (9, 0, "431", 2),
+                (9, 1, "331", 1),
+            ],
+        )
+
+    def test_shared_common_value_and_magma_environment_contracts(self) -> None:
+        self.assertEqual(audit_common.canonical_decimal("0", "value"), 0)
+        self.assertEqual(
+            audit_common.canonical_decimal("-17", "value", signed=True), -17
+        )
+        for malformed in ("", "01", "-0", "+1"):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises(audit_common.AuditError):
+                    audit_common.canonical_decimal(
+                        malformed, "value", signed=True
+                    )
+        with self.assertRaisesRegex(audit_common.AuditError, "duplicate key"):
+            audit_common.unique_json_object([("p", 101), ("p", 103)])
+
+        poisoned = {key: "poisoned" for key in audit_common.MAGMA_ENVIRONMENT_KEYS}
+        with mock.patch.dict(os.environ, poisoned, clear=False):
+            environment = audit_common.magma_environment(self.magma_root, self.magma)
+        self.assertEqual(environment["MAGMA_CMD"], str(self.magma))
+        self.assertEqual(
+            environment["MAGMA_SYSTEM_SPEC"],
+            str(self.magma_root / "package" / "spec"),
+        )
+        self.assertEqual(environment["MAGMA_STARTUP_FILE"], os.devnull)
+        self.assertEqual(environment["OMP_NUM_THREADS"], "1")
 
     def test_mismatch_fails_closed_with_partial_manifest(self) -> None:
         output = self.root / "mismatch"
@@ -462,6 +542,75 @@ class OracleCorpusAuditTests(unittest.TestCase):
         self.assertNotEqual(process.returncode, 0, (stdout, stderr))
         manifest = json.loads((output / "manifest.json").read_text())
         self.assertIn("native source identity changed", manifest["error"])
+
+    def test_magma_dependency_drift_fails_closed(self) -> None:
+        output = self.root / "magma-dependency-drift"
+        started = self.root / "magma-dependency-child-started"
+        dependency = self.magma_root / "libs" / "scientific-code.m"
+        dependency.write_text("version one\n", encoding="utf-8")
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "FAKE_NATIVE_SLEEP": "1",
+                "FAKE_NATIVE_STARTED_MARKER": str(started),
+            }
+        )
+        process = subprocess.Popen(
+            self.driver_command(
+                output,
+                extra_arguments=["--bit-sizes", "8", "--curves-per-size", "1"],
+            ),
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+        )
+        deadline = time.monotonic() + 5
+        while not started.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertTrue(started.exists(), "snapshotted fake native child did not start")
+        dependency.write_text("version two\n", encoding="utf-8")
+        stdout, stderr = process.communicate(timeout=10)
+        self.assertNotEqual(process.returncode, 0, (stdout, stderr))
+        manifest = json.loads((output / "manifest.json").read_text())
+        self.assertIn("Magma dependency identity changed", manifest["error"])
+
+    def test_audit_common_artifact_drift_fails_closed(self) -> None:
+        output = self.root / "common-artifact-drift"
+        started = self.root / "common-drift-child-started"
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "FAKE_NATIVE_SLEEP": "1",
+                "FAKE_NATIVE_STARTED_MARKER": str(started),
+            }
+        )
+        process = subprocess.Popen(
+            self.driver_command(
+                output,
+                extra_arguments=["--bit-sizes", "8", "--curves-per-size", "1"],
+            ),
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+        )
+        deadline = time.monotonic() + 5
+        while not started.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        self.assertTrue(started.exists(), "snapshotted fake native child did not start")
+        common_artifact = output / "inputs" / "audit_common.py"
+        self.assertTrue(common_artifact.is_file())
+        common_artifact.write_text(
+            common_artifact.read_text(encoding="utf-8") + "\n# drift\n",
+            encoding="utf-8",
+        )
+        stdout, stderr = process.communicate(timeout=10)
+        self.assertNotEqual(process.returncode, 0, (stdout, stderr))
+        manifest = json.loads((output / "manifest.json").read_text())
+        self.assertIn("audit common snapshot identity changed", manifest["error"])
 
     def test_rejects_invalid_residue_level_before_creating_output(self) -> None:
         output = self.root / "bad-level"

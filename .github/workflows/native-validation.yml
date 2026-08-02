@@ -31,10 +31,14 @@ jobs:
       - name: Build
         run: make -j2
 
-      - name: Run native and reference tests
+      - name: Run portable native and reference tests
         run: |
           make test
-          make test-poly-reduction
+          make test-poly-square
+          make test-atkin
+          make test-progress-audit
+          make test-yield-model
+          make test-performance-artifacts
           make test-cli
           make test-reference
           make test-factor
@@ -50,6 +54,3 @@ jobs:
           make test-exact-smooth
           make test-search-checkpoint
           make test-search-pipeline
-
-      - name: Record polynomial benchmark
-        run: make benchmark-poly-reduction

@@ -62,6 +62,7 @@ if ! require_execute; then
     "$instance_id" "$AWS_REMOTE_ROOT" "$cache_id"
   printf 'DRY-RUN: bind prime=%s seed=%s max_level=%s table_dir=%s and binary/commit SHA-256 identity\n' \
     "$prime" "$seed" "$max_level" "$table_dir"
+  printf 'DRY-RUN: cache-only partition worker=1/2 assigned_range=[1,1) (zero curves)\n'
   if [[ -n "$expected_cache_sha256" ]]; then
     printf 'DRY-RUN: require rebuilt smooth cache SHA-256=%s\n' "$expected_cache_sha256"
   fi
@@ -98,7 +99,7 @@ progress="$cache_dir/progress.jsonl"
 result="$cache_dir/certificate.txt"
 build_id="git:${commit}-sha256:${binary_sha}"
 cmd=("$exe" search --p "$prime" --seed "$seed" --range-start 0 --range-end 1
-     --worker-id 0 --worker-count 1 --max-level "$max_level" --table-dir "$tables"
+     --worker-id 1 --worker-count 2 --max-level "$max_level" --table-dir "$tables"
      --smooth-cache "$cache" --checkpoint "$checkpoint" --progress "$progress"
      --certificate-out "$result" --build-id "$build_id" --max-curves 0)
 printf "exec" >"$cache_dir/command.sh"; printf " %q" "${cmd[@]}" >>"$cache_dir/command.sh"; printf "\n" >>"$cache_dir/command.sh"
@@ -106,10 +107,13 @@ set +e
 "${cmd[@]}" >"$cache_dir/build.log" 2>&1
 status=$?
 set -e
-# A zero-curve search deliberately finds no certificate, so the production
-# CLI returns one after it has authenticated/built the cache and emitted its
-# bounded summary. Any other status is an operational failure.
-[[ "$status" == 1 ]]
+# Worker one of two receives the empty assigned range [1,1). Clean exhaustion
+# returns zero after the CLI has authenticated/built the cache and emitted its
+# summary. Any progress record or certificate would contradict the cache-only
+# partition and is an operational failure.
+[[ "$status" == 0 ]]
+[[ ! -s "$progress" ]]
+[[ ! -e "$result" ]]
 [[ -s "$cache" ]]
 cache_sha=$(sha256sum "$cache" | awk "{print \$1}")
 if [[ -n "$expected_cache_sha" && "$cache_sha" != "$expected_cache_sha" ]]; then

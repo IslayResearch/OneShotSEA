@@ -42,7 +42,7 @@ Usage: launch-worker.sh --run-id RUN --run-kind benchmark|production
 
 Options:
   --binary RELPATH                    Search executable below deployed `current`
-  --max-curves N                      Stop after at most N curves (0 means none)
+  --max-curves N                      Required positive per-attempt curve cap
   --checkpoint-every N                Checkpoint interval
   --curve-family FAMILY               weber-f, x1-11, or x1-27
   --x1-require-point4 0|1             Require validated X1 point of order four
@@ -69,8 +69,8 @@ the worker's assigned subrange. Every worker in a run must receive the same
 range and seed; `oneshotsea search` performs the one and only partitioning.
 The table directory and binary are relative to the deployed commit. The smooth
 cache is an absolute path below RUNPOD_REMOTE_ROOT and must already exist.
-Benchmark runs must have a positive max-curves or wall-time bound. Production
-runs require a positive wall-time bound so there is time to fetch artifacts.
+Every worker run requires a positive max-curves cap. Production runs also
+require a positive wall-time bound so there is time to fetch artifacts.
 EOF
 }
 
@@ -141,7 +141,7 @@ while (( $# )); do
       search_args+=(--smooth-coordinators "$smooth_coordinators"); shift 2 ;;
     --max-curves)
       max_curves="${2:-}"
-      append_uint_option max-curves "$max_curves"; shift 2 ;;
+      append_positive_uint_option max-curves "$max_curves"; shift 2 ;;
     --checkpoint-every) append_positive_uint_option checkpoint-every "${2:-}"; shift 2 ;;
     --trace-cap) append_positive_uint_option trace-cap "${2:-}"; shift 2 ;;
     --sea-threads)
@@ -178,6 +178,7 @@ validate_positive_uint range-end "$range_end"
 validate_uint seed "$seed"
 validate_positive_uint max-level "$max_level"
 validate_positive_uint sea-threads "$sea_threads"
+validate_positive_uint max-curves "$max_curves"
 if [[ "$curve_family" == weber-f && "$x1_require_point4" == 1 ]]; then
   die '--x1-require-point4 requires an X1 curve family'
 fi
@@ -192,10 +193,6 @@ then
   die '--smooth-coordinators may not exceed --curve-threads'
 fi
 validate_uint wall-time-limit-seconds "$wall_time_limit_seconds"
-if [[ "$run_kind" == benchmark ]] && is_zero_uint "$max_curves" &&
-    is_zero_uint "$wall_time_limit_seconds"; then
-  die 'benchmark runs require positive --max-curves or --wall-time-limit-seconds'
-fi
 if [[ "$run_kind" == production ]] &&
     is_zero_uint "$wall_time_limit_seconds"; then
   die 'production runs require a positive --wall-time-limit-seconds for fetch margin'

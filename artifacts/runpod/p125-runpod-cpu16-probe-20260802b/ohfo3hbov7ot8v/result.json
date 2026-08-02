@@ -1,0 +1,102 @@
+{
+  "schema": "oneshotsea.runpod-p125-probe.v1",
+  "classification": "bounded production-path throughput and no-hit evidence; not a certificate-rate estimate",
+  "run": {
+    "run_id": "p125-runpod-cpu16-probe-20260802b",
+    "pod_id": "ohfo3hbov7ot8v",
+    "run_kind": "benchmark",
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "range": {
+      "start_inclusive": "1000000",
+      "end_exclusive": "1000030",
+      "curves": 30
+    },
+    "deployment_commit": "c08f0ed82923b7aee3a5a3c9326deb4d5e439b4c",
+    "binary_sha256": "383207a8c0b1f0c05a26183e2073afbbf8fe6a7c771eac4a194077e2175aecaf",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "command_sha256": "fe9ac78d65f86151f76049a38811303a186e03a49ae5cdf571d1766ac0b30a73",
+    "start_utc": "2026-08-02T18:23:12Z",
+    "end_utc": "2026-08-02T18:36:33Z",
+    "exit_status": 0
+  },
+  "configuration": {
+    "curve_family": "x1-27",
+    "x1_require_point_four": true,
+    "max_level": 401,
+    "trace_cap": 16,
+    "schoof_fallback": true,
+    "skip_incomplete_curves": false,
+    "curve_threads": 16,
+    "sea_threads": 1,
+    "smooth_threads": 1,
+    "smooth_coordinators": 0,
+    "smooth_max_batch": 128,
+    "wall_time_limit_seconds": 1800
+  },
+  "outcome": {
+    "curves_attempted": 30,
+    "sound_smoothness_rejections": 30,
+    "heuristic_rejections": 0,
+    "full_point_counts_completed": 14,
+    "candidates_reaching_smoothness": 30,
+    "candidate_attempts": 0,
+    "certificate_assembly_calls": 0,
+    "certificates_found": 0,
+    "range_exhausted": true,
+    "checkpoint_next_index": "1000030"
+  },
+  "aggregate_curve_work": {
+    "generator_rejections": 4457,
+    "sea_levels": 1733,
+    "exact_sea_levels": 907,
+    "atkin_sea_levels": 29,
+    "schoof_fallback_levels": 0,
+    "timings_us": {
+      "generation": 183940689,
+      "sea": 5639913862,
+      "smoothness": 1790170138,
+      "total": 7614025060,
+      "minimum_curve_total": 164222632,
+      "maximum_curve_total": 358382805
+    }
+  },
+  "host_resource_record": {
+    "elapsed_seconds": 800.92,
+    "attempt_epoch_seconds": 801,
+    "user_seconds": 7150.64,
+    "system_seconds": 19.19,
+    "average_cpu_percent": 895,
+    "maximum_resident_set_kbytes": 10552336,
+    "maximum_resident_set_bytes": 10805592064,
+    "swaps": 0
+  },
+  "throughput_and_cost": {
+    "curves_per_elapsed_second": 0.0374531835,
+    "elapsed_seconds_per_curve_including_cache_startup": 26.7,
+    "curves_per_hour_including_cache_startup": 134.831460674,
+    "recorded_hourly_rate_usd": 0.643,
+    "estimated_probe_compute_cost_usd": 0.1430675,
+    "estimate_note": "Elapsed attempt time times the recorded compute-plus-disk hourly rate; RunPod billing is authoritative.",
+    "optimistic_model_source": "artifacts/local/p125-yield-model-20260801/result.json",
+    "optimistic_x1_27_expected_curves": 96286,
+    "optimistic_hours_at_observed_probe_rate": 714.121166667,
+    "optimistic_compute_cost_usd_at_observed_probe_rate": 459.179910167,
+    "four_hour_baseline_projection_curves": 539.325842697,
+    "four_hour_fraction_of_optimistic_expected_curves": 0.00560129,
+    "model_warning": "The checked-in expected-curve value is an optimistic smooth-order opportunity model, not a verified-certificate probability. Exact-order assembly and curve/twist dependence can reduce realized yield."
+  },
+  "local_audit": {
+    "sha256sums_passed": true,
+    "manifest_command_sha256_recomputed": true,
+    "progress_records": 30,
+    "progress_indices_contiguous": true,
+    "checkpoint_counters_match_progress": true,
+    "attempt_status_zero": true,
+    "certificate_file_absent": true,
+    "manifest_sha256": "6df3465d42a553fd97422c94c2c9970eb100b6135ed8c9adc6f4e74baa5dc8be",
+    "checkpoint_sha256": "d5a931dec7d8b7eef59818eec3fc6b05d501c710ddf588598931a80817904a68",
+    "progress_sha256": "b952a371b9ae29fc718171f978460408fde40fc9cb3c6755d9d7a8cf0c674507",
+    "resource_usage_sha256": "432e9b984fd978d82c4b785f24118b74fd4ccb9b55e5e2d82bde0d2d70fd9954"
+  }
+}

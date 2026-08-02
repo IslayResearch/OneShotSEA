@@ -153,8 +153,8 @@ def main() -> int:
         fail("--x1-require-point4 requires an X1 curve family")
     if not HEX_64.fullmatch(args.smooth_cache_sha256):
         fail("invalid trusted smooth-cache digest")
-    if args.run_kind == "benchmark" and not args.max_curves and not args.wall_time_limit_seconds:
-        fail("benchmark runs must be bounded by max-curves or wall time")
+    if args.max_curves is None or not 0 < args.max_curves <= MAX_U64:
+        fail("--max-curves must be positive")
     if args.run_kind == "production" and not args.wall_time_limit_seconds:
         fail("production runs require wall time for artifact-fetch margin")
 
@@ -173,7 +173,7 @@ def main() -> int:
             search_argv.extend((f"--{name}", str(value)))
 
     resource_options = (
-        ("max-curves", args.max_curves, False),
+        ("max-curves", args.max_curves, True),
         ("checkpoint-every", args.checkpoint_every, True),
         ("trace-cap", args.trace_cap, True),
         ("smooth-threads", args.smooth_threads, False),

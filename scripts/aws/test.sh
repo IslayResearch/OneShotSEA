@@ -41,8 +41,9 @@ task_cost="$("${SCRIPT_DIR}/cost.sh" --start 2026-08-01 --end 2026-08-02 \
 cache_dry="$(AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/prepare-cache.sh" \
   --cache-id p125-cache --prime 101 --max-level 401 \
   --table-dir data/modpoly/weber_f --expected-cache-sha256 "$digest" 2>&1)"
-[[ "$cache_dry" == *"require rebuilt smooth cache SHA-256=${digest}"* ]] ||
-  fail 'cache dry-run does not pin an independently trusted digest'
+[[ "$cache_dry" == *"require rebuilt smooth cache SHA-256=${digest}"* &&
+   "$cache_dry" == *'worker=1/2 assigned_range=[1,1) (zero curves)'* ]] ||
+  fail 'cache dry-run does not pin its digest and empty assignment'
 
 benchmark="$(AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/benchmark-sea.sh" \
   --run-id p125-sea-test --prime 101 --a 2 --b 3 --max-level 193 \
@@ -102,8 +103,9 @@ fi
     --seed 1 --max-level 11 --sea-threads 1 \
     --table-dir data/modpoly/weber_f \
     --smooth-cache /opt/oneshotsea/caches/test/smooth.cache \
-    --smooth-cache-sha256 "$digest" --max-curves 00 >/dev/null 2>&1; then
-  fail 'unbounded benchmark was accepted'
+    --smooth-cache-sha256 "$digest" --max-curves 00 \
+    --wall-time-limit-seconds 60 >/dev/null 2>&1; then
+  fail 'zero-curve benchmark was accepted despite a wall timeout'
 fi
 
 if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
@@ -122,9 +124,21 @@ if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
   --seed 1 --max-level 11 --sea-threads 1 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache /opt/oneshotsea/caches/test/smooth.cache \
-  --smooth-cache-sha256 "$digest" --wall-time-limit-seconds 00 \
+  --smooth-cache-sha256 "$digest" --max-curves 1 \
+  --wall-time-limit-seconds 00 \
   >/dev/null 2>&1; then
   fail 'production worker without fetch-margin wall limit was accepted'
+fi
+
+if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
+  --run-id zero-production --run-kind production --prime 101 \
+  --worker-id 0 --worker-count 1 --range-start 0 --range-end 1 \
+  --seed 1 --max-level 11 --sea-threads 1 \
+  --table-dir data/modpoly/weber_f \
+  --smooth-cache /opt/oneshotsea/caches/test/smooth.cache \
+  --smooth-cache-sha256 "$digest" --max-curves 00 \
+  --wall-time-limit-seconds 60 >/dev/null 2>&1; then
+  fail 'production worker accepted a zero-curve cap'
 fi
 
 if grep -E 'version[[:space:]]*\|[[:space:]]*head' "${SCRIPT_DIR}/deploy.sh" >/dev/null; then

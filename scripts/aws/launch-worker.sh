@@ -41,7 +41,7 @@ Usage: launch-worker.sh --run-id RUN --run-kind benchmark|production
 
 Options:
   --instance-id ID                    EC2 instance (or AWS_INSTANCE_ID)
-  --max-curves N                      Search at most N curves (0 means none)
+  --max-curves N                      Required positive per-attempt curve cap
   --checkpoint-every N                Checkpoint interval
   --curve-family FAMILY               weber-f, x1-11, or x1-27
   --x1-require-point4 0|1             Require validated X1 point of order four
@@ -64,7 +64,8 @@ Options:
 
 Dry-run is the default. Every worker receives the same global half-open range
 and seed; the production CLI performs the one and only partition. Benchmark
-runs must have a positive --max-curves or a wall-time limit.
+Every run requires a positive --max-curves cap. Production runs also require a
+positive wall-time limit for artifact-fetch margin.
 EOF
 }
 
@@ -132,7 +133,7 @@ while (( $# )); do
       validate_uint smooth-coordinators "$smooth_coordinators"
       search_args+=(--smooth-coordinators "$smooth_coordinators"); shift 2 ;;
     --max-curves)
-      max_curves="${2:-}"; append_uint_option max-curves "$max_curves"; shift 2 ;;
+      max_curves="${2:-}"; append_positive_uint_option max-curves "$max_curves"; shift 2 ;;
     --checkpoint-every) append_positive_uint_option checkpoint-every "${2:-}"; shift 2 ;;
     --trace-cap) append_positive_uint_option trace-cap "${2:-}"; shift 2 ;;
     --smooth-threads) append_uint_option smooth-threads "${2:-}"; shift 2 ;;
@@ -164,6 +165,7 @@ validate_uint seed "$seed"
 validate_positive_uint max-level "$max_level"
 (( 10#$max_level >= 5 )) || die 'max-level must be at least 5'
 validate_positive_uint sea-threads "$sea_threads"
+validate_positive_uint max-curves "$max_curves"
 if [[ "$curve_family" == weber-f && "$x1_require_point4" == 1 ]]; then
   die '--x1-require-point4 requires an X1 curve family'
 fi
@@ -178,10 +180,6 @@ then
   die '--smooth-coordinators may not exceed --curve-threads'
 fi
 validate_uint wall-time-limit-seconds "$wall_time_limit_seconds"
-if [[ "$run_kind" == benchmark ]] && is_zero_uint "$max_curves" &&
-    is_zero_uint "$wall_time_limit_seconds"; then
-  die 'benchmark runs require positive --max-curves or --wall-time-limit-seconds'
-fi
 if [[ "$run_kind" == production ]] &&
     is_zero_uint "$wall_time_limit_seconds"; then
   die 'production runs require a positive --wall-time-limit-seconds for fetch margin'

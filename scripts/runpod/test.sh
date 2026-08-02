@@ -133,11 +133,12 @@ if RUNPOD_REMOTE_ROOT="$remote_root" RUNPOD_TEST_REMOTE_ROOT="$remote_root" \
     --range-start 0 --range-end 1 --seed 17 --max-level 31 --sea-threads 1 \
     --table-dir data/modpoly/weber_f --smooth-cache "$smooth_cache" \
     --smooth-cache-sha256 "$smooth_cache_sha256" --max-curves 00 \
+    --wall-time-limit-seconds 60 \
     >"${tmp_dir}/zero-bound.out" 2>"${tmp_dir}/zero-bound.err"; then
-  fail "benchmark launcher accepted an all-zero curve bound without timeout"
+  fail "benchmark launcher accepted an all-zero curve cap with a wall timeout"
 fi
-rg -F 'benchmark runs require positive' "${tmp_dir}/zero-bound.err" >/dev/null ||
-  fail "all-zero benchmark bound rejection was not diagnosed"
+rg -F 'max-curves must be positive' "${tmp_dir}/zero-bound.err" >/dev/null ||
+  fail "all-zero curve-cap rejection was not diagnosed"
 
 RUNPOD_REMOTE_ROOT="$remote_root" RUNPOD_TEST_REMOTE_ROOT="$remote_root" \
   "${SCRIPT_DIR}/launch-worker.sh" --run-id local-dry \

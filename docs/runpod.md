@@ -190,31 +190,61 @@ an untracked random stream.
 
 All workers for a target should share one prebuilt smooth cache. The launcher
 requires its trusted SHA-256 so an existing, incomplete, or substituted cache
-cannot be accepted silently. One way to build a new cache without searching a
-curve is the production executable itself:
+cannot be accepted silently. Build into a temporary path with an empty worker
+assignment, then promote the result only after its digest matches the trusted
+target-specific digest:
 
 ```bash
-SMOOTH_CACHE='/workspace/OneShotSEA/caches/p125.cache'
+set -euo pipefail
 
-mkdir -p /workspace/OneShotSEA/caches /workspace/OneShotSEA/cache-build/p125
-/workspace/OneShotSEA/current/build/oneshotsea search \
+SMOOTH_CACHE='/workspace/OneShotSEA/caches/p125.cache'
+SMOOTH_CACHE_TMP="${SMOOTH_CACHE}.tmp"
+TRUSTED_SMOOTH_CACHE_SHA256='afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551'
+CACHE_BUILD='/workspace/OneShotSEA/cache-build/p125'
+
+mkdir -p /workspace/OneShotSEA/caches "$CACHE_BUILD"
+test ! -e "$SMOOTH_CACHE" && test ! -e "$SMOOTH_CACHE_TMP"
+set +e
+/usr/bin/time -v -o "$CACHE_BUILD/time.txt" \
+  timeout --signal=TERM --kill-after=60 2700 \
+  /workspace/OneShotSEA/current/build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607290000 \
   --range-start 0 --range-end 1 \
-  --worker-id 0 --worker-count 1 \
-  --max-level 401 \
+  --worker-id 1 --worker-count 2 \
+  --curve-family x1-27 --x1-require-point4 1 \
+  --max-level 401 --trace-cap 16 \
+  --schoof-fallback 1 --skip-incomplete-curves 0 \
+  --curve-threads 16 --sea-threads 1 --sea-level-telemetry 0 \
   --table-dir /workspace/OneShotSEA/current/data/modpoly/weber_f \
-  --smooth-cache "$SMOOTH_CACHE" \
-  --checkpoint /workspace/OneShotSEA/cache-build/p125/checkpoint.json \
-  --progress /workspace/OneShotSEA/cache-build/p125/progress.jsonl \
-  --certificate-out /workspace/OneShotSEA/cache-build/p125/certificate.txt \
+  --smooth-cache "$SMOOTH_CACHE_TMP" \
+  --smooth-threads 16 --smooth-coordinators 0 --smooth-max-batch 128 \
+  --smooth-root-auxiliary-bytes 134217728 \
+  --smooth-build-segment-span 4000000000 \
+  --checkpoint "$CACHE_BUILD/checkpoint.json" \
+  --checkpoint-every 1 \
+  --progress "$CACHE_BUILD/progress.jsonl" \
+  --certificate-out "$CACHE_BUILD/certificate.txt" \
+  --assembly-attempts 400 \
+  --max-certificate-candidates 100000 \
+  --max-candidate-search-nodes 1000000 \
   --max-curves 0
+status=$?
+set -e
+printf '%s\n' "$status" >"$CACHE_BUILD/exit"
+test "$status" -eq 0
+test ! -s "$CACHE_BUILD/progress.jsonl"
+test "$(sha256sum "$SMOOTH_CACHE_TMP" | awk '{print $1}')" = \
+  "$TRUSTED_SMOOTH_CACHE_SHA256"
+mv "$SMOOTH_CACHE_TMP" "$SMOOTH_CACHE"
 sha256sum "$SMOOTH_CACHE"
 ```
 
-Retain the digest with the build record and independently check that the build
-completed with the intended target and executable. A digest calculated from an
-unknown cache proves only byte identity, not mathematical completeness.
+Worker one of two receives the empty assigned range `[1,1)`, so this invocation
+cannot process a curve or emit a certificate. Retain the exact command, target,
+deployed commit and binary digest, build resource record, and cache digest.
+Independently check those bindings before using the cache: a digest calculated
+from an unknown cache proves only byte identity, not mathematical completeness.
 
 ## 5. Launch and supervise workers
 
@@ -237,6 +267,7 @@ scripts/runpod/launch-worker.sh \
   --curve-threads 16 --sea-threads 1 --sea-level-telemetry 0 \
   --schoof-fallback 1 --skip-incomplete-curves 0 \
   --trace-cap 16 --smooth-threads 1 --smooth-coordinators 0 \
+  --max-curves 1000000000 \
   --wall-time-limit-seconds 14400 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache "$SMOOTH_CACHE" \
@@ -254,6 +285,7 @@ scripts/runpod/launch-worker.sh \
   --curve-threads 16 --sea-threads 1 --sea-level-telemetry 0 \
   --schoof-fallback 1 --skip-incomplete-curves 0 \
   --trace-cap 16 --smooth-threads 1 --smooth-coordinators 0 \
+  --max-curves 1000000000 \
   --wall-time-limit-seconds 14400 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache "$SMOOTH_CACHE" \

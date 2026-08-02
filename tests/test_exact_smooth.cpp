@@ -3,12 +3,16 @@
 #include "oneshotsea/smooth_bounded.hpp"
 
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <future>
 #include <iostream>
+#include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <variant>
 #include <vector>
 
@@ -348,6 +352,314 @@ void test_curve_twist_and_evidence_lifetime() {
           "extractor retains engine and returns exact evidence type");
 }
 
+void test_grouped_curve_twist_oracle() {
+    // The production opportunity is to combine trace sets from several
+    // concurrently completed SEA curves before scanning the shared primorial.
+    // Keep this oracle small: it proves that flattening and restoring request
+    // boundaries is exactly equivalent to independent curve/twist extraction.
+    const auto engine = oneshotsea::ExactSmoothEngine::build(
+        101, {.thread_count = 2, .max_orders_per_batch = 64});
+    const std::vector<mpz_class> first = {-10, 0};
+    const std::vector<mpz_class> empty;
+    const std::vector<mpz_class> third = {10, -2, 7};
+    const std::array<std::span<const mpz_class>, 3> groups = {
+        std::span<const mpz_class>(first),
+        std::span<const mpz_class>(empty),
+        std::span<const mpz_class>(third),
+    };
+
+    const auto grouped = engine.extract_curve_twist_groups(groups);
+    check(grouped.size() == groups.size(),
+          "grouped curve/twist extraction preserves request count");
+    check(grouped[0].size() == first.size() && grouped[1].empty() &&
+              grouped[2].size() == third.size(),
+          "grouped curve/twist extraction preserves request boundaries");
+
+    for (std::size_t group_index = 0; group_index < groups.size();
+         ++group_index) {
+        const auto independent =
+            engine.extract_curve_twist(groups[group_index]);
+        check(grouped[group_index].size() == independent.size(),
+              "grouped request size matches independent extraction");
+        for (std::size_t index = 0; index < independent.size(); ++index) {
+            const auto& actual = grouped[group_index][index];
+            const auto& expected = independent[index];
+            check(actual.trace == expected.trace &&
+                      actual.curve_order == expected.curve_order &&
+                      actual.twist_order == expected.twist_order &&
+                      actual.curve_smooth_part.value ==
+                          expected.curve_smooth_part.value &&
+                      actual.twist_smooth_part.value ==
+                          expected.twist_smooth_part.value,
+                  "grouped extraction matches independent exact oracle");
+        }
+    }
+
+    check(engine.extract_curve_twist_groups(
+              std::span<const std::span<const mpz_class>>{}).empty(),
+          "grouped curve/twist extraction accepts no requests");
+}
+
+void check_curve_twist_results(
+    const std::vector<oneshotsea::CurveTwistSmoothParts>& actual,
+    const std::vector<oneshotsea::CurveTwistSmoothParts>& expected,
+    const std::string& message) {
+    check(actual.size() == expected.size(), message + " size");
+    for (std::size_t index = 0U; index < expected.size(); ++index) {
+        check(actual[index].trace == expected[index].trace &&
+                  actual[index].curve_order == expected[index].curve_order &&
+                  actual[index].twist_order == expected[index].twist_order &&
+                  actual[index].curve_smooth_part.value ==
+                      expected[index].curve_smooth_part.value &&
+                  actual[index].twist_smooth_part.value ==
+                      expected[index].twist_smooth_part.value,
+              message);
+    }
+}
+
+bool wait_for_submitted_requests(
+    const oneshotsea::ExactSmoothBatchCoordinator& coordinator,
+    std::uint64_t target) {
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (coordinator.telemetry().submitted_requests < target) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+            return false;
+        }
+        std::this_thread::yield();
+    }
+    return true;
+}
+
+void test_no_delay_coordinator_forced_queue_and_cap() {
+    const auto engine = oneshotsea::ExactSmoothEngine::build(
+        101, {.thread_count = 1, .max_orders_per_batch = 4});
+    const std::array<std::array<mpz_class, 1>, 4> traces = {{
+        {-10},
+        {-2},
+        {7},
+        {10},
+    }};
+    std::array<std::vector<oneshotsea::CurveTwistSmoothParts>, 4> expected;
+    for (std::size_t index = 0U; index < traces.size(); ++index) {
+        expected[index] = engine.extract_curve_twist(traces[index]);
+    }
+
+    std::mutex gate_mutex;
+    std::condition_variable gate_changed;
+    bool first_started = false;
+    bool release_first = false;
+    std::vector<std::pair<std::size_t, std::size_t>> observed_batches;
+    oneshotsea::ExactSmoothBatchCoordinator coordinator(
+        engine,
+        {.batch_start_callback =
+             [&](std::size_t requests, std::size_t orders) {
+                 std::unique_lock<std::mutex> lock(gate_mutex);
+                 observed_batches.emplace_back(requests, orders);
+                 if (!first_started) {
+                     first_started = true;
+                     gate_changed.notify_all();
+                     gate_changed.wait(lock, [&] { return release_first; });
+                 }
+             }});
+
+    std::array<std::future<std::vector<oneshotsea::CurveTwistSmoothParts>>, 4>
+        futures;
+    futures[0] = std::async(std::launch::async, [&] {
+        return coordinator.extract_curve_twist(traces[0]);
+    });
+    bool scan_started = false;
+    {
+        std::unique_lock<std::mutex> lock(gate_mutex);
+        scan_started = gate_changed.wait_for(
+            lock, std::chrono::seconds(5), [&] { return first_started; });
+    }
+
+    bool all_queued = scan_started;
+    for (std::size_t index = 1U; index < futures.size(); ++index) {
+        futures[index] = std::async(std::launch::async, [&, index] {
+            return coordinator.extract_curve_twist(traces[index]);
+        });
+        all_queued = all_queued &&
+                     wait_for_submitted_requests(coordinator, index + 1U);
+    }
+    {
+        const std::lock_guard<std::mutex> lock(gate_mutex);
+        release_first = true;
+    }
+    gate_changed.notify_all();
+
+    check(scan_started, "coordinator starts the first request without delay");
+    check(all_queued, "requests queue while one exact scan is active");
+    for (std::size_t index = 0U; index < futures.size(); ++index) {
+        check(futures[index].wait_for(std::chrono::seconds(5)) ==
+                  std::future_status::ready,
+              "coordinator completes every queued request without starvation");
+        check_curve_twist_results(futures[index].get(), expected[index],
+                                  "coordinated exact result matches oracle");
+    }
+
+    const auto telemetry = coordinator.telemetry();
+    check(telemetry.submitted_requests == 4U &&
+              telemetry.completed_requests == 4U &&
+              telemetry.failed_requests == 0U &&
+              telemetry.cancelled_requests == 0U,
+          "coordinator request telemetry");
+    check(telemetry.coordinator_batches == 3U &&
+              telemetry.successful_cache_scan_chunks == 3U &&
+              telemetry.max_queued_requests == 3U &&
+              telemetry.max_requests_per_batch == 2U &&
+              telemetry.max_orders_per_successful_scan_chunk == 4U,
+          "coordinator batches queued requests up to the exact scan cap");
+    check(telemetry.successful_scan_chunks_by_order_count.size() == 2U &&
+              telemetry.successful_scan_chunks_by_order_count[0].order_count ==
+                  2U &&
+              telemetry.successful_scan_chunks_by_order_count[0].scan_chunks ==
+                  2U &&
+              telemetry.successful_scan_chunks_by_order_count[1].order_count ==
+                  4U &&
+              telemetry.successful_scan_chunks_by_order_count[1].scan_chunks ==
+                  1U,
+          "coordinator exposes exact scan-size telemetry");
+    {
+        const std::lock_guard<std::mutex> lock(gate_mutex);
+        check(observed_batches ==
+                  std::vector<std::pair<std::size_t, std::size_t>>{
+                      {1U, 2U}, {2U, 4U}, {1U, 2U}},
+              "coordinator removes queued request groups in FIFO cap batches");
+    }
+}
+
+void test_coordinator_oversized_request_scan_splits() {
+    const auto engine = oneshotsea::ExactSmoothEngine::build(
+        101, {.thread_count = 1, .max_orders_per_batch = 4});
+    const std::array<mpz_class, 3> traces = {-10, 0, 10};
+    const auto expected = engine.extract_curve_twist(traces);
+    oneshotsea::ExactSmoothBatchCoordinator coordinator(engine);
+    check_curve_twist_results(coordinator.extract_curve_twist(traces), expected,
+                              "oversized coordinated request exact oracle");
+    const auto telemetry = coordinator.telemetry();
+    check(telemetry.coordinator_batches == 1U &&
+              telemetry.successful_cache_scan_chunks == 2U &&
+              telemetry.successful_scan_chunks_by_order_count.size() == 2U &&
+              telemetry.successful_scan_chunks_by_order_count[0].order_count ==
+                  2U &&
+              telemetry.successful_scan_chunks_by_order_count[0].scan_chunks ==
+                  1U &&
+              telemetry.successful_scan_chunks_by_order_count[1].order_count ==
+                  4U &&
+              telemetry.successful_scan_chunks_by_order_count[1].scan_chunks ==
+                  1U,
+          "oversized request reports cap-respecting exact scan splits");
+}
+
+void test_coordinator_exception_recovery_and_cancellation() {
+    const auto engine = oneshotsea::ExactSmoothEngine::build(
+        101, {.thread_count = 1, .max_orders_per_batch = 4});
+    const std::array<mpz_class, 1> trace = {-10};
+    const auto expected = engine.extract_curve_twist(trace);
+
+    const auto failing_engine = oneshotsea::ExactSmoothEngine::build(
+        101,
+        {.thread_count = 1,
+         .max_orders_per_batch = 4,
+         .max_root_auxiliary_bytes = 1U});
+    oneshotsea::ExactSmoothBatchCoordinator failing(failing_engine);
+    expect_exception<std::invalid_argument>(
+        [&] { (void)failing.extract_curve_twist(trace); },
+        "coordinator propagates an underlying exact extraction failure");
+    const auto failed_extraction = failing.telemetry();
+    check(failed_extraction.failed_requests == 1U &&
+              failed_extraction.successful_cache_scan_chunks == 0U &&
+              failed_extraction.successful_scan_chunks_by_order_count.empty() &&
+              failed_extraction.max_orders_per_successful_scan_chunk == 0U,
+          "failed exact extraction records no successful scan chunks");
+
+    std::atomic<unsigned> starts = 0U;
+    oneshotsea::ExactSmoothBatchCoordinator recovering(
+        engine,
+        {.batch_start_callback =
+             [&](std::size_t, std::size_t) {
+                 if (starts.fetch_add(1U) == 0U) {
+                     throw std::runtime_error("injected batch failure");
+                 }
+             }});
+    expect_exception<std::runtime_error>(
+        [&] { (void)recovering.extract_curve_twist(trace); },
+        "coordinator propagates a batch exception to its request");
+    const auto failed = recovering.telemetry();
+    check(failed.failed_requests == 1U &&
+              failed.successful_cache_scan_chunks == 0U &&
+              failed.successful_scan_chunks_by_order_count.empty() &&
+              failed.max_orders_per_successful_scan_chunk == 0U,
+          "failed extraction does not claim a successful cache scan");
+    check_curve_twist_results(recovering.extract_curve_twist(trace), expected,
+                              "coordinator continues after batch exception");
+    const auto recovered = recovering.telemetry();
+    check(recovered.failed_requests == 1U &&
+              recovered.completed_requests == 1U &&
+              recovered.coordinator_batches == 2U &&
+              recovered.successful_cache_scan_chunks == 1U,
+          "coordinator exception telemetry distinguishes failed scans");
+
+    std::mutex gate_mutex;
+    std::condition_variable gate_changed;
+    bool active = false;
+    bool release = false;
+    oneshotsea::ExactSmoothBatchCoordinator cancellable(
+        engine,
+        {.batch_start_callback =
+             [&](std::size_t, std::size_t) {
+                 std::unique_lock<std::mutex> lock(gate_mutex);
+                 if (!active) {
+                     active = true;
+                     gate_changed.notify_all();
+                     gate_changed.wait(lock, [&] { return release; });
+                 }
+             }});
+    auto active_future = std::async(std::launch::async, [&] {
+        return cancellable.extract_curve_twist(trace);
+    });
+    bool active_started = false;
+    {
+        std::unique_lock<std::mutex> lock(gate_mutex);
+        active_started = gate_changed.wait_for(
+            lock, std::chrono::seconds(5), [&] { return active; });
+    }
+    auto queued_future = std::async(std::launch::async, [&] {
+        return cancellable.extract_curve_twist(trace);
+    });
+    const bool queued =
+        active_started && wait_for_submitted_requests(cancellable, 2U);
+    cancellable.cancel();
+    const bool queued_cancelled =
+        queued_future.wait_for(std::chrono::seconds(5)) ==
+        std::future_status::ready;
+    {
+        const std::lock_guard<std::mutex> lock(gate_mutex);
+        release = true;
+    }
+    gate_changed.notify_all();
+
+    check(active_started && queued,
+          "cancellation fixture has one active and one queued request");
+    check(queued_cancelled,
+          "cancellation releases queued callers while active GMP work finishes");
+    expect_exception<std::runtime_error>(
+        [&] { (void)queued_future.get(); },
+        "queued request receives cancellation exception");
+    check_curve_twist_results(active_future.get(), expected,
+                              "active request finishes during cancellation");
+    expect_exception<std::runtime_error>(
+        [&] { (void)cancellable.extract_curve_twist(trace); },
+        "cancelled coordinator rejects new requests");
+    const auto cancelled = cancellable.telemetry();
+    check(cancelled.submitted_requests == 2U &&
+              cancelled.completed_requests == 1U &&
+              cancelled.cancelled_requests == 1U,
+          "coordinator cancellation telemetry");
+}
+
 void test_p125_factored_segment_fixture() {
     // This fixture avoids constructing the ~3.7 GB primorial.  The independent
     // exhaustive segmented run recorded in docs/benchmark_20260730.md proved
@@ -416,6 +728,10 @@ int main() {
         test_bounded_reducer_differential();
         test_small_differential_and_batching(temporary);
         test_curve_twist_and_evidence_lifetime();
+        test_grouped_curve_twist_oracle();
+        test_no_delay_coordinator_forced_queue_and_cap();
+        test_coordinator_oversized_request_scan_splits();
+        test_coordinator_exception_recovery_and_cancellation();
         test_p125_factored_segment_fixture();
         std::cout << "all exact-smooth tests passed\n";
         return 0;

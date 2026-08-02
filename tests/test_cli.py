@@ -296,6 +296,7 @@ class CliTests(unittest.TestCase):
                 "--max-level", 11,
                 "--trace-cap", 16,
                 "--curve-threads", 2,
+                "--smooth-coordinators", 1,
                 "--sea-threads", 2,
                 "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
                 "--smooth-cache", root / "smooth.cache",
@@ -313,6 +314,9 @@ class CliTests(unittest.TestCase):
             self.assertEqual(len(records[0]["verifier_sha256"]), 64)
             self.assertFalse(records[0]["heuristic_rejection"])
             self.assertEqual(records[0]["resources"]["curve_threads"], "2")
+            self.assertEqual(
+                records[0]["resources"]["smooth_coordinators"], "1"
+            )
             self.assertEqual(records[0]["resources"]["sea_threads"], "2")
             self.assertFalse(
                 records[0]["resources"]["x1_require_point_four"]
@@ -324,6 +328,43 @@ class CliTests(unittest.TestCase):
             self.assertEqual(records[-1]["schema"],
                              "oneshotsea.search-summary.v1")
             self.assertTrue(records[-1]["verified"])
+            smooth_batch = records[-1]["smooth_batch"]
+            self.assertTrue(smooth_batch["enabled"])
+            self.assertEqual(smooth_batch["coordinator_count"], "1")
+            self.assertEqual(len(smooth_batch["cohorts"]), 1)
+            cohort = smooth_batch["cohorts"][0]
+            self.assertEqual(
+                cohort["submitted_requests"], "1"
+            )
+            self.assertEqual(cohort["completed_requests"], "1")
+            self.assertEqual(cohort["failed_requests"], "0")
+            self.assertEqual(cohort["cancelled_requests"], "0")
+            self.assertEqual(smooth_batch["submitted_requests"], "1")
+            self.assertEqual(smooth_batch["completed_requests"], "1")
+            self.assertEqual(
+                smooth_batch["max_queued_requests_in_any_cohort"],
+                cohort["max_queued_requests"],
+            )
+            self.assertEqual(
+                smooth_batch["max_requests_per_batch_in_any_cohort"],
+                cohort["max_requests_per_batch"],
+            )
+            self.assertEqual(
+                smooth_batch[
+                    "max_orders_per_successful_scan_chunk_in_any_cohort"
+                ],
+                cohort["max_orders_per_successful_scan_chunk"],
+            )
+            self.assertEqual(
+                smooth_batch["successful_cache_scan_chunks"], "1"
+            )
+            self.assertEqual(
+                sum(int(bucket["scan_chunks"])
+                    for bucket in smooth_batch[
+                        "successful_scan_chunk_size_histogram"
+                    ]),
+                1,
+            )
             level_records = [
                 record for record in records[1:-1]
                 if record["schema"] == "oneshotsea.search-sea-level.v1"
@@ -415,6 +456,8 @@ class CliTests(unittest.TestCase):
                 "--curve-family", "x1-11",
                 "--x1-require-point4", 1,
                 "--schoof-fallback", 1,
+                "--curve-threads", 2,
+                "--smooth-coordinators", 1,
                 "--max-curves", 0,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -425,6 +468,7 @@ class CliTests(unittest.TestCase):
             )
             self.assertTrue(records[0]["resources"]["schoof_fallback"])
             self.assertEqual(records[-1]["processed"], "0")
+            self.assertFalse(records[-1]["smooth_batch"]["enabled"])
 
             x127 = self.run_cli(
                 "search",
@@ -545,6 +589,7 @@ class CliTests(unittest.TestCase):
             start = json.loads(built.stdout.splitlines()[0])
             self.assertEqual(start["resources"]["trace_cap"], "64")
             self.assertEqual(start["resources"]["curve_threads"], "1")
+            self.assertEqual(start["resources"]["smooth_coordinators"], "0")
             self.assertEqual(start["resources"]["smooth_max_batch"], "128")
             self.assertEqual(start["resources"]["sea_threads"], "0")
             self.assertFalse(start["heuristic_rejection"])

@@ -240,13 +240,23 @@ Live per-level JSON can interleave curve indices, but each callback emission is
 serialized and partial telemetry never changes durable state.
 
 Curve concurrency is a resource setting rather than a schedule identity: a
-checkpoint can safely resume with a different value.  It does not silently
-divide per-curve limits, so the caller must budget approximately
-`curve_threads * sea_threads` modular-root workers and
-`curve_threads * smooth_threads` smooth workers.  Memory retains one shared
-5.4 GB p125 cache, plus concurrent per-curve polynomial state and GMP scratch;
-use a measured same-binary A/B before raising the default on a constrained
-host.
+checkpoint can safely resume with a different value. `--smooth-coordinators C`
+is also resource-only and defaults to zero. Zero retains independent
+per-curve exact-smooth calls; a positive value deterministically routes global
+index `i` to FIFO cohort `i mod C`, where `C` must not exceed
+`curve_threads`. This permits up to `C` grouped cache scans in parallel.
+
+No worker count is silently divided. The operator must budget approximately
+`curve_threads * sea_threads` modular-root workers plus, concurrently, either
+`curve_threads * smooth_threads` smooth workers when `C=0`, or
+`C * smooth_threads` when `C>0`. A zero SEA or smooth thread setting selects
+the underlying runtime default and therefore is not a finite one-worker
+budget. Coordinator scans overlap remaining SEA work, so setting each factor
+at the physical-core count oversubscribes the host. Memory retains one shared
+5.4 GB p125 cache, plus concurrent per-curve polynomial state, coordinator
+queues, and GMP/OpenMP scratch. The CLI reports the configured coordinator
+count and aggregate plus per-cohort scan telemetry; use a measured same-binary
+A/B before enabling it on a constrained host.
 
 On the 10-core, 16 GiB Apple M4 p125 host, the retained same-binary scaling
 series selected `--curve-threads 10 --sea-threads 1 --smooth-threads 1`:

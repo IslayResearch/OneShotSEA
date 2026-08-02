@@ -183,7 +183,8 @@ SearchCurveReport process_search_curve(
     const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
     std::uint64_t global_index,
     const CanonicalCertificateVerifier& verifier = {},
-    const SearchSeaLevelCallback& sea_level_callback = {});
+    const SearchSeaLevelCallback& sea_level_callback = {},
+    const ExactSmoothBatchCoordinator* smooth_coordinator = nullptr);
 
 struct SearchPipelineRunOptions {
     // Zero means no curves; callers choose an explicit cap or the remaining
@@ -193,9 +194,17 @@ struct SearchPipelineRunOptions {
     // ExactSmoothEngine/cache. Reports and all durable artifacts are still
     // committed strictly in increasing index order. This resource setting is
     // deliberately absent from the resumable search identity. Per-curve SEA
-    // and smooth worker counts/caps are not silently divided, so callers must
-    // budget their product with this value explicitly.
+    // worker counts are not silently divided. With no smooth coordinators,
+    // smooth work also runs per curve; with a coordinator pool it runs through
+    // at most smooth_coordinator_count simultaneous smooth calls. Callers must
+    // budget those worker products explicitly.
     std::size_t curve_threads = 1;
+    // Zero keeps independent exact-smooth calls. A positive value routes each
+    // curve deterministically by global_index modulo this many no-delay FIFO
+    // coordinators, retaining that many scans in parallel while batching
+    // requests queued within each cohort. Must not exceed curve_threads. This
+    // is a resource setting and is absent from the resumable search identity.
+    std::size_t smooth_coordinator_count = 0;
     std::uint64_t checkpoint_every = 1;
     std::filesystem::path checkpoint_path;
     std::filesystem::path progress_path;
@@ -212,10 +221,40 @@ struct SearchPipelineRunOptions {
     SearchSeaLevelCallback sea_level_callback;
 };
 
+struct ExactSmoothBatchPoolTelemetry {
+    std::uint64_t submitted_requests = 0U;
+    std::uint64_t completed_requests = 0U;
+    std::uint64_t failed_requests = 0U;
+    std::uint64_t cancelled_requests = 0U;
+    std::uint64_t coordinator_batches = 0U;
+    std::uint64_t successful_cache_scan_chunks = 0U;
+    std::uint64_t submitted_orders = 0U;
+    // These are maxima of the corresponding per-coordinator maxima, never a
+    // claim about the sum of simultaneous queue depth across the whole pool.
+    std::size_t max_queued_requests_in_any_cohort = 0U;
+    std::size_t max_requests_per_batch_in_any_cohort = 0U;
+    std::size_t max_orders_per_successful_scan_chunk_in_any_cohort = 0U;
+    std::vector<ExactSmoothScanChunkSizeCount>
+        successful_scan_chunks_by_order_count;
+};
+
+// Transactionally merge one coordinator snapshot. Throws overflow_error and
+// leaves aggregate unchanged if any uint64 counter would wrap.
+void merge_exact_smooth_batch_pool_telemetry(
+    ExactSmoothBatchPoolTelemetry& aggregate,
+    const ExactSmoothBatchTelemetry& cohort);
+
 struct SearchPipelineRunResult {
     std::uint64_t curves_processed = 0;
     bool exhausted_assigned_range = false;
     std::optional<SearchCurveReport> verified;
+    // True only when this invocation actually constructed the resource-only
+    // cross-curve exact-smooth coordinator pool.
+    bool smooth_batch_coordinator_enabled = false;
+    std::size_t smooth_batch_coordinator_count = 0U;
+    ExactSmoothBatchPoolTelemetry smooth_batch_telemetry;
+    // Indexed by global_index modulo smooth_batch_coordinator_count.
+    std::vector<ExactSmoothBatchTelemetry> smooth_batch_cohort_telemetry;
 };
 
 using SearchReportCallback =

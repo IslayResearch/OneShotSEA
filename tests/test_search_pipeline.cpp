@@ -3,16 +3,19 @@
 #include "oneshotsea/x1_11_probe.hpp"
 #include "oneshotsea/x1_27_probe.hpp"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include <unistd.h>
 
@@ -212,13 +215,19 @@ void test_small_prime_resume_and_canonical_verification() {
 
     oneshotsea::SearchPipelineRunOptions first;
     first.max_curves = 0;
+    first.curve_threads = 2;
+    first.smooth_coordinator_count = 1;
     first.checkpoint_path = checkpoint;
     first.progress_path = progress;
     first.certificate_path = temporary.path() / "certificate.txt";
     const auto first_result = oneshotsea::run_search_pipeline(
         config, smooth, state, first);
     check(first_result.curves_processed == 0U &&
-              !first_result.verified.has_value() && state.next_index() == 1U,
+              !first_result.verified.has_value() &&
+              !first_result.smooth_batch_coordinator_enabled &&
+              first_result.smooth_batch_coordinator_count == 0U &&
+              first_result.smooth_batch_cohort_telemetry.empty() &&
+              state.next_index() == 1U,
           "zero-curve first chunk leaves the initial resume cursor");
     oneshotsea::save_search_checkpoint(state, checkpoint);
     const std::filesystem::path precertificate_checkpoint =
@@ -238,7 +247,10 @@ void test_small_prime_resume_and_canonical_verification() {
     const auto second_result = oneshotsea::run_search_pipeline(
         config, smooth, resumed, second, {}, canonical);
     check(second_result.curves_processed == 1U &&
-              second_result.verified.has_value(),
+              second_result.verified.has_value() &&
+              second_result.smooth_batch_coordinator_enabled &&
+              second_result.smooth_batch_coordinator_count == 1U &&
+              second_result.smooth_batch_cohort_telemetry.size() == 1U,
           "resumed search finds deterministic certificate");
     check(canonical_calls == 1U,
           "pipeline invoked the unmodified canonical verifier before success");
@@ -259,6 +271,9 @@ void test_small_prime_resume_and_canonical_verification() {
         config, smooth, crash_window, crash_recovery, {}, canonical);
     check(crash_result.curves_processed == 0U &&
               crash_result.verified.has_value() &&
+              !crash_result.smooth_batch_coordinator_enabled &&
+              crash_result.smooth_batch_coordinator_count == 0U &&
+              crash_result.smooth_batch_cohort_telemetry.empty() &&
               crash_window.next_index() == 2U &&
               crash_window.counters().certificates_found == 1U,
           "pre-certificate checkpoint recovers the metadata-bound winning index");
@@ -268,7 +283,11 @@ void test_small_prime_resume_and_canonical_verification() {
     const auto recovered_result = oneshotsea::run_search_pipeline(
         config, smooth, completed, second, {}, canonical);
     check(recovered_result.curves_processed == 0U &&
-              recovered_result.verified.has_value() && canonical_calls == 3U,
+              recovered_result.verified.has_value() &&
+              !recovered_result.smooth_batch_coordinator_enabled &&
+              recovered_result.smooth_batch_coordinator_count == 0U &&
+              recovered_result.smooth_batch_cohort_telemetry.empty() &&
+              canonical_calls == 3U,
           "resume revalidates durable certificate without advancing search");
 
     std::ifstream events(progress);
@@ -280,6 +299,95 @@ void test_small_prime_resume_and_canonical_verification() {
         ++event_count;
     }
     check(event_count == 1U, "one NDJSON event per completed curve");
+}
+
+void test_mismatched_smooth_coordinator_fails_before_sea() {
+    const oneshotsea::SearchPipelineConfig config = small_config();
+    const auto search_engine =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+    const auto wrong_engine = oneshotsea::ExactSmoothEngine::build(103);
+    oneshotsea::ExactSmoothBatchCoordinator wrong_coordinator(wrong_engine);
+    std::size_t sea_callbacks = 0U;
+    bool rejected = false;
+    try {
+        (void)oneshotsea::process_search_curve(
+            config, search_engine, 1U, {},
+            [&](std::uint64_t, const oneshotsea::SearchSeaLevelTiming&) {
+                ++sea_callbacks;
+            },
+            &wrong_coordinator);
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    check(rejected,
+          "search rejects an exact-smooth coordinator for another prime");
+    check(sea_callbacks == 0U &&
+              wrong_coordinator.telemetry().submitted_requests == 0U,
+          "coordinator mismatch fails before SEA or smoothness work");
+}
+
+void test_pool_telemetry_merge_checks_overflow_transactionally() {
+    using PoolMember =
+        std::uint64_t oneshotsea::ExactSmoothBatchPoolTelemetry::*;
+    using CohortMember =
+        std::uint64_t oneshotsea::ExactSmoothBatchTelemetry::*;
+    const std::array<std::pair<PoolMember, CohortMember>, 7> counters = {{
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::submitted_requests,
+         &oneshotsea::ExactSmoothBatchTelemetry::submitted_requests},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::completed_requests,
+         &oneshotsea::ExactSmoothBatchTelemetry::completed_requests},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::failed_requests,
+         &oneshotsea::ExactSmoothBatchTelemetry::failed_requests},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::cancelled_requests,
+         &oneshotsea::ExactSmoothBatchTelemetry::cancelled_requests},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::coordinator_batches,
+         &oneshotsea::ExactSmoothBatchTelemetry::coordinator_batches},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::
+             successful_cache_scan_chunks,
+         &oneshotsea::ExactSmoothBatchTelemetry::
+             successful_cache_scan_chunks},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::submitted_orders,
+         &oneshotsea::ExactSmoothBatchTelemetry::submitted_orders},
+    }};
+    for (const auto& [pool_member, cohort_member] : counters) {
+        oneshotsea::ExactSmoothBatchPoolTelemetry aggregate;
+        aggregate.*pool_member = std::numeric_limits<std::uint64_t>::max();
+        aggregate.max_queued_requests_in_any_cohort = 7U;
+        oneshotsea::ExactSmoothBatchTelemetry cohort;
+        cohort.*cohort_member = 1U;
+        bool rejected = false;
+        try {
+            oneshotsea::merge_exact_smooth_batch_pool_telemetry(
+                aggregate, cohort);
+        } catch (const std::overflow_error&) {
+            rejected = true;
+        }
+        check(rejected &&
+                  aggregate.*pool_member ==
+                      std::numeric_limits<std::uint64_t>::max() &&
+                  aggregate.max_queued_requests_in_any_cohort == 7U,
+              "pool telemetry scalar overflow is transactional");
+    }
+
+    oneshotsea::ExactSmoothBatchPoolTelemetry histogram_aggregate;
+    histogram_aggregate.successful_scan_chunks_by_order_count.push_back(
+        {4U, std::numeric_limits<std::uint64_t>::max()});
+    oneshotsea::ExactSmoothBatchTelemetry histogram_cohort;
+    histogram_cohort.successful_scan_chunks_by_order_count.push_back(
+        {4U, 1U});
+    bool histogram_rejected = false;
+    try {
+        oneshotsea::merge_exact_smooth_batch_pool_telemetry(
+            histogram_aggregate, histogram_cohort);
+    } catch (const std::overflow_error&) {
+        histogram_rejected = true;
+    }
+    check(histogram_rejected &&
+              histogram_aggregate.successful_scan_chunks_by_order_count
+                      .front()
+                      .scan_chunks ==
+                  std::numeric_limits<std::uint64_t>::max(),
+          "pool telemetry histogram overflow is transactional");
 }
 
 void test_search_uses_retained_schoof_fallback_without_second_sea_pass() {
@@ -351,12 +459,14 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
         std::uint64_t next_index = 0;
     };
     const auto run = [&](std::size_t curve_threads,
+                         std::size_t smooth_coordinators,
                          const std::string& name,
                          bool audit_live_levels) {
         oneshotsea::SearchState state(identity);
         oneshotsea::SearchPipelineRunOptions options;
         options.max_curves = 4;
         options.curve_threads = curve_threads;
+        options.smooth_coordinator_count = smooth_coordinators;
         options.checkpoint_every = 2;
         options.checkpoint_path = temporary.path() / (name + ".checkpoint");
         options.progress_path = temporary.path() / (name + ".ndjson");
@@ -404,6 +514,93 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
                   result.exhausted_assigned_range &&
                   !result.verified.has_value(),
               "four-curve fixture exhausts under rejecting verifier");
+        if (smooth_coordinators == 0U) {
+            check(!result.smooth_batch_coordinator_enabled &&
+                      result.smooth_batch_coordinator_count == 0U &&
+                      result.smooth_batch_cohort_telemetry.empty() &&
+                      result.smooth_batch_telemetry.submitted_requests == 0U,
+                  "zero-coordinator pipeline keeps direct exact-smooth extraction");
+        } else {
+            bool routing_matches =
+                result.smooth_batch_cohort_telemetry.size() ==
+                smooth_coordinators;
+            std::uint64_t submitted_requests = 0U;
+            std::uint64_t completed_requests = 0U;
+            std::uint64_t failed_requests = 0U;
+            std::uint64_t cancelled_requests = 0U;
+            std::uint64_t coordinator_batches = 0U;
+            std::uint64_t successful_scan_chunks = 0U;
+            std::uint64_t submitted_orders = 0U;
+            std::size_t max_queued_requests = 0U;
+            std::size_t max_requests_per_batch = 0U;
+            std::size_t max_orders_per_scan_chunk = 0U;
+            for (std::size_t cohort = 0U;
+                 routing_matches && cohort < smooth_coordinators; ++cohort) {
+                std::uint64_t expected_requests = 0U;
+                for (std::uint64_t index = 0U; index < 4U; ++index) {
+                    expected_requests +=
+                        static_cast<std::uint64_t>(
+                            index % smooth_coordinators == cohort);
+                }
+                routing_matches =
+                    result.smooth_batch_cohort_telemetry[cohort]
+                        .submitted_requests == expected_requests;
+                const auto& telemetry =
+                    result.smooth_batch_cohort_telemetry[cohort];
+                submitted_requests += telemetry.submitted_requests;
+                completed_requests += telemetry.completed_requests;
+                failed_requests += telemetry.failed_requests;
+                cancelled_requests += telemetry.cancelled_requests;
+                coordinator_batches += telemetry.coordinator_batches;
+                successful_scan_chunks +=
+                    telemetry.successful_cache_scan_chunks;
+                submitted_orders += telemetry.submitted_orders;
+                max_queued_requests = std::max(
+                    max_queued_requests, telemetry.max_queued_requests);
+                max_requests_per_batch = std::max(
+                    max_requests_per_batch,
+                    telemetry.max_requests_per_batch);
+                max_orders_per_scan_chunk = std::max(
+                    max_orders_per_scan_chunk,
+                    telemetry.max_orders_per_successful_scan_chunk);
+            }
+            check(result.smooth_batch_coordinator_enabled &&
+                      result.smooth_batch_coordinator_count ==
+                          smooth_coordinators &&
+                      routing_matches &&
+                      result.smooth_batch_telemetry.submitted_requests == 4U &&
+                      result.smooth_batch_telemetry.completed_requests ==
+                          result.smooth_batch_telemetry.submitted_requests &&
+                      result.smooth_batch_telemetry.failed_requests == 0U &&
+                      result.smooth_batch_telemetry.cancelled_requests == 0U &&
+                      result.smooth_batch_telemetry
+                              .successful_cache_scan_chunks != 0U &&
+                      result.smooth_batch_telemetry.submitted_requests ==
+                          submitted_requests &&
+                      result.smooth_batch_telemetry.completed_requests ==
+                          completed_requests &&
+                      result.smooth_batch_telemetry.failed_requests ==
+                          failed_requests &&
+                      result.smooth_batch_telemetry.cancelled_requests ==
+                          cancelled_requests &&
+                      result.smooth_batch_telemetry.coordinator_batches ==
+                          coordinator_batches &&
+                      result.smooth_batch_telemetry
+                              .successful_cache_scan_chunks ==
+                          successful_scan_chunks &&
+                      result.smooth_batch_telemetry.submitted_orders ==
+                          submitted_orders &&
+                      result.smooth_batch_telemetry
+                              .max_queued_requests_in_any_cohort ==
+                          max_queued_requests &&
+                      result.smooth_batch_telemetry
+                              .max_requests_per_batch_in_any_cohort ==
+                          max_requests_per_batch &&
+                      result.smooth_batch_telemetry
+                              .max_orders_per_successful_scan_chunk_in_any_cohort ==
+                          max_orders_per_scan_chunk,
+                  "parallel pipeline reports coordinated exact-smooth scans");
+        }
         observation.counters = state.counters();
         observation.next_index = state.next_index();
         const oneshotsea::SearchState saved =
@@ -421,14 +618,21 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
         return observation;
     };
 
-    const Observation serial = run(1U, "serial", false);
-    const Observation parallel = run(2U, "parallel", true);
-    check(parallel.indices == std::vector<std::uint64_t>({0, 1, 2, 3}) &&
-              parallel.indices == serial.indices &&
-              parallel.statuses == serial.statuses &&
-              parallel.counters == serial.counters &&
-              parallel.next_index == serial.next_index,
-          "K=2 preserves K=1 report order, outcomes, counters, and cursor");
+    const Observation serial = run(1U, 0U, "serial", false);
+    const Observation direct2 = run(2U, 0U, "direct2", false);
+    const Observation cohort2 = run(2U, 2U, "cohort2", true);
+    const Observation cohort3 = run(3U, 3U, "cohort3", false);
+    const Observation cohort5 = run(5U, 5U, "cohort5", false);
+    for (const Observation* parallel :
+         {&direct2, &cohort2, &cohort3, &cohort5}) {
+        check(parallel->indices ==
+                      std::vector<std::uint64_t>({0, 1, 2, 3}) &&
+                  parallel->indices == serial.indices &&
+                  parallel->statuses == serial.statuses &&
+                  parallel->counters == serial.counters &&
+                  parallel->next_index == serial.next_index,
+              "coordinator cohorts preserve serial report order and outcomes");
+    }
 
     oneshotsea::SearchState invalid(identity);
     oneshotsea::SearchPipelineRunOptions invalid_options;
@@ -441,6 +645,19 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
         rejected_zero = true;
     }
     check(rejected_zero, "zero curve concurrency is rejected");
+
+    oneshotsea::SearchPipelineRunOptions too_many_coordinators;
+    too_many_coordinators.curve_threads = 2U;
+    too_many_coordinators.smooth_coordinator_count = 3U;
+    bool rejected_coordinator_count = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            config, smooth, invalid, too_many_coordinators);
+    } catch (const std::invalid_argument&) {
+        rejected_coordinator_count = true;
+    }
+    check(rejected_coordinator_count,
+          "smooth coordinator pool cannot exceed curve concurrency");
 }
 
 void test_parallel_stop_discards_later_reports() {
@@ -1260,6 +1477,8 @@ int main() {
         test_parallel_stop_discards_later_reports();
         test_parallel_curve_ordering_and_shared_checkpoint();
         test_small_prime_resume_and_canonical_verification();
+        test_mismatched_smooth_coordinator_fails_before_sea();
+        test_pool_telemetry_merge_checks_overflow_transactionally();
         test_search_uses_retained_schoof_fallback_without_second_sea_pass();
         std::cout << "search pipeline tests passed\n";
         return 0;

@@ -193,7 +193,7 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -340,6 +340,13 @@ int main(int argc, char** argv) {
                 options, "sea-threads", 0U);
             const std::uint64_t curve_threads = optional_u64(
                 options, "curve-threads", 1U);
+            const std::uint64_t smooth_coordinators = optional_u64(
+                options, "smooth-coordinators", 0U);
+            if (smooth_coordinators >
+                std::numeric_limits<std::size_t>::max()) {
+                throw std::invalid_argument(
+                    "--smooth-coordinators is out of range");
+            }
             const std::uint64_t sea_level_telemetry_value = optional_u64(
                 options, "sea-level-telemetry", 1U);
             const std::uint64_t skip_incomplete_curves = optional_u64(
@@ -356,6 +363,7 @@ int main(int argc, char** argv) {
                 curve_threads == 0U || sea_level_telemetry_value > 1U ||
                 skip_incomplete_curves > 1U || schoof_fallback > 1U ||
                 curve_threads > std::numeric_limits<std::size_t>::max() ||
+                smooth_coordinators > curve_threads ||
                 sea_threads > std::numeric_limits<std::size_t>::max() ||
                 assembly_attempts > std::numeric_limits<std::size_t>::max() ||
                 max_certificate_candidates == 0U ||
@@ -513,6 +521,8 @@ int main(int argc, char** argv) {
                 options, "max-curves", remaining);
             run_options.curve_threads =
                 static_cast<std::size_t>(curve_threads);
+            run_options.smooth_coordinator_count =
+                static_cast<std::size_t>(smooth_coordinators);
             run_options.checkpoint_every = optional_u64(
                 options, "checkpoint-every", 1U);
             run_options.checkpoint_path = checkpoint;
@@ -561,6 +571,8 @@ int main(int argc, char** argv) {
                       << smooth_build_segment_span
                       << "\",\"curve_threads\":\""
                       << run_options.curve_threads
+                      << "\",\"smooth_coordinators\":\""
+                      << run_options.smooth_coordinator_count
                       << "\",\"x1_require_point_four\":"
                       << (config.x1_require_point_four ? "true" : "false")
                       << ",\"skip_incomplete_curves\":"
@@ -594,6 +606,98 @@ int main(int argc, char** argv) {
                       << (result.exhausted_assigned_range ? "true" : "false")
                       << ",\"verified\":"
                       << (result.verified.has_value() ? "true" : "false")
+                      << ",\"smooth_batch\":{\"enabled\":"
+                      << (result.smooth_batch_coordinator_enabled ? "true"
+                                                                  : "false")
+                      << ",\"coordinator_count\":\""
+                      << result.smooth_batch_coordinator_count
+                      << "\",\"submitted_requests\":\""
+                      << result.smooth_batch_telemetry.submitted_requests
+                      << "\",\"completed_requests\":\""
+                      << result.smooth_batch_telemetry.completed_requests
+                      << "\",\"failed_requests\":\""
+                      << result.smooth_batch_telemetry.failed_requests
+                      << "\",\"cancelled_requests\":\""
+                      << result.smooth_batch_telemetry.cancelled_requests
+                      << "\",\"coordinator_batches\":\""
+                      << result.smooth_batch_telemetry.coordinator_batches
+                      << "\",\"successful_cache_scan_chunks\":\""
+                      << result.smooth_batch_telemetry
+                             .successful_cache_scan_chunks
+                      << "\",\"submitted_orders\":\""
+                      << result.smooth_batch_telemetry.submitted_orders
+                      << "\",\"max_queued_requests_in_any_cohort\":\""
+                      << result.smooth_batch_telemetry
+                             .max_queued_requests_in_any_cohort
+                      << "\",\"max_requests_per_batch_in_any_cohort\":\""
+                      << result.smooth_batch_telemetry
+                             .max_requests_per_batch_in_any_cohort
+                      << "\",\"max_orders_per_successful_scan_chunk_in_any_cohort\":\""
+                      << result.smooth_batch_telemetry
+                             .max_orders_per_successful_scan_chunk_in_any_cohort
+                      << "\",\"successful_scan_chunk_size_histogram\":[";
+            for (std::size_t index = 0U;
+                 index < result.smooth_batch_telemetry
+                             .successful_scan_chunks_by_order_count.size();
+                 ++index) {
+                if (index != 0U) {
+                    std::cout << ',';
+                }
+                const auto& entry = result.smooth_batch_telemetry
+                                        .successful_scan_chunks_by_order_count
+                                            [index];
+                std::cout << "{\"orders\":\"" << entry.order_count
+                          << "\",\"scan_chunks\":\"" << entry.scan_chunks
+                          << "\"}";
+            }
+            std::cout << "],\"cohorts\":[";
+            for (std::size_t index = 0U;
+                 index < result.smooth_batch_cohort_telemetry.size();
+                 ++index) {
+                if (index != 0U) {
+                    std::cout << ',';
+                }
+                const auto& cohort =
+                    result.smooth_batch_cohort_telemetry[index];
+                std::cout << "{\"index\":\"" << index
+                          << "\",\"submitted_requests\":\""
+                          << cohort.submitted_requests
+                          << "\",\"completed_requests\":\""
+                          << cohort.completed_requests
+                          << "\",\"failed_requests\":\""
+                          << cohort.failed_requests
+                          << "\",\"cancelled_requests\":\""
+                          << cohort.cancelled_requests
+                          << "\",\"coordinator_batches\":\""
+                          << cohort.coordinator_batches
+                          << "\",\"successful_cache_scan_chunks\":\""
+                          << cohort.successful_cache_scan_chunks
+                          << "\",\"submitted_orders\":\""
+                          << cohort.submitted_orders
+                          << "\",\"max_queued_requests\":\""
+                          << cohort.max_queued_requests
+                          << "\",\"max_requests_per_batch\":\""
+                          << cohort.max_requests_per_batch
+                          << "\",\"max_orders_per_successful_scan_chunk\":\""
+                          << cohort.max_orders_per_successful_scan_chunk
+                          << "\",\"successful_scan_chunk_size_histogram\":[";
+                for (std::size_t bucket_index = 0U;
+                     bucket_index <
+                     cohort.successful_scan_chunks_by_order_count.size();
+                     ++bucket_index) {
+                    if (bucket_index != 0U) {
+                        std::cout << ',';
+                    }
+                    const auto& bucket =
+                        cohort.successful_scan_chunks_by_order_count
+                            [bucket_index];
+                    std::cout << "{\"orders\":\"" << bucket.order_count
+                              << "\",\"scan_chunks\":\""
+                              << bucket.scan_chunks << "\"}";
+                }
+                std::cout << "]}";
+            }
+            std::cout << "]}"
                       << ",\"state\":"
                       << oneshotsea::search_progress_json(state) << "}\n";
             return 0;

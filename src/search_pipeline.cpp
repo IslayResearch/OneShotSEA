@@ -22,6 +22,7 @@
 #include <future>
 #include <iomanip>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <regex>
 #include <sstream>
@@ -59,6 +60,67 @@ std::uint64_t elapsed_us(Clock::time_point start) {
         throw std::logic_error("steady clock moved backwards");
     }
     return static_cast<std::uint64_t>(elapsed);
+}
+
+std::uint64_t checked_pool_telemetry_add(std::uint64_t left,
+                                         std::uint64_t right) {
+    if (right > std::numeric_limits<std::uint64_t>::max() - left) {
+        throw std::overflow_error(
+            "exact-smooth pool telemetry counter overflow");
+    }
+    return left + right;
+}
+
+ExactSmoothBatchPoolTelemetry merged_smooth_batch_telemetry(
+    ExactSmoothBatchPoolTelemetry aggregate,
+    const ExactSmoothBatchTelemetry& cohort) {
+    aggregate.submitted_requests = checked_pool_telemetry_add(
+        aggregate.submitted_requests, cohort.submitted_requests);
+    aggregate.completed_requests = checked_pool_telemetry_add(
+        aggregate.completed_requests, cohort.completed_requests);
+    aggregate.failed_requests = checked_pool_telemetry_add(
+        aggregate.failed_requests, cohort.failed_requests);
+    aggregate.cancelled_requests = checked_pool_telemetry_add(
+        aggregate.cancelled_requests, cohort.cancelled_requests);
+    aggregate.coordinator_batches = checked_pool_telemetry_add(
+        aggregate.coordinator_batches, cohort.coordinator_batches);
+    aggregate.successful_cache_scan_chunks = checked_pool_telemetry_add(
+        aggregate.successful_cache_scan_chunks,
+        cohort.successful_cache_scan_chunks);
+    aggregate.submitted_orders = checked_pool_telemetry_add(
+        aggregate.submitted_orders, cohort.submitted_orders);
+    aggregate.max_queued_requests_in_any_cohort = std::max(
+        aggregate.max_queued_requests_in_any_cohort,
+        cohort.max_queued_requests);
+    aggregate.max_requests_per_batch_in_any_cohort = std::max(
+        aggregate.max_requests_per_batch_in_any_cohort,
+        cohort.max_requests_per_batch);
+    aggregate.max_orders_per_successful_scan_chunk_in_any_cohort = std::max(
+        aggregate.max_orders_per_successful_scan_chunk_in_any_cohort,
+        cohort.max_orders_per_successful_scan_chunk);
+    for (const ExactSmoothScanChunkSizeCount& entry :
+         cohort.successful_scan_chunks_by_order_count) {
+        const auto found = std::find_if(
+            aggregate.successful_scan_chunks_by_order_count.begin(),
+            aggregate.successful_scan_chunks_by_order_count.end(),
+            [&](const ExactSmoothScanChunkSizeCount& value) {
+                return value.order_count == entry.order_count;
+            });
+        if (found ==
+            aggregate.successful_scan_chunks_by_order_count.end()) {
+            aggregate.successful_scan_chunks_by_order_count.push_back(entry);
+        } else {
+            found->scan_chunks = checked_pool_telemetry_add(
+                found->scan_chunks, entry.scan_chunks);
+        }
+    }
+    std::sort(aggregate.successful_scan_chunks_by_order_count.begin(),
+              aggregate.successful_scan_chunks_by_order_count.end(),
+              [](const ExactSmoothScanChunkSizeCount& left,
+                 const ExactSmoothScanChunkSizeCount& right) {
+                  return left.order_count < right.order_count;
+              });
+    return aggregate;
 }
 
 std::uint64_t peak_rss_bytes() {
@@ -630,6 +692,12 @@ bool verify_with_pinned_runtime(const SearchPipelineConfig& config,
 
 }  // namespace
 
+void merge_exact_smooth_batch_pool_telemetry(
+    ExactSmoothBatchPoolTelemetry& aggregate,
+    const ExactSmoothBatchTelemetry& cohort) {
+    aggregate = merged_smooth_batch_telemetry(aggregate, cohort);
+}
+
 std::string resolve_executable_path(const std::string& executable) {
     if (executable.empty() || executable.find('\0') != std::string::npos) {
         throw std::invalid_argument("executable name is empty or malformed");
@@ -942,11 +1010,22 @@ SearchCurveReport process_search_curve(
     const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
     std::uint64_t global_index,
     const CanonicalCertificateVerifier& injected_verifier,
-    const SearchSeaLevelCallback& sea_level_callback) {
+    const SearchSeaLevelCallback& sea_level_callback,
+    const ExactSmoothBatchCoordinator* smooth_coordinator) {
     validate_config(config, &smooth_engine);
+    if (smooth_coordinator &&
+        !smooth_coordinator->compatible_with(smooth_engine)) {
+        throw std::invalid_argument(
+            "exact-smooth batch coordinator does not match the search engine");
+    }
     const Clock::time_point total_start = Clock::now();
     SearchCurveReport report;
     report.global_index = global_index;
+    const auto extract_curve_twist = [&](std::span<const mpz_class> traces) {
+        return smooth_coordinator
+                   ? smooth_coordinator->extract_curve_twist(traces)
+                   : smooth_engine.extract_curve_twist(traces);
+    };
 
     Clock::time_point stage_start = Clock::now();
     std::optional<ExactTracePrior> trace_prior;
@@ -1099,7 +1178,7 @@ SearchCurveReport process_search_curve(
 
     stage_start = Clock::now();
     std::vector<CurveTwistSmoothParts> initial_parts =
-        smooth_engine.extract_curve_twist(*sea.traces);
+        extract_curve_twist(*sea.traces);
     report.timings.smoothness_us += elapsed_us(stage_start);
     const CertificateBounds bounds = canonical_certificate_bounds(config.prime);
     if (!has_large_enough_smooth_part(initial_parts,
@@ -1151,7 +1230,7 @@ SearchCurveReport process_search_curve(
         } else {
             const std::array<mpz_class, 1> trace = {*report.exact_trace};
             stage_start = Clock::now();
-            exact_parts = smooth_engine.extract_curve_twist(trace);
+            exact_parts = extract_curve_twist(trace);
             report.timings.smoothness_us += elapsed_us(stage_start);
         }
     }
@@ -1341,6 +1420,10 @@ SearchPipelineRunResult run_search_pipeline(
     if (options.curve_threads == 0U) {
         throw std::invalid_argument("curve thread count must be positive");
     }
+    if (options.smooth_coordinator_count > options.curve_threads) {
+        throw std::invalid_argument(
+            "smooth coordinator count must not exceed curve thread count");
+    }
     require_distinct_pipeline_paths(options);
     SearchPipelineRunResult result;
     const CanonicalCertificateVerifier canonical = verifier
@@ -1421,6 +1504,19 @@ SearchPipelineRunResult run_search_pipeline(
                       options.sea_level_callback(index, level);
                   })
             : SearchSeaLevelCallback{};
+    std::vector<std::unique_ptr<ExactSmoothBatchCoordinator>>
+        smooth_coordinators;
+    if (!state.complete() && options.max_curves != 0U &&
+        options.smooth_coordinator_count != 0U) {
+        smooth_coordinators.reserve(options.smooth_coordinator_count);
+        for (std::size_t index = 0U;
+             index < options.smooth_coordinator_count; ++index) {
+            smooth_coordinators.push_back(
+                std::make_unique<ExactSmoothBatchCoordinator>(smooth_engine));
+        }
+        result.smooth_batch_coordinator_enabled = true;
+        result.smooth_batch_coordinator_count = smooth_coordinators.size();
+    }
     if (!state.complete() && options.max_curves != 0U) {
         const std::uint64_t first_index = state.next_index();
         const std::uint64_t budget = std::min(
@@ -1438,13 +1534,20 @@ SearchPipelineRunResult run_search_pipeline(
                         "Weber table contents changed before curve processing");
                 }
                 const std::uint64_t index = next_to_launch++;
+                ExactSmoothBatchCoordinator* const smooth_coordinator =
+                    smooth_coordinators.empty()
+                        ? nullptr
+                        : smooth_coordinators[
+                              index % smooth_coordinators.size()]
+                              .get();
                 pending.push_back(std::async(
                     std::launch::async,
-                    [&, index] {
+                    [&, index, smooth_coordinator] {
                         return process_search_curve(
                             config, smooth_engine, index,
                             serialized_verifier,
-                            serialized_sea_level_callback);
+                            serialized_sea_level_callback,
+                            smooth_coordinator);
                     }));
             }
         };
@@ -1538,6 +1641,13 @@ SearchPipelineRunResult run_search_pipeline(
         // std::future destruction joins any in-flight reports discarded behind
         // an earlier implementation limit or verified certificate. No worker
         // mutates durable artifacts or the checkpoint coordinator.
+    }
+    for (const auto& smooth_coordinator : smooth_coordinators) {
+        result.smooth_batch_cohort_telemetry.push_back(
+            smooth_coordinator->telemetry());
+        merge_exact_smooth_batch_pool_telemetry(
+            result.smooth_batch_telemetry,
+            result.smooth_batch_cohort_telemetry.back());
     }
     result.exhausted_assigned_range = state.complete();
     return result;

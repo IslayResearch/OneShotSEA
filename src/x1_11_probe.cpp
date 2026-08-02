@@ -355,7 +355,11 @@ X111ProbeResult deterministic_x1_11_impl(
             const X111CanonicalSide side =
                 identify_canonical_side(tate_curve, pair.curve);
             const std::uint64_t cyclic_divisor = point_four ? 44U : 22U;
-            const std::uint64_t group_divisor = point_four ? 88U : 44U;
+            const bool point_four_sixteen_divisor =
+                point_four && mpz_fdiv_ui(prime.get_mpz_t(), 8U) == 5U;
+            const std::uint64_t group_divisor =
+                point_four_sixteen_divisor ? 176U
+                                           : (point_four ? 88U : 44U);
             const mpz_class opposite_residue =
                 (2 * (prime + 1)) %
                 mpz_class(static_cast<unsigned long>(group_divisor));

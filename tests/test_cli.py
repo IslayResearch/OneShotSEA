@@ -92,7 +92,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(summary["schema"], "oneshotsea.x1-11-probe.v1")
         self.assertEqual(
             summary["generator_version"],
-            "x1-11-tate-weber-montgomery-v1",
+            "x1-11-tate-weber-montgomery-v2",
         )
         self.assertEqual(
             summary["formula_source_sha256"],

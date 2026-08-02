@@ -1,0 +1,102 @@
+{
+  "schema": "oneshotsea.x1-11-point4-176.v1",
+  "date": "2026-08-01",
+  "classification": "exact conditional group-order prior with exhaustive small-field admission audit; no certificate claim",
+  "theorem": {
+    "conditions": [
+      "accepted X1(11) sample with exact rational order-11 Tate point",
+      "retained nonzero rational Weber-f lift and validated explicit Montgomery image",
+      "full rational E[2] and the existing point-four predicate",
+      "prime congruent to 5 modulo 8"
+    ],
+    "conclusion": "the selected Tate twist class contains a rational subgroup of order 16 and its group order is divisible by 176",
+    "cyclic_divisor": 44,
+    "group_divisor": 176,
+    "cyclic_boundary": "the full-E[4] branch can have 2-primary exponent 4, so no uniform exact-order-88 or exact-order-176 point is claimed",
+    "opposite_order_residue": "2*(p+1) modulo 176"
+  },
+  "production_target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "prime_mod_8": 5,
+    "p_plus_one_mod_176": 94,
+    "curve_side_trace_residue_mod_176": 94,
+    "twist_side_trace_residue_mod_176": 82,
+    "indices_12_through_21_signed_residues": [82, 82, 82, 94, 94, 82, 94, 94, 94, 94],
+    "no_mod_352_promotion_indices": [17, 19, 20],
+    "no_mod_352_reason": "the selected order is 176 modulo 352 at each listed exact-trace fixture"
+  },
+  "p130_boundary": {
+    "prime": "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001113",
+    "prime_mod_8": 1,
+    "point_four_group_divisor": 88
+  },
+  "pinned_branches": [
+    {
+      "prime": 157,
+      "seed": "0x7821058d55e0f265",
+      "index": 7,
+      "tate_a": 125,
+      "tate_b": 38,
+      "montgomery_a": 15,
+      "branch": "rational order-eight plus independent E[2]",
+      "selected_order": 176
+    },
+    {
+      "prime": 157,
+      "seed": "0x7821058d55e0f265",
+      "index": 2,
+      "tate_a": 70,
+      "tate_b": 72,
+      "montgomery_a": 30,
+      "branch": "full rational E[4]",
+      "selected_order": 176
+    }
+  ],
+  "exhaustive_sweep": {
+    "maximum_prime": 1009,
+    "p5mod8": {
+      "primes": 42,
+      "x1_points": 18866,
+      "singular": 156,
+      "exceptional_j0": 40,
+      "exceptional_j1728": 0,
+      "full_e2": 3070,
+      "point_four": 1490,
+      "raw_point_four_not_divisible_176": 560,
+      "weber_admitted": 550,
+      "admitted_not_divisible_176": 0,
+      "selected_curve": 240,
+      "selected_twist": 310,
+      "positive_character_branch": 329,
+      "negative_character_branch": 221
+    },
+    "p1mod8": {
+      "primes": 38,
+      "weber_admitted": 525,
+      "admitted_not_divisible_176": 390,
+      "first_admitted_counterexample": "p=89,x=8,y=86,j=29,f=3,twist side,order=88"
+    },
+    "raw_x1_admission_counterexample": "p=101,x=21,y=61,j=54,order=88; no rational Weber-f lift",
+    "harness": "x1_176_sweep.cpp",
+    "harness_sha256": "0515f4c0235a5ebc2b5b6198568b06a2c39496938951c8e888342b7845b7141d",
+    "raw_output": "raw-sweep.txt",
+    "raw_output_sha256": "494c20bc4a0bfeef3d53a630b87a9d062a294c0a6730ce4cf404f8b95bbe34ea"
+  },
+  "implementation": {
+    "generator_version": "x1-11-tate-weber-montgomery-v2",
+    "trace_prior_policy": "weber-full-e2-mod4-if-validated-x1-selected-group-divisor-point4-p5mod8-176-v2",
+    "header_sha256": "3d13470e821ccf422c36fb4c9e3ebe079e7ac5a35a2ca20828890b591af68557",
+    "generator_source_sha256": "dc86532d9bb3aa097d2139d14247e3b100e64bd02fd5ad845a243c3dfeab6399",
+    "pipeline_source_sha256": "fcbee1b474f8cef97a75b4769203c46f37aa94ef985bb3ee7bc6d2a5d45e8704",
+    "probe_test_sha256": "d5f76f8f284688ff743cd8f35e5c0698e47f2687b7a2f204b7f0746876c05297",
+    "pipeline_test_sha256": "ddb3edc59f0fd39e21755a23b48797e6ecd3682ce35d970f3d5c329984afd0cf",
+    "cli_test_sha256": "0d8fae547c21b04ccd59bec41eb4bc05a7fd8d9ac91ea3ce5c4322eb197a70dc",
+    "schedule_rule": "the v2 generator and trace-prior policy make every pre-176 checkpoint identity incompatible"
+  },
+  "focused_tests": {
+    "test_core": "passed",
+    "test_x1_11_probe": "passed",
+    "test_search_pipeline": "passed",
+    "cli_tests": "16 passed"
+  }
+}

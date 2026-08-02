@@ -111,9 +111,11 @@ The resulting guarantees are:
 |---|---:|---:|
 | exact order 11 plus full rational `E[2]` | 22 | 44 |
 | additionally a rational point of order 4 | 44 | 88 |
+| point four and `p=5 (mod 8)`, with admitted Weber image | 44 | 176 |
 
 The opposite quadratic-twist order is `2(p+1)-#E`. For p125 this is congruent
-to 12 modulo 44, and in the order-four branch it is congruent to 12 modulo 88.
+to 12 modulo 44, and in the admitted order-four branch it is congruent to 12
+modulo 176.
 
 ## Bounded p125 measurement
 
@@ -167,13 +169,13 @@ For point-four index 0, Magma counted the selected Tate curve as
 100000000000000000000000000000000000000000000000000000000000000026639532912113683603076081938932761119093105874891301893142256.
 ```
 
-This is zero modulo 88. Its opposite twist order is
+This is zero modulo 176. Its opposite twist order is
 
 ```text
 99999999999999999999999999999999999999999999999999999999999999973360467087886316396923918061067238880906894125108698106858220,
 ```
 
-which is 12 modulo 88. A separate Magma identity transcript returned
+which is 12 modulo 176. A separate Magma identity transcript returned
 `<true, 3, true, true>` for `[11]P=O`, three rational roots of the 2-torsion
 cubic, `U` square, and `A_M^2=U`, respectively.
 
@@ -245,7 +247,7 @@ The focused validation commands were `make test-x1-11-probe`,
 
 ## Limitations
 
-- A known factor of 44 or 88 creates a smooth-order opportunity. It is not a
+- A known factor of 44, 88, or conditionally 176 creates a smooth-order opportunity. It is not a
   measured certificate rate. SEA, exact smooth-part extraction, the required
   large-prime conditions, Montgomery certificate assembly, and canonical
   verification remain mandatory.
@@ -253,6 +255,11 @@ The focused validation commands were `make test-x1-11-probe`,
   known subgroup. It is not the group exponent and does not claim a point of
   exactly that order. `cyclic_divisor` is the separate 22- or 44-order point
   obtained by combining the exact coprime torsion points.
+- On the point-four branch with `p=5 (mod 8)`, the retained Weber/Montgomery
+  identity proves that the selected twist class has a 2-primary subgroup of
+  order 16, promoting `group_divisor` to 176 at zero runtime cost.  The proof,
+  fixtures, sweep, and raw-X1 counterexample boundary are in
+  [the dedicated note](x1_11_point4_176.md).
 - The acceptance fractions are observations from one deterministic 16-index
   range under the X1(11)-first distribution. They are not confidence
   intervals, uniform-j estimates, or production-search rates.

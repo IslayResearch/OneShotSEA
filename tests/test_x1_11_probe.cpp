@@ -112,8 +112,12 @@ void check_sample(const oneshotsea::X111ProbeSample& sample) {
           "sample reports mandatory full rational 2-torsion");
     check(sample.cyclic_divisor == (sample.has_point_order_four ? 44U : 22U),
           "cyclic divisor records the point-four decision");
-    check(sample.group_divisor == (sample.has_point_order_four ? 88U : 44U),
-          "group divisor records full E[2] and point-four");
+    const std::uint64_t expected_group_divisor =
+        sample.has_point_order_four && mpz_fdiv_ui(p.get_mpz_t(), 8U) == 5U
+            ? 176U
+            : (sample.has_point_order_four ? 88U : 44U);
+    check(sample.group_divisor == expected_group_divisor,
+          "group divisor records the strongest validated 2-primary branch");
 }
 
 void test_formula_identity_and_input_bounds() {
@@ -121,7 +125,7 @@ void test_formula_identity_and_input_bounds() {
               "oneshotsea.x1-11-probe.v1",
           "probe schema is pinned");
     check(std::string(oneshotsea::kX111ProbeGeneratorVersion) ==
-              "x1-11-tate-weber-montgomery-v1",
+              "x1-11-tate-weber-montgomery-v2",
           "probe generator version is pinned");
     check(std::string(oneshotsea::kX111FormulaSourceSha256) ==
               "19f76aef352cea9a6e1d3347977eb9286b03e70fa6b4afb8daea013ebbd6bd4c",
@@ -162,6 +166,7 @@ void test_determinism_divisibility_and_counters() {
     constexpr std::uint64_t seed = UINT64_C(0x7821058d55e0f265);
     for (const Fixture fixture : {
              Fixture{157UL, 7U, 2U, true},
+             Fixture{157UL, 2U, 4U, true},
              Fixture{397UL, 0U, 5U, false},
          }) {
         const oneshotsea::X111ProbeResult first =
@@ -218,10 +223,22 @@ void test_required_point_four_filter() {
     check(result.sample.has_value() && result.sample->has_point_order_four,
           "required point-four mode admits the pinned positive fixture");
     check(result.sample->cyclic_divisor == 44U &&
-              result.sample->group_divisor == 88U,
-          "required point-four mode advertises exact divisors");
+              result.sample->group_divisor == 176U,
+          "p=5 mod 8 point-four mode advertises the exact 16-by-11 group divisor");
     check_counter_partition(result.counters);
     check_sample(*result.sample);
+
+    const oneshotsea::X111ProbeResult p1mod8 =
+        oneshotsea::deterministic_x1_11_probe(89, 12345, 0, {8, true});
+    check(p1mod8.sample.has_value() &&
+              p1mod8.sample->has_point_order_four &&
+              p1mod8.sample->cyclic_divisor == 44U &&
+              p1mod8.sample->group_divisor == 88U &&
+              oneshotsea::count_points_bruteforce(
+                  p1mod8.sample->tate_curve) == 88,
+          "p=1 mod 8 admitted point-four fixture sharply retains divisor 88");
+    check_counter_partition(p1mod8.counters);
+    check_sample(*p1mod8.sample);
 }
 
 void test_unbounded_search_generator() {
@@ -242,7 +259,7 @@ void test_unbounded_search_generator() {
           "production pair records every prior rejected x-coordinate");
     check(first.sample->has_point_order_four &&
               first.sample->cyclic_divisor == 44U &&
-              first.sample->group_divisor == 88U,
+              first.sample->group_divisor == 176U,
           "point-four search mode retains validated divisor metadata");
     check_counter_partition(first.counters);
     check_sample(*first.sample);

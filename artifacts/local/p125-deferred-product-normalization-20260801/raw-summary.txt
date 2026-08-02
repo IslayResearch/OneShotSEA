@@ -1,0 +1,26 @@
+Controlled interleaved p125 index-17 known-source benchmark
+Harness source: artifacts/local/p125-known-source-lift-20260801/benchmark_known_lift.cpp
+Invocation: /usr/bin/time -l BENCHMARK 17 known
+Production was paused at authenticated next_index 90; no search cursor advanced.
+
+baseline_1 elapsed_us=59567856 modular_roots_us=33437939 bmss_us=7435323 eigenvalue_us=18551084 external_real_seconds=60.62
+patched_1  elapsed_us=57728088 modular_roots_us=32327699 bmss_us=7527036 eigenvalue_us=17739451 external_real_seconds=58.69
+baseline_2 elapsed_us=60316049 modular_roots_us=33832434 bmss_us=7585093 eigenvalue_us=18752097 external_real_seconds=61.13
+patched_2  elapsed_us=58125673 modular_roots_us=32454790 bmss_us=7654711 eigenvalue_us=17881208 external_real_seconds=58.83
+
+runner_mean_baseline_us=59941952.5
+runner_mean_patched_us=57926880.5
+runner_speedup=1.034786475339372
+modular_root_mean_baseline_us=33635186.5
+modular_root_mean_patched_us=32391244.5
+modular_root_speedup=1.0384036494800315
+eigenvalue_mean_baseline_us=18651590.5
+eigenvalue_mean_patched_us=17810329.5
+eigenvalue_speedup=1.047234443360523
+
+Every invocation emitted 55 levels, one final trace, and the identical exact
+projection retained as the index-17 projection in the known-source artifact.
+All ell values, exact/empty classifications, trace residues, exact moduli,
+candidate counts, and the final trace matched byte-for-byte after the timing
+prefix.  The macOS time wrapper's post-run sysctl warning is harmless; runner
+steady-clock elapsed_us is primary.

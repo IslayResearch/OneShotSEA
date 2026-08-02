@@ -626,7 +626,7 @@ void test_worker_partition_is_identity_bound() {
                   << "curve_generator=weber-f-montgomery-filtered-v2\n"
                   << "trace_prior_policy="
                   << "weber-full-e2-mod4-if-validated-"
-                     "x1-selected-group-divisor-v1\n"
+                     "x1-selected-group-divisor-point4-p5mod8-176-v2\n"
                   << "weber_source_lift_policy="
                      "generator-retained-unramified-singleton-v1\n"
                   << "sea=weber-reference-two-pass-classical-atkin-v2\n"
@@ -657,7 +657,7 @@ void test_worker_partition_is_identity_bound() {
                   << "curve_generator=weber-f-montgomery-filtered-v2\n"
                   << "trace_prior_policy="
                   << "weber-full-e2-mod4-if-validated-"
-                     "x1-selected-group-divisor-v1\n"
+                     "x1-selected-group-divisor-point4-p5mod8-176-v2\n"
                   << "sea=weber-reference-two-pass-classical-atkin-v2\n"
                   << "heuristic_rejection=disabled\n"
                   << "prime=" << config.prime << '\n'
@@ -693,6 +693,54 @@ void test_worker_partition_is_identity_bound() {
     }
     check(pre_source_lift_rejected,
           "checkpoint rejects the pre-known-source schedule identity");
+
+    const std::filesystem::path pre_point_four_176_schedule =
+        temporary.path() / "pre-point-four-176-schedule.txt";
+    {
+        std::ostringstream canonical;
+        canonical << "oneshotsea.search-schedule.v1\n"
+                  << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "trace_prior_policy="
+                  << "weber-full-e2-mod4-if-validated-"
+                     "x1-selected-group-divisor-v1\n"
+                  << "weber_source_lift_policy="
+                     "generator-retained-unramified-singleton-v1\n"
+                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "heuristic_rejection=disabled\n"
+                  << "prime=" << config.prime << '\n'
+                  << "max_level=" << config.max_level << '\n'
+                  << "early_trace_cap=" << config.early_trace_cap << '\n'
+                  << "assembly_attempts=" << config.assembly_attempts << '\n'
+                  << "certificate_seed=" << config.certificate_seed << '\n'
+                  << "python_executable_path=" << config.python_executable
+                  << '\n'
+                  << "python_executable_sha256="
+                  << oneshotsea::sha256_file(config.python_executable) << '\n'
+                  << "smooth_cache_sha256=" << digest << '\n'
+                  << "canonical_verifier_sha256=" << digest << '\n';
+        std::ofstream output(pre_point_four_176_schedule, std::ios::binary);
+        output << canonical.str();
+    }
+    oneshotsea::SearchIdentity pre_point_four_176_identity = identity;
+    pre_point_four_176_identity.schedule_sha256 =
+        oneshotsea::sha256_file(pre_point_four_176_schedule);
+    check(pre_point_four_176_identity.schedule_sha256 !=
+              identity.schedule_sha256,
+          "point-four 176 prior changes the production schedule hash");
+    const std::filesystem::path pre_point_four_176_checkpoint =
+        temporary.path() / "pre-point-four-176.json";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(pre_point_four_176_identity),
+        pre_point_four_176_checkpoint);
+    bool pre_point_four_176_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(
+            pre_point_four_176_checkpoint, identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        pre_point_four_176_rejected = true;
+    }
+    check(pre_point_four_176_rejected,
+          "checkpoint rejects the pre-point-four-176 schedule identity");
 
     const std::filesystem::path pre_policy_schedule =
         temporary.path() / "pre-trace-prior-schedule.txt";
@@ -796,7 +844,7 @@ void test_x1_curve_family_enters_search_pipeline() {
         config.prime + 1 - oneshotsea::count_points_bruteforce(
                                twist_sample.sample->pair.curve);
     check(first.trace_prior_modulus ==
-              std::optional<std::uint64_t>(88U) &&
+              std::optional<std::uint64_t>(176U) &&
               first.trace_prior_residue ==
                   std::optional<std::uint64_t>(18U) &&
               first.exact_trace ==
@@ -810,7 +858,7 @@ void test_x1_curve_family_enters_search_pipeline() {
     const std::string report_json = oneshotsea::search_curve_report_json(
         first, oneshotsea::SearchState(identity));
     check(report_json.find(
-              "\"trace_prior\":{\"modulus\":\"88\",\"residue\":\"18\"}") !=
+              "\"trace_prior\":{\"modulus\":\"176\",\"residue\":\"18\"}") !=
               std::string::npos,
           "production curve telemetry exposes the applied exact prior");
 

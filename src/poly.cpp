@@ -372,9 +372,6 @@ Poly mulmod(const Poly& lhs, const Poly& rhs, const Poly& modulus) {
     }
     std::vector<mpz_class> output = karatsuba_product(
         reduced_lhs.coefficients(), reduced_rhs.coefficients());
-    for (mpz_class& coefficient : output) {
-        coefficient = lhs.field().normalize(coefficient);
-    }
     reduce_product_coefficients(output, modulus);
     return Poly(lhs.field(), std::move(output));
 }
@@ -394,9 +391,6 @@ Poly squaremod(const Poly& value, const Poly& modulus) {
     }
     std::vector<mpz_class> output = karatsuba_product(
         reduced.coefficients(), reduced.coefficients());
-    for (mpz_class& coefficient : output) {
-        coefficient = value.field().normalize(coefficient);
-    }
     reduce_product_coefficients(output, modulus);
     return Poly(value.field(), std::move(output));
 }

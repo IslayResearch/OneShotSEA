@@ -38,7 +38,7 @@ The implemented exact trace-prior policy narrows this complete set without a
 heuristic assumption.  Weber-f adds `t = p+1 (mod 4)` only after directly
 finding all three rational roots of the actual short Weierstrass cubic.  For
 X1(11), the selected curve or twist gives `t = +(p+1)` or `-(p+1)` modulo its
-certified group-order divisor 44 or 88; because 11 divides either modulus, SEA
+certified group-order divisor 44, 88, or conditionally 176; because 11 divides every modulus, SEA
 skips the redundant `ell=11` table.  The prior participates in both sound early
 screening and the exact unique-trace gate, is emitted in curve telemetry, and
 changes the schedule digest.  The retained family A/B predates this policy, so
@@ -281,6 +281,14 @@ was 21.20% slower.  All mathematical outputs matched, and the prototype was
 fully reverted.  The measured negative is retained in
 `artifacts/local/p125-reciprocal-reduction-20260801/result.json`.
 
+The accepted follow-up removes a redundant normalization pass over each raw
+quotient-ring product.  Two interleaved p125 index-17 runs reduced mean SEA
+from 59.942 to 57.927 seconds (1.03479x), modular roots from 33.635 to 32.391
+seconds (1.03840x), and eigenvalue recovery from 18.652 to 17.810 seconds
+(1.04723x).  All 55 per-level exact projections and the final trace matched.
+Evidence is in
+`artifacts/local/p125-deferred-product-normalization-20260801/result.json`.
+
 ### Classical-j comparison boundary
 
 The checked-in low-level tables show the expected footprint direction, but
@@ -447,6 +455,18 @@ All four runs ended in ten sound rejections and zero certificates.  Source:
 [trace-prior A/B](x1_11_trace_prior_ab.md) and
 [trace-cap ablation](x1_11_trace_cap.md).
 
+For the production target `p125=5 (mod 8)`, the retained Weber/Montgomery
+identity strengthens every accepted X1 point-four selected-side group divisor
+from 88 to 176 at zero per-curve cost.  The two possible 2-primary structures
+are full rational `E[4]` or a rational order-eight point with independent
+`E[2]`; either contributes order 16, and the rational order-11 point gives
+176.  An exhaustive accepted-generator sweep through prime 1009 covered 550
+cases without a counterexample, while raw-X1 and admitted `p=1 (mod 8)`
+order-88 counterexamples confirm both admission boundaries are necessary.
+Exact retained p125 traces validate the signed modulus-176 residues, and
+several exact orders rule out promotion to 352.  See
+[the conditional divisor proof](x1_11_point4_176.md).
+
 Relative to the earlier 306.19-second Weber family window, the selected
 260.34-second X1/prior/cap-16 window is 1.17612x observed fixed-wave
 throughput.  Combining that observation with the conservative 1.1775 cyclic-
@@ -485,11 +505,16 @@ yield.
   [the trace-prior artifact](../artifacts/local/p125-x1-11-trace-prior-ab-20260801/result.json),
   and the same-build 64/32/16/1 cap selection is in
   [the trace-cap artifact](../artifacts/local/p125-x1-11-trace-cap-20260801/result.json).
+- The conditional modulus-176 proof, exhaustive admitted-generator sweep, and
+  sharp p=1 mod 8/admission counterexamples are in
+  [the point-four divisor artifact](../artifacts/local/p125-x1-11-point4-176-20260801/result.json).
 - The generator-retained Weber-source validation, multi-orbit audit, exact
   projections, and paired one-/three-orbit timings are in
   [the known-source artifact](../artifacts/local/p125-known-source-lift-20260801/result.json).
 - The exact but slower reciprocal-reduction prototype is recorded in
   [the negative A/B artifact](../artifacts/local/p125-reciprocal-reduction-20260801/result.json).
+- The accepted redundant-normalization removal and exact paired p125 timing
+  are in [the deferred-normalization artifact](../artifacts/local/p125-deferred-product-normalization-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

@@ -126,6 +126,74 @@ void test_thresholded_polynomial_products() {
                                    194U}) {
         check_thresholded_products(large_field, size);
     }
+
+    const auto check_modular_product = [](const oneshotsea::Poly& lhs,
+                                          const oneshotsea::Poly& rhs,
+                                          const oneshotsea::Poly& modulus,
+                                          const std::string& label) {
+        const oneshotsea::Poly product = reference_schoolbook_product(lhs, rhs);
+        check(oneshotsea::equal(oneshotsea::mulmod(lhs, rhs, modulus),
+                               oneshotsea::mod(product, modulus)),
+              label + " multiply");
+        const oneshotsea::Poly square = reference_schoolbook_product(lhs, lhs);
+        check(oneshotsea::equal(oneshotsea::squaremod(lhs, modulus),
+                               oneshotsea::mod(square, modulus)),
+              label + " square");
+    };
+
+    // No high coefficient reaches the elimination loop here.  This isolates
+    // final normalization of the raw, approximately p^2 convolution values.
+    check_modular_product(
+        oneshotsea::Poly(small_field, {1008, 1007, 1006}),
+        oneshotsea::Poly(small_field, {1005, 1004, 1003, 1002}),
+        oneshotsea::Poly(small_field,
+                         {7, 11, 13, 17, 19, 23, 29, 31, 37, 1007}),
+        "deferred normalization below modulus degree");
+
+    // Exercise generic operand pre-reduction followed by a non-monic dense
+    // modular product, including a strongly unbalanced convolution shape.
+    check_modular_product(
+        oneshotsea::Poly(small_field, {1008, 1007}),
+        dense_polynomial(small_field, 47, 7001),
+        oneshotsea::Poly(small_field,
+                         {1008, 1007, 1006, 1005, 1004, 1003, 1002,
+                          1001, 1000, 999, 998, 997, 996, 995, 994,
+                          993, 992, 1007}),
+        "deferred normalization after operand pre-reduction");
+
+    check_modular_product(
+        oneshotsea::Poly(small_field, {1008, 1007}),
+        oneshotsea::Poly(small_field, {1006, 1005}),
+        oneshotsea::Poly(small_field, {1004, 1003, 1007}),
+        "deferred normalization degree-two non-monic dense case");
+
+    const oneshotsea::Poly alias_value(small_field,
+                                       {1008, 1006, 1004, 1002});
+    const oneshotsea::Poly alias_modulus(small_field,
+                                         {1007, 1005, 1003});
+    check(oneshotsea::equal(
+              oneshotsea::mulmod(alias_value, alias_value, alias_modulus),
+              oneshotsea::squaremod(alias_value, alias_modulus)),
+          "modular multiply safely aliases both source operands");
+    check(oneshotsea::mulmod(alias_modulus, alias_value, alias_modulus)
+                  .is_zero() &&
+              oneshotsea::squaremod(alias_modulus, alias_modulus).is_zero(),
+          "modular products safely reduce a modulus-alias operand to zero");
+    const oneshotsea::Poly constant_modulus =
+        oneshotsea::Poly::constant(small_field, 7);
+    check(oneshotsea::mulmod(alias_value, alias_value, constant_modulus)
+                  .is_zero() &&
+              oneshotsea::squaremod(alias_value, constant_modulus).is_zero(),
+          "nonzero constant polynomial modulus returns zero");
+    bool zero_modulus_rejected = false;
+    try {
+        (void)oneshotsea::mulmod(alias_value, alias_value,
+                                oneshotsea::Poly(small_field));
+    } catch (const std::domain_error&) {
+        zero_modulus_rejected = true;
+    }
+    check(zero_modulus_rejected,
+          "zero polynomial modulus remains a hard error");
 }
 
 void test_field() {

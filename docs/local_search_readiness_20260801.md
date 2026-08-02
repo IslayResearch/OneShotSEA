@@ -84,6 +84,20 @@ authority where that tree was subsequently extended.
   and `2ad8d832d849348bcfda9313da026c8ee3256b08f078281343775e2ec91a0d55`.
   The retained-source policy changes the schedule digest, so the new committed
   identity must start a fresh range at 60 rather than load this checkpoint.
+- The retained-source production identity was commit
+  `d957b156966f89948fef64a7cad0527358365264`, executable SHA-256
+  `14fa5ac090eef32008d898f7bfb389f74aec4bc4a9eb9b1fad32e476868abfcc`,
+  schedule `efad4eb5bf58fa3bf08045d296da89b0f3000a8ebd59755e920220b225f0f82a`,
+  and range `[60,1000000)`.  It durably processed indices 60--89 as 30
+  sound early rejections, including 15 full point counts, then paused for the
+  exact arithmetic and modulus-176 gates.  Its checkpoint is `next_index=90`;
+  checkpoint, progress, and log SHA-256 values are
+  `36686f6926354cd7eee399f2e1ef83dd35f84af1c575d2012433cb6fe6b84ea6`,
+  `9156ae704a280d97273017f05681e5fd1acb725f14e480aa6b06915ce707528e`,
+  and `6eb321d21978c65641afdd4264fd4184e40df555019f818031b90200e29d5f08`.
+  The exact binary is pinned in the run directory; the restart script checks
+  its digest before execution.  The stronger trace-prior policy changes the
+  schedule identity, so its successor must begin at 90.
 
 The filtered artifacts were extended after `docs/benchmark_20260731.md` was
 written.  Their current authoritative digests are:
@@ -249,12 +263,13 @@ reduction and no pre-policy checkpoint can be resumed under it.
 ## Next local action
 
 Commit `8c1605f` passed the complete test and clean-build gate for the exact
-trace-prior policy.  The cap ablation selected 16.  The authenticated
-`1e84475` production run advanced through index 59.  Start the retained-source
-X1(11) point-four identity at global index 60; its semantic schedule change
-means the old checkpoint is evidence, not resumable state.  The held-out scheduling A/B found the measured
+trace-prior policy, and the cap ablation selected 16.  Authenticated production
+identities advanced through index 89.  Start the deferred-normalization,
+modulus-176 X1(11) point-four identity at global index 90; its semantic
+schedule change means the old checkpoint is evidence, not resumable state.
+The held-out scheduling A/B found the measured
 alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
-Replace the build id and `search-NEXT` directory below with the exact committed
+build id and `search-NEXT` directory below with the exact committed
 production identity.
 
 ```sh
@@ -264,7 +279,7 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 60 --range-end 1000000 \
+  --range-start 90 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --curve-family x1-11 --x1-require-point4 1 \
   --max-level 401 --trace-cap 16 --curve-threads 10 --sea-threads 1 \

@@ -149,15 +149,20 @@ closed:
   three distinct rational roots establish full rational `E[2]`, hence
   `#E = p+1-t = 0 (mod 4)` and `t = p+1 (mod 4)`.  A curve that does not pass
   this validation receives no mod-4 prior.
-- For X1(11), let `D` be the selected-side group-order divisor, 44 or 88
-  according to the validated sample; requiring point four forces 88.  If the
+- For X1(11), let `D` be the selected-side group-order divisor.  It is 44
+  generally, 88 on the validated point-four branch, and 176 when point four
+  is present and `p = 5 (mod 8)`.  The last case follows from the retained
+  Weber/Montgomery identity: the selected twist class has either full rational
+  `E[4]` or a rational order-eight point plus independent `E[2]`.  If the
   selected Tate isomorphism class is
   the canonical curve, SEA starts with `t = p+1 (mod D)`; if it is the
   canonical twist, it starts with `t = -(p+1) (mod D)`.  Since 11 divides
   either `D`, the redundant Weber level `ell=11` is skipped.  The selected-side
-  cyclic divisors remain 22 and 44 respectively; the stronger 44/88 values
+  cyclic divisors remain 22 and 44 respectively; the stronger 44/88/176 values
   used by the trace prior are certified group-order divisors, not claims about
-  the group exponent or an exact-order-88 point.
+  the group exponent or an exact-order-88/176 point.  The conditional proof
+  and its counterexample boundary are in
+  [the point-four divisor note](x1_11_point4_176.md).
 
 The prior is inserted into both the exact and effective constraint states, so
 it participates in sound bounded screening and the final unique-trace gate.

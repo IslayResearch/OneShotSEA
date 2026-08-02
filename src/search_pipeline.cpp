@@ -44,7 +44,7 @@ namespace {
 using Clock = std::chrono::steady_clock;
 constexpr std::chrono::seconds kSubprocessTimeout{30};
 constexpr std::string_view kTracePriorPolicy =
-    "weber-full-e2-mod4-if-validated-x1-selected-group-divisor-v1";
+    "weber-full-e2-mod4-if-validated-x1-selected-group-divisor-point4-p5mod8-176-v2";
 constexpr std::string_view kWeberSourceLiftPolicy =
     "generator-retained-unramified-singleton-v1";
 

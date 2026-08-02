@@ -12,7 +12,7 @@ namespace oneshotsea {
 // the exact external equation that was implemented.
 inline constexpr char kX111ProbeSchema[] = "oneshotsea.x1-11-probe.v1";
 inline constexpr char kX111ProbeGeneratorVersion[] =
-    "x1-11-tate-weber-montgomery-v1";
+    "x1-11-tate-weber-montgomery-v2";
 inline constexpr char kX111FormulaSourceUrl[] =
     "https://math.mit.edu/~drew/X1/X1opt11.txt";
 inline constexpr char kX111FormulaSourceSha256[] =
@@ -71,8 +71,10 @@ struct X111ProbeSample {
     bool has_full_rational_two_torsion = false;
     bool has_point_order_four = false;
     // The cyclic divisor is known to occur as the order of one rational
-    // point.  The group divisor additionally counts the independent rational
-    // 2-torsion point when point-four is present.
+    // point.  The group divisor additionally counts independent rational
+    // 2-primary structure: it is 88 on the general point-four branch and 176
+    // when p=5 mod 8, where the retained Weber identity proves a subgroup of
+    // order 16 on the selected twist class.
     std::uint64_t cyclic_divisor = 0;
     std::uint64_t group_divisor = 0;
     mpz_class opposite_order_residue;

@@ -29,7 +29,8 @@ build_variant() {
         exit 1
     }
     make -j"$jobs" \
-        CC=gcc CXX=g++ GMP_PREFIX=/usr BUILD_DIR="$build_dir" \
+        CC=gcc CXX=g++ BUILD_DIR="$build_dir" \
+        CPPFLAGS='-Iinclude' LDFLAGS= \
         CFLAGS="$common_cflags" CXXFLAGS="$cxxflags" \
         "$build_dir/benchmark_p125_poly_trusted" \
         "$build_dir/test_core" "$build_dir/test_poly_square"

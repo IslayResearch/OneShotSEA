@@ -24,6 +24,13 @@ if command -v shellcheck >/dev/null 2>&1; then
   shellcheck -x -P "$SCRIPT_DIR" "${SCRIPT_DIR}"/*.sh
 fi
 PYTHONPYCACHEPREFIX="${tmp_dir}/pycache" python3 -m py_compile "${SCRIPT_DIR}/shard.py"
+if bash -c 'source "$1"; validate_positive_uint fixture 00' -- \
+    "${SCRIPT_DIR}/common.sh" >"${tmp_dir}/zero-positive.out" \
+    2>"${tmp_dir}/zero-positive.err"; then
+  fail "positive integer validation accepted all-zero decimal text"
+fi
+rg -F 'must be positive' "${tmp_dir}/zero-positive.err" >/dev/null ||
+  fail "all-zero positive-value rejection was not diagnosed"
 
 for worker_id in 0 1 2; do
   python3 "${SCRIPT_DIR}/shard.py" --global-start 100 --global-count 10 \
@@ -70,11 +77,13 @@ export RUNPOD_STATE_DIR="${tmp_dir}/state"
   "${SCRIPT_DIR}/start.sh"
   "${SCRIPT_DIR}/status.sh" --remote --run-id smoke
   "${SCRIPT_DIR}/deploy.sh" --repo "$PROJECT_ROOT" --build-command 'make -j2 all'
-  "${SCRIPT_DIR}/launch-worker.sh" --run-id smoke --prime 101 --worker-id 0 \
+  "${SCRIPT_DIR}/launch-worker.sh" --run-id smoke --run-kind benchmark \
+    --prime 101 --worker-id 0 \
     --worker-count 2 --range-start 0 --range-end 1000 --seed 77 \
-    --max-level 31 --table-dir data/modpoly/weber_f \
+    --max-level 31 --sea-threads 1 --table-dir data/modpoly/weber_f \
     --smooth-cache /workspace/OneShotSEA/caches/p101.cache \
-    --smooth-cache-sha256 0000000000000000000000000000000000000000000000000000000000000000
+    --smooth-cache-sha256 0000000000000000000000000000000000000000000000000000000000000000 \
+    --max-curves 1
   "${SCRIPT_DIR}/fetch.sh" --run-id smoke --destination "${tmp_dir}/fetch"
   "${SCRIPT_DIR}/stop.sh"
 } >"${tmp_dir}/dry-run.out" 2>"${tmp_dir}/dry-run.err"
@@ -109,15 +118,31 @@ PY
 )"
 
 launcher_common=(
-  --prime 101 --worker-id 0 --worker-count 1
+  --run-kind benchmark --prime 101 --worker-id 0 --worker-count 1
   --range-start 0 --range-end 1 --seed 17
   --max-level 31 --table-dir data/modpoly/weber_f --sea-threads 2
+  --curve-family weber-f --curve-threads 2 --sea-level-telemetry 0
+  --schoof-fallback 1 --skip-incomplete-curves 0 --smooth-coordinators 1
+  --wall-time-limit-seconds 60
   --smooth-cache "$smooth_cache"
   --smooth-cache-sha256 "$smooth_cache_sha256"
 )
+if RUNPOD_REMOTE_ROOT="$remote_root" RUNPOD_TEST_REMOTE_ROOT="$remote_root" \
+    "${SCRIPT_DIR}/launch-worker.sh" --run-id zero-bound \
+    --run-kind benchmark --prime 101 --worker-id 0 --worker-count 1 \
+    --range-start 0 --range-end 1 --seed 17 --max-level 31 --sea-threads 1 \
+    --table-dir data/modpoly/weber_f --smooth-cache "$smooth_cache" \
+    --smooth-cache-sha256 "$smooth_cache_sha256" --max-curves 00 \
+    --wall-time-limit-seconds 60 \
+    >"${tmp_dir}/zero-bound.out" 2>"${tmp_dir}/zero-bound.err"; then
+  fail "benchmark launcher accepted an all-zero curve cap with a wall timeout"
+fi
+rg -F 'max-curves must be positive' "${tmp_dir}/zero-bound.err" >/dev/null ||
+  fail "all-zero curve-cap rejection was not diagnosed"
+
 RUNPOD_REMOTE_ROOT="$remote_root" RUNPOD_TEST_REMOTE_ROOT="$remote_root" \
   "${SCRIPT_DIR}/launch-worker.sh" --run-id local-dry \
-  "${launcher_common[@]}" --max-curves 0 \
+  "${launcher_common[@]}" --max-curves 1 \
   >"${tmp_dir}/launcher-dry.out" 2>"${tmp_dir}/launcher-dry.err"
 
 if rg -e 'build/oneshot-sea|--prime|--progress-jsonl|--result|--resume-from' \
@@ -140,8 +165,13 @@ with open(sys.argv[1], encoding="utf-8") as stream:
         if not line.startswith("DRY-RUN: "):
             continue
         command = shlex.split(line[len("DRY-RUN: "):])
-        if len(command) >= 2 and command[0].endswith("/build/oneshotsea"):
-            subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
+        executable = next(
+            (index for index, value in enumerate(command)
+             if value.endswith("/build/oneshotsea")), None
+        )
+        if executable is not None:
+            subprocess.run(command[executable:], check=True,
+                           stdout=subprocess.DEVNULL)
             break
     else:
         raise SystemExit("no executable search command in launcher dry-run")
@@ -203,16 +233,31 @@ printf '{}\n' >"${worker_dir}/checkpoint.json"
 [[ -s "$manifest" && -s "$command_file" && -s "${worker_dir}/checkpoint.json" ]] ||
   fail "executed launcher did not create durable worker state"
 jq -e '
-  .schema == "oneshotsea.runpod-worker.v2" and
+  .schema == "oneshotsea.runpod-worker.v3" and
+  .run_kind == "benchmark" and
   .global_range == {"start":"0","end":"1","count":"1"} and
   .assigned_range == {"start":"0","end":"1","count":"1"} and
   (.deployment_commit | test("^[0-9a-f]{40}$")) and
-    .command_argv[1] == "search" and
+  (.binary_sha256 | test("^[0-9a-f]{64}$")) and
+  .wall_time_limit_seconds == 60 and
+  .command_argv[1] == "search" and
+  (.command_argv | index("--curve-family") != null) and
+  (.command_argv | index("--curve-threads") != null) and
+  (.command_argv | index("--sea-level-telemetry") != null) and
+  (.command_argv | index("--schoof-fallback") != null) and
+  (.command_argv | index("--skip-incomplete-curves") != null) and
+  (.command_argv | index("--smooth-coordinators") != null) and
   (.command_argv | index("--sea-threads") != null) and
   (.command_argv | index("--smooth-cache-sha256") != null) and
   (.command_argv | index("--progress") != null) and
   (.command_argv | index("--certificate-out") != null)
 ' "$manifest" >/dev/null || fail "worker manifest did not bind the complete command"
+rg -F -- 'timeout --signal=TERM --kill-after=60 60' "$command_file" >/dev/null ||
+  fail "worker command did not retain the wall-time bound"
+rg -F -- '/usr/bin/time -a -v -o' "$command_file" >/dev/null ||
+  fail "worker command did not append resource usage across attempts"
+rg -F -- 'attempt_start utc=' "$command_file" >/dev/null ||
+  fail "worker command did not delimit resource records by attempt"
 
 manifest_before="$(python3 - "$manifest" "$command_file" <<'PY'
 import hashlib
@@ -247,8 +292,22 @@ if PATH="${mock_bin}:${PATH}" RUNPOD_REMOTE_ROOT="$remote_root" \
     >"${tmp_dir}/resume-mismatch.out" 2>"${tmp_dir}/resume-mismatch.err"; then
   fail "resume accepted a changed command"
 fi
-rg -F 'resume manifest mismatch for command_argv' \
+rg -F 'retained command file changed' \
   "${tmp_dir}/resume-mismatch.err" >/dev/null ||
   fail "resume command mismatch was not diagnosed"
+
+cp "$command_file" "${tmp_dir}/command.sh.authenticated"
+printf '# tampered\n' >>"$command_file"
+if PATH="${mock_bin}:${PATH}" RUNPOD_REMOTE_ROOT="$remote_root" \
+    RUNPOD_TEST_REMOTE_ROOT="$remote_root" \
+    "${SCRIPT_DIR}/launch-worker.sh" --run-id resume-test \
+    "${launcher_common[@]}" --max-curves 1 --resume --execute \
+    >"${tmp_dir}/resume-tamper.out" 2>"${tmp_dir}/resume-tamper.err"; then
+  fail "resume accepted a changed retained command file"
+fi
+rg -F 'retained command file changed' \
+  "${tmp_dir}/resume-tamper.err" >/dev/null ||
+  fail "resume did not diagnose a changed retained command file"
+mv "${tmp_dir}/command.sh.authenticated" "$command_file"
 
 printf 'ok: RunPod syntax, exact sharding, CLI launch, immutable resume, no-write, and secret-redaction tests passed\n'

@@ -1,0 +1,105 @@
+{
+  "schema": "oneshotsea.element-subring-window-ab.v1",
+  "date": "2026-08-01",
+  "classification": "isolated and full paired local benchmarks; production paused at authenticated next_index 177; no search cursor advanced",
+  "host": "Apple M4, 10 cores, 16 GiB",
+  "compiler": "Apple clang 21.0.0, arm64-apple-darwin25.5.0",
+  "change": "delegate v=0 quotient-Element exponentiation to exact-cost windowed Poly::powmod; retain binary Element fallback for v!=0",
+  "operation_counts": {
+    "definition": "quotient-ring squarings and multiplications, including odd-power-table construction",
+    "x_to_p": {"binary": 566, "windowed": 478, "reduction": 0.15547703180212014},
+    "f_to_p_minus_one_over_two": {"binary": 564, "windowed": 477, "reduction": 0.15425531914893617},
+    "combined": {"binary": 1130, "windowed": 955, "reduction": 0.15486725663716813}
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "curve_family": "x1-11",
+    "index": 17,
+    "known_source_lift": true,
+    "max_level": 401,
+    "trace_cap": 16,
+    "sea_threads": 1
+  },
+  "build": {
+    "baseline_commit": "85d289a72b94b00002a3acfe93bffc0754223d0f",
+    "isolated_benchmark_source_sha256": "618ce77af5c6cc923b30b40abbe4b70ccd7dcb16a29457fe096309fdd0efb750",
+    "full_benchmark_source_sha256": "a13766e3eb5428686b51e6fdfd1e605d7fb1720a7a8fcaf2e8ac8cdad3ac85c1",
+    "baseline_library_sha256": "91f85203f334636fbfacfd47db9a9cf850b9fb7065d06e03d9fdef7a90823a4b",
+    "patched_library_sha256_at_benchmark": "5d59a727535158e4a81841caa9801cc7f87d31cbea1a5176bf5afd010dbb9d3e",
+    "isolated_baseline_binary_sha256": "b60a115bb9be1dd69227a76f4730b84ecb1edaac9ad8d8344296b0ee9cd29e57",
+    "isolated_patched_binary_sha256": "3110a11ad73e340b94ce5a057611575cf268b44920a61abe69a2be760e3a38f5",
+    "full_baseline_binary_sha256": "7411e385b0455604c9593d523846efbe81a25f714fd1d796b23191abdb00afb0",
+    "full_patched_binary_sha256": "272d8f8c918d6ee15293de6a7a1e39ef336e04102ca065de6436aae9511c4eb6",
+    "patched_schoof_source_sha256_at_benchmark": "3ed0758fbbea50c1000fb05f919929a455382cb4a48df86f40a6fe3de90c8992",
+    "patched_torsion_header_sha256_at_benchmark": "d53e4205096475a77d745892534c1631da597dd43a70baaf568641030a0bfca7",
+    "expanded_core_test_sha256_at_benchmark": "0ead9c9904e0d1188a05f86e5eb5629696e529a3444e55cf20014220a0c192f6",
+    "prototype_patch_sha256": "096bfdf94d4bea440b5d14e1307aeec6fb44d5ca8250b24e540eea6baa0e2451"
+  },
+  "isolated_level_269_runs": [
+    {"pair": 1, "mode": "baseline", "roots_us": 1242615, "bmss_us": 669162, "eigenvalue_us": 1879046, "external_real_seconds": 4.46},
+    {"pair": 1, "mode": "windowed", "roots_us": 1250546, "bmss_us": 674595, "eigenvalue_us": 1651629, "external_real_seconds": 4.24},
+    {"pair": 2, "mode": "windowed", "roots_us": 1257053, "bmss_us": 674700, "eigenvalue_us": 1654166, "external_real_seconds": 4.04},
+    {"pair": 2, "mode": "baseline", "roots_us": 1255165, "bmss_us": 670452, "eigenvalue_us": 1892335, "external_real_seconds": 4.26}
+  ],
+  "isolated_level_269_means": {
+    "baseline_eigenvalue_us": 1885690.5,
+    "windowed_eigenvalue_us": 1652897.5,
+    "eigenvalue_speedup": 1.1408393442424591,
+    "eigenvalue_reduction": 0.1234523905168955,
+    "identical_projection": "84:193:134,109:193:134"
+  },
+  "full_runs": [
+    {"pair": 1, "mode": "baseline", "elapsed_us": 49277992, "modular_roots_us": 24053795, "bmss_us": 7441954, "eigenvalue_us": 17655043, "external_real_seconds": 50.11},
+    {"pair": 1, "mode": "windowed", "elapsed_us": 46771497, "modular_roots_us": 24097598, "bmss_us": 7471189, "eigenvalue_us": 15075146, "external_real_seconds": 47.62},
+    {"pair": 2, "mode": "windowed", "elapsed_us": 46737307, "modular_roots_us": 24095274, "bmss_us": 7451149, "eigenvalue_us": 15063228, "external_real_seconds": 47.25},
+    {"pair": 2, "mode": "baseline", "elapsed_us": 49367005, "modular_roots_us": 24080353, "bmss_us": 7451615, "eigenvalue_us": 17707138, "external_real_seconds": 49.88}
+  ],
+  "full_means": {
+    "baseline_elapsed_us": 49322498.5,
+    "windowed_elapsed_us": 46754402,
+    "elapsed_speedup": 1.0549273734695612,
+    "elapsed_reduction": 0.05206744544784159,
+    "baseline_modular_roots_us": 24067074,
+    "windowed_modular_roots_us": 24096436,
+    "baseline_eigenvalue_us": 17681090.5,
+    "windowed_eigenvalue_us": 15069187,
+    "eigenvalue_speedup": 1.1733274329929013,
+    "eigenvalue_reduction": 0.14772298688251162,
+    "baseline_external_real_seconds": 49.995,
+    "windowed_external_real_seconds": 47.435,
+    "external_real_speedup": 1.0539685885949195
+  },
+  "exact_equivalence": {
+    "isolated_kernel_count": 2,
+    "isolated_kernel_eigen_trace_degree_projection": true,
+    "full_level_count": 55,
+    "final_trace_count": 1,
+    "ell_sequence": true,
+    "exact_classification": true,
+    "trace_residues": true,
+    "exact_moduli": true,
+    "trace_candidate_counts": true,
+    "final_trace_vector": true,
+    "projection_sha256": "22b0daab7318b737f93bf44c3ba57006ad9a2a76e86ed308ae84d57827631e27",
+    "final_trace": "99665767869812870924682147829487733751548741139379532401938818"
+  },
+  "tests": {
+    "short_exponents_zero_through_256": true,
+    "target_p_and_half_p_exponents": true,
+    "target_p_squared_and_half_p_squared_exponents": true,
+    "random_target_sized_exponents": 32,
+    "sparse_long_zero_run_exponent": true,
+    "nonmonic_reducible_repeated_factor_quotient": true,
+    "zero_v_subring": true,
+    "nonzero_v_general_fallback": true,
+    "constant_modulus": true,
+    "negative_exponent": true,
+    "focused_core_test": "passed",
+    "clean_test_all_with_magma": "passed"
+  },
+  "raw": {
+    "summary": "raw-summary.txt",
+    "summary_sha256": "1875da2d2faffe41f0a6b93760b6f5188a7c4427bd57c38c96be4b6a68264b9a"
+  }
+}

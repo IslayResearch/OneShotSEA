@@ -1,0 +1,93 @@
+{
+  "schema": "oneshotsea.p125-polynomial-square.v1",
+  "date": "2026-08-01",
+  "base_commit": "a3cc79f9673b455511ad536c66718b009abbe615",
+  "target_prime_bits": 416,
+  "host": "Apple M4, 10 physical cores, arm64 Darwin 25.5.0",
+  "compiler": "Apple clang 21.0.0",
+  "method": {
+    "schoolbook": "one diagonal product plus twice each distinct cross product",
+    "karatsuba": "L^2 + x^m((L+H)^2-L^2-H^2) + x^(2m)H^2",
+    "threshold_coefficients": 32,
+    "source_sha256": "4980d2a5b1da8e083708fdcf68b97c1dc7189533e2f1b1539b9aba7b0039d274",
+    "test_sha256": "916f4e490ee8fb95b407d44a90a5e7b120bd63fb94c1ef503db0832ce776f505"
+  },
+  "correctness": {
+    "differential_reference": "mulmod(value,value,modulus) and mod(mul(value,value),modulus)",
+    "coefficient_count_boundaries": [1, 2, 30, 31, 32, 33, 63, 64, 65, 128, 129, 130, 193, 194, 195],
+    "cases": [
+      "monic and nonmonic moduli",
+      "reducible repeated-factor moduli",
+      "high-degree input pre-reduction",
+      "zero, one, p-1, and p/2 coefficients",
+      "zero value, value equal to modulus, and constant modulus"
+    ],
+    "focused_test": "pass",
+    "core_test": "pass",
+    "independent_static_audit": "pass"
+  },
+  "isolated_frobenius_pairs": [
+    {
+      "modulus_degree": 64,
+      "pairs_per_invocation": 5,
+      "order": "baseline,specialized,specialized,baseline",
+      "baseline_median_us": [197625, 198708],
+      "specialized_median_us": [180628, 181226],
+      "baseline_mean_us": 198166.5,
+      "specialized_mean_us": 180927.0,
+      "speedup": 1.09528,
+      "exact_projection_equal": true
+    },
+    {
+      "modulus_degree": 129,
+      "pairs_per_invocation": 5,
+      "order": "baseline,specialized,specialized,baseline",
+      "baseline_median_us": [691450, 690383],
+      "specialized_median_us": [631468, 636192],
+      "baseline_mean_us": 690916.5,
+      "specialized_mean_us": 633830.0,
+      "speedup": 1.09007,
+      "exact_projection_equal": true
+    },
+    {
+      "modulus_degree": 194,
+      "pairs_per_invocation": 5,
+      "order": "baseline,specialized,specialized,baseline",
+      "baseline_median_us": [1426152, 1426797],
+      "specialized_median_us": [1319532, 1322646],
+      "baseline_mean_us": 1426474.5,
+      "specialized_mean_us": 1321089.0,
+      "speedup": 1.07977,
+      "exact_projection_equal": true
+    }
+  ],
+  "p125_index17_reverse_pair": {
+    "order": "baseline,specialized,specialized,baseline",
+    "runs": [
+      {"variant": "baseline", "sea_us": 48161304, "roots_us": 24670308, "bmss_us": 7920092, "eigenvalue_us": 15435304, "wall_s": 48.96},
+      {"variant": "specialized", "sea_us": 44515187, "roots_us": 22471542, "bmss_us": 7617398, "eigenvalue_us": 14294793, "wall_s": 45.39},
+      {"variant": "specialized", "sea_us": 44443068, "roots_us": 22440622, "bmss_us": 7585416, "eigenvalue_us": 14285793, "wall_s": 45.00},
+      {"variant": "baseline", "sea_us": 47076976, "roots_us": 24238498, "bmss_us": 7570490, "eigenvalue_us": 15137916, "wall_s": 47.61}
+    ],
+    "means": {
+      "baseline_sea_s": 47.619140,
+      "specialized_sea_s": 44.4791275,
+      "sea_speedup": 1.07060,
+      "baseline_roots_s": 24.454403,
+      "specialized_roots_s": 22.456082,
+      "roots_speedup": 1.08899,
+      "baseline_eigenvalue_s": 15.286610,
+      "specialized_eigenvalue_s": 14.290293,
+      "eigenvalue_speedup": 1.06972,
+      "baseline_wall_s": 48.285,
+      "specialized_wall_s": 45.195,
+      "wall_speedup": 1.06837
+    },
+    "levels": 55,
+    "trace": "99665767869812870924682147829487733751548741139379532401938818",
+    "all_level_projections_equal": true,
+    "baseline_library_sha256": "2003d3628e3056e620a7ba7e885652fb72a157cbe2bdf59a47ee5e73dc8d0ea2",
+    "specialized_library_sha256": "2287daaac69b0eec30a0dc7228f098a053a9f4c47d05e1360e19f286783a394a"
+  },
+  "decision": "accepted"
+}

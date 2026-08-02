@@ -54,6 +54,25 @@ known factor of two to both smooth parts.  This is a search-distribution
 optimization only; native exact-order checks and the unmodified canonical
 verifier remain authoritative.
 
+For `p=1 mod 4`, including `p125`, this full-`E[2]` property is algebraic rather
+than merely empirical.  Put `t=f^24/16` and write `U=A^2` for the square of a
+Montgomery coefficient.  After substituting `w=U-4`, the coefficient-square
+cubic factors as
+
+```text
+(w+t) * (w^2 + (3-t)w + 1/t).
+```
+
+The explicit root is `U0=4-t`, and `U0-4=-t` is a square because `t` and `-1`
+are squares.  If admission instead comes from either of the other two roots,
+their quadratic discriminant is `(t-1)^2(t-4)/t`; rationality therefore makes
+`t-4`, and hence `U0=-(t-4)`, a square as well.  Thus any admitted image has
+an explicit coefficient `A0^2=U0` whose cubic
+`x(x^2+A0*x+1)` splits completely.  Quadratic twisting preserves rational
+2-torsion, so both counted classes have order divisible by four.  The target-
+size generator test also checks three rational 2-torsion roots directly on 16
+deterministic `p125` samples.
+
 The prefilter also diagnoses the recorded production
 `seed=202607300000,index=0` sample: replaying its original first Weber-f value
 gives

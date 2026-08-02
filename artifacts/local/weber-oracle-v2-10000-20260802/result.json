@@ -1,0 +1,73 @@
+{
+  "schema": "oneshotsea.weber-oracle-corpus-result.v2",
+  "date_utc": "2026-08-02",
+  "classification": "source-bound production-Weber/Magma corpus and independent exact early-abort audit",
+  "host": "Apple M4 Mac mini, 10 cores, 16 GiB, arm64 Darwin",
+  "source": {
+    "git_commit": "dc79fbde5da01cc979dda8dc1ecb34dddca33ba2",
+    "git_worktree_clean_at_start": true,
+    "git_worktree_clean_at_completion": true,
+    "corpus_driver_sha256": "6ec3e5ffbb19a41af0d1c566f2cb76d28861a431afc3f10a2417cf40e926b927",
+    "early_abort_audit_sha256": "f8e4056008b673945a33edac18aee7c69457e02d73bfd1531095e43b64eef66c",
+    "native_sha256": "478cc06fa874225be668c4796594123ce708b8c8dc9578f38d719ba689e234c6",
+    "magma_runtime_sha256": "4047b365a1b8f5468bf0cfca42a62835968a5ecec1b30fb72ddd7205179a969f",
+    "magma_version": "Magma V2.29-1",
+    "table_file_count": 82,
+    "table_set_sha256": "7145dd2823eaff0c5e9b7d332e09a4fb5197e6ea9025265482ca055c368c707c"
+  },
+  "configuration": {
+    "seed": "202608020005",
+    "prime_generation_domain": "oneshotsea.weber-oracle-corpus.v1",
+    "bit_sizes": [16, 20, 24, 28, 32],
+    "curves_per_size": 2000,
+    "start_index": "0",
+    "max_level": 193,
+    "trace_cap": 16,
+    "sea_threads": 1,
+    "schoof_fallback": true,
+    "counterfactual_schoof_fallback": false,
+    "counterfactual_skip_incomplete_curves": true
+  },
+  "corpus": {
+    "local_path": "work/oracle/weber-corpus-dc79fbd-v2-10000-20260802",
+    "schema": "oneshotsea.weber-oracle-corpus.v2",
+    "started_utc": "2026-08-02T13:29:03Z",
+    "completed_utc": "2026-08-02T14:37:39Z",
+    "generation_wall_seconds": 4116,
+    "record_count": 10000,
+    "next_curve_index": "10000",
+    "records_bytes": 94301494,
+    "records_sha256": "0e02c9cb090bc3292a37fd924a092e21bef5629a3140541ed83db51bad1dfe6e",
+    "manifest_bytes": 15775,
+    "manifest_sha256": "7271ab863ccd13a7eb5acdd3591c63682a6645b23ad8364c0dff1c2b304d6dc1"
+  },
+  "offline_audit": {
+    "local_path": "work/oracle/weber-early-abort-dc79fbd-v2-10000-20260802.json",
+    "schema": "oneshotsea.weber-early-abort-audit.v2",
+    "bytes": 2422,
+    "sha256": "efce5b8f745823891327e933fb0592169b42a3576ba43564847337542f049e70",
+    "audit_wall_seconds": 3.6108853330079,
+    "trial_prime_count": 6542,
+    "order_evaluations": 107220,
+    "smooth_opportunity_curves": 9451,
+    "sound_rejections": 122,
+    "sound_rejections_before_unique_trace": 14,
+    "sound_saved_full_point_counts": 14,
+    "sound_false_negatives": 0,
+    "heuristic_rejections": 0,
+    "heuristic_first_pass_rejections": 0,
+    "heuristic_second_pass_rejections": 0,
+    "heuristic_false_negatives": 0
+  },
+  "commands": {
+    "corpus": "python3 oracle/weber_corpus_audit.py --magma-runtime /path/to/magma --magma-root /path/to/magma-root --native build/oracle_weber_audit --table-dir data/modpoly/weber_f --output-dir work/oracle/weber-corpus-dc79fbd-v2-10000-20260802 --seed 202608020005 --bit-sizes 16,20,24,28,32 --curves-per-size 2000 --max-level 193 --trace-cap 16 --sea-threads 1 --command-timeout-seconds 3600 --max-output-bytes 8388608 --max-prime-attempts 1000000",
+    "offline_audit": "python3 oracle/weber_early_abort_audit.py work/oracle/weber-corpus-dc79fbd-v2-10000-20260802 --output work/oracle/weber-early-abort-dc79fbd-v2-10000-20260802.json"
+  },
+  "review": {
+    "independent_artifact_review": "PASS",
+    "scope": "Recomputed canonical manifest/record/report hashes, exact three-entry corpus topology, all 88 snapshotted inputs, 82 table files and aggregate, native/Python/GMP/Magma dependency closure, all 82166 SHAKE prime attempts, all 10000 production and fallback-off state replays, and all 107220 exact smooth-part evaluations.",
+    "pre_unique_save_ordinals": [6041, 6611, 7263, 8151, 8301, 8538, 8603, 9037, 9203, 9447, 9479, 9756, 9803, 9931],
+    "cloud_resources_started": false,
+    "cloud_cost_usd": 0
+  }
+}

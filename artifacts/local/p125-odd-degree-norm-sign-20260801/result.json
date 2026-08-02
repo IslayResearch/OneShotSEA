@@ -1,0 +1,107 @@
+{
+  "schema": "oneshotsea.p125-odd-degree-norm-sign.v1",
+  "date": "2026-08-01",
+  "classification": "isolated reverse-order p125 SEA gate; production paused at frontier 336; no search cursor advanced",
+  "host": "Apple M4, 10 physical cores, arm64 Darwin 25.5.0",
+  "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101), arm64-apple-darwin25.5.0",
+  "optimization": {
+    "description": "for ell=3 mod 4, recover the Frobenius eigenvalue sign from the odd-degree kernel-algebra norm instead of computing the full y-coordinate quotient-ring Frobenius power",
+    "identity": "if pi(P)=[+/-m]P and R_m is the y multiplier of [m]P, then f^((p-1)/2)/R_m=+/-1 in A=F_p[x]/h; odd d=(ell-1)/2 gives Norm_A(-1)=-1",
+    "baseline_commit": "43ca2d7468a5f1e28be0370deb4351b1c3f04d77",
+    "prototype_commit": "b390d25b48eb0e7c216f9fd3e06390c9f8b54f77",
+    "prototype_patch": "/private/tmp/oneshotsea-norm-sign.Qrfk80/0001-Recover-odd-degree-Frobenius-signs-by-norm.patch",
+    "prototype_patch_sha256": "6a2cc64026e9283d332ac3a842b18896c69bb3099eb51e45d2c4ac8e3ccbb4fe",
+    "torsion_header_sha256": "c4bb12af7b4cd814dda29dec9fe818292c0eb3b52c9971fb86ae9e7935e3cd00",
+    "schoof_source_sha256": "c1abe580af490f38c43c67f68239f9ad390b301f2a07eb11da407a61091d1d6f",
+    "differential_test_sha256": "e6bcf32ddcdcef931a059faf9f5f49469dc7449d5cb1013d81ac0874e796f027"
+  },
+  "build": {
+    "isolated_clone": "/private/tmp/oneshotsea-norm-sign.Qrfk80/repo",
+    "baseline_binary": "/private/tmp/oneshotsea-norm-sign.Qrfk80/oneshotsea-baseline",
+    "baseline_binary_sha256": "68aa322c349d235075dbcd69c9bbd979126b9d96d28e423d32f170f29a6055dc",
+    "prototype_binary": "/private/tmp/oneshotsea-norm-sign.Qrfk80/oneshotsea-norm",
+    "prototype_binary_sha256": "fa1293f007da91bf28b022dd110ca909d6e78302de32ea3eac6ddb6e46929460",
+    "weber_manifest_sha256": "e5b84a87335523f79d47f140d70ceddee9e1c6891a7fae8aaadcae5c080de3ab"
+  },
+  "benchmark": {
+    "working_directory": "/private/tmp/oneshotsea-norm-sign.Qrfk80/repo",
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "a": "82574189722949072957728522659737830385005094873485824210996693879529527019787746889866491875855403894941918864621858709713497",
+    "b": "88382793148632715305152348439825220256670063248990549473997795919686351346525164593244327917236935929961279243081239139809077",
+    "common_arguments": "sea-weber-count --p P --a A --b B --max-level 193 --table-dir data/modpoly/weber_f --trace-cap 64 --sea-threads 10 --root-orbit-reuse 1 --conjugate-eigenvalue-reuse 1",
+    "baseline_command": "/usr/bin/time -lp /private/tmp/oneshotsea-norm-sign.Qrfk80/oneshotsea-baseline sea-weber-count --p P --a A --b B --max-level 193 --table-dir data/modpoly/weber_f --trace-cap 64 --sea-threads 10 --root-orbit-reuse 1 --conjugate-eigenvalue-reuse 1",
+    "prototype_command": "/usr/bin/time -lp /private/tmp/oneshotsea-norm-sign.Qrfk80/oneshotsea-norm sea-weber-count --p P --a A --b B --max-level 193 --table-dir data/modpoly/weber_f --trace-cap 64 --sea-threads 10 --root-orbit-reuse 1 --conjugate-eigenvalue-reuse 1",
+    "order": ["baseline", "prototype", "prototype", "baseline"],
+    "promotion_gate": {"minimum_wall_speedup_strictly_greater_than": 1.05},
+    "runs": [
+      {"name": "b1", "variant": "baseline", "wall_s": 14.51, "modular_roots_us": 8426127, "bmss_us": 2156900, "eigenvalue_us": 3297415, "odd_degree_eigenvalue_us": 1974187, "even_degree_eigenvalue_us": 1323228, "normalized_codomain_us": 276741},
+      {"name": "s1", "variant": "prototype", "wall_s": 13.75, "modular_roots_us": 8420323, "bmss_us": 2169549, "eigenvalue_us": 2604360, "odd_degree_eigenvalue_us": 1298135, "even_degree_eigenvalue_us": 1306225, "normalized_codomain_us": 269790},
+      {"name": "s2", "variant": "prototype", "wall_s": 13.56, "modular_roots_us": 8399145, "bmss_us": 2165063, "eigenvalue_us": 2655917, "odd_degree_eigenvalue_us": 1283458, "even_degree_eigenvalue_us": 1372459, "normalized_codomain_us": 271454},
+      {"name": "b2", "variant": "baseline", "wall_s": 14.14, "modular_roots_us": 8385999, "bmss_us": 2143727, "eigenvalue_us": 3280815, "odd_degree_eigenvalue_us": 1966502, "even_degree_eigenvalue_us": 1314313, "normalized_codomain_us": 267860}
+    ],
+    "means": {
+      "baseline_wall_s": 14.325,
+      "prototype_wall_s": 13.655,
+      "wall_speedup": 1.0490662760893443,
+      "wall_reduction": 0.0467713787085513,
+      "baseline_modular_roots_us": 8406063,
+      "prototype_modular_roots_us": 8409734,
+      "modular_roots_speedup": 0.9995634820316552,
+      "baseline_bmss_us": 2150313.5,
+      "prototype_bmss_us": 2167306,
+      "bmss_speedup": 0.9921596212071576,
+      "baseline_eigenvalue_us": 3289115,
+      "prototype_eigenvalue_us": 2630138.5,
+      "eigenvalue_speedup": 1.2505482125751173,
+      "eigenvalue_reduction": 0.20035070224057228,
+      "baseline_odd_degree_eigenvalue_us": 1970344.5,
+      "prototype_odd_degree_eigenvalue_us": 1290796.5,
+      "odd_degree_eigenvalue_speedup": 1.526456339167328,
+      "odd_degree_eigenvalue_reduction": 0.344887911733202,
+      "baseline_even_degree_eigenvalue_us": 1318770.5,
+      "prototype_even_degree_eigenvalue_us": 1339342,
+      "even_degree_eigenvalue_speedup": 0.9846405921713797,
+      "baseline_normalized_codomain_us": 272300.5,
+      "prototype_normalized_codomain_us": 270622,
+      "normalized_codomain_speedup": 1.006202378224978
+    }
+  },
+  "exact_equivalence": {
+    "levels": 42,
+    "exact_levels": 21,
+    "odd_degree_exact_levels": 10,
+    "all_non_timing_level_records_equal": true,
+    "summary_records_equal": true,
+    "projection_transform": "jq -cS 'if .type==\"level\" then del(.timings_us) else . end'",
+    "projection_sha256_all_four_runs": "5ff8d9c29b2374e37d802af9afadbbbf6a71d455aca172e396ac06acfb0b063b"
+  },
+  "validation": {
+    "focused_command": "make -j1 test-eigenvalue-mitm",
+    "focused_result": "pass: 18 kernels",
+    "independent_oracles": [
+      "retained full-y linear eigenvalue recovery",
+      "retained full-y meet-in-the-middle recovery",
+      "division-polynomial fixtures at ell=3 and ell=7",
+      "fully validated BMSS isogeny fixture at ell=11",
+      "both Frobenius eigenvalue signs"
+    ],
+    "full_magma_suite": "not run because the prototype failed the predeclared wall-speed promotion gate"
+  },
+  "raw": {
+    "retention": "raw files remain in the isolated benchmark directory and are pinned by hash; they are not committed by this compact artifact",
+    "logs": [
+      {"name": "b1", "path": "/private/tmp/oneshotsea-norm-sign.Qrfk80/b1.log", "sha256": "edae375eabb1e2040a2746757bf63b0271f92b238877ac022cd5fddd895b3ecc"},
+      {"name": "s1", "path": "/private/tmp/oneshotsea-norm-sign.Qrfk80/s1.log", "sha256": "a4b60b5cb51fbfee4da711a4e68a93e210055c7695c90ecc8f53a27a4ec875a0"},
+      {"name": "s2", "path": "/private/tmp/oneshotsea-norm-sign.Qrfk80/s2.log", "sha256": "21a2bce3512475adc196d76da39ed25a2925184a904eabfe613c57096295f860"},
+      {"name": "b2", "path": "/private/tmp/oneshotsea-norm-sign.Qrfk80/b2.log", "sha256": "7cbfc613dc7701c739bda5a17bd9af9632743ad7d01def4b642b85ae4b37bd59"}
+    ],
+    "external_time_note": "/usr/bin/time emitted a sandbox-only sysctl kern.clockrate diagnostic after each normal program summary; real/user/sys measurements were still emitted"
+  },
+  "limitations": [
+    "one deterministic p125 curve and one bounded SEA prefix through level 193",
+    "the targeted odd-degree eigenvalue subtotal improved decisively, but untargeted stage noise left end-to-end wall below the strict 1.05x gate",
+    "the result does not include X1(27) generation, smoothness screening, certificate assembly, or production-search throughput",
+    "the source prototype remains a rejected experiment and must not be included in a production build without a new predefined gate"
+  ],
+  "decision": "rejected: 1.049066x does not strictly exceed the required 1.05x wall gate"
+}

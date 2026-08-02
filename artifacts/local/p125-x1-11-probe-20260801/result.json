@@ -1,0 +1,217 @@
+{
+  "schema": "oneshotsea.p125-x1-11-probe.v1",
+  "date": "2026-08-01",
+  "classification": "bounded pre-production X1(11) library and CLI probe; no production cursor advancement",
+  "host": "Apple M4, 10 cores, 16 GiB",
+  "base_git_commit": "f8347c68ef357107e3bfead0107e947e1c4c4500",
+  "implementation_identity": {
+    "probe_schema": "oneshotsea.x1-11-probe.v1",
+    "generator_version": "x1-11-tate-weber-montgomery-v1",
+    "binary_path_at_capture": "build/oneshotsea",
+    "binary_sha256": "635310030a69ff5ba7194f784cf5d0669e8d936f9961da68ce2043fef351c781",
+    "source_sha256": {
+      "include/oneshotsea/x1_11_probe.hpp": "5e502fecdc0469ae63021c221db2757f1ffe03b5c6e075c29afc983839be0d95",
+      "src/x1_11_probe.cpp": "337493bcbc1ac3801e909001bbf8f7177b26956eb3534e7cc99071c6bf3c7457",
+      "src/main.cpp": "6a4a80bfaef1a96c8bf8f4bed7156979b6e56531801d5e45cde936d4a315f54c",
+      "tests/test_x1_11_probe.cpp": "8dc5e52ad8af14eec34ffd2c0ab1118035594e7befc79b08aa9d67a76dc34b8d",
+      "tests/test_cli.py": "8345865534eb7381f8ee1620bbc792d2f2f3b3b4d521333d11a9d3fc5ef9ce94"
+    }
+  },
+  "formula_identity": {
+    "url": "https://math.mit.edu/~drew/X1/X1opt11.txt",
+    "sha256": "19f76aef352cea9a6e1d3347977eb9286b03e70fa6b4afb8daea013ebbd6bd4c",
+    "verified_command": "curl -fsSL https://math.mit.edu/~drew/X1/X1opt11.txt | shasum -a 256",
+    "equation": "y^2+(x^2+1)y+x=0",
+    "map": "r=xy+1; s=1-x; c=s(r-1); b=rc"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "prime_mod_4": 1,
+    "prime_mod_48": 13,
+    "seed": "202607300000",
+    "range": "[0,16)",
+    "count": 16,
+    "max_x_samples_per_index": 64
+  },
+  "commands": {
+    "working_directory": "repository root",
+    "baseline": "./build/oneshotsea x1-11-probe --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 --seed 202607300000 --range-start 0 --count 16 --max-x-samples 64 --require-point4 0",
+    "require_point_four": "./build/oneshotsea x1-11-probe --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 --seed 202607300000 --range-start 0 --count 16 --max-x-samples 64 --require-point4 1",
+    "magma_point_four_order": "python3 oracle/point_count.py --magma /Users/agent/Documents/Codex/t24-search/private/magma-local/install/magma 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 47801692813922329994097794431438996459031933574155894960217502436156220113632764855795851266039155129841363019718790157694558 5903073683285627166559764748048329982630044547416577377293698924199026531579763130421404281751497201672532112597795628144784",
+    "magma_no_point_four_order": "python3 oracle/point_count.py --magma /Users/agent/Documents/Codex/t24-search/private/magma-local/install/magma 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 61890067466599262857653612553637886602736875528811152214070421173948829034419041168055286424862449689753021813090203629627528 45284866823353380483762289005158254951817246607712339986752126956035464398412320403215506530415727059515803884705334177968200",
+    "magma_identity_invocation": "/Users/agent/Documents/Codex/t24-search/private/magma-local/install/magma -b -e '<concatenate magma_identity_program>'",
+    "magma_identity_program": [
+      "p:=100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237;",
+      "F:=GF(p);",
+      "a:=F!47801692813922329994097794431438996459031933574155894960217502436156220113632764855795851266039155129841363019718790157694558;",
+      "b:=F!5903073683285627166559764748048329982630044547416577377293698924199026531579763130421404281751497201672532112597795628144784;",
+      "E:=EllipticCurve([a,b]);",
+      "P:=E![F!15289767966580646775224262534113167543814271030017734567303145975679246400805379602659109573046862347863754334338290631808953,F!77023505468578836484235784239002036122093122592529854669240920950688932584924341177340743322611347340502623382280041878892797,1];",
+      "R<X>:=PolynomialRing(F);",
+      "f:=F!336588208557284030359304537565142826287017338138450111311277238391456562052245085098385386569462765931678637523147973046475;",
+      "ma:=F!31505046407084923706030225697081665417521231530552888220628148080397034608113820113248903209963900111790593788481583904009408;",
+      "u:=F!4-f^24/F!16;",
+      "print <11*P eq E!0,#Roots(X^3+a*X+b),IsSquare(u),ma^2 eq u>;"
+    ]
+  },
+  "results": {
+    "baseline": {
+      "require_point_four": false,
+      "elapsed_us": 5295582,
+      "accepted_indices": ["0", "2", "3", "4", "5", "6", "7", "8", "9", "10", "13", "14", "15"],
+      "accepted_indices_with_point_four": ["0"],
+      "selected_side_counts": {
+        "curve": 6,
+        "twist": 7
+      },
+      "counters": {
+        "x_samples": 411,
+        "x_polynomials_without_roots": 217,
+        "x1_points": 381,
+        "singular_curves": 0,
+        "exceptional_j": 0,
+        "exact_order_11_failures": 0,
+        "points_without_weber_lifts": 356,
+        "weber_lifts": 372,
+        "nonsquare_explicit_montgomery_u": 144,
+        "points_without_explicit_montgomery_model": 12,
+        "full_two_torsion_failures": 0,
+        "point_four_rejections": 0,
+        "accepted": 13
+      },
+      "observed_acceptance": {
+        "bounded_indices": "13/16",
+        "visited_x1_points": "13/381",
+        "x_samples_per_accept": 31.615385
+      }
+    },
+    "require_point_four": {
+      "require_point_four": true,
+      "elapsed_us": 11176147,
+      "accepted_indices": ["0", "3", "7", "8", "9", "14", "15"],
+      "selected_side_counts": {
+        "curve": 3,
+        "twist": 4
+      },
+      "counters": {
+        "x_samples": 817,
+        "x_polynomials_without_roots": 409,
+        "x1_points": 814,
+        "singular_curves": 0,
+        "exceptional_j": 0,
+        "exact_order_11_failures": 0,
+        "points_without_weber_lifts": 753,
+        "weber_lifts": 804,
+        "nonsquare_explicit_montgomery_u": 408,
+        "points_without_explicit_montgomery_model": 34,
+        "full_two_torsion_failures": 0,
+        "point_four_rejections": 20,
+        "accepted": 7
+      },
+      "observed_acceptance": {
+        "bounded_indices": "7/16",
+        "visited_x1_points": "7/814",
+        "explicit_models_with_point_four": "7/27",
+        "x_samples_per_accept": 116.714286
+      }
+    },
+    "sequential_comparison": {
+      "x_sample_ratio_point_four_over_baseline": 1.987835,
+      "elapsed_ratio_point_four_over_baseline": 2.110466,
+      "interpretation": "Observed bounded-probe cost on one small deterministic range, not a production throughput or certificate-rate estimate."
+    }
+  },
+  "magma": {
+    "version": "2.29-1",
+    "launcher_path_at_capture": "/Users/agent/Documents/Codex/t24-search/private/magma-local/install/magma",
+    "launcher_sha256": "e62e9d7098bbc60525acea1527b1b514873410147ec5583c1a26768650f8cff8",
+    "point_four_sample": {
+      "probe_index": "0",
+      "selected_side": "twist",
+      "curve_a": "47801692813922329994097794431438996459031933574155894960217502436156220113632764855795851266039155129841363019718790157694558",
+      "curve_b": "5903073683285627166559764748048329982630044547416577377293698924199026531579763130421404281751497201672532112597795628144784",
+      "distinguished_point_x": "15289767966580646775224262534113167543814271030017734567303145975679246400805379602659109573046862347863754334338290631808953",
+      "distinguished_point_y": "77023505468578836484235784239002036122093122592529854669240920950688932584924341177340743322611347340502623382280041878892797",
+      "weber_f": "336588208557284030359304537565142826287017338138450111311277238391456562052245085098385386569462765931678637523147973046475",
+      "montgomery_a": "31505046407084923706030225697081665417521231530552888220628148080397034608113820113248903209963900111790593788481583904009408",
+      "order": "100000000000000000000000000000000000000000000000000000000000000026639532912113683603076081938932761119093105874891301893142256",
+      "trace": "-26639532912113683603076081938932761119093105874891301893142018",
+      "order_mod_44": 0,
+      "order_mod_88": 0,
+      "twist_order": "99999999999999999999999999999999999999999999999999999999999999973360467087886316396923918061067238880906894125108698106858220",
+      "twist_order_mod_88": 12,
+      "identity_checks": {
+        "eleven_times_distinguished_point_is_identity": true,
+        "rational_two_torsion_root_count": 3,
+        "explicit_u_is_square": true,
+        "montgomery_a_squared_equals_u": true
+      }
+    },
+    "no_point_four_sample": {
+      "probe_index": "2",
+      "selected_side": "curve",
+      "curve_a": "61890067466599262857653612553637886602736875528811152214070421173948829034419041168055286424862449689753021813090203629627528",
+      "curve_b": "45284866823353380483762289005158254951817246607712339986752126956035464398412320403215506530415727059515803884705334177968200",
+      "order": "99999999999999999999999999999999999999999999999999999999999999896901967624193470456810908910824056234283122066685971427202076",
+      "trace": "103098032375806529543189091089175943765716877933314028572798162",
+      "order_mod_44": 0,
+      "order_mod_88": 44,
+      "twist_order": "100000000000000000000000000000000000000000000000000000000000000103098032375806529543189091089175943765716877933314028572798400",
+      "twist_order_mod_44": 12
+    }
+  },
+  "raw_outputs": {
+    "retention_note": "Raw files were retained under /tmp at capture time and are intentionally not checked in; these paths are host-local and ephemeral.",
+    "baseline_sequential": {
+      "path_at_capture": "/tmp/oneshotsea-x1-11-telemetry-20260801.3OaZvL/baseline-sequential.ndjson",
+      "lines": 17,
+      "sha256": "612c259ef11d50c101a6943197467f05b2da6e753114f2ef62cb86b6ab7ffdff"
+    },
+    "require_point_four_sequential": {
+      "path_at_capture": "/tmp/oneshotsea-x1-11-telemetry-20260801.3OaZvL/require-point4-sequential.ndjson",
+      "lines": 17,
+      "sha256": "1f79824c721be2c898d74de61d685a87a100eb3167504efb43d88bedd9a233ec"
+    },
+    "magma_point_four_order": {
+      "path_at_capture": "/tmp/oneshotsea-x1-11-telemetry-20260801.3OaZvL/magma-point4-order.json",
+      "sha256": "0add3265586beaac583090a85fe78643171e37a27c94ca00999902d090f715ca"
+    },
+    "magma_no_point_four_order": {
+      "path_at_capture": "/tmp/oneshotsea-x1-11-telemetry-20260801.3OaZvL/magma-no-point4-order.json",
+      "sha256": "c14afcb89a7cd6cb5ccb06c8b31aad06e14a141fdfdacb74f9589690522527ce"
+    },
+    "magma_point_four_identities": {
+      "path_at_capture": "/tmp/oneshotsea-x1-11-telemetry-20260801.3OaZvL/magma-point4-identities.txt",
+      "sha256": "df175647882033815250ef7200cb444750d52f477553d1d26e215ba8762667d1"
+    }
+  },
+  "validation": {
+    "tests": [
+      "make test-x1-11-probe",
+      "make test-cli",
+      "make test-weber-curve-generator"
+    ],
+    "test_cli_cases_passed": 14,
+    "production_files": {
+      "src/search_pipeline.cpp": {
+        "worktree_git_blob": "edbfba47d89c35bcf65e7adf29eae01293cbc0a6",
+        "head_git_blob": "edbfba47d89c35bcf65e7adf29eae01293cbc0a6",
+        "unchanged": true
+      },
+      "src/weber_curve_generator.cpp": {
+        "worktree_git_blob": "5a3391179634f465671c1aded085de1687c7cd11",
+        "head_git_blob": "5a3391179634f465671c1aded085de1687c7cd11",
+        "unchanged": true
+      }
+    },
+    "default_production_schedule_changed": false,
+    "default_production_generator_changed": false
+  },
+  "limitations": [
+    "The fixed 11-, 2-, and optional 4-torsion factors create a smooth-order opportunity; they do not measure or imply the probability of a verified ECPP certificate. SEA, exact smooth-part extraction, large-prime conditions, certificate assembly, and canonical verification remain required.",
+    "group_divisor is a certified divisor of the rational group order and the size of a known subgroup, not the group exponent and not a claim that a point of exactly that order exists. cyclic_divisor separately records the exact 22- or 44-order point obtained by combining coprime torsion points.",
+    "The observed acceptance fractions come from one deterministic 16-index bounded range and the X1(11)-first distribution. They are not confidence intervals, uniform-j estimates, or production-search rates.",
+    "The 7/27 point-four fraction is conditional on explicit models encountered before each bounded index stopped. It is not a certificate probability.",
+    "The elapsed comparison is a local microbenchmark and does not include SEA, exact smoothness work, certificate assembly, or verification."
+  ]
+}

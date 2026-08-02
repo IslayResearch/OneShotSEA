@@ -1,0 +1,31 @@
+{
+  "schema": "oneshotsea.curve-twist-workcount.v1",
+  "date": "2026-08-01",
+  "classification": "exact retained production work count; not a wall-time ablation and not an empirical yield sample",
+  "retained_raw_directory": "raw",
+  "source": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "global_indices": "[0,12)",
+    "progress_streams": 6
+  },
+  "raw_sha256": {
+    "filtered-progress.jsonl": "0df1f681abf12e41998b3d4aefaae525eb5d70d4bbb448a3b239efb94263f719",
+    "search-4352861-progress.jsonl": "59c3364b84da6183c30764c7766bb5261751a2bf47e93c57a172028420bd0b65",
+    "search-4eda927-progress.jsonl": "b090397fb954cffba19e86e95a218d18c3439cc6d8f6cad76c1cb7e130a5b8fa",
+    "search-deaeaf4-progress.jsonl": "9fa5faa0ddadf013fd34791f86179e4d895404b467f31702432938c701042391",
+    "search-9fd6fa3-progress.jsonl": "8930229042226cb5d5a973b835b17ebda57e9178f1a026575c8313923f0266f7",
+    "search-c5de573-progress.jsonl": "2cdad57b734cfcbaebbb32aea3c0004ef4a8e760e8f57c024a6e05c522109ba4"
+  },
+  "observed": {
+    "curves": 12,
+    "sea_executions": 12,
+    "initial_trace_candidates": 136,
+    "exact_order_screens": 272,
+    "actual_curve_twist_order_opportunities": 24,
+    "sound_smoothness_rejections": 12,
+    "full_point_counts": 0,
+    "certificates": 0
+  },
+  "interpretation": "One SEA trace state supplies p+1-t and p+1+t, so 136 retained trace candidates generated 272 exact screens. Only one trace is the actual curve trace; the twelve curves therefore represent 24 actual curve/twist group-order opportunities. The retained data prove the work count but do not isolate wall time against an artificial duplicated-SEA baseline."
+}

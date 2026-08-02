@@ -1,0 +1,93 @@
+{
+  "schema": "oneshotsea.p125-x1-33-opportunity-screen.v1",
+  "date": "2026-08-01",
+  "classification": "formula-and-model-only bounded family screen",
+  "repository_base_commit": "f27084aa9692b629c536846f6e82193d8284cf4c",
+  "status": {
+    "p125_generator_run": false,
+    "p125_sea_run": false,
+    "source_implemented": false,
+    "production_integrated": false,
+    "decision": "retain X1(33) only as a bounded future prototype candidate; production remains X1(27)"
+  },
+  "primary_formula": {
+    "url": "https://math.mit.edu/~drew/X1/X1opt33.txt",
+    "sha256": "af679adfe6ea87d60b0a0ae6f8c4df30208def8ff3abcd7f463f656098a2fcd2",
+    "plane_equation_degree_x": 20,
+    "plane_equation_degree_y": 10,
+    "sampling_orientation": "sample x deterministically and find sorted roots of the degree-10 polynomial in y",
+    "map": {
+      "q": "(1+x)/x",
+      "t": "1/((1-y)*(1+x))",
+      "weierstrass_coefficients": "[(1+q)*t+(2-q),0,q*t^2+(1-q)*t,0,0]",
+      "distinguished_point": "[-t,t^2]"
+    },
+    "mandatory_denominator_rejections": ["x=0", "x=-1", "y=1"]
+  },
+  "divisor_derivation": {
+    "exact_point_order": 33,
+    "full_rational_two_torsion_group_order": 4,
+    "point_four_required": true,
+    "target_congruence": "p=5 mod 8",
+    "selected_two_primary_group_order_from_existing_weber_identity": 16,
+    "cyclic_divisor": 132,
+    "cyclic_proof": "The sum of exact-order-33 and exact-order-4 points has exact order 132 because the orders are coprime.",
+    "selected_group_order_divisor": 528,
+    "group_proof": "The odd order-33 subgroup intersects the audited selected-side 2-primary subgroup of order 16 trivially, so their product has order 528.",
+    "paired_twist_forced_divisor": 4
+  },
+  "p125_trace_prior": {
+    "modulus": 528,
+    "positive_selected_side_residue": 446,
+    "negative_selected_side_residue": 82,
+    "opposite_order_residue_mod_528": 364,
+    "redundant_sea_level": 11,
+    "rule": "Use +(p+1) mod 528 when the published curve is the canonical Weber side and -(p+1) mod 528 when it is the canonical twist."
+  },
+  "soundness_obligations": [
+    "Evaluate the pinned plane equation and published q,t map directly over the target field and reject every zero denominator.",
+    "Validate the general Weierstrass equation and distinguished point, convert to the canonical short model exactly, and check [33]P=O, [11]P!=O, and [3]P!=O.",
+    "Reject singular curves, j=0, j=1728, absent or ramified Weber lifts, and every explicit Montgomery identity mismatch.",
+    "Directly establish three distinct rational 2-torsion roots and the point-four condition before claiming any 2-primary divisor.",
+    "Identify the canonical curve/twist side by exact same-j scaling identities before assigning the sign of the trace prior.",
+    "Differentially verify the omitted ell=11 trace residue with independent Schoof or brute-force small-field counts.",
+    "Bind the family schema, formula digest, sampling/root-order domains, point-four flag, exact-order policy, trace-prior policy and group-divisor policy into the schedule digest.",
+    "Begin with a hard max_x_samples diagnostic probe; do not add an unbounded production generator before the bounded gates pass."
+  ],
+  "quantitative_screen": {
+    "x1_27_cyclic_divisor": 108,
+    "x1_33_cyclic_divisor": 132,
+    "x1_27_group_divisor": 432,
+    "x1_33_group_divisor": 528,
+    "x1_27_cyclic_paired_opportunity_probability": 0.000010446455027346424,
+    "x1_33_cyclic_paired_opportunity_probability": 0.000010607550807839594,
+    "x1_33_over_x1_27_cyclic_opportunity_ratio": 1.0154210954885134,
+    "x1_33_over_x1_27_group_sensitivity_ratio": 1.0164006050703445,
+    "x1_27_reference_wall_seconds_per_ten_curves": 198.19,
+    "break_even_x1_33_wall_seconds_per_ten_curves": 201.24630691486848,
+    "break_even_rounded_seconds": 201.246,
+    "five_percent_margin_x1_33_wall_gate_seconds": 191.66314944273188,
+    "five_percent_margin_rounded_seconds": 191.663,
+    "initial_lattice_density_ratio_x1_33_over_x1_27": 0.8181818181818182,
+    "interpretation": "The model permits only a 1.5421% wall-time penalty at break-even. Reusing the prior 5% promotion margin requires X1(33) to be about 3.29% faster in wall time despite its larger generator."
+  },
+  "balance_evidence": {
+    "credible_mechanism": "The exact prior grows from modulus 432 to 528, lowers initial Hasse-lattice density by 18.18%, and makes the scheduled prime ell=11 redundant.",
+    "generator_risk": "The root polynomial grows from degree 6 to degree 10 and coefficient degree from 8 to 20 relative to X1(27); admission density is unknown.",
+    "retained_x1_11_prior_evidence": "A historical X1(11) before/after prior window removed all ten ell=11 evaluations and 16 total SEA levels, but changed binaries and introduced a prior from scratch, so its 1.08222x wall result is not transferable.",
+    "retained_ell_11_cost_boundary": "The checked AWS single-thread p125 ell=11 record spent 0.209100 seconds in modular roots; skipping ell=11 alone is not a guaranteed large win."
+  },
+  "bounded_future_gate": {
+    "phase_1": "Implement only a hard-bounded diagnostic generator in an isolated clone and test exact formulas, map denominators, exact order 33, canonical side, and sharp 132/264/528 divisors over small fields.",
+    "phase_2": "When cores are free, run a generator-only reverse-order p125 gate; close the route if generation work exceeds 2.0x X1(27) or has an unstable admission tail.",
+    "phase_3": "Only after phase 2 passes, add a schedule-bound experimental family and run same-binary reverse-order SEA windows with no heuristic outcomes and independent ell=11 projection checks.",
+    "break_even_rule": "Close unless two independent windows exceed 1.0x conservative modeled opportunities per wall time.",
+    "promotion_rule": "Retain the 1.05x planning-rate margin, corresponding to at most 191.663 seconds on the current ten-curve reference window."
+  },
+  "limitations": [
+    "No X1(33) curve was generated at p125 and no X1(33) SEA timing exists.",
+    "The opportunity figures are Dickman--Mertens planning marginals, not observed certificate rates.",
+    "Curve-family trace bias, curve/twist correlation, group-exponent restrictions, representability, exact-order assembly and canonical verification are not modeled.",
+    "The 198.19-second reference comes from the retained clean X1(27) runs in the X1(25) negative family gate."
+  ]
+}

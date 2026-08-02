@@ -1,0 +1,14 @@
+2d06331683f9fb7f88c7c2a80d7b849414ad162eb07a2aacda1baecbc737947c  ./raw/cap1/checkpoint.json
+4c51552f3584ae9f856bb0899e79bc2f85ec6275a856d825b259317bf80d392d  ./raw/cap1/progress.ndjson
+b6f1c161cf481d5f3a7cbc9d1168e220ab9ffc4497c41362afc1e306bc7c33f2  ./raw/cap1/run.log
+7d4e66e8b27e35519ac96861376df44b073a3905763cb201e4bdd4b53d8c1e1f  ./raw/cap16/checkpoint.json
+e5fc1ab3772345c820ba74991ce7a0b3e165e9e1ea5324accafdfbea60c96695  ./raw/cap16/progress.ndjson
+decda01bb5e911af185af3817ae954fc851674d72a477cd6fe706c68b9db5c0e  ./raw/cap16/run.log
+e3d2d1f653c7c299e9ef333e28953fff032f5a58b3a1afa0a93c5118132a82d9  ./raw/cap32/checkpoint.json
+76a78487822c08beacc225dff278b44a16ab01f024882ee44011ced84769f8e8  ./raw/cap32/progress.ndjson
+76e433c7d7fa9a3728cc4322a82374d879459c41dd56db8063e86806e64c00c8  ./raw/cap32/run.log
+b725c26a8b1b699916a205ac3e6d01dda2d21b6452229dc59b157fd3b379f9f1  ./raw/cap64/checkpoint.json
+b97f7a1a7f80329386ec42c0a8e146bf5bb6c2c8b12a1c212668c63f0d15e160  ./raw/cap64/progress.ndjson
+3c7664d015f4273d71a3d3412392a934c9d0d01a59e058bed9aa6522c19dc768  ./raw/cap64/run.log
+feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa  ./raw/frozen-executable/oneshotsea
+dbf458ec0f3b68dd189c1d7054e2c1ce5bb28652708da07fd8eab96cf2a9cdba  ./result.json

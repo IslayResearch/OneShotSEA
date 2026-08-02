@@ -18,6 +18,13 @@ enum class FrobeniusEigenvalueTestPath : std::uint8_t {
     meet_in_the_middle,
 };
 
+// Differential hook for the quotient algebra F_p[x]/(modulus)[y]/(y^2-f).
+// It compares the production selector (including the v=0 polynomial-subring
+// window) with the retained binary Element exponentiation path.
+bool quotient_element_pow_paths_agree_for_testing(
+    const Poly& modulus, const Poly& curve_rhs, const Poly& u,
+    const Poly& v, const mpz_class& exponent);
+
 // Slow division-polynomial construction used by independent Schoof/Elkies
 // reference paths. Production kernel reconstruction will not build full
 // psi_ell at target-sized levels.

@@ -1,0 +1,96 @@
+{
+  "schema": "oneshotsea.p125-polynomial-square-addmul.v1",
+  "date": "2026-08-01",
+  "classification": "isolated same-input p125 SEA benchmark; no search cursor advanced",
+  "host": "Apple M4, 10 physical cores, arm64 Darwin 25.5.0",
+  "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101), arm64-apple-darwin25.5.0",
+  "change": {
+    "description": "accumulate each distinct schoolbook-square cross product with mpz_addmul, double every output coefficient once, then add diagonal squares",
+    "identity": "2*sum_{i<j}(a_i*a_j)*x^(i+j) + sum_i(a_i^2)*x^(2i)",
+    "baseline_commit": "976924b3aa2148f62ceae11948824d8aed5a41bb",
+    "optimized_commit": "55c4ebe562cd7b7235bcef4265098f62df1daa77",
+    "baseline_source_sha256": "4980d2a5b1da8e083708fdcf68b97c1dc7189533e2f1b1539b9aba7b0039d274",
+    "optimized_source_sha256": "76d6233accdc8e6639bb37f102023771ae32db014bab8fc5e471550b82f3351d",
+    "existing_differential_test_sha256": "916f4e490ee8fb95b407d44a90a5e7b120bd63fb94c1ef503db0832ce776f505",
+    "format_patch_sha256": "80879c3caaad35efa1951bf29c649fba4fbb756d73047542244c242b9c9238b8"
+  },
+  "build": {
+    "isolated_clone": "/private/tmp/oneshotsea-hotpath.20mzK0/repo",
+    "baseline_binary": "/private/tmp/oneshotsea-hotpath.20mzK0/oneshotsea-baseline",
+    "baseline_binary_sha256": "6f8e87a20b56d08e35ec0ec32576b855062d938773a730833795802656b3b4c0",
+    "optimized_binary": "/private/tmp/oneshotsea-hotpath.20mzK0/repo/build/oneshotsea",
+    "optimized_binary_sha256": "c582b3911741c9754ac752fb6f1d37f3354418b1c2fe292ef4f03ad2e40656e8",
+    "weber_manifest_sha256": "e5b84a87335523f79d47f140d70ceddee9e1c6891a7fae8aaadcae5c080de3ab"
+  },
+  "benchmark": {
+    "working_directory": "/private/tmp/oneshotsea-hotpath.20mzK0/repo",
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "a": "82574189722949072957728522659737830385005094873485824210996693879529527019787746889866491875855403894941918864621858709713497",
+    "b": "88382793148632715305152348439825220256670063248990549473997795919686351346525164593244327917236935929961279243081239139809077",
+    "common_arguments": "sea-weber-count --p P --a A --b B --max-level 193 --table-dir data/modpoly/weber_f --trace-cap 64 --sea-threads 10 --root-orbit-reuse 1 --conjugate-eigenvalue-reuse 1",
+    "baseline_command": "/usr/bin/time -lp /private/tmp/oneshotsea-hotpath.20mzK0/oneshotsea-baseline sea-weber-count --p P --a A --b B --max-level 193 --table-dir data/modpoly/weber_f --trace-cap 64 --sea-threads 10 --root-orbit-reuse 1 --conjugate-eigenvalue-reuse 1",
+    "optimized_command": "/usr/bin/time -lp ./build/oneshotsea sea-weber-count --p P --a A --b B --max-level 193 --table-dir data/modpoly/weber_f --trace-cap 64 --sea-threads 10 --root-orbit-reuse 1 --conjugate-eigenvalue-reuse 1",
+    "order": ["baseline", "optimized", "optimized", "baseline"],
+    "runs": [
+      {"name": "b1", "variant": "baseline", "wall_s": 15.30, "modular_roots_us": 9050688, "bmss_us": 2170692, "eigenvalue_us": 3495094, "normalized_codomain_us": 271062},
+      {"name": "q1", "variant": "optimized", "wall_s": 14.21, "modular_roots_us": 8335498, "bmss_us": 2124575, "eigenvalue_us": 3213767, "normalized_codomain_us": 263734},
+      {"name": "q2", "variant": "optimized", "wall_s": 14.12, "modular_roots_us": 8419660, "bmss_us": 2139151, "eigenvalue_us": 3231775, "normalized_codomain_us": 265638},
+      {"name": "b2", "variant": "baseline", "wall_s": 15.25, "modular_roots_us": 9154420, "bmss_us": 2222290, "eigenvalue_us": 3528793, "normalized_codomain_us": 273886}
+    ],
+    "means": {
+      "baseline_wall_s": 15.275,
+      "optimized_wall_s": 14.165,
+      "wall_speedup": 1.0783621602541476,
+      "baseline_modular_roots_us": 9102554,
+      "optimized_modular_roots_us": 8377579,
+      "modular_roots_speedup": 1.0865375307114382,
+      "baseline_bmss_us": 2196491,
+      "optimized_bmss_us": 2131863,
+      "bmss_speedup": 1.0303152688517039,
+      "baseline_eigenvalue_us": 3511943.5,
+      "optimized_eigenvalue_us": 3222771,
+      "eigenvalue_speedup": 1.0897279080642093,
+      "baseline_normalized_codomain_us": 272474,
+      "optimized_normalized_codomain_us": 264686,
+      "normalized_codomain_speedup": 1.0294235433683685
+    }
+  },
+  "exact_equivalence": {
+    "levels": 42,
+    "exact_levels": 21,
+    "all_non_timing_level_records_equal": true,
+    "summary_records_equal": true,
+    "projection_transform": "jq -cS 'if .type==\"level\" then del(.timings_us) else . end'",
+    "projection_sha256_all_four_runs": "5ff8d9c29b2374e37d802af9afadbbbf6a71d455aca172e396ac06acfb0b063b"
+  },
+  "validation": {
+    "focused": "make -j10 test test-poly-square: pass",
+    "full": "env PATH=\"/opt/homebrew/bin:$PATH\" MAGMA=/Users/agent/Documents/Codex/t24-search/private/magma-local/install/magma make -j10 test-all: pass",
+    "coverage": [
+      "squaremod versus mulmod(value,value) and mod(mul(value,value))",
+      "coefficient counts 1 through 195 around recursive thresholds and p125 degrees",
+      "monic and nonmonic moduli",
+      "reducible repeated-factor moduli",
+      "high-degree pre-reduction",
+      "adversarial coefficients, zero, alias, and constant cases",
+      "Magma-backed native oracle differentials"
+    ]
+  },
+  "raw": {
+    "retention": "raw files are in the isolated benchmark directory and are pinned by hash; they are not committed by this compact artifact",
+    "logs": [
+      {"name": "b1", "path": "/private/tmp/oneshotsea-hotpath.20mzK0/b1.log", "sha256": "35639a165da06bed271f4c33858af517011c905e907076386a09552f01a2a596"},
+      {"name": "q1", "path": "/private/tmp/oneshotsea-hotpath.20mzK0/q1.log", "sha256": "8ce039925db5be5f432a3147894478e12c7cc6ea7a5c916c33c57f685393cd96"},
+      {"name": "q2", "path": "/private/tmp/oneshotsea-hotpath.20mzK0/q2.log", "sha256": "8187b7a43e624312139a5769a5830d49e40cd0b0c07101a963344ff6118aae41"},
+      {"name": "b2", "path": "/private/tmp/oneshotsea-hotpath.20mzK0/b2.log", "sha256": "f4075ab7558bc018cbf199fb83cea570376d2bb4da672948a611c928f8cc5845"}
+    ],
+    "external_time_note": "/usr/bin/time emitted a sandbox-only sysctl kern.clockrate diagnostic after each normal program summary; the real/user/sys measurements were still emitted"
+  },
+  "limitations": [
+    "one deterministic p125 curve and one bounded SEA prefix through level 193",
+    "measures SEA only, not X1(27) generation, exact-smooth screening, certificate assembly, or complete production-search throughput",
+    "verified Weber orbit reuse left one modular-root orbit per level, matching the singleton-orbit shape of retained-source production but not every possible caller",
+    "the 1.07836x result is an observed same-input SEA wall speedup and is not relabeled as a certificate-yield improvement"
+  ],
+  "decision": "accept for integration before the next frozen production build"
+}

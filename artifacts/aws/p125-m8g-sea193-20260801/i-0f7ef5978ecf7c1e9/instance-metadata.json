@@ -1,0 +1,17 @@
+{
+  "schema": "oneshotsea.aws-instance.v1",
+  "region": "us-east-2",
+  "instance_id": "i-0f7ef5978ecf7c1e9",
+  "instance_type": "m8g.xlarge",
+  "image_id": "ami-0263206814db4826a",
+  "architecture": "arm64",
+  "availability_zone": "us-east-2a",
+  "lifecycle": "on-demand",
+  "launch_time": "2026-08-01T19:01:39+00:00",
+  "state": "running",
+  "private_dns_name": "ip-172-31-7-248.us-east-2.compute.internal",
+  "private_ip_address": "172.31.7.248",
+  "iam_instance_profile_arn": "arn:aws:iam::163475282204:instance-profile/expMath-ResearchInstanceProfile-JpspoidArRiA",
+  "on_demand_hourly_rate_usd": 0.1795200000,
+  "last_checked_at": "2026-08-01T19:26:24Z"
+}

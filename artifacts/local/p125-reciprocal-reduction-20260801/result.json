@@ -1,0 +1,47 @@
+{
+  "schema": "oneshotsea.reciprocal-reduction-ab.v1",
+  "date": "2026-08-01",
+  "classification": "bounded local negative benchmark; prototype rejected and fully reverted",
+  "host": "Apple M4, 10 cores, 16 GiB",
+  "change": "reusable reciprocal reduction context for repeated quotient-ring arithmetic",
+  "exactness": {
+    "small_deterministic_cases": 60,
+    "p125_degrees": [64, 129, 194],
+    "unbalanced_products_checked": true,
+    "context_powmod_checked": true,
+    "full_core_test_passed_before_rejection": true,
+    "residues_kernels_degrees_checksums_match": true
+  },
+  "benchmarks": {
+    "degree_194_frobenius_pair": {
+      "protocol": "five interleaved measurements; median",
+      "baseline_seconds": 1.95062,
+      "reciprocal_seconds": 2.22974,
+      "relative_slowdown": 1.14309,
+      "baseline_over_reciprocal_throughput": 0.87482
+    },
+    "p125_weber_level_277_index_9": {
+      "protocol": "two interleaved exact level measurements; mean",
+      "baseline_seconds": 3.79822,
+      "reciprocal_seconds": 4.06195,
+      "relative_slowdown": 1.06944,
+      "kernels": 2,
+      "trace_residue_mod_277": 221,
+      "quotient_degree": 138
+    },
+    "p125_level_277_eigenvalue_stage": {
+      "baseline_seconds": 1.21931,
+      "reciprocal_seconds": 1.47784,
+      "relative_slowdown": 1.21204,
+      "independent_recoveries": 1,
+      "derived_recoveries": 1
+    }
+  },
+  "decision": "reject: 14.31% slower on the degree-194 kernel, 6.94% slower on an exact production level, and 21.20% slower in the eigenvalue stage",
+  "repository_state": "all reciprocal-reduction source and test changes reverted; baseline make test passed after the revert",
+  "prototype_patch": {
+    "retained_outside_repository": "/tmp/reciprocal-context.patch",
+    "sha256": "53eb81a60c58a6046133b5f30cdd34037f0b0e7dff00a72ddad17620dc8367b1",
+    "durability_note": "temporary path is provenance only and is not required to reproduce or use the accepted implementation"
+  }
+}

@@ -1,7 +1,11 @@
 #include "oneshotsea/search_pipeline.hpp"
 
+#include "oneshotsea/atkin.hpp"
 #include "oneshotsea/sea.hpp"
+#include "oneshotsea/weber_table_trust.hpp"
 #include "oneshotsea/weber_curve_generator.hpp"
+#include "oneshotsea/x1_11_probe.hpp"
+#include "oneshotsea/x1_27_probe.hpp"
 
 #include <algorithm>
 #include <array>
@@ -12,10 +16,14 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdlib>
+#include <deque>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iomanip>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -37,6 +45,12 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 constexpr std::chrono::seconds kSubprocessTimeout{30};
+constexpr std::string_view kTracePriorPolicy =
+    "weber-full-e2-mod4-if-validated-x1-selected-group-divisor-point4-p5mod8-176-v2";
+constexpr std::string_view kX127TracePriorPolicy =
+    "x1-27-exact-order-full-e2-point4-p5mod8-selected-group-divisor-432-v1";
+constexpr std::string_view kWeberSourceLiftPolicy =
+    "generator-retained-unramified-singleton-v1";
 
 std::uint64_t elapsed_us(Clock::time_point start) {
     const auto elapsed =
@@ -46,6 +60,67 @@ std::uint64_t elapsed_us(Clock::time_point start) {
         throw std::logic_error("steady clock moved backwards");
     }
     return static_cast<std::uint64_t>(elapsed);
+}
+
+std::uint64_t checked_pool_telemetry_add(std::uint64_t left,
+                                         std::uint64_t right) {
+    if (right > std::numeric_limits<std::uint64_t>::max() - left) {
+        throw std::overflow_error(
+            "exact-smooth pool telemetry counter overflow");
+    }
+    return left + right;
+}
+
+ExactSmoothBatchPoolTelemetry merged_smooth_batch_telemetry(
+    ExactSmoothBatchPoolTelemetry aggregate,
+    const ExactSmoothBatchTelemetry& cohort) {
+    aggregate.submitted_requests = checked_pool_telemetry_add(
+        aggregate.submitted_requests, cohort.submitted_requests);
+    aggregate.completed_requests = checked_pool_telemetry_add(
+        aggregate.completed_requests, cohort.completed_requests);
+    aggregate.failed_requests = checked_pool_telemetry_add(
+        aggregate.failed_requests, cohort.failed_requests);
+    aggregate.cancelled_requests = checked_pool_telemetry_add(
+        aggregate.cancelled_requests, cohort.cancelled_requests);
+    aggregate.coordinator_batches = checked_pool_telemetry_add(
+        aggregate.coordinator_batches, cohort.coordinator_batches);
+    aggregate.successful_cache_scan_chunks = checked_pool_telemetry_add(
+        aggregate.successful_cache_scan_chunks,
+        cohort.successful_cache_scan_chunks);
+    aggregate.submitted_orders = checked_pool_telemetry_add(
+        aggregate.submitted_orders, cohort.submitted_orders);
+    aggregate.max_queued_requests_in_any_cohort = std::max(
+        aggregate.max_queued_requests_in_any_cohort,
+        cohort.max_queued_requests);
+    aggregate.max_requests_per_batch_in_any_cohort = std::max(
+        aggregate.max_requests_per_batch_in_any_cohort,
+        cohort.max_requests_per_batch);
+    aggregate.max_orders_per_successful_scan_chunk_in_any_cohort = std::max(
+        aggregate.max_orders_per_successful_scan_chunk_in_any_cohort,
+        cohort.max_orders_per_successful_scan_chunk);
+    for (const ExactSmoothScanChunkSizeCount& entry :
+         cohort.successful_scan_chunks_by_order_count) {
+        const auto found = std::find_if(
+            aggregate.successful_scan_chunks_by_order_count.begin(),
+            aggregate.successful_scan_chunks_by_order_count.end(),
+            [&](const ExactSmoothScanChunkSizeCount& value) {
+                return value.order_count == entry.order_count;
+            });
+        if (found ==
+            aggregate.successful_scan_chunks_by_order_count.end()) {
+            aggregate.successful_scan_chunks_by_order_count.push_back(entry);
+        } else {
+            found->scan_chunks = checked_pool_telemetry_add(
+                found->scan_chunks, entry.scan_chunks);
+        }
+    }
+    std::sort(aggregate.successful_scan_chunks_by_order_count.begin(),
+              aggregate.successful_scan_chunks_by_order_count.end(),
+              [](const ExactSmoothScanChunkSizeCount& left,
+                 const ExactSmoothScanChunkSizeCount& right) {
+                  return left.order_count < right.order_count;
+              });
+    return aggregate;
 }
 
 std::uint64_t peak_rss_bytes() {
@@ -234,6 +309,30 @@ void validate_config(const SearchPipelineConfig& config,
         config.max_candidate_search_nodes == 0U) {
         throw std::invalid_argument("invalid SEA/search resource limit");
     }
+    switch (config.curve_family) {
+        case SearchCurveFamily::weber_f:
+            if (config.x1_require_point_four) {
+                throw std::invalid_argument(
+                    "point-four filtering requires an X1 curve family");
+            }
+            break;
+        case SearchCurveFamily::x1_11:
+            if (config.prime == 11 ||
+                mpz_fdiv_ui(config.prime.get_mpz_t(), 4U) != 1U) {
+                throw std::invalid_argument(
+                    "X1(11) search requires characteristic not eleven and p=1 mod 4");
+            }
+            break;
+        case SearchCurveFamily::x1_27:
+            if (config.prime == 3 ||
+                mpz_fdiv_ui(config.prime.get_mpz_t(), 4U) != 1U) {
+                throw std::invalid_argument(
+                    "X1(27) search requires characteristic not three and p=1 mod 4");
+            }
+            break;
+        default:
+            throw std::invalid_argument("unknown search curve family");
+    }
     if (!std::filesystem::is_directory(config.table_directory)) {
         throw std::invalid_argument("Weber table directory does not exist");
     }
@@ -254,6 +353,15 @@ void validate_config(const SearchPipelineConfig& config,
     if (!config.expected_schedule_sha256.empty()) {
         validate_digest(config.expected_schedule_sha256,
                         "expected schedule digest");
+        if (config.expected_smooth_cache_sha256.empty() ||
+            config.expected_verifier_sha256.empty()) {
+            throw std::invalid_argument(
+                "expected schedule requires smooth-cache and verifier digests");
+        }
+    }
+    if (!config.expected_smooth_cache_sha256.empty()) {
+        validate_digest(config.expected_smooth_cache_sha256,
+                        "expected smooth-cache digest");
     }
     if (!config.expected_table_manifest_sha256.empty()) {
         validate_digest(config.expected_table_manifest_sha256,
@@ -273,6 +381,14 @@ std::size_t exact_level_count(const WeberSeaResult& result) {
     return static_cast<std::size_t>(std::count_if(
         result.levels.begin(), result.levels.end(),
         [](const WeberSeaLevelRecord& level) { return level.exact; }));
+}
+
+std::size_t atkin_level_count(const WeberSeaResult& result) {
+    return static_cast<std::size_t>(std::count_if(
+        result.levels.begin(), result.levels.end(),
+        [](const WeberSeaLevelRecord& level) {
+            return level.atkin_projective_order.has_value();
+        }));
 }
 
 bool has_large_enough_smooth_part(
@@ -576,6 +692,12 @@ bool verify_with_pinned_runtime(const SearchPipelineConfig& config,
 
 }  // namespace
 
+void merge_exact_smooth_batch_pool_telemetry(
+    ExactSmoothBatchPoolTelemetry& aggregate,
+    const ExactSmoothBatchTelemetry& cohort) {
+    aggregate = merged_smooth_batch_telemetry(aggregate, cohort);
+}
+
 std::string resolve_executable_path(const std::string& executable) {
     if (executable.empty() || executable.find('\0') != std::string::npos) {
         throw std::invalid_argument("executable name is empty or malformed");
@@ -732,6 +854,10 @@ const char* search_curve_status_name(SearchCurveStatus status) {
             return "no_rational_weber_lift";
         case SearchCurveStatus::sea_level_limit:
             return "sea_level_limit";
+        case SearchCurveStatus::heuristic_no_lift_skip:
+            return "heuristic_no_lift_skip";
+        case SearchCurveStatus::heuristic_level_limit_skip:
+            return "heuristic_level_limit_skip";
         case SearchCurveStatus::sound_smoothness_reject:
             return "sound_smoothness_reject";
         case SearchCurveStatus::no_certificate_candidate:
@@ -744,6 +870,18 @@ const char* search_curve_status_name(SearchCurveStatus status) {
             return "verified_certificate";
     }
     return "unknown";
+}
+
+const char* search_curve_family_name(SearchCurveFamily family) {
+    switch (family) {
+        case SearchCurveFamily::weber_f:
+            return "weber-f";
+        case SearchCurveFamily::x1_11:
+            return "x1-11";
+        case SearchCurveFamily::x1_27:
+            return "x1-27";
+    }
+    throw std::logic_error("unknown search curve family");
 }
 
 bool verify_with_canonical_voneshot(
@@ -871,16 +1009,73 @@ bool verify_with_canonical_voneshot(
 SearchCurveReport process_search_curve(
     const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
     std::uint64_t global_index,
-    const CanonicalCertificateVerifier& injected_verifier) {
+    const CanonicalCertificateVerifier& injected_verifier,
+    const SearchSeaLevelCallback& sea_level_callback,
+    const ExactSmoothBatchCoordinator* smooth_coordinator) {
     validate_config(config, &smooth_engine);
+    if (smooth_coordinator &&
+        !smooth_coordinator->compatible_with(smooth_engine)) {
+        throw std::invalid_argument(
+            "exact-smooth batch coordinator does not match the search engine");
+    }
     const Clock::time_point total_start = Clock::now();
     SearchCurveReport report;
     report.global_index = global_index;
+    const auto extract_curve_twist = [&](std::span<const mpz_class> traces) {
+        return smooth_coordinator
+                   ? smooth_coordinator->extract_curve_twist(traces)
+                   : smooth_engine.extract_curve_twist(traces);
+    };
 
     Clock::time_point stage_start = Clock::now();
-    const WeberCurvePair pair = deterministic_weber_curve_pair(
-        config.prime, config.seed, global_index);
+    std::optional<ExactTracePrior> trace_prior;
+    WeberCurvePair pair = [&]() -> WeberCurvePair {
+        if (config.curve_family == SearchCurveFamily::weber_f) {
+            WeberCurvePair generated = deterministic_weber_curve_pair(
+                config.prime, config.seed, global_index);
+            // A rational Weber/Montgomery model has full rational E[2] in the
+            // production p=1 mod 4 setting. Validate the actual canonical
+            // model before claiming the resulting order divisibility, so the
+            // general library search remains sound for other characteristics.
+            trace_prior =
+                exact_trace_prior_from_full_rational_two_torsion(
+                    generated.curve);
+            return generated;
+        }
+        if (config.curve_family == SearchCurveFamily::x1_11) {
+            X111ProbeResult generated = deterministic_x1_11_search_curve(
+                config.prime, config.seed, global_index,
+                config.x1_require_point_four);
+            X111ProbeSample& sample = *generated.sample;
+            const std::uint64_t divisor = sample.group_divisor;
+            const std::uint64_t p_plus_one =
+                (mpz_fdiv_ui(config.prime.get_mpz_t(), divisor) + 1U) % divisor;
+            const std::uint64_t residue =
+                sample.selected_side == X111CanonicalSide::curve
+                    ? p_plus_one
+                    : (divisor - p_plus_one) % divisor;
+            trace_prior.emplace(config.prime, divisor, residue);
+            return std::move(sample.pair);
+        }
+        X127ProbeResult generated = deterministic_x1_27_search_curve(
+            config.prime, config.seed, global_index,
+            config.x1_require_point_four);
+        X127ProbeSample& sample = *generated.sample;
+        const std::uint64_t divisor = sample.group_divisor;
+        const std::uint64_t p_plus_one =
+            (mpz_fdiv_ui(config.prime.get_mpz_t(), divisor) + 1U) % divisor;
+        const std::uint64_t residue =
+            sample.selected_side == X127CanonicalSide::curve
+                ? p_plus_one
+                : (divisor - p_plus_one) % divisor;
+        trace_prior.emplace(config.prime, divisor, residue);
+        return std::move(sample.pair);
+    }();
     report.rejected_generator_samples = pair.rejected_samples;
+    if (trace_prior.has_value()) {
+        report.trace_prior_modulus = trace_prior->modulus();
+        report.trace_prior_residue = trace_prior->residue();
+    }
     report.timings.generation_us = elapsed_us(stage_start);
 
     auto run_sea = [&](std::size_t trace_cap) {
@@ -891,22 +1086,73 @@ SearchCurveReport process_search_curve(
                 pass,
                 level.ell,
                 level.exact,
+                level.trace_residue,
+                level.exact_modulus,
+                level.constraint_modulus,
+                level.exact_trace_candidate_count,
+                level.trace_candidate_count,
+                level.atkin_projective_order,
+                level.atkin_residue_count,
+                level.compatible_source_lifts,
                 level.timings.modular_root_workers,
+                level.timings.modular_root_orbits,
+                level.timings.modular_root_reused_lifts,
+                level.timings.modular_root_orbit_reuse,
                 level.timings.source_lifts_us,
                 level.timings.modular_roots_us,
                 level.timings.normalized_codomain_us,
                 level.timings.bmss_us,
                 level.timings.eigenvalue_us,
+                level.timings.conjugate_eigenvalue_reuse,
+                level.timings.eigenvalue_attempts,
+                level.timings.independent_eigenvalue_recoveries,
+                level.timings.conjugate_eigenvalues_derived,
             });
+            if (sea_level_callback) {
+                sea_level_callback(global_index,
+                                   report.sea_level_timings.back());
+            }
         };
         WeberSeaResult result = run_weber_sea_reference(
             pair.curve, config.table_directory.string(), config.max_level,
-            trace_cap, progress, config.sea_threads);
+            trace_cap, progress, config.sea_threads, true, true, {},
+            trace_prior, pair.weber_f);
         report.timings.sea_us += elapsed_us(stage_start);
         ++report.sea_passes;
         report.sea_levels += result.levels.size();
         report.exact_sea_levels += exact_level_count(result);
+        report.atkin_sea_levels += atkin_level_count(result);
+        report.final_exact_trace_candidate_count =
+            result.constraints.candidate_count();
+        report.final_trace_candidate_count =
+            result.effective_constraints.candidate_count();
         return result;
+    };
+
+    std::size_t schoof_pass = 0U;
+    auto extend_schoof = [&](WeberSeaResult& result, std::size_t trace_cap) {
+        stage_start = Clock::now();
+        ++schoof_pass;
+        const SchoofFallbackProgress progress =
+            [&](const SchoofFallbackLevelRecord& level) {
+                report.schoof_fallback_levels.push_back({
+                    schoof_pass,
+                    level.ell,
+                    level.trace_residue,
+                    level.exact_modulus,
+                    level.constraint_modulus,
+                    level.exact_trace_candidate_count,
+                    level.trace_candidate_count,
+                    level.elapsed_us,
+                });
+            };
+        extend_weber_sea_with_schoof_fallback(
+            pair.curve, result, trace_cap, progress);
+        report.timings.sea_us += elapsed_us(stage_start);
+        report.final_exact_trace_candidate_count =
+            result.constraints.candidate_count();
+        report.final_trace_candidate_count =
+            result.effective_constraints.candidate_count();
     };
 
     WeberSeaResult sea = run_sea(config.early_trace_cap);
@@ -915,6 +1161,9 @@ SearchCurveReport process_search_curve(
         report.outcome = {CurveTerminalStage::rejected_sea, false, false};
         report.timings.total_us = elapsed_us(total_start);
         return report;
+    }
+    if (!sea.traces.has_value() && config.enable_schoof_fallback) {
+        extend_schoof(sea, config.early_trace_cap);
     }
     if (!sea.traces.has_value()) {
         report.status = SearchCurveStatus::sea_level_limit;
@@ -929,7 +1178,7 @@ SearchCurveReport process_search_curve(
 
     stage_start = Clock::now();
     std::vector<CurveTwistSmoothParts> initial_parts =
-        smooth_engine.extract_curve_twist(*sea.traces);
+        extract_curve_twist(*sea.traces);
     report.timings.smoothness_us += elapsed_us(stage_start);
     const CertificateBounds bounds = canonical_certificate_bounds(config.prime);
     if (!has_large_enough_smooth_part(initial_parts,
@@ -954,7 +1203,13 @@ SearchCurveReport process_search_curve(
     } else {
         // The early enumeration was complete, so the rejection above was
         // sound.  A survivor must now meet the stricter unique-trace gate.
-        sea = run_sea(1U);
+        if (config.enable_schoof_fallback) {
+            // Retain every authenticated Weber/Atkin residue and extend the
+            // same state. Repeating the full table pass would add no evidence.
+            extend_schoof(sea, 1U);
+        } else {
+            sea = run_sea(1U);
+        }
         if (!sea.traces.has_value()) {
             report.status = SearchCurveStatus::sea_level_limit;
             report.outcome = {CurveTerminalStage::rejected_sea, false, true};
@@ -975,7 +1230,7 @@ SearchCurveReport process_search_curve(
         } else {
             const std::array<mpz_class, 1> trace = {*report.exact_trace};
             stage_start = Clock::now();
-            exact_parts = smooth_engine.extract_curve_twist(trace);
+            exact_parts = extract_curve_twist(trace);
             report.timings.smoothness_us += elapsed_us(stage_start);
         }
     }
@@ -1118,6 +1373,18 @@ SearchPipelineRunResult run_search_pipeline(
     const SearchReportCallback& report_callback,
     const CanonicalCertificateVerifier& verifier) {
     validate_config(config, &smooth_engine);
+    if (config.expected_schedule_sha256.empty() ||
+        config.expected_smooth_cache_sha256.empty() ||
+        config.expected_table_manifest_sha256.empty() ||
+        config.expected_verifier_sha256.empty()) {
+        throw std::invalid_argument(
+            "search execution requires authenticated schedule, cache, table, and verifier identities");
+    }
+    if (sha256_file(config.canonical_verifier) !=
+        config.expected_verifier_sha256) {
+        throw std::invalid_argument(
+            "canonical verifier contents changed after identity creation");
+    }
     if (state.identity().prime != config.prime ||
         state.identity().seed != config.seed) {
         throw std::invalid_argument("search state does not match pipeline target/seed");
@@ -1126,6 +1393,14 @@ SearchPipelineRunResult run_search_pipeline(
         state.identity().schedule_sha256 != config.expected_schedule_sha256) {
         throw std::invalid_argument(
             "search state does not match the configured schedule identity");
+    }
+    if (!config.expected_schedule_sha256.empty() &&
+        search_schedule_sha256(config,
+                               config.expected_smooth_cache_sha256,
+                               config.expected_verifier_sha256) !=
+            config.expected_schedule_sha256) {
+        throw std::invalid_argument(
+            "configured search semantics changed after identity creation");
     }
     if (!config.expected_table_manifest_sha256.empty() &&
         state.identity().table_manifest_sha256 !=
@@ -1141,6 +1416,13 @@ SearchPipelineRunResult run_search_pipeline(
     }
     if (options.checkpoint_every == 0U) {
         throw std::invalid_argument("checkpoint interval must be positive");
+    }
+    if (options.curve_threads == 0U) {
+        throw std::invalid_argument("curve thread count must be positive");
+    }
+    if (options.smooth_coordinator_count > options.curve_threads) {
+        throw std::invalid_argument(
+            "smooth coordinator count must not exceed curve thread count");
     }
     require_distinct_pipeline_paths(options);
     SearchPipelineRunResult result;
@@ -1206,95 +1488,194 @@ SearchPipelineRunResult run_search_pipeline(
         throw std::runtime_error(
             "checkpoint records a certificate but its durable artifact is missing");
     }
-    while (!state.complete() && result.curves_processed < options.max_curves) {
-        const std::uint64_t index = state.next_index();
-        if (weber_table_manifest_sha256(config.table_directory,
-                                        config.max_level) !=
-            state.identity().table_manifest_sha256) {
-            throw std::runtime_error(
-                "Weber table contents changed before curve processing");
+    std::mutex verifier_mutex;
+    const CanonicalCertificateVerifier serialized_verifier =
+        [&](const MontgomeryCertificate& certificate) {
+            const std::lock_guard<std::mutex> lock(verifier_mutex);
+            return canonical(certificate);
+        };
+    std::mutex sea_level_mutex;
+    const SearchSeaLevelCallback serialized_sea_level_callback =
+        options.sea_level_callback
+            ? SearchSeaLevelCallback(
+                  [&](std::uint64_t index,
+                      const SearchSeaLevelTiming& level) {
+                      const std::lock_guard<std::mutex> lock(sea_level_mutex);
+                      options.sea_level_callback(index, level);
+                  })
+            : SearchSeaLevelCallback{};
+    std::vector<std::unique_ptr<ExactSmoothBatchCoordinator>>
+        smooth_coordinators;
+    if (!state.complete() && options.max_curves != 0U &&
+        options.smooth_coordinator_count != 0U) {
+        smooth_coordinators.reserve(options.smooth_coordinator_count);
+        for (std::size_t index = 0U;
+             index < options.smooth_coordinator_count; ++index) {
+            smooth_coordinators.push_back(
+                std::make_unique<ExactSmoothBatchCoordinator>(smooth_engine));
         }
-        SearchCurveReport report = process_search_curve(
-            config, smooth_engine, index, verifier);
-        if (weber_table_manifest_sha256(config.table_directory,
-                                        config.max_level) !=
-            state.identity().table_manifest_sha256) {
-            throw std::runtime_error(
-                "Weber table contents changed during curve processing");
-        }
-        if (report.status == SearchCurveStatus::sea_level_limit ||
-            report.status == SearchCurveStatus::no_rational_weber_lift) {
-            // These are implementation/resource outcomes, not mathematical
-            // rejections.  Persist and report the unchanged cursor, then stop
-            // this chunk so a retry cannot silently skip the curve.
-            if (!options.checkpoint_path.empty()) {
+        result.smooth_batch_coordinator_enabled = true;
+        result.smooth_batch_coordinator_count = smooth_coordinators.size();
+    }
+    if (!state.complete() && options.max_curves != 0U) {
+        const std::uint64_t first_index = state.next_index();
+        const std::uint64_t budget = std::min(
+            options.max_curves, state.identity().range.end - first_index);
+        const std::uint64_t launch_end = first_index + budget;
+        std::uint64_t next_to_launch = first_index;
+        std::deque<std::future<SearchCurveReport>> pending;
+        const auto launch_until_full = [&] {
+            while (next_to_launch < launch_end &&
+                   pending.size() < options.curve_threads) {
+                if (weber_table_manifest_sha256(config.table_directory,
+                                                config.max_level) !=
+                    state.identity().table_manifest_sha256) {
+                    throw std::runtime_error(
+                        "Weber table contents changed before curve processing");
+                }
+                const std::uint64_t index = next_to_launch++;
+                ExactSmoothBatchCoordinator* const smooth_coordinator =
+                    smooth_coordinators.empty()
+                        ? nullptr
+                        : smooth_coordinators[
+                              index % smooth_coordinators.size()]
+                              .get();
+                pending.push_back(std::async(
+                    std::launch::async,
+                    [&, index, smooth_coordinator] {
+                        return process_search_curve(
+                            config, smooth_engine, index,
+                            serialized_verifier,
+                            serialized_sea_level_callback,
+                            smooth_coordinator);
+                    }));
+            }
+        };
+        launch_until_full();
+        while (!pending.empty()) {
+            SearchCurveReport report = pending.front().get();
+            pending.pop_front();
+            const std::uint64_t index = state.next_index();
+            if (report.global_index != index) {
+                throw std::logic_error(
+                    "parallel curve reports left deterministic index order");
+            }
+            if (weber_table_manifest_sha256(config.table_directory,
+                                            config.max_level) !=
+                state.identity().table_manifest_sha256) {
+                throw std::runtime_error(
+                    "Weber table contents changed during curve processing");
+            }
+            if (report.status == SearchCurveStatus::sea_level_limit ||
+                report.status == SearchCurveStatus::no_rational_weber_lift) {
+                if (!config.skip_incomplete_curves) {
+                    // These are implementation/resource outcomes, not
+                    // mathematical rejections. Persist and report the
+                    // unchanged cursor, then discard later in-flight reports
+                    // so a retry cannot skip it.
+                    if (!options.checkpoint_path.empty()) {
+                        save_search_checkpoint(state, options.checkpoint_path);
+                    }
+                    if (!options.progress_path.empty()) {
+                        append_line(options.progress_path,
+                                    search_curve_report_json(
+                                        report, state,
+                                        options.include_sea_level_timings));
+                    }
+                    if (report_callback) {
+                        report_callback(report, state);
+                    }
+                    break;
+                }
+                report.status =
+                    report.status == SearchCurveStatus::sea_level_limit
+                        ? SearchCurveStatus::heuristic_level_limit_skip
+                        : SearchCurveStatus::heuristic_no_lift_skip;
+                report.outcome.terminal_stage =
+                    CurveTerminalStage::rejected_heuristic;
+            }
+            if (report.certificate.has_value()) {
+                // Anchor the exact winning cursor before exposing its artifacts.
+                // This makes crash recovery unambiguous even when the ordinary
+                // checkpoint interval is greater than one curve.
+                save_search_checkpoint(state, options.checkpoint_path);
+                save_text_atomic(options.certificate_path,
+                                 report.certificate->line() + '\n',
+                                 "certificate");
+                const std::string certificate_sha =
+                    sha256_file(options.certificate_path);
+                save_text_atomic(
+                    metadata_path,
+                    certificate_metadata(state.identity(), index,
+                                         *report.certificate,
+                                         certificate_sha),
+                    "certificate metadata");
+            }
+            state.record_completed(index, report.outcome);
+            ++result.curves_processed;
+
+            const bool should_checkpoint =
+                result.curves_processed % options.checkpoint_every == 0U ||
+                state.complete() || report.certificate.has_value();
+            if (should_checkpoint && !options.checkpoint_path.empty()) {
                 save_search_checkpoint(state, options.checkpoint_path);
             }
             if (!options.progress_path.empty()) {
                 append_line(options.progress_path,
-                            search_curve_report_json(report, state));
+                            search_curve_report_json(
+                                report, state,
+                                options.include_sea_level_timings));
             }
             if (report_callback) {
                 report_callback(report, state);
             }
-            break;
+            if (report.certificate.has_value()) {
+                result.verified = std::move(report);
+                break;
+            }
+            // Rolling replenishment avoids a fixed-wave barrier: as soon as
+            // the lowest pending index is durably retired, one new consecutive
+            // index may start while higher earlier indices remain in flight.
+            launch_until_full();
         }
-        if (report.certificate.has_value()) {
-            // Anchor the exact winning cursor before exposing its artifacts.
-            // This makes crash recovery unambiguous even when the ordinary
-            // checkpoint interval is greater than one curve.
-            save_search_checkpoint(state, options.checkpoint_path);
-            save_text_atomic(options.certificate_path,
-                             report.certificate->line() + '\n', "certificate");
-            const std::string certificate_sha =
-                sha256_file(options.certificate_path);
-            save_text_atomic(
-                metadata_path,
-                certificate_metadata(state.identity(), index,
-                                     *report.certificate, certificate_sha),
-                "certificate metadata");
-        }
-        state.record_completed(index, report.outcome);
-        ++result.curves_processed;
-
-        const bool should_checkpoint =
-            result.curves_processed % options.checkpoint_every == 0U ||
-            state.complete() || report.certificate.has_value();
-        if (should_checkpoint && !options.checkpoint_path.empty()) {
-            save_search_checkpoint(state, options.checkpoint_path);
-        }
-        if (!options.progress_path.empty()) {
-            append_line(options.progress_path,
-                        search_curve_report_json(report, state));
-        }
-        if (report_callback) {
-            report_callback(report, state);
-        }
-        if (report.certificate.has_value()) {
-            result.verified = std::move(report);
-            break;
-        }
+        // std::future destruction joins any in-flight reports discarded behind
+        // an earlier implementation limit or verified certificate. No worker
+        // mutates durable artifacts or the checkpoint coordinator.
+    }
+    for (const auto& smooth_coordinator : smooth_coordinators) {
+        result.smooth_batch_cohort_telemetry.push_back(
+            smooth_coordinator->telemetry());
+        merge_exact_smooth_batch_pool_telemetry(
+            result.smooth_batch_telemetry,
+            result.smooth_batch_cohort_telemetry.back());
     }
     result.exhausted_assigned_range = state.complete();
     return result;
 }
 
 std::string search_curve_report_json(const SearchCurveReport& report,
-                                     const SearchState& state) {
+                                     const SearchState& state,
+                                     bool include_sea_level_timings) {
     std::ostringstream output;
+    const bool heuristic =
+        report.status == SearchCurveStatus::heuristic_no_lift_skip ||
+        report.status == SearchCurveStatus::heuristic_level_limit_skip;
     output << "{\"schema\":\"oneshotsea.search-curve.v1\",\"index\":\""
            << report.global_index << "\",\"status\":\""
            << search_curve_status_name(report.status)
            << "\",\"peak_rss_bytes\":\"" << peak_rss_bytes()
-           << "\",\"heuristic\":false,\"outcome_class\":\""
+           << "\",\"heuristic\":" << (heuristic ? "true" : "false")
+           << ",\"outcome_class\":\""
            << (report.status == SearchCurveStatus::sound_smoothness_reject
                    ? "sound_rejection"
-                   : (report.status == SearchCurveStatus::sea_level_limit
-                          ? "implementation_level_limit"
-                          : (report.status ==
-                                     SearchCurveStatus::no_rational_weber_lift
-                                 ? "implementation_no_lift"
-                                 : "terminal")))
+                   : (heuristic
+                          ? "heuristic_rejection"
+                          : (report.status == SearchCurveStatus::sea_level_limit
+                                 ? "implementation_level_limit"
+                                 : (report.status ==
+                                            SearchCurveStatus::no_rational_weber_lift
+                                        ? "implementation_no_lift"
+                                        : "terminal"))))
            << "\",\"sound_early_abort\":"
            << (report.status == SearchCurveStatus::sound_smoothness_reject
                    ? "true" : "false")
@@ -1303,11 +1684,31 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << ",\"reached_smoothness\":"
            << (report.outcome.reached_smoothness_testing ? "true" : "false")
            << ",\"generator_rejections\":\""
-           << report.rejected_generator_samples << "\",\"sea_passes\":\""
+           << report.rejected_generator_samples << "\",\"trace_prior\":";
+    if (report.trace_prior_modulus.has_value() &&
+        report.trace_prior_residue.has_value()) {
+        output << "{\"modulus\":\"" << *report.trace_prior_modulus
+               << "\",\"residue\":\"" << *report.trace_prior_residue
+               << "\"}";
+    } else {
+        output << "null";
+    }
+    output << ",\"sea_passes\":\""
            << report.sea_passes << "\",\"sea_levels\":\""
            << report.sea_levels << "\",\"exact_sea_levels\":\""
-           << report.exact_sea_levels << "\",\"initial_trace_count\":\""
+           << report.exact_sea_levels << "\",\"atkin_sea_levels\":\""
+           << report.atkin_sea_levels
+           << "\",\"schoof_fallback_level_count\":\""
+           << report.schoof_fallback_levels.size()
+           << "\",\"initial_trace_count\":\""
            << report.initial_trace_count << '"';
+    if (report.final_exact_trace_candidate_count.has_value() &&
+        report.final_trace_candidate_count.has_value()) {
+        output << ",\"final_exact_trace_candidates\":\""
+               << *report.final_exact_trace_candidate_count
+               << "\",\"final_trace_candidates\":\""
+               << *report.final_trace_candidate_count << '"';
+    }
     if (report.exact_trace.has_value()) {
         output << ",\"trace\":\"" << *report.exact_trace << '"';
     }
@@ -1325,22 +1726,79 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << "\",\"verifier\":\"" << report.timings.verifier_us
            << "\",\"total\":\"" << report.timings.total_us
            << "\"},\"sea_level_timings\":[";
-    for (std::size_t index = 0; index < report.sea_level_timings.size(); ++index) {
+    const std::size_t retained_level_count = include_sea_level_timings
+        ? report.sea_level_timings.size()
+        : 0U;
+    for (std::size_t index = 0; index < retained_level_count; ++index) {
         if (index != 0U) {
             output << ',';
         }
         const SearchSeaLevelTiming& level = report.sea_level_timings[index];
         output << "{\"pass\":\"" << level.pass << "\",\"ell\":\""
                << level.ell << "\",\"exact\":"
-               << (level.exact ? "true" : "false")
-               << ",\"modular_root_workers\":\""
+               << (level.exact ? "true" : "false");
+        if (level.trace_residue.has_value()) {
+            output << ",\"trace_residue\":\"" << *level.trace_residue
+                   << '"';
+        }
+        output << ",\"exact_modulus\":\"" << level.exact_modulus
+               << "\",\"constraint_modulus\":\""
+               << level.constraint_modulus
+               << "\",\"exact_trace_candidate_count\":\""
+               << level.exact_trace_candidate_count
+               << "\",\"trace_candidate_count\":\""
+               << level.trace_candidate_count
+               << "\",\"atkin_projective_order\":";
+        if (level.atkin_projective_order.has_value()) {
+            output << '"' << *level.atkin_projective_order << '"';
+        } else {
+            output << "null";
+        }
+        output << ",\"atkin_residue_count\":\""
+               << level.atkin_residue_count
+               << "\",\"compatible_source_lifts\":\""
+               << level.compatible_source_lifts
+               << "\",\"modular_root_workers\":\""
                << level.modular_root_workers
-               << "\",\"source_lifts_us\":\"" << level.source_lifts_us
+               << "\",\"modular_root_orbits\":\""
+               << level.modular_root_orbits
+               << "\",\"modular_root_reused_lifts\":\""
+               << level.modular_root_reused_lifts
+               << "\",\"modular_root_orbit_reuse\":"
+               << (level.modular_root_orbit_reuse ? "true" : "false")
+               << ",\"source_lifts_us\":\"" << level.source_lifts_us
                << "\",\"modular_roots_us\":\"" << level.modular_roots_us
                << "\",\"normalized_codomain_us\":\""
                << level.normalized_codomain_us << "\",\"bmss_us\":\""
                << level.bmss_us << "\",\"eigenvalue_us\":\""
-               << level.eigenvalue_us << "\"}";
+               << level.eigenvalue_us
+               << "\",\"conjugate_eigenvalue_reuse\":"
+               << (level.conjugate_eigenvalue_reuse ? "true" : "false")
+               << ",\"eigenvalue_attempts\":\""
+               << level.eigenvalue_attempts
+               << "\",\"independent_eigenvalue_recoveries\":\""
+               << level.independent_eigenvalue_recoveries
+               << "\",\"conjugate_eigenvalues_derived\":\""
+               << level.conjugate_eigenvalues_derived << "\"}";
+    }
+    output << "],\"schoof_fallback_levels\":[";
+    for (std::size_t index = 0U;
+         index < report.schoof_fallback_levels.size(); ++index) {
+        if (index != 0U) {
+            output << ',';
+        }
+        const SearchSchoofFallbackTiming& level =
+            report.schoof_fallback_levels[index];
+        output << "{\"pass\":\"" << level.pass << "\",\"ell\":\""
+               << level.ell << "\",\"trace_residue\":\""
+               << level.trace_residue << "\",\"exact_modulus\":\""
+               << level.exact_modulus << "\",\"constraint_modulus\":\""
+               << level.constraint_modulus
+               << "\",\"exact_trace_candidate_count\":\""
+               << level.exact_trace_candidate_count
+               << "\",\"trace_candidate_count\":\""
+               << level.trace_candidate_count << "\",\"elapsed_us\":\""
+               << level.elapsed_us << "\"}";
     }
     output << ']';
     if (report.certificate.has_value()) {
@@ -1357,11 +1815,60 @@ std::string search_curve_report_json(const SearchCurveReport& report,
     return output.str();
 }
 
+std::string search_sea_level_json(std::uint64_t global_index,
+                                  const SearchSeaLevelTiming& level) {
+    std::ostringstream output;
+    output << "{\"schema\":\"oneshotsea.search-sea-level.v1\",\"index\":\""
+           << global_index << "\",\"pass\":\"" << level.pass
+           << "\",\"ell\":\"" << level.ell << "\",\"exact\":"
+           << (level.exact ? "true" : "false");
+    if (level.trace_residue.has_value()) {
+        output << ",\"trace_residue\":\"" << *level.trace_residue << '"';
+    }
+    output << ",\"exact_modulus\":\"" << level.exact_modulus
+           << "\",\"constraint_modulus\":\"" << level.constraint_modulus
+           << "\",\"exact_trace_candidate_count\":\""
+           << level.exact_trace_candidate_count
+           << "\",\"trace_candidate_count\":\""
+           << level.trace_candidate_count
+           << "\",\"atkin_projective_order\":";
+    if (level.atkin_projective_order.has_value()) {
+        output << '"' << *level.atkin_projective_order << '"';
+    } else {
+        output << "null";
+    }
+    output << ",\"atkin_residue_count\":\"" << level.atkin_residue_count
+           << "\",\"compatible_source_lifts\":\""
+           << level.compatible_source_lifts
+           << "\",\"modular_root_workers\":\""
+           << level.modular_root_workers
+           << "\",\"modular_root_orbits\":\""
+           << level.modular_root_orbits
+           << "\",\"modular_root_reused_lifts\":\""
+           << level.modular_root_reused_lifts
+           << "\",\"modular_root_orbit_reuse\":"
+           << (level.modular_root_orbit_reuse ? "true" : "false")
+           << ",\"timings_us\":{\"source_lifts\":\""
+           << level.source_lifts_us << "\",\"modular_roots\":\""
+           << level.modular_roots_us
+           << "\",\"normalized_codomain\":\""
+           << level.normalized_codomain_us << "\",\"bmss\":\""
+           << level.bmss_us << "\",\"eigenvalue\":\""
+           << level.eigenvalue_us
+           << "\",\"conjugate_eigenvalue_reuse\":"
+           << (level.conjugate_eigenvalue_reuse ? "true" : "false")
+           << ",\"eigenvalue_attempts\":\""
+           << level.eigenvalue_attempts
+           << "\",\"independent_eigenvalue_recoveries\":\""
+           << level.independent_eigenvalue_recoveries
+           << "\",\"conjugate_eigenvalues_derived\":\""
+           << level.conjugate_eigenvalues_derived << "\"}}";
+    return output.str();
+}
+
 std::string weber_table_manifest_sha256(
     const std::filesystem::path& table_directory, std::uint64_t max_level) {
-    if (!std::filesystem::is_directory(table_directory)) {
-        throw std::invalid_argument("Weber table directory does not exist");
-    }
+    authenticate_trusted_weber_table_set(table_directory);
     const std::regex pattern(R"(^phi_([0-9]+)\.txt$)");
     std::vector<std::pair<std::uint64_t, std::filesystem::path>> tables;
     for (const auto& entry : std::filesystem::directory_iterator(table_directory)) {
@@ -1395,11 +1902,27 @@ std::string weber_table_manifest_sha256(
         throw std::invalid_argument("no Weber tables exist through max level");
     }
     Sha256 manifest;
-    manifest.update("oneshotsea.weber-table-manifest.v1\n");
+    manifest.update("oneshotsea.sea-table-manifest.v2\n");
     for (const auto& [level, path] : tables) {
-        const std::string record = std::to_string(level) + " " +
+        const std::string record = "weber-f " + std::to_string(level) + " " +
             path.filename().string() + " " + sha256_file(path) + "\n";
         manifest.update(record);
+    }
+    const std::filesystem::path classical_directory =
+        table_directory.parent_path() / "j";
+    for (const std::uint64_t ell : {5U, 7U}) {
+        if (ell > max_level) {
+            continue;
+        }
+        if (load_trusted_classical_atkin_table(
+                classical_directory, ell).has_value()) {
+            const std::filesystem::path path = classical_directory /
+                ("phi_" + std::to_string(ell) + ".txt");
+            const std::string record = "classical-j-atkin " +
+                std::to_string(ell) + " " + path.filename().string() + " " +
+                sha256_file(path) + "\n";
+            manifest.update(record);
+        }
     }
     return manifest.hex_digest();
 }
@@ -1412,10 +1935,42 @@ std::string search_schedule_sha256(
     validate_digest(canonical_verifier_sha256, "canonical-verifier digest");
     Sha256 schedule;
     std::ostringstream canonical;
-    canonical << "oneshotsea.search-schedule.v1\n"
-              << "curve_generator=weber-f-montgomery-filtered-v2\n"
-              << "sea=weber-reference-two-pass-v1\n"
-              << "heuristic_rejection=disabled\n"
+    canonical << "oneshotsea.search-schedule.v1\n";
+    if (config.curve_family == SearchCurveFamily::weber_f) {
+        // Preserve the exact published default schedule identity.
+        canonical << "curve_generator=weber-f-montgomery-filtered-v2\n";
+    } else if (config.curve_family == SearchCurveFamily::x1_11) {
+        canonical << "curve_generator=" << kX111ProbeGeneratorVersion << '\n'
+                  << "curve_generator_formula_sha256="
+                  << kX111FormulaSourceSha256 << '\n'
+                  << "x1_require_point_four="
+                  << (config.x1_require_point_four ? "true" : "false")
+                  << '\n';
+    } else {
+        canonical << "curve_generator=" << kX127ProbeGeneratorVersion << '\n'
+                  << "curve_generator_formula_sha256="
+                  << kX127FormulaSourceSha256 << '\n'
+                  << "x1_require_point_four="
+                  << (config.x1_require_point_four ? "true" : "false")
+                  << '\n';
+    }
+    canonical << "trace_prior_policy="
+              << (config.curve_family == SearchCurveFamily::x1_27
+                      ? kX127TracePriorPolicy
+                      : kTracePriorPolicy)
+              << '\n'
+              << "weber_source_lift_policy=" << kWeberSourceLiftPolicy
+              << '\n'
+              << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+              << "rare_schoof_fallback="
+              << (config.enable_schoof_fallback
+                      ? kRareSchoofFallbackPolicy
+                      : "disabled")
+              << '\n'
+              << "heuristic_rejection="
+              << (config.skip_incomplete_curves ? "incomplete-only"
+                                                : "disabled")
+              << '\n'
               << "prime=" << config.prime << '\n'
               << "max_level=" << config.max_level << '\n'
               << "early_trace_cap=" << config.early_trace_cap << '\n'

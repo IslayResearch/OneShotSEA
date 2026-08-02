@@ -1,0 +1,73 @@
+{
+  "schema": "oneshotsea.polynomial-reducer-ablation.v1",
+  "date": "2026-07-31",
+  "classification": "pre-commit deterministic p125 index-1 reducer A/B; benchmark-only; no production-cursor advancement",
+  "retention": {
+    "raw_directory": "raw",
+    "limitation": "The end-to-end progress records and optimized checkpoint/log are retained. The three-run synthetic degree-301 timing streams and the baseline invocation time file were not recovered, so those reported timings remain bound to docs/benchmark_20260801.md rather than re-derived here."
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "global_index": 1,
+    "max_level": 401,
+    "trace_cap": 64,
+    "sea_threads": 10,
+    "smooth_threads": 8,
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551"
+  },
+  "change": {
+    "description": "Replace per-term field reductions in dense modular-product elimination with exact mpz_submul accumulation and one normalization per pivot/final coefficient.",
+    "optimized_binary_sha256": "de8bbf3a177b5a2c234e2ee4fbf5e8a737393cd114ca0a5263418ea41075d3ea",
+    "source_diff_sha256": "b6c6f1b75bda46be18884448a69293d8a1663a721cff7e6e217d06dc7d956fc5",
+    "optimized_build_id": "worktree:poly-opt-eval",
+    "baseline_build_id": "git:6db9b32e8d0e16d600f7ce8b488e173014954b48+binary-sha256:b9d3fe0261395f125bc53ecc5266d87eda96f4fe8d6db77ef7adc5c622e138a6"
+  },
+  "raw_sha256": {
+    "baseline_progress": "0df1f681abf12e41998b3d4aefaae525eb5d70d4bbb448a3b239efb94263f719",
+    "optimized_checkpoint": "5489f4d4bd0f8fb6498be63165faaed5abd72b5a15a8360a6c94130dcb9e7777",
+    "optimized_progress": "fb5d8c867626c9732bc21b711ee63035bac6277d464a4f5248b658823025f289",
+    "optimized_run_log": "3e4db1fabfd713b0de1cfe44eb928722ea158c82df1eead202c3da26139d88b6"
+  },
+  "synthetic_degree_301_reported": {
+    "baseline_seconds": [7.018, 6.855, 6.919],
+    "optimized_seconds": [3.337, 3.334, 3.391],
+    "baseline_median_seconds": 6.919,
+    "optimized_median_seconds": 3.337,
+    "speedup": 2.073419
+  },
+  "p125_index_1": {
+    "baseline": {
+      "modular_roots_seconds": 603.731,
+      "eigenvalue_seconds": 155.147,
+      "bmss_seconds": 10.609,
+      "normalized_codomain_seconds": 0.944,
+      "sea_seconds": 770.593588,
+      "complete_curve_seconds": 777.153120,
+      "reported_invocation_wall_seconds": 856.12
+    },
+    "optimized": {
+      "modular_roots_seconds": 223.681,
+      "eigenvalue_seconds": 59.865,
+      "bmss_seconds": 9.098,
+      "normalized_codomain_seconds": 0.865,
+      "sea_seconds": 293.640986,
+      "complete_curve_seconds": 299.917321,
+      "invocation_wall_seconds": 369.18
+    },
+    "speedup": {
+      "modular_roots": 2.699071,
+      "sea": 2.624272,
+      "complete_curve": 2.591225,
+      "reported_invocation_wall": 2.318977
+    },
+    "identical_non_timing_projection": {
+      "status": "sound_smoothness_reject",
+      "sea_levels": 60,
+      "exact_sea_levels": 31,
+      "initial_trace_count": 4,
+      "full_point_count": false,
+      "heuristic": false
+    }
+  }
+}

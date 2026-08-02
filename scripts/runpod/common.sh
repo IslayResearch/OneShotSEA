@@ -45,7 +45,11 @@ validate_uint() {
 
 validate_positive_uint() {
   validate_uint "$1" "$2"
-  [[ "$2" != 0 ]] || die "$1 must be positive"
+  [[ "$2" =~ [1-9] ]] || die "$1 must be positive"
+}
+
+is_zero_uint() {
+  [[ "$1" =~ ^0+$ ]]
 }
 
 validate_remote_root() {

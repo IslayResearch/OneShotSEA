@@ -6,10 +6,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace oneshotsea {
@@ -93,6 +95,14 @@ public:
     std::vector<CurveTwistSmoothParts> extract_curve_twist(
         std::span<const mpz_class> traces) const;
 
+    // Flatten several independent curve trace sets into one exact extraction
+    // call and restore the original request boundaries in the result.  This
+    // lets a search coordinator share the expensive full-product root
+    // reduction across curves without changing any mathematical evidence.
+    std::vector<std::vector<CurveTwistSmoothParts>>
+    extract_curve_twist_groups(
+        std::span<const std::span<const mpz_class>> trace_groups) const;
+
     // Safe to retain after the originating handle is destroyed: the returned
     // callable owns a copy of this shared immutable engine handle.
     SmoothPartExtractor extractor() const;
@@ -105,6 +115,84 @@ private:
 
     std::shared_ptr<const Data> data_;
     ExactSmoothOptions options_;
+};
+
+// Resource-only telemetry for the no-delay cross-curve coordinator. The sparse
+// histogram records the number of curve/twist orders in successful underlying
+// bounded-root scan chunks.
+struct ExactSmoothScanChunkSizeCount {
+    std::size_t order_count = 0U;
+    std::uint64_t scan_chunks = 0U;
+};
+
+struct ExactSmoothBatchTelemetry {
+    std::uint64_t submitted_requests = 0U;
+    std::uint64_t completed_requests = 0U;
+    std::uint64_t failed_requests = 0U;
+    std::uint64_t cancelled_requests = 0U;
+    std::uint64_t coordinator_batches = 0U;
+    // Bounded-root scan chunks belonging to grouped extractions that returned
+    // successfully. A failed grouped extraction contributes no scan counts,
+    // even if a lower layer completed work before throwing.
+    std::uint64_t successful_cache_scan_chunks = 0U;
+    std::uint64_t submitted_orders = 0U;
+    std::size_t max_queued_requests = 0U;
+    std::size_t max_requests_per_batch = 0U;
+    std::size_t max_orders_per_successful_scan_chunk = 0U;
+    std::vector<ExactSmoothScanChunkSizeCount>
+        successful_scan_chunks_by_order_count;
+};
+
+struct ExactSmoothBatchCoordinatorOptions {
+    // Called on the coordinator thread after a FIFO batch has been removed
+    // from the queue and immediately before its exact extraction begins.
+    // This is intended for profiling and deterministic concurrency tests;
+    // production should normally leave it empty. Because it runs on the sole
+    // worker, it must not call extract_curve_twist on, or destroy/join, the
+    // same coordinator. Calling telemetry() or cancel() is safe.
+    std::function<void(std::size_t request_count, std::size_t order_count)>
+        batch_start_callback;
+};
+
+// Serialize access to one immutable exact-smooth cache without introducing a
+// collection delay.  The first ready request starts immediately.  Requests
+// arriving during that scan remain in FIFO order; after the scan, as many
+// complete request groups as fit in max_orders_per_batch are removed
+// atomically and flattened into the next scan.
+class ExactSmoothBatchCoordinator {
+public:
+    explicit ExactSmoothBatchCoordinator(
+        ExactSmoothEngine engine,
+        ExactSmoothBatchCoordinatorOptions options = {});
+    ~ExactSmoothBatchCoordinator();
+
+    ExactSmoothBatchCoordinator(const ExactSmoothBatchCoordinator&) = delete;
+    ExactSmoothBatchCoordinator& operator=(
+        const ExactSmoothBatchCoordinator&) = delete;
+    ExactSmoothBatchCoordinator(ExactSmoothBatchCoordinator&&) = delete;
+    ExactSmoothBatchCoordinator& operator=(
+        ExactSmoothBatchCoordinator&&) = delete;
+
+    std::vector<CurveTwistSmoothParts> extract_curve_twist(
+        std::span<const mpz_class> traces) const;
+
+    // A complete exact cache is uniquely determined by its target prime and
+    // n^4 bound. Search entry points use this before doing any curve work so
+    // an accidentally supplied coordinator cannot screen with another cache.
+    bool compatible_with(const ExactSmoothEngine& engine) const;
+
+    // Stop accepting work and fail requests that have not started.  An active
+    // GMP extraction is not interruptible and is allowed to finish.  Safe to
+    // call repeatedly; the destructor performs the same cancellation and
+    // joins the coordinator thread.
+    void cancel();
+
+    ExactSmoothBatchTelemetry telemetry() const;
+
+private:
+    struct State;
+    std::shared_ptr<State> state_;
+    std::thread worker_;
 };
 
 }  // namespace oneshotsea

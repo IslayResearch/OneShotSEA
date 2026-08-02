@@ -23,6 +23,9 @@ struct ElkiesKernelResult {
 
 struct ElkiesStageTimings {
     std::size_t modular_root_workers = 0;
+    std::size_t modular_root_orbits = 0;
+    std::size_t modular_root_reused_lifts = 0;
+    bool modular_root_orbit_reuse = false;
     std::uint64_t source_lifts_us = 0;
     std::uint64_t modular_roots_us = 0;
     std::uint64_t normalized_codomain_us = 0;
@@ -31,7 +34,13 @@ struct ElkiesStageTimings {
     std::uint64_t lift_pairs = 0;
     std::uint64_t distinct_codomains = 0;
     std::uint64_t codomain_cache_hits = 0;
+    bool conjugate_eigenvalue_reuse = false;
+    // Total distinct validated kernels submitted to eigenvalue resolution.
+    // The two counters below partition these attempts; an independent
+    // recovery may still reject a candidate and produce no output kernel.
     std::uint64_t eigenvalue_attempts = 0;
+    std::uint64_t independent_eigenvalue_recoveries = 0;
+    std::uint64_t conjugate_eigenvalues_derived = 0;
 };
 
 struct WeberElkiesLevelResult {
@@ -91,7 +100,9 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
     const Curve& curve,
     const SparseModularPolynomial& weber_modular_polynomial,
     const std::vector<mpz_class>* restricted_source_lifts = nullptr,
-    std::size_t modular_root_threads = 0);
+    std::size_t modular_root_threads = 0,
+    bool enable_root_orbit_reuse = true,
+    bool enable_conjugate_eigenvalue_reuse = true);
 
 std::optional<std::uint64_t> elkies_trace_residue_weber_bmss_reference(
     const Curve& curve,

@@ -48,4 +48,19 @@ private:
 std::vector<std::uint64_t> trace_residues_from_classification(
     std::uint64_t ell, const mpz_class& prime, bool has_rational_isogeny);
 
+// Return the order in PGL(2,F_ell) of Frobenius with characteristic
+// polynomial X^2-trace_residue*X+prime.  This is the permutation-cycle
+// length on E[ell]'s cyclic subgroups in the ordinary, nonexceptional case.
+std::uint64_t projective_frobenius_order(
+    std::uint64_t ell, const mpz_class& prime,
+    std::uint64_t trace_residue);
+
+// Exact Atkin residue set implied by a certified projective Frobenius order.
+// Only nonsquare-discriminant residues are returned.  In particular, this is
+// stronger than the coarse no-rational-isogeny classification whenever the
+// order is a proper source of information within ell+1.
+std::vector<std::uint64_t> atkin_trace_residues_from_projective_order(
+    std::uint64_t ell, const mpz_class& prime,
+    std::uint64_t projective_order);
+
 }  // namespace oneshotsea

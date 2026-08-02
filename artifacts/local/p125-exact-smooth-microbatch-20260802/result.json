@@ -1,0 +1,152 @@
+{
+  "schema": "oneshotsea.p125-exact-smooth-microbatch-ab.v1",
+  "date_utc": "2026-08-02",
+  "classification": "negative same-range end-to-end p125 performance gate",
+  "host": "Apple M4 Mac mini, 10 physical cores, 16 GiB, arm64 Darwin",
+  "target": {
+    "name": "p125",
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416
+  },
+  "range": {
+    "start_inclusive": "435",
+    "end_exclusive": "445",
+    "curves_per_run": "10",
+    "already_retired_by_production": true
+  },
+  "common_configuration": {
+    "seed": "202607300000",
+    "curve_family": "x1-27",
+    "x1_require_point4": true,
+    "trace_cap": "16",
+    "max_level": "401",
+    "schoof_fallback": true,
+    "skip_incomplete_curves": false,
+    "curve_threads": "10",
+    "sea_threads": "1",
+    "smooth_threads": "1",
+    "smooth_max_batch": "128",
+    "smooth_root_auxiliary_bytes": "134217728",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5"
+  },
+  "implementations": {
+    "A_baseline": {
+      "description": "frozen production implementation with independent concurrent exact-smooth scans",
+      "source_commit": "43ca2d7468a5f1e28be0370deb4351b1c3f04d77",
+      "binary_sha256": "10eda65b36535811a43bb632dc4f95c541be2f6ab1a01ce653080447573f9a1b"
+    },
+    "B_microbatch": {
+      "description": "no-delay FIFO coordinator; first scan starts immediately and requests arriving during it are grouped subject to the 128-order cap",
+      "isolated_reviewed_commit": "12151dc1c42973ad4b0660c5591747f397d78364",
+      "preserved_patch": "candidate.patch",
+      "full_patch_sha256": "1421438a948b4ca5214893b8f90c6383cad3d032432d2a4a204a4a47cfced9a0",
+      "benchmark_binary_sha256": "1be1b4c2452edd65ce53e874da7188809de68918033e724ad8bdcdd2e650270a"
+    }
+  },
+  "benchmark_launcher": {
+    "path": "run-one.sh",
+    "sha256": "c3429e64316be415facacab86dea42a32143b52057c67be052a2301454575798"
+  },
+  "run_order": [
+    "B1",
+    "A1",
+    "A2",
+    "B2"
+  ],
+  "runs": {
+    "A1": {
+      "real_seconds": 218.90,
+      "user_seconds": 1160.44,
+      "sys_seconds": 4.48,
+      "peak_rss_bytes_from_records": "6827802624"
+    },
+    "A2": {
+      "real_seconds": 218.79,
+      "user_seconds": 1159.56,
+      "sys_seconds": 4.75,
+      "peak_rss_bytes_from_records": "6263832576"
+    },
+    "B1": {
+      "real_seconds": 277.08,
+      "user_seconds": 984.25,
+      "sys_seconds": 5.25,
+      "peak_rss_bytes_from_records": "6648676352",
+      "wrapper_note": "/usr/bin/time -l reported a sandbox-denied kern.clockrate query after the search completed; B2 used portable -p and reproduced the timing."
+    },
+    "B2": {
+      "real_seconds": 276.73,
+      "user_seconds": 985.80,
+      "sys_seconds": 5.36,
+      "peak_rss_bytes_from_records": "5802262528"
+    }
+  },
+  "means": {
+    "baseline_real_seconds": 218.845,
+    "microbatch_real_seconds": 276.905,
+    "microbatch_throughput_ratio": 0.790325202,
+    "baseline_speedup_over_microbatch": 1.265301926,
+    "microbatch_wall_regression_percent": 26.530193
+  },
+  "microbatch_telemetry_each_run": {
+    "submitted_requests": "10",
+    "completed_requests": "10",
+    "failed_requests": "0",
+    "cancelled_requests": "0",
+    "coordinator_batches": "3",
+    "successful_cache_scan_chunks": "3",
+    "submitted_orders": "78",
+    "max_queued_requests": "8",
+    "max_requests_per_batch": "8",
+    "successful_scan_chunk_size_histogram": [
+      {
+        "orders": "12",
+        "scan_chunks": "1"
+      },
+      {
+        "orders": "16",
+        "scan_chunks": "1"
+      },
+      {
+        "orders": "50",
+        "scan_chunks": "1"
+      }
+    ]
+  },
+  "correctness_projection": {
+    "jq_filter": "del(.peak_rss_bytes,.timings_us,.state)",
+    "sha256_all_four_runs": "39d84dc1db615ea2c54cd35613e6453ce280ebcfe8749137f124b57c46f03c0a",
+    "records_per_run": "10",
+    "interpretation": "Every complete non-timing curve outcome matched across both implementations and all repetitions."
+  },
+  "promotion_gate": {
+    "rule": "Require greater than 1.05x same-range end-to-end throughput with identical non-timing projections.",
+    "passed": false,
+    "decision": "Reject and remove the coordinator from production source.",
+    "reason": "Reducing 78 orders in three serialized grouped scans saved CPU work but lost more wall throughput by suppressing independent concurrent scans."
+  },
+  "review": {
+    "correctness_promotion_before_benchmark": "PASS",
+    "focused_tests": [
+      "make -j1 all test-exact-smooth test-search-pipeline test-search-checkpoint",
+      "exact-smooth stress 10/10",
+      "search-pipeline stress 5/5",
+      "targeted deterministic checkpoint/certificate, compact telemetry, and cache-auth CLI tests"
+    ],
+    "tsan": "New std::thread/mutex paths passed after narrow suppressions for pre-existing/vendor OpenMP prod_par, sieve_primes_range, and libomp reports."
+  },
+  "raw_artifact_sha256": {
+    "A1-stdout.log": "5fe6b43e6f8beef1ebbea4c2cc67dfe04089a134e8fd402f56b0ff96fd79bac5",
+    "A1-time.txt": "fb878678efab6fcbe8557ea70d55121856ccc75d92b13d8661bb806861cf7808",
+    "A1-checkpoint.json": "50300ea927a405d2374b8cb4f0e2cda1fe85fe15858e592c75288f3810d998c7",
+    "A2-stdout.log": "d8396e3874de4d057f67806ad9be4cf466174469dcf11de85c7e318e4826f01c",
+    "A2-time.txt": "e4e2540079a34dd48d457546d398ae049eaaa1788be5012f111462085154caee",
+    "A2-checkpoint.json": "74ede2248b27726d6e94e830ea2988c24e28326e08e96690b3e8c601176e60ac",
+    "B1-stdout.log": "202cd197315e2234259c415e803b5e7e9c5bf3114d6f395134530cee6d4b519b",
+    "B1-time.txt": "43f25a763483ad53ba615dbcdd49eeb41bfafcad301ec33a098bf5185565b40b",
+    "B1-checkpoint.json": "3103b65946e46c4d8d5adbd24bb493e8a45f7a779c660d6d4d7674e6c043c638",
+    "B2-stdout.log": "e56fdc1a825f0194e9e739269a4ad7c07e6909754c4ae387707cb24c0fa80b45",
+    "B2-time.txt": "954386f09946d3e331d2988251b9fe88cbb86a5d43fa73b9110afc508c918414",
+    "B2-checkpoint.json": "24796cb211251de53fb44051e3f99709ba9a48385398678d862f786a63a6e044"
+  }
+}

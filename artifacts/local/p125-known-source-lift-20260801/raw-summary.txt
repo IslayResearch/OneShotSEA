@@ -1,0 +1,23 @@
+Controlled benchmark commands (run exclusively with production paused):
+/usr/bin/time -l ./benchmark_known_lift 12 generic
+/usr/bin/time -l ./benchmark_known_lift 12 known
+/usr/bin/time -l ./benchmark_known_lift 17 generic
+/usr/bin/time -l ./benchmark_known_lift 17 known
+
+index=12 mode=generic discovered_lifts=12 retained_lifts=12 levels=59 traces=2 elapsed_us=65383303 source_lifts_us=0 modular_roots_us=41318362 bmss_us=6819486 eigenvalue_us=16325739
+time_real_seconds=66.89 time_user_seconds=66.55 time_sys_seconds=0.07
+index=12 mode=known discovered_lifts=12 retained_lifts=1 levels=59 traces=2 elapsed_us=64763793 source_lifts_us=0 modular_roots_us=41302274 bmss_us=6865953 eigenvalue_us=16388026
+time_real_seconds=66.01 time_user_seconds=65.94 time_sys_seconds=0.06
+
+index=17 mode=generic discovered_lifts=36 retained_lifts=36 levels=55 traces=1 elapsed_us=129162540 source_lifts_us=0 modular_roots_us=100456823 bmss_us=7528083 eigenvalue_us=18549855
+time_real_seconds=129.94 time_user_seconds=129.82 time_sys_seconds=0.11
+index=17 mode=known discovered_lifts=36 retained_lifts=1 levels=55 traces=1 elapsed_us=59822858 source_lifts_us=0 modular_roots_us=33536506 bmss_us=7566350 eigenvalue_us=18575122
+time_real_seconds=60.62 time_user_seconds=60.55 time_sys_seconds=0.05
+
+The complete projection printed by each paired invocation was compared in the
+captured command output. For each index the generic and known lines matched at
+every level in ell, exact/empty classification, trace residue, exact modulus,
+and exact trace-candidate count, followed by an identical final trace vector.
+
+index12_final_traces=158789009397036364992209943036479871630630618569072935400810882,543210954153135665534995545689849104697280685674429635434620402
+index17_final_traces=99665767869812870924682147829487733751548741139379532401938818

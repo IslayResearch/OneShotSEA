@@ -1,0 +1,222 @@
+{
+  "schema": "oneshotsea.p125-x1-11-trace-cap-ablation.v1",
+  "date": "2026-08-01",
+  "classification": "bounded same-build, same-curve trace-cap ablation; benchmark-only; zero certificates; no production-cursor advancement",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bit_length": 416,
+    "seed": "202607300000",
+    "curve_family": "x1-11",
+    "x1_require_point_four": true,
+    "trace_prior_modulus": 88,
+    "half_open_index_range": "[12,22)",
+    "index_order_for_all_per_index_arrays": [12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+    "observations_per_run": 10
+  },
+  "implementation_identity": {
+    "git_commit": "8c1605f0fd702260528915bde3ef52c8043acd4c",
+    "git_subject": "Seed SEA with exact family trace priors",
+    "retained_binary_path": "raw/frozen-executable/oneshotsea",
+    "binary_sha256": "feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa",
+    "build_id_emitted_by_all_runs": "git:8c1605f0fd702260528915bde3ef52c8043acd4c+binary-sha256:feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa",
+    "table_set_sha256_emitted_by_all_runs": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "smooth_cache_sha256_emitted_by_all_runs": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "verifier_sha256_emitted_by_all_runs": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+    "python_sha256_emitted_by_all_runs": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf"
+  },
+  "common_effective_configuration": {
+    "same_host": true,
+    "worker_id": 0,
+    "worker_count": 1,
+    "curve_threads": 10,
+    "sea_threads_per_curve": 1,
+    "smooth_threads_per_curve": 1,
+    "max_level": 401,
+    "smooth_max_batch": 128,
+    "smooth_root_auxiliary_bytes": 134217728,
+    "smooth_build_segment_span": 500000000,
+    "assembly_attempts": 400,
+    "max_certificate_candidates": 100000,
+    "max_candidate_search_nodes": 1000000,
+    "sea_level_telemetry": true,
+    "heuristic_rejection": false,
+    "only_intended_policy_difference": "trace_cap",
+    "note": "search-start authenticates the emitted resources. max_level and checkpoint interval one come from the audited bounded invocation because search-start does not emit them."
+  },
+  "raw_outputs": {
+    "retention_note": "The original host-local captures are now retained byte-for-byte under raw/. Original paths remain provenance only; retained paths, byte sizes, line counts, SHA-256 digests, and checkpoint CRC64 values pin every capture.",
+    "cap64": {
+      "schedule_sha256": "8a7b2af7e867ba662aabf014c18a45a510f711be878e20765974b2a4f5962ce8",
+      "checkpoint": {"retained_path":"raw/cap64/checkpoint.json","path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/checkpoint.json","bytes":927,"lines":1,"sha256":"b725c26a8b1b699916a205ac3e6d01dda2d21b6452229dc59b157fd3b379f9f1","crc64_ecma":"8e574701502c80ea"},
+      "progress": {"retained_path":"raw/cap64/progress.ndjson","path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/progress.ndjson","bytes":447438,"lines":10,"sha256":"b97f7a1a7f80329386ec42c0a8e146bf5bb6c2c8b12a1c212668c63f0d15e160"},
+      "run_log": {"retained_path":"raw/cap64/run.log","path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/run.log","bytes":912898,"lines":595,"sha256":"3c7664d015f4273d71a3d3412392a934c9d0d01a59e058bed9aa6522c19dc768"}
+    },
+    "cap32": {
+      "schedule_sha256": "3e92af9f6900c8745b7e4d37a9121c35411c1029c8d935d1d31d3c21ff2176b6",
+      "checkpoint": {"retained_path":"raw/cap32/checkpoint.json","path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/checkpoint.json","bytes":927,"lines":1,"sha256":"e3d2d1f653c7c299e9ef333e28953fff032f5a58b3a1afa0a93c5118132a82d9","crc64_ecma":"d585c3e820410941"},
+      "progress": {"retained_path":"raw/cap32/progress.ndjson","path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/progress.ndjson","bytes":447446,"lines":10,"sha256":"76a78487822c08beacc225dff278b44a16ab01f024882ee44011ced84769f8e8"},
+      "run_log": {"retained_path":"raw/cap32/run.log","path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/run.log","bytes":912914,"lines":595,"sha256":"76e433c7d7fa9a3728cc4322a82374d879459c41dd56db8063e86806e64c00c8"}
+    },
+    "cap16": {
+      "schedule_sha256": "b569f8ff0b481f9c3c63feeb71505fc0794ad753737a2a11020defaebb9a9eb2",
+      "checkpoint": {"retained_path":"raw/cap16/checkpoint.json","path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/checkpoint.json","bytes":927,"lines":1,"sha256":"7d4e66e8b27e35519ac96861376df44b073a3905763cb201e4bdd4b53d8c1e1f","crc64_ecma":"9c942eba75c9c596"},
+      "progress": {"retained_path":"raw/cap16/progress.ndjson","path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/progress.ndjson","bytes":449944,"lines":10,"sha256":"e5fc1ab3772345c820ba74991ce7a0b3e165e9e1ea5324accafdfbea60c96695"},
+      "run_log": {"retained_path":"raw/cap16/run.log","path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/run.log","bytes":917857,"lines":598,"sha256":"decda01bb5e911af185af3817ae954fc851674d72a477cd6fe706c68b9db5c0e"}
+    },
+    "cap1": {
+      "schedule_sha256": "64871580c91e40c7cff0a25f497feaf8883ee5322acabac82f4f2e9e5ef40a22",
+      "checkpoint": {"retained_path":"raw/cap1/checkpoint.json","path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/checkpoint.json","bytes":928,"lines":1,"sha256":"2d06331683f9fb7f88c7c2a80d7b849414ad162eb07a2aacda1baecbc737947c","crc64_ecma":"697314e138bedba5"},
+      "progress": {"retained_path":"raw/cap1/progress.ndjson","path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/progress.ndjson","bytes":458303,"lines":10,"sha256":"4c51552f3584ae9f856bb0899e79bc2f85ec6275a856d825b259317bf80d392d"},
+      "run_log": {"retained_path":"raw/cap1/run.log","path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/run.log","bytes":935035,"lines":609,"sha256":"b6f1c161cf481d5f3a7cbc9d1168e220ab9ffc4497c41362afc1e306bc7c33f2"}
+    }
+  },
+  "runs": {
+    "cap64": {
+      "trace_cap": 64,
+      "schedule_sha256": "8a7b2af7e867ba662aabf014c18a45a510f711be878e20765974b2a4f5962ce8",
+      "invocation_seconds": {"real":272.19,"user":1727.19,"sys":5.01},
+      "aggregate_timings_us": {"generation":22536363,"sea":1186395751,"smoothness":469073401,"candidate":0,"assembly":0,"verifier":0,"total":1678005564},
+      "aggregate_counts": {"sea_levels":581,"exact_sea_levels":301,"atkin_sea_levels":11,"initial_trace_candidates":97,"full_point_counts":5,"sound_smoothness_rejections":10,"certificates_found":0},
+      "peak_rss_bytes": 6659440640,
+      "peak_rss_gib": 6.202087,
+      "per_index": {
+        "generation_us":[1778249,3234612,795814,1234523,6422718,1013637,749864,951613,1117676,5237657],
+        "sea_us":[106141721,88722721,100857668,120547704,102542390,190082989,126902426,101115563,96942491,152540078],
+        "smoothness_us":[26851978,95343261,20480178,84233553,19855668,13613415,66823228,20575490,104514509,16782121],
+        "total_us":[134771951,187300598,122133664,206015786,128820783,204710047,194475523,122642674,202574679,174559859],
+        "sea_levels":[59,53,57,62,57,55,61,57,54,66],
+        "exact_sea_levels":[31,29,32,29,30,31,28,30,30,31],
+        "atkin_sea_levels":[1,2,0,2,2,0,2,1,1,0],
+        "initial_trace_candidates":[2,23,1,23,1,1,14,1,30,1],
+        "trace":[null,null,"-7952673749351051315126464519955208459106635488982411504606318",null,"-531585336259108088228571380022701927236407943933387949771950866","99665767869812870924682147829487733751548741139379532401938818",null,"208059643158210255490274397097617224884597080723017630315343198",null,"-427801753843083594430043012708493834662402083698607820363681778"],
+        "full_point_count":[false,false,true,false,true,true,false,true,false,true],
+        "peak_rss_bytes":[6659440640,6659440640,6659440640,6659440640,6659440640,6659440640,6659440640,6659440640,6659440640,6659440640],
+        "status":["sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject"]
+      }
+    },
+    "cap32": {
+      "trace_cap": 32,
+      "schedule_sha256": "3e92af9f6900c8745b7e4d37a9121c35411c1029c8d935d1d31d3c21ff2176b6",
+      "invocation_seconds": {"real":271.95,"user":1726.24,"sys":5.27},
+      "aggregate_timings_us": {"generation":23177756,"sea":1188911230,"smoothness":469760222,"candidate":0,"assembly":0,"verifier":0,"total":1681849259},
+      "aggregate_counts": {"sea_levels":581,"exact_sea_levels":301,"atkin_sea_levels":11,"initial_trace_candidates":97,"full_point_counts":5,"sound_smoothness_rejections":10,"certificates_found":0},
+      "peak_rss_bytes": 6144098304,
+      "peak_rss_gib": 5.722137,
+      "per_index": {
+        "generation_us":[1762669,3324630,790741,1240495,6833993,1057071,745853,986990,1121589,5313725],
+        "sea_us":[106414753,90116916,101379224,120440483,102235504,190210915,126832944,101843993,96341431,153095067],
+        "smoothness_us":[26000891,95406249,20291348,84671198,20190837,13615471,67030544,20751794,104942219,16859671],
+        "total_us":[134178320,188847800,122461318,206352182,129260340,204883463,194609345,123582781,202405242,175268468],
+        "sea_levels":[59,53,57,62,57,55,61,57,54,66],
+        "exact_sea_levels":[31,29,32,29,30,31,28,30,30,31],
+        "atkin_sea_levels":[1,2,0,2,2,0,2,1,1,0],
+        "initial_trace_candidates":[2,23,1,23,1,1,14,1,30,1],
+        "trace":[null,null,"-7952673749351051315126464519955208459106635488982411504606318",null,"-531585336259108088228571380022701927236407943933387949771950866","99665767869812870924682147829487733751548741139379532401938818",null,"208059643158210255490274397097617224884597080723017630315343198",null,"-427801753843083594430043012708493834662402083698607820363681778"],
+        "full_point_count":[false,false,true,false,true,true,false,true,false,true],
+        "peak_rss_bytes":[6143033344,6144098304,6144098304,6144098304,6144098304,6144098304,6144098304,6144098304,6144098304,6144098304],
+        "status":["sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject"]
+      }
+    },
+    "cap16": {
+      "trace_cap": 16,
+      "schedule_sha256": "b569f8ff0b481f9c3c63feeb71505fc0794ad753737a2a11020defaebb9a9eb2",
+      "invocation_seconds": {"real":260.34,"user":1485.25,"sys":5.01},
+      "aggregate_timings_us": {"generation":23200328,"sea":1190361230,"smoothness":221979286,"candidate":0,"assembly":0,"verifier":0,"total":1435540890},
+      "aggregate_counts": {"sea_levels":584,"exact_sea_levels":304,"atkin_sea_levels":11,"initial_trace_candidates":24,"full_point_counts":8,"sound_smoothness_rejections":10,"certificates_found":0},
+      "peak_rss_bytes": 5886689280,
+      "peak_rss_gib": 5.482407,
+      "per_index": {
+        "generation_us":[1752263,3322124,788390,1241517,6733949,1058123,729150,986847,1157797,5430168],
+        "sea_us":[106352687,96420714,100695302,129076474,101585074,179589653,125909966,101385406,103059691,146286263],
+        "smoothness_us":[24202776,20395548,20713358,13940369,19584726,13329677,55499238,20476713,20202092,13634789],
+        "total_us":[132307729,120138390,122197056,144258365,127903752,193977460,182138358,122848971,124419584,165351225],
+        "sea_levels":[59,54,57,63,57,55,61,57,55,66],
+        "exact_sea_levels":[31,30,32,30,30,31,28,30,31,31],
+        "atkin_sea_levels":[1,2,0,2,2,0,2,1,1,0],
+        "initial_trace_candidates":[2,1,1,1,1,1,14,1,1,1],
+        "trace":[null,"567016778891909917705145656495221226416994076949916870726764786","-7952673749351051315126464519955208459106635488982411504606318","-230860316762056466823182699231398486004465136514916283324300850","-531585336259108088228571380022701927236407943933387949771950866","99665767869812870924682147829487733751548741139379532401938818",null,"208059643158210255490274397097617224884597080723017630315343198","-453385224526284683583843661756500519681024211920542947346864898","-427801753843083594430043012708493834662402083698607820363681778"],
+        "full_point_count":[false,true,true,true,true,true,false,true,true,true],
+        "peak_rss_bytes":[5886689280,5886689280,5886689280,5886689280,5886689280,5886689280,5886689280,5886689280,5886689280,5886689280],
+        "status":["sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject"]
+      }
+    },
+    "cap1": {
+      "trace_cap": 1,
+      "schedule_sha256": "64871580c91e40c7cff0a25f497feaf8883ee5322acabac82f4f2e9e5ef40a22",
+      "invocation_seconds": {"real":260.30,"user":1500.67,"sys":4.83},
+      "aggregate_timings_us": {"generation":23252018,"sea":1255524223,"smoothness":172244932,"candidate":0,"assembly":0,"verifier":0,"total":1451021218},
+      "aggregate_counts": {"sea_levels":595,"exact_sea_levels":309,"atkin_sea_levels":11,"initial_trace_candidates":10,"full_point_counts":10,"sound_smoothness_rejections":10,"certificates_found":0},
+      "peak_rss_bytes": 5926764544,
+      "peak_rss_gib": 5.519730,
+      "per_index": {
+        "generation_us":[1820462,3369445,782938,1251303,6731816,1037448,799193,996095,1172788,5290530],
+        "sea_us":[116925431,96665025,100885792,151213055,111307990,180187262,138540061,108415135,102990200,148394272],
+        "smoothness_us":[18013551,21166703,20567742,13661829,18178560,13261993,13668553,19601077,20493738,13631186],
+        "total_us":[136759448,121201177,122236478,166126192,136218370,194486707,153007812,129012311,124656732,167315991],
+        "sea_levels":[60,54,57,68,58,55,64,58,55,66],
+        "exact_sea_levels":[32,30,32,31,31,31,29,31,31,31],
+        "atkin_sea_levels":[1,2,0,2,2,0,2,1,1,0],
+        "initial_trace_candidates":[1,1,1,1,1,1,1,1,1,1],
+        "trace":["543210954153135665534995545689849104697280685674429635434620402","567016778891909917705145656495221226416994076949916870726764786","-7952673749351051315126464519955208459106635488982411504606318","-230860316762056466823182699231398486004465136514916283324300850","-531585336259108088228571380022701927236407943933387949771950866","99665767869812870924682147829487733751548741139379532401938818","34238702692748005928216607504774385228121332067558814079514574","208059643158210255490274397097617224884597080723017630315343198","-453385224526284683583843661756500519681024211920542947346864898","-427801753843083594430043012708493834662402083698607820363681778"],
+        "full_point_count":[true,true,true,true,true,true,true,true,true,true],
+        "peak_rss_bytes":[5926764544,5926764544,5926764544,5926764544,5926764544,5926764544,5926764544,5926764544,5926764544,5926764544],
+        "status":["sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject","sound_smoothness_reject"]
+      }
+    }
+  },
+  "paired_validation": {
+    "same_generator_rejections_all_four_runs": true,
+    "generator_rejections_by_index": [87,148,27,47,308,36,28,46,63,251],
+    "same_signed_trace_priors_all_four_runs": true,
+    "trace_prior_residue_by_index": [82,82,82,6,6,82,6,6,6,6],
+    "cap64_cap32_identical_mathematical_stopping_all_10": true,
+    "cap64_cap32_compared_fields": ["status","outcome_class","sound_early_abort","full_point_count","reached_smoothness","generator_rejections","trace_prior","sea_passes","sea_levels","exact_sea_levels","atkin_sea_levels","initial_trace_count","trace","candidate_attempts","candidate_search_nodes","assembly_calls","canonical_rejections"],
+    "cap64_cap32_common_sea_levels": 581,
+    "cap64_cap32_common_sea_level_mismatches": 0,
+    "all_overlapping_exact_traces_equal_across_runs": true,
+    "all_28_emitted_exact_traces_match_signed_prior_mod_88": true,
+    "atkin_level_vector_identical_all_four_runs": true,
+    "all_statuses": "sound_smoothness_reject",
+    "all_runs_complete_at_next_index_22": true,
+    "all_runs_range_exhausted": true,
+    "all_runs_certificates_found": 0,
+    "raw_sha256_byte_sizes_and_line_counts_rechecked": true
+  },
+  "comparison": {
+    "wall": {
+      "seconds_per_curve": {"cap64":27.219,"cap32":27.195,"cap16":26.034,"cap1":26.030},
+      "curves_per_second": {"cap64":0.036739043,"cap32":0.036771465,"cap16":0.038411308,"cap1":0.038417211},
+      "cap16_over_cap64_throughput_ratio": 1.045517400,
+      "cap16_vs_cap64_real_reduction_seconds": 11.85,
+      "cap16_vs_cap64_real_reduction_fraction": 0.043535765,
+      "cap1_vs_cap16_real_reduction_seconds": 0.04,
+      "cap1_vs_cap16_real_reduction_fraction": 0.000153645
+    },
+    "work": {
+      "cap16_vs_cap64_initial_trace_candidates": {"cap64":97,"cap16":24,"reduction":73,"reduction_fraction":0.752577320},
+      "cap16_vs_cap64_aggregate_total_us": {"cap64":1678005564,"cap16":1435540890,"reduction":242464674,"reduction_fraction":0.144495751,"baseline_over_cap16_ratio":1.168901266},
+      "cap16_vs_cap64_aggregate_smoothness_us": {"cap64":469073401,"cap16":221979286,"reduction":247094115,"reduction_fraction":0.526770681},
+      "cap16_vs_cap64_sea_levels": {"cap64":581,"cap16":584,"increase":3},
+      "cap1_vs_cap16_aggregate_total_us": {"cap16":1435540890,"cap1":1451021218,"increase":15480328,"increase_fraction":0.010783620},
+      "cap1_vs_cap16_sea_us": {"cap16":1190361230,"cap1":1255524223,"increase":65162993},
+      "cap1_vs_cap16_smoothness_us": {"cap16":221979286,"cap1":172244932,"reduction":49734354}
+    }
+  },
+  "selected_policy": {
+    "trace_cap": 16,
+    "basis": "Cap 16 is the measured knee. It is 1.0455x faster in whole-wave wall throughput than cap 64, reduces retained trace candidates from 97 to 24, and lowers summed concurrent curve time by 14.45%. Cap 1 is only 0.04 seconds faster over the fixed ten-curve wave, a noise-scale 0.015%, while requiring 11 more SEA levels and 1.08% more summed curve time than cap 16.",
+    "production_interpretation": "A ten-curve range with curve_threads=10 is one fixed initial wave and never exercises rolling refill. Long production continuously refills freed slots, so the cap-16 advantage in summed task work is operationally relevant even though cap 1 tied it in this single-wave wall measurement."
+  },
+  "time_wrapper_note": {
+    "wrapper": "/usr/bin/time -l",
+    "diagnostic_in_all_four_logs": "time: sysctl kern.clockrate: Operation not permitted",
+    "interpretation": "The blocked post-run macOS sysctl does not indicate an incomplete search: all logs contain complete summaries, all checkpoints end at next_index 22, and real/user/sys times were printed. Peak RSS comes from search progress."
+  },
+  "limitations": [
+    "Each run is a single ten-curve wave with exactly ten curve threads. Its wall time is dominated by the slowest overlapping work and does not directly measure steady-state rolling throughput.",
+    "Summed per-curve total_us is concurrent task time, not invocation wall time. It is useful for comparing work and rolling-pool pressure but still includes contention and host-load effects.",
+    "Ten curves are too few for a confidence interval. The 0.04-second cap-1 wall advantage over cap 16 is treated as noise, not evidence of superior throughput.",
+    "All forty observations ended in sound smoothness rejection and produced zero certificates, so this ablation measures search work and stopping behavior rather than empirical certificate yield.",
+    "These bounded checkpoints are not production continuation authority."
+  ]
+}

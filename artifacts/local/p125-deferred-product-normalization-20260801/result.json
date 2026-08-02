@@ -1,0 +1,100 @@
+{
+  "schema": "oneshotsea.deferred-product-normalization-ab.v1",
+  "date": "2026-08-01",
+  "classification": "bounded local paired benchmark; production paused at authenticated next_index 90; no search cursor advanced",
+  "host": "Apple M4, 10 cores, 16 GiB",
+  "change": "delete the redundant raw-convolution normalization loop before reduce_product_coefficients in mulmod and squaremod",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "curve_family": "x1-11",
+    "index": 17,
+    "known_source_lift": true,
+    "max_level": 401,
+    "trace_cap": 16,
+    "sea_threads": 1
+  },
+  "build": {
+    "benchmark_source_sha256": "a13766e3eb5428686b51e6fdfd1e605d7fb1720a7a8fcaf2e8ac8cdad3ac85c1",
+    "baseline_library_sha256": "dc31479ff45e00e6bbc6342d49cfd35d7ad65c7f4e6934017f32fe5c4fc1baf2",
+    "baseline_benchmark_binary_sha256": "64fee7552476b2c352da14013823e288acddaf0423ecf50ca914f87f3281d73f",
+    "patched_benchmark_binary_sha256": "25e82b3917d630e08e8c779dde834c50164ab8a04802dd1e82f1059d7a6ac61b",
+    "patched_library_sha256_at_benchmark": "faf835ee350ddfb02a2089bf0dbdb25c648a7c5823b62550bd7bc339efd8f5dc",
+    "patched_poly_source_sha256": "c8bc91e8ac39053c0544b0b4e68e6c30cff1da14575d3b980a2b89c91c0b36e1",
+    "expanded_core_test_sha256": "28fe485abbe7a12e7e0b4807c9d63756767fec59925944b11324f580b398e509"
+  },
+  "runs": [
+    {
+      "pair": 1,
+      "mode": "baseline",
+      "elapsed_us": 59567856,
+      "modular_roots_us": 33437939,
+      "bmss_us": 7435323,
+      "eigenvalue_us": 18551084,
+      "external_real_seconds": 60.62
+    },
+    {
+      "pair": 1,
+      "mode": "patched",
+      "elapsed_us": 57728088,
+      "modular_roots_us": 32327699,
+      "bmss_us": 7527036,
+      "eigenvalue_us": 17739451,
+      "external_real_seconds": 58.69
+    },
+    {
+      "pair": 2,
+      "mode": "baseline",
+      "elapsed_us": 60316049,
+      "modular_roots_us": 33832434,
+      "bmss_us": 7585093,
+      "eigenvalue_us": 18752097,
+      "external_real_seconds": 61.13
+    },
+    {
+      "pair": 2,
+      "mode": "patched",
+      "elapsed_us": 58125673,
+      "modular_roots_us": 32454790,
+      "bmss_us": 7654711,
+      "eigenvalue_us": 17881208,
+      "external_real_seconds": 58.83
+    }
+  ],
+  "means": {
+    "baseline_elapsed_us": 59941952.5,
+    "patched_elapsed_us": 57926880.5,
+    "elapsed_speedup": 1.034786475339372,
+    "elapsed_reduction": 0.033617056434723236,
+    "baseline_modular_roots_us": 33635186.5,
+    "patched_modular_roots_us": 32391244.5,
+    "modular_root_speedup": 1.0384036494800315,
+    "baseline_eigenvalue_us": 18651590.5,
+    "patched_eigenvalue_us": 17810329.5,
+    "eigenvalue_speedup": 1.047234443360523
+  },
+  "exact_equivalence": {
+    "level_count": 55,
+    "final_trace_count": 1,
+    "ell_sequence": true,
+    "exact_classification": true,
+    "trace_residues": true,
+    "exact_moduli": true,
+    "trace_candidate_counts": true,
+    "final_trace_vector": true,
+    "projection_sha256": "22b0daab7318b737f93bf44c3ba57006ad9a2a76e86ed308ae84d57827631e27"
+  },
+  "tests": {
+    "karatsuba_threshold_and_p125_degrees": true,
+    "product_below_modulus_degree": true,
+    "nonmonic_dense_near_prime": true,
+    "high_degree_operand_pre_reduction": true,
+    "strongly_unbalanced_shape": true,
+    "alias_and_degenerate_moduli": true,
+    "focused_core_test": "passed"
+  },
+  "raw": {
+    "summary": "raw-summary.txt",
+    "summary_sha256": "08264a94fe131087d0b404b0cfafeebd4587d01fed9462f37d244ad9888c39ec"
+  }
+}

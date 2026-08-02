@@ -41,7 +41,9 @@ fails before SEA.
 ### 0.2 Custom SEA and specialized modular-polynomial path
 
 The point counter is project-native C++20 with exact GMP-backed field and
-polynomial arithmetic; production does not call Magma, Sage, PARI, FLINT, or
+polynomial arithmetic; balanced dense products use an exact limb-aligned
+Kronecker convolution above their measured crossover, with Karatsuba and
+schoolbook fallbacks. Production does not call Magma, Sage, PARI, FLINT, or
 another point counter.  Startup authenticates the complete 77-level Weber-f
 table set through prime level 401, including exact filenames, byte counts, and
 SHA-256 values.  Each admitted curve begins from its validated retained Weber

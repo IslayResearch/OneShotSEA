@@ -138,10 +138,10 @@ def stable_code_payload(code: types.CodeType) -> tuple[Any, ...]:
         code.co_varnames,
         code.co_filename,
         code.co_name,
-        code.co_qualname,
+        getattr(code, "co_qualname", code.co_name),
         code.co_firstlineno,
-        code.co_linetable,
-        code.co_exceptiontable,
+        getattr(code, "co_linetable", getattr(code, "co_lnotab", b"")),
+        getattr(code, "co_exceptiontable", b""),
         code.co_freevars,
         code.co_cellvars,
     )
@@ -158,7 +158,7 @@ def loaded_module_code_digest(module: types.ModuleType) -> str:
     for name, function in sorted(functions):
         value.update(name.encode("utf-8"))
         value.update(b"\0")
-        value.update(marshal.dumps(stable_code_payload(function.__code__)))
+        value.update(marshal.dumps(stable_code_payload(function.__code__), 2))
     return value.hexdigest()
 
 
@@ -166,7 +166,7 @@ def source_module_code_digest(path: Path, _module_name: str = "") -> str:
     """Digest the complete compiled module code without executing the source."""
     source = path.read_bytes()
     code = compile(source, str(path), "exec")
-    return hashlib.sha256(marshal.dumps(stable_code_payload(code))).hexdigest()
+    return hashlib.sha256(marshal.dumps(stable_code_payload(code), 2)).hexdigest()
 
 
 def directory_tree_identity(root: Path) -> dict[str, int | str]:

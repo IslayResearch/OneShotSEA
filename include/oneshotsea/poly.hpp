@@ -28,6 +28,25 @@ public:
     Poly monic() const;
 
 private:
+    struct NormalizedCoefficientsTag {};
+
+    // Selected internal arithmetic results have already been reduced
+    // coefficient by coefficient into [0,p). Preserve that proof boundary so
+    // hot paths can trim the representation without normalizing and copying
+    // it again.
+    Poly(const Field& field, std::vector<mpz_class> coefficients,
+         NormalizedCoefficientsTag);
+
+    friend Poly mulmod(const Poly& lhs, const Poly& rhs,
+                       const Poly& modulus);
+    friend Poly squaremod(const Poly& value, const Poly& modulus);
+    friend Poly add(const Poly& lhs, const Poly& rhs);
+    friend Poly sub(const Poly& lhs, const Poly& rhs);
+    friend Poly neg(const Poly& value);
+    friend Poly scalar_mul(const Poly& value, const mpz_class& scalar);
+    friend std::pair<Poly, Poly> divmod(const Poly& numerator,
+                                       const Poly& denominator);
+
     // Own the immutable field context so a polynomial cannot outlive it.
     Field field_;
     std::vector<mpz_class> coefficients_;

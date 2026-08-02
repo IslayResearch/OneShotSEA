@@ -42,10 +42,10 @@ def stable_code_payload(code: types.CodeType) -> tuple[object, ...]:
         code.co_varnames,
         code.co_filename,
         code.co_name,
-        code.co_qualname,
+        getattr(code, "co_qualname", code.co_name),
         code.co_firstlineno,
-        code.co_linetable,
-        code.co_exceptiontable,
+        getattr(code, "co_linetable", getattr(code, "co_lnotab", b"")),
+        getattr(code, "co_exceptiontable", b""),
         code.co_freevars,
         code.co_cellvars,
     )
@@ -53,7 +53,7 @@ def stable_code_payload(code: types.CodeType) -> tuple[object, ...]:
 
 def loaded_bootstrap_code_digest() -> str:
     return hashlib.sha256(
-        marshal.dumps(stable_code_payload(LOADED_MODULE_CODE))
+        marshal.dumps(stable_code_payload(LOADED_MODULE_CODE), 2)
     ).hexdigest()
 
 

@@ -139,12 +139,12 @@ void check_thresholded_products(const oneshotsea::Field& field,
 void test_thresholded_polynomial_products() {
     const oneshotsea::Field small_field(1009);
     for (const std::size_t size :
-         {1U, 2U, 17U, 31U, 32U, 33U, 47U, 64U, 65U, 97U}) {
+         {1U, 2U, 17U, 31U, 32U, 33U, 47U, 48U, 64U, 65U, 97U}) {
         check_thresholded_products(small_field, size);
     }
     const oneshotsea::Field large_field(target_prime());
-    for (const std::size_t size : {31U, 32U, 33U, 47U, 64U, 97U, 129U,
-                                   194U}) {
+    for (const std::size_t size : {31U, 32U, 33U, 47U, 48U, 64U, 97U,
+                                   129U, 194U}) {
         check_thresholded_products(large_field, size);
     }
 
@@ -292,6 +292,18 @@ void test_polynomial() {
                                           repeated_factor_modulus)),
               "sliding-window powmod is exact in a nonmonic repeated-factor quotient");
     }
+
+    const oneshotsea::Field p125_field(p125);
+    const oneshotsea::Poly high_degree_pow_base =
+        dense_polynomial(p125_field, 65U, UINT64_C(0x706f776261736536));
+    const oneshotsea::Poly high_degree_pow_modulus =
+        dense_polynomial(p125_field, 66U, UINT64_C(0x706f776d6f643635));
+    check(oneshotsea::equal(
+              oneshotsea::powmod(high_degree_pow_base, p125,
+                                 high_degree_pow_modulus),
+              binary_powmod_reference(high_degree_pow_base, p125,
+                                      high_degree_pow_modulus)),
+          "sliding-window powmod matches binary in a degree-65 p125 quotient");
 
     const oneshotsea::Poly constant_modulus =
         oneshotsea::Poly::constant(field, 7);

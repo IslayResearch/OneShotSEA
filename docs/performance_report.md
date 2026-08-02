@@ -484,6 +484,18 @@ acceleration remains disabled; no GPU speedup, cost efficiency, or batch-size
 claim is justified until a homogeneous multi-limb kernel improves end-to-end
 curve throughput against this CPU baseline.
 
+An exact limb-aligned Kronecker convolution now handles balanced polynomial
+products and squares from 48 coefficients.  Same-source reverse-order p125
+brackets improved degree-194 and degree-401 quotient Frobenius by 1.16986x and
+1.17477x.  A full deterministic 55-level SEA replay improved the SEA subtotal
+from 54.405483 to 46.688214 seconds (1.16529x); every baseline and candidate
+projection had identical SHA-256
+`8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6`.
+The full bracket experienced host-load drift and therefore uses paired means;
+the isolated Frobenius brackets are cleaner kernel evidence.  This is an SEA
+throughput result, not yet a new multi-curve search-throughput or yield result.
+See [the packed-convolution audit](kronecker_convolution.md).
+
 Source: [AWS benchmark](aws_benchmark_20260801.md), [AWS operations](aws.md), and [RunPod operations](runpod.md).
 
 ## 7. Certificate-yield feasibility

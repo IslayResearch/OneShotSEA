@@ -18,8 +18,8 @@ Implementation and the real `p125` search are in progress; no certificate is
 claimed until the unmodified pinned verifier accepts it. The repository
 currently includes:
 
-- a portable GMP-backed finite-field layer with thresholded Karatsuba product
-  and specialized square recurrences, exact-cost windowed quotient
+- a portable GMP-backed finite-field layer with thresholded exact packed,
+  Karatsuba, and specialized-square convolution, exact-cost windowed quotient
   exponentiation, native Schoof reference, and independent Python/Magma
   oracle paths;
 - polynomial-subring Frobenius eigenvalue powers with a retained general

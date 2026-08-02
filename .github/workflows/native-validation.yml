@@ -23,10 +23,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pack exact source snapshot
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgmp-dev
+
+      - name: Build current-main benchmark baseline
+        run: |
+          make -j2 build/benchmark_p125_poly_trusted
+          cp build/benchmark_p125_poly_trusted /tmp/benchmark-p125-baseline
+
+      - name: Apply polynomial hot-path candidate
+        run: |
+          git apply --check tools/poly-hotpath-candidate.patch
+          git apply tools/poly-hotpath-candidate.patch
+          git diff --check
+          make clean
+
+      - name: Pack exact candidate source snapshot
         run: tar --exclude=.git -czf /tmp/oneshotsea-source.tgz .
 
-      - name: Upload exact source snapshot
+      - name: Upload exact candidate source snapshot
         uses: actions/upload-artifact@v4
         with:
           name: oneshotsea-source-${{ github.sha }}
@@ -34,13 +51,8 @@ jobs:
           compression-level: 0
           retention-days: 1
 
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgmp-dev
-
-      - name: Build
-        run: make -j2
+      - name: Build candidate
+        run: make -j2 all build/benchmark_p125_poly_trusted
 
       - name: Run portable native and reference tests
         run: |
@@ -65,3 +77,29 @@ jobs:
           make test-exact-smooth
           make test-search-checkpoint
           make test-search-pipeline
+
+      - name: Run exact interleaved p125 polynomial A/B
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_case() {
+            local label="$1"
+            local binary="$2"
+            local degree="$3"
+            local sequence="$4"
+            "$binary" frobenius "$degree" 1 \
+              > "/tmp/${degree}-${sequence}-${label}.out" \
+              2> "/tmp/${degree}-${sequence}-${label}.err"
+            printf '%s degree=%s sequence=%s ' "$label" "$degree" "$sequence"
+            grep '^timing.elapsed_us=' "/tmp/${degree}-${sequence}-${label}.err"
+            sha256sum "/tmp/${degree}-${sequence}-${label}.out"
+          }
+          for degree in 194 277; do
+            run_case baseline /tmp/benchmark-p125-baseline "$degree" 1
+            run_case candidate ./build/benchmark_p125_poly_trusted "$degree" 1
+            run_case candidate ./build/benchmark_p125_poly_trusted "$degree" 2
+            run_case baseline /tmp/benchmark-p125-baseline "$degree" 2
+            cmp "/tmp/${degree}-1-baseline.out" "/tmp/${degree}-1-candidate.out"
+            cmp "/tmp/${degree}-1-baseline.out" "/tmp/${degree}-2-candidate.out"
+            cmp "/tmp/${degree}-1-baseline.out" "/tmp/${degree}-2-baseline.out"
+          done

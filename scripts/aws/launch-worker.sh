@@ -178,11 +178,12 @@ then
   die '--smooth-coordinators may not exceed --curve-threads'
 fi
 validate_uint wall-time-limit-seconds "$wall_time_limit_seconds"
-if [[ "$run_kind" == benchmark && "$max_curves" == 0 &&
-      "$wall_time_limit_seconds" == 0 ]]; then
+if [[ "$run_kind" == benchmark ]] && is_zero_uint "$max_curves" &&
+    is_zero_uint "$wall_time_limit_seconds"; then
   die 'benchmark runs require positive --max-curves or --wall-time-limit-seconds'
 fi
-if [[ "$run_kind" == production && "$wall_time_limit_seconds" == 0 ]]; then
+if [[ "$run_kind" == production ]] &&
+    is_zero_uint "$wall_time_limit_seconds"; then
   die 'production runs require a positive --wall-time-limit-seconds for fetch margin'
 fi
 [[ "$table_dir" =~ ^[A-Za-z0-9._/+~-]+$ && "$table_dir" != /* ]] ||

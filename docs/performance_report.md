@@ -213,6 +213,15 @@ throughput ratio.  The 128-order fixture deliberately repeats two orders and
 the observations are from separate invocations, so this is **not** presented
 as a controlled 9.5x search speedup.
 
+Cache construction now combines segment products through a binary-carry
+product forest instead of multiplying every new segment into the entire
+accumulator. On a same-host 61-bit setup fixture deliberately split into 139
+segments, wall time fell from 2.76 to 0.63 seconds (4.381x). The old and new
+portable caches were byte-identical. This isolates the former unbalanced-merge
+cost; the machine was concurrently loaded and the small target is not a p125
+wall-time projection. The [retained setup microbenchmark](../artifacts/local/p61-smooth-product-forest-20260802/result.json)
+binds both binaries, source, commands, timings, and cache digests.
+
 ### Rolling shared-cache curve window
 
 Production can now keep a rolling, ordered window of complete curves in flight
@@ -663,6 +672,9 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence
   are in [the AWS benchmark](aws_benchmark_20260801.md).
+- The RunPod CPU worker identity, cpuset, rate, exact command, matched SEA
+  state, timing, and cross-commit comparison boundary are in
+  [the 2026-08-02 RunPod CPU benchmark](runpod_cpu_benchmark_20260802.md).
 
 Timings from different commits are not combined into speedups.  A projected
 time is labeled as such.  A table footprint, eliminated operation count, or

@@ -1,0 +1,23 @@
+	Command being timed: "build/oneshotsea sea-weber-count --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 --a 82574189722949072957728522659737830385005094873485824210996693879529527019787746889866491875855403894941918864621858709713497 --b 88382793148632715305152348439825220256670063248990549473997795919686351346525164593244327917236935929961279243081239139809077 --max-level 193 --trace-cap 64 --table-dir data/modpoly/weber_f --sea-threads 16"
+	User time (seconds): 31.04
+	System time (seconds): 0.01
+	Percent of CPU this job got: 99%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:31.08
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 6164
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 874
+	Voluntary context switches: 43
+	Involuntary context switches: 61
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 112
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

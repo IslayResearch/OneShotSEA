@@ -21,6 +21,11 @@ digest="$(printf cache | shasum -a 256 | awk '{print $1}')"
 instance='i-00000000000000000'
 profile='expMath-ResearchInstanceProfile-JpspoidArRiA'
 
+if bash -c 'source "$1"; validate_positive_uint fixture 00' -- \
+    "${SCRIPT_DIR}/common.sh" >/dev/null 2>&1; then
+  fail 'positive integer validation accepted all-zero decimal text'
+fi
+
 catalog="$("${SCRIPT_DIR}/catalog.sh" 2>&1)"
 [[ "$catalog" == *c8g.4xlarge* && "$catalog" == *c8i.4xlarge* &&
    "$catalog" == *m8g.xlarge* ]] || fail 'catalog dry-run omits a CPU candidate'
@@ -97,7 +102,7 @@ fi
     --seed 1 --max-level 11 --sea-threads 1 \
     --table-dir data/modpoly/weber_f \
     --smooth-cache /opt/oneshotsea/caches/test/smooth.cache \
-    --smooth-cache-sha256 "$digest" >/dev/null 2>&1; then
+    --smooth-cache-sha256 "$digest" --max-curves 00 >/dev/null 2>&1; then
   fail 'unbounded benchmark was accepted'
 fi
 
@@ -117,7 +122,8 @@ if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
   --seed 1 --max-level 11 --sea-threads 1 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache /opt/oneshotsea/caches/test/smooth.cache \
-  --smooth-cache-sha256 "$digest" >/dev/null 2>&1; then
+  --smooth-cache-sha256 "$digest" --wall-time-limit-seconds 00 \
+  >/dev/null 2>&1; then
   fail 'production worker without fetch-margin wall limit was accepted'
 fi
 

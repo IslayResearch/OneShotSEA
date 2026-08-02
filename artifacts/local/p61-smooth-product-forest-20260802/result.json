@@ -1,0 +1,43 @@
+{
+  "schema": "oneshotsea.smooth-product-forest-benchmark.v1",
+  "date": "2026-08-02",
+  "host": "Apple M4 under concurrent unrelated load",
+  "base_commit": "93da28b88524c22f77bdacc6dc819bfa83dfd60d",
+  "target": {
+    "prime": "2305843009213693951",
+    "bit_length": 61,
+    "smooth_bound": "13845841",
+    "build_segment_span": "100000",
+    "segment_count": 139,
+    "smooth_threads": 4
+  },
+  "common_search_argv": [
+    "search", "--p", "2305843009213693951", "--seed", "1",
+    "--range-start", "0", "--range-end", "1",
+    "--worker-id", "1", "--worker-count", "2",
+    "--max-level", "31", "--table-dir", "data/modpoly/weber_f",
+    "--smooth-threads", "4", "--smooth-build-segment-span", "100000",
+    "--max-curves", "0"
+  ],
+  "assigned_range": {"start": "1", "end": "1", "count": "0"},
+  "progress_records": 0,
+  "sequential_accumulator": {
+    "binary_sha256": "5a007da9c36fd89b6264e04b40d95e06548f84942c50dc25d7ab9901955e2ddc",
+    "wall_seconds": 2.76,
+    "user_seconds": 2.69,
+    "system_seconds": 0.04
+  },
+  "binary_carry_product_forest": {
+    "binary_sha256": "a16d44e0805c41da9f79edc1aa5ca1272db3f67467e2335e4733140c1bd8a468",
+    "source_sha256": "3a3f11049af21e6f5fdc7fc6c6f89740c0bc59130ee5d586a1e66811b8e509aa",
+    "test_source_sha256": "2f6fa363ab219371d16ead57ce7c660a3aecf9f074b9776d5d72bd0de72d89f1",
+    "wall_seconds": 0.63,
+    "user_seconds": 0.73,
+    "system_seconds": 0.03
+  },
+  "wall_speedup": 4.3809523809523805,
+  "sequential_cache_sha256": "dd0edb5dd2eceec3235691616ee2fbc1f6ec5a340c0a93d5abff407a303ee539",
+  "product_forest_cache_sha256": "dd0edb5dd2eceec3235691616ee2fbc1f6ec5a340c0a93d5abff407a303ee539",
+  "cache_files_byte_identical": true,
+  "interpretation": "This controlled empty-assignment setup microbenchmark isolates many-segment cache construction: worker 1 of 2 receives no curve from the one-index global range and emits no progress record. The host was not otherwise clean, so it is a strong same-host implementation indication, not a production p125 wall-time projection. Exact cache bytes are unchanged."
+}

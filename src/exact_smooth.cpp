@@ -11,6 +11,7 @@
 #include <future>
 #include <limits>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -164,6 +165,12 @@ ExactSmoothEngine ExactSmoothEngine::build(const mpz_class& prime,
     data->bound = bound;
 
     std::uint64_t total_primes = 0;
+    // Retain one completed segment product at each binary level.  Folding a
+    // new segment through occupied levels gives a balanced multiplication
+    // forest instead of repeatedly multiplying a small segment into the
+    // entire accumulated multi-gigabyte product.  The product is commutative,
+    // so this changes only setup cost and peak temporaries, never cache bytes.
+    std::vector<std::optional<SmoothBaseOwner>> product_levels;
     for (std::uint64_t lower = 0; lower < bound;) {
         const std::uint64_t remaining = bound - lower;
         const std::uint64_t upper =
@@ -182,14 +189,41 @@ ExactSmoothEngine ExactSmoothEngine::build(const mpz_class& prime,
                 throw std::overflow_error(
                     "exact smooth prime count does not fit uint64");
             }
-            mpz_mul(data->base.get().P, data->base.get().P, segment.P);
             total_primes += segment.nprimes;
+            SmoothBaseOwner current;
+            current.adopt(segment);
+            std::size_t level = 0U;
+            for (;;) {
+                if (level == product_levels.size()) {
+                    product_levels.emplace_back(std::move(current));
+                    break;
+                }
+                if (!product_levels[level].has_value()) {
+                    product_levels[level].emplace(std::move(current));
+                    break;
+                }
+                mpz_mul(current.get().P,
+                        product_levels[level]->get().P,
+                        current.get().P);
+                product_levels[level].reset();
+                ++level;
+            }
         } catch (...) {
             smooth_base_clear(&segment);
             throw;
         }
         smooth_base_clear(&segment);
         lower = upper;
+    }
+    // At most log2(number of segments) products remain.  Descending levels
+    // keeps the largest product on the accumulator side and bounds the number
+    // of final unbalanced multiplications logarithmically.
+    for (auto level = product_levels.rbegin();
+         level != product_levels.rend(); ++level) {
+        if (level->has_value()) {
+            mpz_mul(data->base.get().P, data->base.get().P,
+                    (*level)->get().P);
+        }
     }
     data->base.get().lo = 0;
     data->base.get().y = bound;

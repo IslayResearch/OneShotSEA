@@ -227,42 +227,57 @@ SMOOTH_CACHE_SHA256='trusted-64-lowercase-hex-digest-from-build-record'
 
 scripts/runpod/launch-worker.sh \
   --run-id "$RUN_ID" \
+  --run-kind production \
   --prime 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
-  --worker-id 0 --worker-count 4 \
+  --worker-id 0 --worker-count 1 \
   --range-start 0 --range-end 1000000000 \
   --seed 202607290000 \
   --max-level 401 \
-  --sea-threads 8 \
+  --curve-family x1-27 --x1-require-point4 1 \
+  --curve-threads 16 --sea-threads 1 --sea-level-telemetry 0 \
+  --schoof-fallback 1 --skip-incomplete-curves 0 \
+  --trace-cap 16 --smooth-threads 1 --smooth-coordinators 0 \
+  --wall-time-limit-seconds 14400 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache "$SMOOTH_CACHE" \
   --smooth-cache-sha256 "$SMOOTH_CACHE_SHA256"
 
 scripts/runpod/launch-worker.sh \
   --run-id "$RUN_ID" \
+  --run-kind production \
   --prime 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
-  --worker-id 0 --worker-count 4 \
+  --worker-id 0 --worker-count 1 \
   --range-start 0 --range-end 1000000000 \
   --seed 202607290000 \
   --max-level 401 \
-  --sea-threads 8 \
+  --curve-family x1-27 --x1-require-point4 1 \
+  --curve-threads 16 --sea-threads 1 --sea-level-telemetry 0 \
+  --schoof-fallback 1 --skip-incomplete-curves 0 \
+  --trace-cap 16 --smooth-threads 1 --smooth-coordinators 0 \
+  --wall-time-limit-seconds 14400 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache "$SMOOTH_CACHE" \
   --smooth-cache-sha256 "$SMOOTH_CACHE_SHA256" \
   --execute
 ```
 
-Repeat with worker ids 1 through 3, changing no other search-identity value.
-The launcher accepts only explicit resource controls such as `--trace-cap`,
-`--sea-threads`, `--smooth-threads`, and `--max-curves`; it has no generic argument passthrough
-that could override worker identity or durable output paths.
+For several pods, set `--worker-count` to the total pod count and launch every
+worker id exactly once on its assigned pod, changing no other search-identity
+value. Do not launch several 16-curve workers on one 16-vCPU pod.
+The launcher accepts only explicit search and resource controls, including the
+curve family and point-four admission gate, curve/SEA/smooth topology, fallback
+policy, telemetry, trace cap, and wall-time bound. It has no generic argument
+passthrough that could override worker identity or durable output paths.
 
 Each worker gets a `tmux` session named `sea-<run-id>-<worker-id>` and this
 state below `/workspace/OneShotSEA/runs/<run-id>/worker-<id>/`:
 
 ```text
-manifest.json       immutable command argv, ranges, seed, prime, commit, start
+manifest.json       immutable command argv, ranges, seed, prime, commit/binary, start
 command.sh          exact shell-escaped search command (mode 0700)
 worker.log          stdout/stderr
+resource-usage.txt  append-only, delimited GNU-time evidence for every attempt
+attempts.jsonl      append-only start/end timestamps and exit statuses
 progress.jsonl      compact per-chunk counters and timings
 checkpoint.json     atomic resume state
 certificate.txt     candidate certificate, if found

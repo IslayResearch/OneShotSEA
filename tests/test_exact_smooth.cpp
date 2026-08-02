@@ -192,6 +192,14 @@ void test_small_differential_and_batching(TestDirectory& temporary) {
     const auto cache = temporary.path / "full.cache";
     engine.save(cache);
     const std::string cache_sha = oneshotsea::sha256_file(cache);
+    auto single_segment_options = options;
+    single_segment_options.build_segment_span = 2401;
+    const auto single_segment_engine =
+        oneshotsea::ExactSmoothEngine::build(101, single_segment_options);
+    const auto single_segment_cache = temporary.path / "single-segment.cache";
+    single_segment_engine.save(single_segment_cache);
+    check(oneshotsea::sha256_file(single_segment_cache) == cache_sha,
+          "balanced product forest is byte-identical across segment spans");
     const auto loaded = oneshotsea::ExactSmoothEngine::load(
         101, cache, cache_sha, options);
     check(loaded.extract_one(2 * 2 * 3 * 2503).value == 12,

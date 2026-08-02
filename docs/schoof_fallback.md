@@ -75,7 +75,7 @@ The complete record is
 It pins the raw log/progress/checkpoint hashes, CRC64, command argv, patch,
 binary, schedule, cache, table, verifier, and Python identities.
 
-## Prototype boundary and required retest
+## Prototype boundary and final release gate
 
 This successful replay used a prototype binary built from the X1(27) base plus
 mailbox patch SHA-256
@@ -89,8 +89,38 @@ used as this result's identity.
 
 The prototype checkpoint advances only its isolated `[206,207)` replay. It
 does not rewrite the historical production checkpoint, where index 206 was
-explicitly recorded as a heuristic incomplete skip. Before claiming
-committed-build recovery, freeze and hash the final committed fallback binary,
-pass the full test and oracle gates, and rerun index 206 with
-`--skip-incomplete-curves 0`. Production should continue sound-only only after
-that final-build replay agrees.
+explicitly recorded as a heuristic incomplete skip.
+
+The final committed-build replay used commit
+`976924b3aa2148f62ceae11948824d8aed5a41bb` and frozen binary SHA-256
+`67a85ad69d176f8602af5e177819709f86893a32939691b2b4ca43fc8d7c7a70`.
+Its full emitted build id, schedule, tables, cache, verifier, and Python
+identities all agreed with the independently checked inputs. No launcher
+script was retained for this run either; the artifact records the exact
+effective argv reconstructed from the authoritative start record, corrected
+raw paths, and execution transcript.
+
+The corrected final replay reproduced the ordinary 45,948/9,189 endpoint and
+the same residues and counts through 14/14. Its fallback-level times were
+0.005409, 0.028441, 1.025934, and 2.862631 seconds, or 3.922415 seconds summed.
+It again returned a nonheuristic `sound_smoothness_reject`, advanced its
+isolated checkpoint to 207 complete, and emitted no certificate. Invocation
+time was 169.36 seconds wall, 240.58 seconds user, and 3.64 seconds system;
+reported peak RSS was 6,033,129,472 bytes.
+
+The authoritative raw directory is
+`/private/tmp/oneshotsea-index206-fallback-976924b-correct.iZfki5`. The
+log/progress/checkpoint SHA-256 values are respectively
+`8f2e59f8ffe11ebd634387b5b383d4a658084abbf2ebed3e1f07b171e1587266`,
+`1173453d5f1a4ae922966038b4ab43468517369df4b45286ef6b2bdb279ec964`,
+and `2d08a6a4caf6b24f5c09ea0f5b6cbee82fdc62e0b54eadcc5a46b1d5e068c4ec`;
+the independently recomputed checkpoint CRC64-ECMA is `85bc57784effe944`.
+The earlier `QHrL4v` attempt is excluded from release evidence because its
+emitted full Git SHA did not equal the actual source commit despite matching
+the short prefix and frozen-binary digest.
+
+This satisfies the final committed/frozen-binary recovery gate. The old
+production checkpoint remains unchanged as historical heuristic evidence;
+the separate authenticated replay supplies the sound index-206 outcome.
+Sound-only X1(27) production can therefore start at index 246 with exact
+fallback enabled and incomplete skip disabled.

@@ -325,24 +325,30 @@ sets to 14. Exact smoothness screening then produced a nonheuristic
 `sound_smoothness_reject`; there was no full point count, assembly call, or
 certificate. Invocation wall was 172.17 seconds.
 
-This closes the mathematical path on the prototype, not the final deployment
-gate. The replay binary and mailbox patch are content-pinned, but the code was
-not yet the final committed production identity. After the fallback lands and
-the full test/oracle suite passes, freeze the final binary and replay index 206
-again with `--skip-incomplete-curves 0`. Do not alter the old production
-checkpoint's explicit heuristic record. The full residue/count audit is in
+The final committed-build replay used commit
+`976924b3aa2148f62ceae11948824d8aed5a41bb`, frozen binary SHA-256
+`67a85ad69d176f8602af5e177819709f86893a32939691b2b4ca43fc8d7c7a70`,
+and `--skip-incomplete-curves 0`. It reproduced the prototype's complete
+mathematical projection and sound rejection in 169.36 seconds wall, with
+3.922415 seconds of exact fallback work, then advanced its isolated checkpoint
+to 207 complete. Its corrected raw log, progress, checkpoint hashes, and
+checkpoint CRC are pinned in the artifact. The earlier `QHrL4v` attempt is
+excluded because its emitted full Git SHA failed the source-identity check.
+The final recovery gate is therefore satisfied. Do not alter the old
+production checkpoint's explicit heuristic record; the separate committed
+replay supplies sound index-206 evidence. The full residue/count audit is in
 [the fallback note](schoof_fallback.md) and
 [artifact](../artifacts/local/p125-index206-schoof-fallback-20260801/result.json).
 
 ## Next local action
 
-The authenticated production frontier is 246: indices 0--205 and 207--245
-have sound outcomes, while the old production identity records index 206 as an
-explicit heuristic skip. Commit and fully test the exact fallback, freeze its
-binary, and complete the sound final-build index-206 replay described above.
-Then start a new X1(27) point-four identity at global index 246 with exact
-fallback enabled and incomplete skip disabled; every older checkpoint remains
-evidence rather than resumable state under the new schedule.
+The authenticated production frontier is 246. Indices 0--205 and 207--245
+have sound production outcomes; index 206 now has a separate final
+committed-build sound replay, while its old production checkpoint remains an
+explicit historical heuristic skip. Start a new X1(27) point-four identity at
+global index 246 with exact fallback enabled and incomplete skip disabled;
+every older checkpoint remains evidence rather than resumable state under the
+new schedule.
 The held-out scheduling A/B found the measured
 alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
 build id and `search-NEXT` directory below with the exact committed

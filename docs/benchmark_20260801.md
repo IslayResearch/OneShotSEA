@@ -291,3 +291,15 @@ search family, but an end-to-end same-build K=10 comparison remains the gate
 before selecting it for the long run.  Exact commands, counters, formula and
 binary identities, Magma orders, and raw hashes are in
 `artifacts/local/p125-x1-11-probe-20260801/result.json`.
+
+## Exact-smooth cross-curve microbatch follow-up
+
+A later no-delay coordinator grouped exact-smooth requests that arrived during
+an active primorial scan. It passed correctness, concurrency, checkpoint, and
+adversarial review gates, then failed the same-range p125 performance gate.
+Across the balanced B1/A1/A2/B2 order on indices `[435,445)`, the frozen
+baseline mean was 218.845 seconds and the microbatch mean was 276.905 seconds.
+All non-timing outcomes matched, but microbatch throughput was only
+`0.790325202x` baseline. The source was removed and production remained on
+the frozen implementation. See [the full gate](exact_smooth_microbatch_ab.md)
+and `artifacts/local/p125-exact-smooth-microbatch-20260802/result.json`.

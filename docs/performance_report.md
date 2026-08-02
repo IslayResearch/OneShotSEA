@@ -414,6 +414,20 @@ from 49.322 to 46.754 seconds (1.05493x) and eigen recovery from 17.681 to
 projections, 55 exact level projections, and the final trace matched. Evidence
 is in `artifacts/local/p125-element-subring-window-20260801/result.json`.
 
+The quotient ring now owns one prepared `PolyModContext` for the complete
+Frobenius/eigenvalue calculation.  Previously each polynomial-subring power
+prepared a reciprocal reducer, but subsequent Jacobian point multiplication
+and squaring fell back to generic long reduction.  Three interleaved
+compile-time off/on runs on the catalog-authenticated level-409 p125 fixture
+reduced median eigenvalue recovery from 2.836558 to 2.282278 seconds
+(1.24286x), median SEA from 5.155449 to 4.597293 seconds (1.12141x), and median
+full invocation time from 7.666286 to 7.074818 seconds (1.08360x).  Roots and
+BMSS were stable controls, and all six non-timing projections had SHA-256
+`f873221610f2984b744e76fa9a4de88545f9049ab1c5254961b36d73e8004606`.
+The compile switch exists only for the controlled ablation; production enables
+reuse.  Compact evidence is in
+[`artifacts/local/p125-quotient-context-20260802/result.json`](../artifacts/local/p125-quotient-context-20260802/result.json).
+
 ### Classical-j comparison boundary
 
 The checked-in low-level tables show the expected footprint direction, but
@@ -513,13 +527,14 @@ level-401 manifest.  A 12,727-byte normalized source catalog binds all 166
 admissible levels through 997 in the same content-addressed upstream archive,
 and the converter can materialize any compact subset.  On the fixed 416-bit
 p125 curve, newly admitted level 409 produced two validated isogenies and exact
-trace residue 19 in 7.767 seconds, matching a fresh independent Magma full
+trace residue 19 in 5.118 seconds, matching a retained independent Magma full
 point count; the top catalog level 997 completed its
-no-rational-neighbor path in 3.354 seconds.  The ordinary level-401 projection
+no-rational-neighbor path in 2.140 seconds.  The ordinary level-401 projection
 remained SHA-256
 `8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6`.
 This is a bounded range/trust extension, not a direct-evaluation performance
-claim.  See [the catalog audit](weber_on_demand_catalog.md).
+claim.  See [the catalog audit](weber_on_demand_catalog.md) and the
+[checksummed native/Magma bundle](../artifacts/local/p125-weber-catalog-magma-20260802/README.md).
 
 Source: [AWS benchmark](aws_benchmark_20260801.md), [AWS operations](aws.md), and [RunPod operations](runpod.md).
 

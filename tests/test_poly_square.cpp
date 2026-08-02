@@ -57,6 +57,15 @@ void check_square(const oneshotsea::Poly& value,
           label + ": specialized != generic mulmod");
     check(oneshotsea::equal(specialized, generic_full),
           label + ": specialized != mod(generic mul)");
+
+    const oneshotsea::PolyModContext context(modulus);
+    check(oneshotsea::equal(context.square(value), generic_full),
+          label + ": prepared square != mod(generic mul)");
+    check(oneshotsea::equal(context.multiply(value, value), generic_full),
+          label + ": prepared multiply != mod(generic mul)");
+    check(oneshotsea::equal(context.reduce(value),
+                            oneshotsea::mod(value, modulus)),
+          label + ": prepared reduction != generic mod");
 }
 
 void run() {

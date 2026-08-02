@@ -57,6 +57,28 @@ private:
     void trim();
 };
 
+// Prepared arithmetic in one quotient F_p[x]/(modulus).  The reciprocal of a
+// sufficiently large monic modulus is computed once and reused across every
+// multiplication, square, and exponentiation.  This matters for SEA
+// Frobenius/eigenvalue work, where hundreds of point operations share the
+// same kernel polynomial.
+class PolyModContext {
+public:
+    explicit PolyModContext(const Poly& modulus);
+
+    const Poly& modulus() const { return modulus_; }
+    Poly reduce(const Poly& value) const;
+    Poly multiply(const Poly& lhs, const Poly& rhs) const;
+    Poly square(const Poly& value) const;
+    Poly pow(Poly base, mpz_class exponent) const;
+
+private:
+    Poly modulus_;
+    std::vector<mpz_class> reciprocal_;
+
+    void reduce_coefficients(std::vector<mpz_class>& coefficients) const;
+};
+
 Poly add(const Poly& lhs, const Poly& rhs);
 Poly sub(const Poly& lhs, const Poly& rhs);
 Poly neg(const Poly& value);

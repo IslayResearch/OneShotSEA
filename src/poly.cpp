@@ -671,147 +671,138 @@ const Poly& reduced_operand(const Poly& value, const Poly& modulus,
 
 }  // namespace
 
-// Reusable quotient-ring arithmetic for one exponentiation.  For sufficiently
-// large monic moduli, reverse-polynomial division replaces the quadratic
-// high-coefficient elimination loop by two balanced coefficient convolutions.
-// The inverse is bound to an owned copy of the modulus and is never shared
-// across fields or quotient rings.
-class PolyModContext {
-public:
-    explicit PolyModContext(const Poly& modulus) : modulus_(modulus) {
-        if (kReciprocalReductionDegreeThreshold == 0U ||
-            modulus_.degree() <= 0 ||
-            modulus_.leading_coefficient() != 1) {
-            return;
-        }
-        const std::size_t degree =
-            static_cast<std::size_t>(modulus_.degree());
-        if (degree < kReciprocalReductionDegreeThreshold) {
-            return;
-        }
+// Reusable quotient-ring arithmetic.  For sufficiently large monic moduli,
+// reverse-polynomial division replaces the quadratic high-coefficient
+// elimination loop by two balanced coefficient convolutions.  The inverse is
+// bound to an owned copy of the modulus and can be shared by all arithmetic in
+// one SEA kernel quotient.
+PolyModContext::PolyModContext(const Poly& modulus) : modulus_(modulus) {
+    if (kReciprocalReductionDegreeThreshold == 0U ||
+        modulus_.degree() <= 0 || modulus_.leading_coefficient() != 1) {
+        return;
+    }
+    const std::size_t degree = static_cast<std::size_t>(modulus_.degree());
+    if (degree < kReciprocalReductionDegreeThreshold) {
+        return;
+    }
 
-        // If M is monic of degree d, reverse(M) has constant coefficient one.
-        // Compute its inverse modulo x^d by the exact coefficient recurrence.
-        reciprocal_.assign(degree, 0);
-        reciprocal_[0] = 1;
-        const Field& field = modulus_.field();
-        const std::vector<mpz_class>& coefficients = modulus_.coefficients();
-        for (std::size_t output_degree = 1U; output_degree < degree;
-             ++output_degree) {
-            mpz_class accumulated = 0;
-            for (std::size_t input_degree = 1U;
-                 input_degree <= output_degree; ++input_degree) {
-                const mpz_class& reversed_modulus_coefficient =
-                    coefficients[degree - input_degree];
-                if (reversed_modulus_coefficient != 0 &&
-                    reciprocal_[output_degree - input_degree] != 0) {
-                    mpz_addmul(
-                        accumulated.get_mpz_t(),
-                        reversed_modulus_coefficient.get_mpz_t(),
-                        reciprocal_[output_degree - input_degree].get_mpz_t());
-                }
+    // If M is monic of degree d, reverse(M) has constant coefficient one.
+    // Compute its inverse modulo x^d by the exact coefficient recurrence.
+    reciprocal_.assign(degree, 0);
+    reciprocal_[0] = 1;
+    const Field& field = modulus_.field();
+    const std::vector<mpz_class>& coefficients = modulus_.coefficients();
+    for (std::size_t output_degree = 1U; output_degree < degree;
+         ++output_degree) {
+        mpz_class accumulated = 0;
+        for (std::size_t input_degree = 1U;
+             input_degree <= output_degree; ++input_degree) {
+            const mpz_class& reversed_modulus_coefficient =
+                coefficients[degree - input_degree];
+            if (reversed_modulus_coefficient != 0 &&
+                reciprocal_[output_degree - input_degree] != 0) {
+                mpz_addmul(
+                    accumulated.get_mpz_t(),
+                    reversed_modulus_coefficient.get_mpz_t(),
+                    reciprocal_[output_degree - input_degree].get_mpz_t());
             }
-            reciprocal_[output_degree] = field.normalize(-accumulated);
         }
+        reciprocal_[output_degree] = field.normalize(-accumulated);
+    }
+}
+
+Poly PolyModContext::reduce(const Poly& value) const {
+    require_same_field(value, modulus_);
+    return mod(value, modulus_);
+}
+
+Poly PolyModContext::multiply(const Poly& lhs, const Poly& rhs) const {
+    if (reciprocal_.empty()) {
+        return mulmod(lhs, rhs, modulus_);
+    }
+    require_same_field(lhs, rhs);
+    require_same_field(lhs, modulus_);
+    Poly lhs_storage(lhs.field());
+    Poly rhs_storage(lhs.field());
+    const Poly& reduced_lhs = reduced_operand(lhs, modulus_, lhs_storage);
+    const Poly& reduced_rhs = reduced_operand(rhs, modulus_, rhs_storage);
+    if (reduced_lhs.is_zero() || reduced_rhs.is_zero()) {
+        return Poly(lhs.field());
+    }
+    std::vector<mpz_class> output = coefficient_product(
+        reduced_lhs.coefficients(), reduced_rhs.coefficients(), lhs.field());
+    reduce_coefficients(output);
+    return Poly(lhs.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
+}
+
+Poly PolyModContext::square(const Poly& value) const {
+    if (reciprocal_.empty()) {
+        return squaremod(value, modulus_);
+    }
+    require_same_field(value, modulus_);
+    Poly storage(value.field());
+    const Poly& reduced = reduced_operand(value, modulus_, storage);
+    if (reduced.is_zero()) {
+        return Poly(value.field());
+    }
+    std::vector<mpz_class> output =
+        coefficient_square(reduced.coefficients(), value.field());
+    reduce_coefficients(output);
+    return Poly(value.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
+}
+
+void PolyModContext::reduce_coefficients(
+    std::vector<mpz_class>& coefficients) const {
+    const std::size_t modulus_degree =
+        static_cast<std::size_t>(modulus_.degree());
+    if (coefficients.size() <= modulus_degree ||
+        coefficients.size() > 2U * modulus_degree - 1U) {
+        reduce_product_coefficients(coefficients, modulus_);
+        return;
     }
 
-    Poly multiply(const Poly& lhs, const Poly& rhs) const {
-        if (reciprocal_.empty()) {
-            return mulmod(lhs, rhs, modulus_);
-        }
-        require_same_field(lhs, rhs);
-        require_same_field(lhs, modulus_);
-        Poly lhs_storage(lhs.field());
-        Poly rhs_storage(lhs.field());
-        const Poly& reduced_lhs =
-            reduced_operand(lhs, modulus_, lhs_storage);
-        const Poly& reduced_rhs =
-            reduced_operand(rhs, modulus_, rhs_storage);
-        if (reduced_lhs.is_zero() || reduced_rhs.is_zero()) {
-            return Poly(lhs.field());
-        }
-        std::vector<mpz_class> output = coefficient_product(
-            reduced_lhs.coefficients(), reduced_rhs.coefficients(),
-            lhs.field());
-        reduce(output);
-        return Poly(lhs.field(), std::move(output),
-                    Poly::NormalizedCoefficientsTag{});
+    const Field& field = modulus_.field();
+    const std::size_t quotient_size = coefficients.size() - modulus_degree;
+    if (quotient_size > reciprocal_.size()) {
+        throw std::logic_error(
+            "reciprocal quotient exceeds its prepared precision");
     }
 
-    Poly square(const Poly& value) const {
-        if (reciprocal_.empty()) {
-            return squaremod(value, modulus_);
-        }
-        require_same_field(value, modulus_);
-        Poly storage(value.field());
-        const Poly& reduced = reduced_operand(value, modulus_, storage);
-        if (reduced.is_zero()) {
-            return Poly(value.field());
-        }
-        std::vector<mpz_class> output =
-            coefficient_square(reduced.coefficients(), value.field());
-        reduce(output);
-        return Poly(value.field(), std::move(output),
-                    Poly::NormalizedCoefficientsTag{});
+    // Fast monic division: reverse the high part of C, multiply by
+    // reverse(M)^-1 modulo x^k, then reverse the first k coefficients to
+    // obtain the quotient.  Raw convolution coefficients are normalized only
+    // at the F_p boundaries required by the division identity.
+    std::vector<mpz_class> reversed_high(quotient_size);
+    for (std::size_t index = 0U; index < quotient_size; ++index) {
+        reversed_high[index] = field.normalize(
+            coefficients[coefficients.size() - 1U - index]);
     }
-
-private:
-    Poly modulus_;
-    std::vector<mpz_class> reciprocal_;
-
-    void reduce(std::vector<mpz_class>& coefficients) const {
-        const std::size_t modulus_degree =
-            static_cast<std::size_t>(modulus_.degree());
-        if (coefficients.size() <= modulus_degree ||
-            coefficients.size() > 2U * modulus_degree - 1U) {
-            reduce_product_coefficients(coefficients, modulus_);
-            return;
-        }
-
-        const Field& field = modulus_.field();
-        const std::size_t quotient_size =
-            coefficients.size() - modulus_degree;
-        if (quotient_size > reciprocal_.size()) {
-            throw std::logic_error(
-                "reciprocal quotient exceeds its prepared precision");
-        }
-
-        // Fast monic division: reverse the high part of C, multiply by
-        // reverse(M)^-1 modulo x^k, then reverse the first k coefficients to
-        // obtain the quotient.  Raw convolution coefficients are normalized
-        // only at the F_p boundaries required by the division identity.
-        std::vector<mpz_class> reversed_high(quotient_size);
-        for (std::size_t index = 0U; index < quotient_size; ++index) {
-            reversed_high[index] = field.normalize(
-                coefficients[coefficients.size() - 1U - index]);
-        }
-        std::vector<mpz_class> reversed_quotient = coefficient_product(
-            reversed_high,
-            std::span<const mpz_class>(reciprocal_.data(), quotient_size),
-            field);
-        std::vector<mpz_class> quotient(quotient_size);
-        for (std::size_t index = 0U; index < quotient_size; ++index) {
-            quotient[quotient_size - 1U - index] =
-                field.normalize(reversed_quotient[index]);
-        }
-        const std::vector<mpz_class> quotient_times_modulus =
-            coefficient_product(quotient, modulus_.coefficients(), field);
-        for (std::size_t index = 0U; index < modulus_degree; ++index) {
-            coefficients[index] = field.normalize(
-                coefficients[index] - quotient_times_modulus[index]);
-        }
-        coefficients.resize(modulus_degree);
+    std::vector<mpz_class> reversed_quotient = coefficient_product(
+        reversed_high,
+        std::span<const mpz_class>(reciprocal_.data(), quotient_size), field);
+    std::vector<mpz_class> quotient(quotient_size);
+    for (std::size_t index = 0U; index < quotient_size; ++index) {
+        quotient[quotient_size - 1U - index] =
+            field.normalize(reversed_quotient[index]);
     }
-};
+    const std::vector<mpz_class> quotient_times_modulus =
+        coefficient_product(quotient, modulus_.coefficients(), field);
+    for (std::size_t index = 0U; index < modulus_degree; ++index) {
+        coefficients[index] = field.normalize(
+            coefficients[index] - quotient_times_modulus[index]);
+    }
+    coefficients.resize(modulus_degree);
+}
 
 namespace {
 
 Poly apply_powmod_plan(const Poly& base, const PowmodPlan& plan,
-                       const Poly& modulus) {
+                       const PolyModContext& context) {
     if (plan.exponent_is_zero) {
         return Poly::constant(base.field(), 1);
     }
-    const PolyModContext context(modulus);
     std::vector<Poly> odd_powers;
     odd_powers.reserve(
         static_cast<std::size_t>((plan.maximum_odd_power + 1U) / 2U));
@@ -842,6 +833,18 @@ Poly apply_powmod_plan(const Poly& base, const PowmodPlan& plan,
 }
 
 }  // namespace
+
+Poly PolyModContext::pow(Poly base, mpz_class exponent) const {
+    require_same_field(base, modulus_);
+    if (modulus_.is_zero()) {
+        throw std::domain_error("polynomial modulus is zero");
+    }
+    if (exponent < 0) {
+        throw std::invalid_argument("negative polynomial exponent");
+    }
+    base = reduce(base);
+    return apply_powmod_plan(base, make_powmod_plan(exponent), *this);
+}
 
 Poly mulmod(const Poly& lhs, const Poly& rhs, const Poly& modulus) {
     require_same_field(lhs, rhs);
@@ -897,15 +900,7 @@ Poly gcd(Poly lhs, Poly rhs) {
 }
 
 Poly powmod(Poly base, mpz_class exponent, const Poly& modulus) {
-    require_same_field(base, modulus);
-    if (modulus.is_zero()) {
-        throw std::domain_error("polynomial modulus is zero");
-    }
-    if (exponent < 0) {
-        throw std::invalid_argument("negative polynomial exponent");
-    }
-    base = mod(base, modulus);
-    return apply_powmod_plan(base, make_powmod_plan(exponent), modulus);
+    return PolyModContext(modulus).pow(std::move(base), std::move(exponent));
 }
 
 int rational_root_count(const Poly& polynomial) {

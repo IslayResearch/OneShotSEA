@@ -91,6 +91,13 @@ values, benchmark identities, and limitations are in
 [`docs/reciprocal_reduction_ab.md`](docs/reciprocal_reduction_ab.md) and
 [`artifacts/local/p125-reciprocal-kronecker-20260802/result.json`](artifacts/local/p125-reciprocal-kronecker-20260802/result.json).
 
+The same prepared reducer is now retained for the entire kernel quotient ring,
+instead of being rebuilt for polynomial Frobenius and then abandoned during
+eigenvalue point arithmetic.  A compile-time off/on level-409 bracket reduced
+median eigenvalue recovery from 2.837 to 2.282 seconds (1.243x) and median SEA
+from 5.155 to 4.597 seconds (1.121x).  All six semantic projections were
+identical; this changes arithmetic cost only, not trace evidence.
+
 This result establishes arithmetic throughput on one fixed curve.  It is not a
 certificate-yield measurement.
 
@@ -158,7 +165,8 @@ The retained validation for this branch includes:
 - a 10,000-curve Weber/Magma corpus with sound early-abort replay; and
 - deterministic full-SEA A/B projection equality at `p125`; and
 - catalog-authenticated level-409 and level-997 runs on the 416-bit target,
-  including a fresh Magma full-count match for the exact level-409 residue.
+  including a retained, checksummed Magma full-count match for the exact
+  level-409 residue.
 
 These gates test the implementation independently in several directions, but
 they do not turn the smooth-order yield model into a theorem or prove that a

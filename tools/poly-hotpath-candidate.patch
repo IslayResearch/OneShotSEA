@@ -1,0 +1,170 @@
+diff --git a/src/poly.cpp b/src/poly.cpp
+index db1e2bf..595468b 100644
+--- a/src/poly.cpp
++++ b/src/poly.cpp
+@@ -23,6 +23,15 @@ void require_probable_prime_field(const Poly& polynomial) {
+ constexpr std::size_t kKaratsubaCoefficientThreshold = 32U;
+ constexpr unsigned int kMaximumPowmodWindowBits = 5U;
+ 
++void normalize_in_place(const Field& field, mpz_class& value) {
++    if (mpz_sgn(value.get_mpz_t()) >= 0 &&
++        mpz_cmp(value.get_mpz_t(), field.modulus().get_mpz_t()) < 0) {
++        return;
++    }
++    mpz_mod(value.get_mpz_t(), value.get_mpz_t(),
++            field.modulus().get_mpz_t());
++}
++
+ struct PowmodWindowStep {
+     std::size_t squarings;
+     unsigned int odd_power;
+@@ -187,12 +196,16 @@ std::vector<mpz_class> schoolbook_square(
+ 
+ std::vector<mpz_class> add_coefficient_slices(
+     std::span<const mpz_class> low, std::span<const mpz_class> high) {
++    const std::size_t overlap = std::min(low.size(), high.size());
+     std::vector<mpz_class> sum(std::max(low.size(), high.size()), 0);
+-    for (std::size_t index = 0; index < low.size(); ++index) {
+-        sum[index] += low[index];
++    for (std::size_t index = 0; index < overlap; ++index) {
++        mpz_add(sum[index].get_mpz_t(), low[index].get_mpz_t(),
++                high[index].get_mpz_t());
+     }
+-    for (std::size_t index = 0; index < high.size(); ++index) {
+-        sum[index] += high[index];
++    const std::span<const mpz_class> tail =
++        low.size() > overlap ? low.subspan(overlap) : high.subspan(overlap);
++    for (std::size_t index = 0; index < tail.size(); ++index) {
++        sum[overlap + index] = tail[index];
+     }
+     return sum;
+ }
+@@ -212,6 +225,27 @@ void add_shifted_coefficients(std::vector<mpz_class>& output,
+     }
+ }
+ 
++void subtract_coefficients(std::vector<mpz_class>& output,
++                           std::span<const mpz_class> value) {
++    if (value.size() > output.size()) {
++        throw std::logic_error("Karatsuba middle coefficient overflow");
++    }
++    for (std::size_t index = 0; index < value.size(); ++index) {
++        output[index] -= value[index];
++    }
++}
++
++void move_shifted_coefficients(std::vector<mpz_class>& output,
++                               std::vector<mpz_class>& value,
++                               std::size_t shift) {
++    if (shift > output.size() || value.size() > output.size() - shift) {
++        throw std::logic_error("Karatsuba coefficient range overflow");
++    }
++    for (std::size_t index = 0; index < value.size(); ++index) {
++        output[shift + index] = std::move(value[index]);
++    }
++}
++
+ std::vector<mpz_class> karatsuba_product(
+     std::span<const mpz_class> lhs, std::span<const mpz_class> rhs) {
+     if (lhs.empty() || rhs.empty()) {
+@@ -242,12 +276,12 @@ std::vector<mpz_class> karatsuba_product(
+         add_coefficient_slices(rhs_low, rhs_high);
+     std::vector<mpz_class> middle = karatsuba_product(lhs_sum, rhs_sum);
+ 
++    subtract_coefficients(middle, low);
++    subtract_coefficients(middle, high);
+     std::vector<mpz_class> output(lhs.size() + rhs.size() - 1U, 0);
+-    add_shifted_coefficients(output, low, 0U, 1);
++    move_shifted_coefficients(output, low, 0U);
++    move_shifted_coefficients(output, high, 2U * split);
+     add_shifted_coefficients(output, middle, split, 1);
+-    add_shifted_coefficients(output, low, split, -1);
+-    add_shifted_coefficients(output, high, split, -1);
+-    add_shifted_coefficients(output, high, 2U * split, 1);
+     return output;
+ }
+ 
+@@ -269,12 +303,12 @@ std::vector<mpz_class> karatsuba_square(
+         add_coefficient_slices(low_input, high_input);
+     std::vector<mpz_class> middle = karatsuba_square(sum);
+ 
++    subtract_coefficients(middle, low);
++    subtract_coefficients(middle, high);
+     std::vector<mpz_class> output(2U * value.size() - 1U, 0);
+-    add_shifted_coefficients(output, low, 0U, 1);
++    move_shifted_coefficients(output, low, 0U);
++    move_shifted_coefficients(output, high, 2U * split);
+     add_shifted_coefficients(output, middle, split, 1);
+-    add_shifted_coefficients(output, low, split, -1);
+-    add_shifted_coefficients(output, high, split, -1);
+-    add_shifted_coefficients(output, high, 2U * split, 1);
+     return output;
+ }
+ 
+@@ -326,7 +360,7 @@ Poly::Poly(const Field& field) : field_(field) {}
+ Poly::Poly(const Field& field, std::vector<mpz_class> coefficients)
+     : field_(field), coefficients_(std::move(coefficients)) {
+     for (auto& coefficient : coefficients_) {
+-        coefficient = field_.normalize(coefficient);
++        normalize_in_place(field_, coefficient);
+     }
+     trim();
+ }
+@@ -488,33 +522,42 @@ void reduce_product_coefficients(std::vector<mpz_class>& coefficients,
+         modulus.coefficients();
+     const std::size_t modulus_degree =
+         static_cast<std::size_t>(modulus.degree());
++    const bool monic = modulus.leading_coefficient() == 1;
+     const mpz_class inverse_lead =
+-        modulus.leading_coefficient() == 1
+-            ? mpz_class(1)
+-            : field.inverse(modulus.leading_coefficient());
++        monic ? mpz_class(1)
++              : field.inverse(modulus.leading_coefficient());
+     for (std::size_t degree = coefficients.size(); degree-- > modulus_degree;) {
+-        if (coefficients[degree] == 0) {
++        mpz_class& pivot = coefficients[degree];
++        if (pivot == 0) {
+             continue;
+         }
+         // Keep the intermediate remainder coefficients unreduced while
+-        // eliminating high terms.  Reducing every multiply/subtract here
+-        // performs O(n^2) divisions by p in the modular-powering hot path;
+-        // mpz_submul can accumulate the exact integer representative and each
+-        // coefficient only needs normalization when it becomes a pivot (or
+-        // once at the end).
+-        const mpz_class factor = field.mul(coefficients[degree], inverse_lead);
++        // eliminating high terms.  For the monic quotient moduli used by SEA,
++        // normalize the pivot in place and use it directly as the elimination
++        // factor.  This avoids allocating a temporary mpz value at every
++        // degree.  Non-monic test/oracle callers retain the general inverse.
++        const mpz_class* factor = nullptr;
++        mpz_class scaled_factor;
++        if (monic) {
++            normalize_in_place(field, pivot);
++            if (pivot == 0) {
++                continue;
++            }
++            factor = &pivot;
++        } else {
++            scaled_factor = field.mul(pivot, inverse_lead);
++            factor = &scaled_factor;
++        }
+         const std::size_t shift = degree - modulus_degree;
+         for (std::size_t index = 0; index < modulus_degree; ++index) {
+             mpz_submul(coefficients[shift + index].get_mpz_t(),
+-                       factor.get_mpz_t(),
++                       factor->get_mpz_t(),
+                        modulus_coefficients[index].get_mpz_t());
+         }
+-        coefficients[degree] = 0;
++        pivot = 0;
+     }
+     coefficients.resize(modulus_degree);
+-    for (mpz_class& coefficient : coefficients) {
+-        coefficient = field.normalize(coefficient);
+-    }
++    // The Poly constructor canonicalizes the final remainder in place.
+ }
+ 
+ const Poly& reduced_operand(const Poly& value, const Poly& modulus,

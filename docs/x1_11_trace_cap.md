@@ -28,6 +28,16 @@ trace candidates from 97 to 24 and summed concurrent curve time from
 1678.006 to 1435.541 seconds, a 14.45% work reduction.  It spent only three
 additional SEA levels while cutting summed smoothness time by 247.094 seconds.
 
+The later authenticated production sample exposed the bounded exception that
+the ten-curve gate did not: index 206 retained 45,948 exact candidates and
+9,189 candidates after its certified Atkin constraint even after all 76
+available nonredundant levels.  Cap 64 therefore also stopped fail-closed.  A
+larger cap would enumerate candidates but would not establish a unique true
+trace for a survivor.  Production keeps cap 16 for its measured throughput and
+uses the separately labeled, schedule-bound incomplete-skip policy for these
+rare cases; such a skip is a false-negative-capable heuristic, never a sound
+rejection.
+
 Cap 32 is a no-op on this sample.  It has exactly the same per-index stopping
 points, trace counts, full-count flags, exact traces, SEA level counts, and
 terminal outcomes as cap 64.  All 581 shared SEA classification/residue

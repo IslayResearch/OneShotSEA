@@ -564,6 +564,58 @@ void test_sea_level_limit_does_not_advance_cursor() {
               "progress preserves implementation-limit evidence and cursor");
     }
 
+    oneshotsea::SearchPipelineConfig skipping = limited;
+    skipping.skip_incomplete_curves = true;
+    const oneshotsea::SearchIdentity skipping_identity =
+        oneshotsea::make_search_identity(
+            skipping, {1, 2}, 0, 1, smooth_sha, verifier_sha,
+            "level-limit-skip-test-v1");
+    check(skipping_identity.schedule_sha256 !=
+              limited_identity.schedule_sha256,
+          "incomplete-skip policy is bound into schedule identity");
+    skipping.expected_schedule_sha256 = skipping_identity.schedule_sha256;
+    skipping.expected_table_manifest_sha256 =
+        skipping_identity.table_manifest_sha256;
+    oneshotsea::SearchState skipping_state(skipping_identity);
+    oneshotsea::SearchPipelineRunOptions skipping_options;
+    skipping_options.max_curves = 1;
+    skipping_options.checkpoint_path = temporary.path() / "skipping.json";
+    skipping_options.progress_path = temporary.path() / "skipping.ndjson";
+    skipping_options.certificate_path = temporary.path() / "skipping.cert";
+    oneshotsea::SearchCurveStatus skipping_status =
+        oneshotsea::SearchCurveStatus::sea_level_limit;
+    const oneshotsea::SearchPipelineRunResult skipping_result =
+        oneshotsea::run_search_pipeline(
+            skipping, smooth, skipping_state, skipping_options,
+            [&](const oneshotsea::SearchCurveReport& report,
+                const oneshotsea::SearchState& current) {
+                skipping_status = report.status;
+                check(current.next_index() == 2U,
+                      "heuristic incomplete skip advances cursor");
+            });
+    check(skipping_result.curves_processed == 1U &&
+              skipping_status ==
+                  oneshotsea::SearchCurveStatus::heuristic_level_limit_skip &&
+              skipping_state.next_index() == 2U &&
+              skipping_state.counters().curves_attempted == 1U &&
+              skipping_state.counters().rejected_heuristic == 1U &&
+              skipping_state.counters().rejected_sound_early_abort == 0U,
+          "opt-in level-limit skip is counted only as heuristic rejection");
+    {
+        std::ifstream progress(skipping_options.progress_path);
+        std::string event;
+        std::getline(progress, event);
+        check(event.find("\"status\":\"heuristic_level_limit_skip\"") !=
+                      std::string::npos &&
+                  event.find("\"heuristic\":true") !=
+                      std::string::npos &&
+                  event.find("\"outcome_class\":\"heuristic_rejection\"") !=
+                      std::string::npos &&
+                  event.find("\"next_index\":\"2\"") !=
+                      std::string::npos,
+              "progress explicitly labels incomplete heuristic skip");
+    }
+
     oneshotsea::SearchPipelineConfig sufficient = small_config();
     const oneshotsea::SearchIdentity sufficient_identity =
         oneshotsea::make_search_identity(

@@ -767,6 +767,10 @@ const char* search_curve_status_name(SearchCurveStatus status) {
             return "no_rational_weber_lift";
         case SearchCurveStatus::sea_level_limit:
             return "sea_level_limit";
+        case SearchCurveStatus::heuristic_no_lift_skip:
+            return "heuristic_no_lift_skip";
+        case SearchCurveStatus::heuristic_level_limit_skip:
+            return "heuristic_level_limit_skip";
         case SearchCurveStatus::sound_smoothness_reject:
             return "sound_smoothness_reject";
         case SearchCurveStatus::no_certificate_candidate:
@@ -1003,6 +1007,10 @@ SearchCurveReport process_search_curve(
         report.sea_levels += result.levels.size();
         report.exact_sea_levels += exact_level_count(result);
         report.atkin_sea_levels += atkin_level_count(result);
+        report.final_exact_trace_candidate_count =
+            result.constraints.candidate_count();
+        report.final_trace_candidate_count =
+            result.effective_constraints.candidate_count();
         return result;
     };
 
@@ -1366,22 +1374,31 @@ SearchPipelineRunResult run_search_pipeline(
             }
             if (report.status == SearchCurveStatus::sea_level_limit ||
                 report.status == SearchCurveStatus::no_rational_weber_lift) {
-                // These are implementation/resource outcomes, not mathematical
-                // rejections. Persist and report the unchanged cursor, then
-                // discard later in-flight reports so a retry cannot skip it.
-                if (!options.checkpoint_path.empty()) {
-                    save_search_checkpoint(state, options.checkpoint_path);
+                if (!config.skip_incomplete_curves) {
+                    // These are implementation/resource outcomes, not
+                    // mathematical rejections. Persist and report the
+                    // unchanged cursor, then discard later in-flight reports
+                    // so a retry cannot skip it.
+                    if (!options.checkpoint_path.empty()) {
+                        save_search_checkpoint(state, options.checkpoint_path);
+                    }
+                    if (!options.progress_path.empty()) {
+                        append_line(options.progress_path,
+                                    search_curve_report_json(
+                                        report, state,
+                                        options.include_sea_level_timings));
+                    }
+                    if (report_callback) {
+                        report_callback(report, state);
+                    }
+                    break;
                 }
-                if (!options.progress_path.empty()) {
-                    append_line(options.progress_path,
-                                search_curve_report_json(
-                                    report, state,
-                                    options.include_sea_level_timings));
-                }
-                if (report_callback) {
-                    report_callback(report, state);
-                }
-                break;
+                report.status =
+                    report.status == SearchCurveStatus::sea_level_limit
+                        ? SearchCurveStatus::heuristic_level_limit_skip
+                        : SearchCurveStatus::heuristic_no_lift_skip;
+                report.outcome = {
+                    CurveTerminalStage::rejected_heuristic, false, false};
             }
             if (report.certificate.has_value()) {
                 // Anchor the exact winning cursor before exposing its artifacts.
@@ -1439,19 +1456,25 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                                      const SearchState& state,
                                      bool include_sea_level_timings) {
     std::ostringstream output;
+    const bool heuristic =
+        report.status == SearchCurveStatus::heuristic_no_lift_skip ||
+        report.status == SearchCurveStatus::heuristic_level_limit_skip;
     output << "{\"schema\":\"oneshotsea.search-curve.v1\",\"index\":\""
            << report.global_index << "\",\"status\":\""
            << search_curve_status_name(report.status)
            << "\",\"peak_rss_bytes\":\"" << peak_rss_bytes()
-           << "\",\"heuristic\":false,\"outcome_class\":\""
+           << "\",\"heuristic\":" << (heuristic ? "true" : "false")
+           << ",\"outcome_class\":\""
            << (report.status == SearchCurveStatus::sound_smoothness_reject
                    ? "sound_rejection"
-                   : (report.status == SearchCurveStatus::sea_level_limit
-                          ? "implementation_level_limit"
-                          : (report.status ==
-                                     SearchCurveStatus::no_rational_weber_lift
-                                 ? "implementation_no_lift"
-                                 : "terminal")))
+                   : (heuristic
+                          ? "heuristic_rejection"
+                          : (report.status == SearchCurveStatus::sea_level_limit
+                                 ? "implementation_level_limit"
+                                 : (report.status ==
+                                            SearchCurveStatus::no_rational_weber_lift
+                                        ? "implementation_no_lift"
+                                        : "terminal"))))
            << "\",\"sound_early_abort\":"
            << (report.status == SearchCurveStatus::sound_smoothness_reject
                    ? "true" : "false")
@@ -1475,6 +1498,13 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << report.exact_sea_levels << "\",\"atkin_sea_levels\":\""
            << report.atkin_sea_levels << "\",\"initial_trace_count\":\""
            << report.initial_trace_count << '"';
+    if (report.final_exact_trace_candidate_count.has_value() &&
+        report.final_trace_candidate_count.has_value()) {
+        output << ",\"final_exact_trace_candidates\":\""
+               << *report.final_exact_trace_candidate_count
+               << "\",\"final_trace_candidates\":\""
+               << *report.final_trace_candidate_count << '"';
+    }
     if (report.exact_trace.has_value()) {
         output << ",\"trace\":\"" << *report.exact_trace << '"';
     }
@@ -1698,7 +1728,10 @@ std::string search_schedule_sha256(
               << "weber_source_lift_policy=" << kWeberSourceLiftPolicy
               << '\n'
               << "sea=weber-reference-two-pass-classical-atkin-v2\n"
-              << "heuristic_rejection=disabled\n"
+              << "heuristic_rejection="
+              << (config.skip_incomplete_curves ? "incomplete-only"
+                                                : "disabled")
+              << '\n'
               << "prime=" << config.prime << '\n'
               << "max_level=" << config.max_level << '\n'
               << "early_trace_cap=" << config.early_trace_cap << '\n'

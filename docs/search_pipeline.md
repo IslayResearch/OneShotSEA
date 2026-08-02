@@ -83,6 +83,16 @@ tables through `--max-level` to isolate a unique trace for every candidate that
 survives early screening.  Increasing the range does not remedy an inadequate
 table schedule.
 
+Long discovery runs may instead opt into
+`--skip-incomplete-curves 1`.  This converts only those two incomplete
+outcomes into `heuristic_level_limit_skip` or `heuristic_no_lift_skip`, advances
+the cursor, and increments only `rejected_heuristic`.  The progress event sets
+`heuristic:true` and `outcome_class:heuristic_rejection`; it is never reported
+as a sound rejection or full point count.  The policy is part of the schedule
+digest, so its checkpoint cannot be substituted into a sound-only run.  It may
+lose a curve that would have yielded a certificate under a larger table set,
+but cannot create a false-positive certificate.
+
 Every complete curve record retains the exact `trace_prior` modulus and residue
 or explicit null.  Every per-level search record retains `trace_residue` for
 exact Elkies levels,
@@ -98,6 +108,8 @@ optimizations auditable without changing residue semantics.
 
 Long production runs may use `--sea-level-telemetry 0`.  This suppresses the
 live per-level records and leaves each curve record's `sea_level_timings` array
+empty, but preserves `final_exact_trace_candidates` and
+`final_trace_candidates` so an incomplete skip remains quantitatively auditable.
 empty, while preserving the per-curve SEA level counts, exact/Atkin counts,
 trace prior, status, major-kernel timings, peak RSS, state counters, and
 checkpoint behavior.  The default is verbose and should remain enabled for

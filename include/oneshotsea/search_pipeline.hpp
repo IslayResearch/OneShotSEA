@@ -23,9 +23,10 @@ enum class SearchCurveFamily : std::uint8_t {
 const char* search_curve_family_name(SearchCurveFamily family);
 
 // Semantic configuration of the deterministic production search.  The
-// production path deliberately has no heuristic-rejection switch: every
-// early rejection is justified by a complete trace set and exact n^4-smooth
-// parts, or is an explicit SEA availability/level-limit outcome.
+// Sound early rejection always requires a complete trace set and exact
+// n^4-smooth parts. A separately labeled opt-in policy may retire a curve
+// when the available SEA levels cannot complete its trace set; this can lose
+// search opportunities but can never create a false certificate.
 struct SearchPipelineConfig {
     mpz_class prime;
     std::uint64_t seed = 0;
@@ -39,6 +40,7 @@ struct SearchPipelineConfig {
     // twist order, so 64 traces fill the search CLI's 128-order default.  A
     // larger cap can make an early exact screen slower than finishing SEA.
     std::size_t early_trace_cap = 64;
+    bool skip_incomplete_curves = false;
     // Maximum concurrent modular-root jobs inside SEA. Zero selects the
     // available CPU concurrency. This is a resource setting and deliberately
     // does not alter the deterministic schedule/checkpoint identity.
@@ -61,6 +63,8 @@ struct SearchPipelineConfig {
 enum class SearchCurveStatus : std::uint8_t {
     no_rational_weber_lift,
     sea_level_limit,
+    heuristic_no_lift_skip,
+    heuristic_level_limit_skip,
     sound_smoothness_reject,
     no_certificate_candidate,
     certificate_assembly_failed,
@@ -118,6 +122,8 @@ struct SearchCurveReport {
     std::size_t sea_levels = 0;
     std::size_t exact_sea_levels = 0;
     std::size_t atkin_sea_levels = 0;
+    std::optional<mpz_class> final_exact_trace_candidate_count;
+    std::optional<mpz_class> final_trace_candidate_count;
     std::vector<SearchSeaLevelTiming> sea_level_timings;
     std::size_t initial_trace_count = 0;
     std::optional<mpz_class> exact_trace;

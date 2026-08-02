@@ -515,6 +515,12 @@ class CliTests(unittest.TestCase):
             self.assertEqual(start["resources"]["curve_threads"], "1")
             self.assertEqual(start["resources"]["smooth_max_batch"], "128")
             self.assertEqual(start["resources"]["sea_threads"], "0")
+            self.assertFalse(start["heuristic_rejection"])
+            self.assertFalse(start["resources"]["skip_incomplete_curves"])
+            self.assert_rejected(
+                *common, "--checkpoint", root / "invalid-skip.json",
+                "--skip-incomplete-curves", 2,
+            )
             self.assert_rejected(
                 *common, "--checkpoint", root / "fresh.json"
             )

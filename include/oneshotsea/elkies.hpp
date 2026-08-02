@@ -104,6 +104,15 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
     bool enable_root_orbit_reuse = true,
     bool enable_conjugate_eigenvalue_reuse = true);
 
+// Consume one directly evaluated Weber specialization for a retained source
+// lift.  This is the integration target for a CRT/volcano implementation of
+// Sutherland Algorithm 1: Phi_ell(f,Y) and Phi_X(f,Y) are sufficient for the
+// existing root, normalized-codomain, BMSS, and Frobenius pipeline.
+WeberElkiesLevelResult compute_weber_elkies_level_specialized_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& weber_specialization,
+    bool enable_conjugate_eigenvalue_reuse = true);
+
 std::optional<std::uint64_t> elkies_trace_residue_weber_bmss_reference(
     const Curve& curve,
     const SparseModularPolynomial& weber_modular_polynomial);

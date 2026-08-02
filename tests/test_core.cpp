@@ -630,6 +630,50 @@ void test_modular_polynomials() {
         3, "data/modpoly/j/phi_3.txt");
     const mpz_class p = 101;
     const oneshotsea::Field field(p);
+    for (const mpz_class& source : std::vector<mpz_class>{0, 1, 7, 100}) {
+        const auto specialization =
+            phi2.specialize_x_with_derivative(field, source);
+        check(oneshotsea::equal(specialization.value(),
+                                phi2.evaluate_x(field, source)),
+              "joint specialization preserves Phi(x,Y)");
+        for (const mpz_class& neighbor :
+             std::vector<mpz_class>{0, 2, 19, 100}) {
+            const auto expected = phi2.evaluate_with_derivatives(
+                field, source, neighbor);
+            const auto actual =
+                specialization.evaluate_with_derivatives(neighbor);
+            check(actual.value == expected.value &&
+                      actual.x_derivative == expected.x_derivative &&
+                      actual.y_derivative == expected.y_derivative,
+                  "specialized modular polynomial preserves all derivatives");
+        }
+    }
+
+    const auto rejects_specialization = [](unsigned level,
+                                            const mpz_class& source,
+                                            oneshotsea::Poly value,
+                                            oneshotsea::Poly x_derivative) {
+        try {
+            (void)oneshotsea::ModularPolynomialSpecialization(
+                level, source, std::move(value), std::move(x_derivative));
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    check(rejects_specialization(
+              2, 101, oneshotsea::Poly(field, {1, 2, 3, 1}),
+              oneshotsea::Poly(field, {4, 5, 6})) &&
+              rejects_specialization(
+                  2, 1, oneshotsea::Poly(field, {1, 2, 3, 2}),
+                  oneshotsea::Poly(field, {4, 5, 6})) &&
+              rejects_specialization(
+                  2, 1, oneshotsea::Poly(field, {1, 2, 1}),
+                  oneshotsea::Poly(field, {4, 5, 6})) &&
+              rejects_specialization(
+                  2, 1, oneshotsea::Poly(field, {1, 2, 3, 1}),
+                  oneshotsea::Poly(oneshotsea::Field(103), {4, 5, 6})),
+          "direct specialization boundary rejects malformed structural inputs");
     unsigned checked_three = 0;
     for (unsigned long a = 1; a < 12; ++a) {
         for (unsigned long b = 1; b < 12; ++b) {
@@ -1800,19 +1844,55 @@ void test_elkies_residues() {
 
     const auto weber_phi37 = oneshotsea::SparseModularPolynomial::load(
         37, "data/modpoly/weber_f/phi_37.txt");
-    const auto level37 =
-        oneshotsea::elkies_trace_residue_weber_bmss_reference(
-            oneshotsea::Curve(oneshotsea::Field(1009), 799, 474),
-            weber_phi37);
-    check(level37.has_value() && *level37 == 0,
-          "level-37 Weber residue works above the old division-polynomial cap");
+    const auto compare_specialized_level = [](
+        const oneshotsea::Curve& curve,
+        const oneshotsea::SparseModularPolynomial& modular_polynomial,
+        std::uint64_t expected_residue, const std::string& label) {
+        const auto table_result =
+            oneshotsea::compute_weber_elkies_level_reference(
+                curve, modular_polynomial, nullptr, 1, true, true);
+        check(!table_result.kernels.empty() &&
+                  table_result.kernels.front().trace_residue ==
+                      expected_residue &&
+                  !table_result.compatible_source_lifts.empty(),
+              label + " table oracle produces an exact level");
+        const mpz_class source_f =
+            table_result.compatible_source_lifts.front();
+        const auto specialization =
+            modular_polynomial.specialize_x_with_derivative(
+                curve.field(), source_f);
+        const auto direct_result =
+            oneshotsea::compute_weber_elkies_level_specialized_reference(
+                curve, specialization, true);
+        check(direct_result.kernels.size() == table_result.kernels.size() &&
+                  direct_result.compatible_source_lifts ==
+                      std::vector<mpz_class>{source_f} &&
+                  direct_result.timings.modular_root_workers == 1U &&
+                  direct_result.timings.modular_root_orbits == 1U &&
+                  !direct_result.timings.modular_root_orbit_reuse,
+              label + " direct specialization preserves level shape");
+        for (const auto& expected : table_result.kernels) {
+            const auto matching = std::find_if(
+                direct_result.kernels.begin(), direct_result.kernels.end(),
+                [&expected](const auto& actual) {
+                    return oneshotsea::equal(expected.kernel, actual.kernel);
+                });
+            check(matching != direct_result.kernels.end() &&
+                      matching->codomain.a() == expected.codomain.a() &&
+                      matching->codomain.b() == expected.codomain.b() &&
+                      matching->neighbor_j == expected.neighbor_j &&
+                      matching->eigenvalue == expected.eigenvalue &&
+                      matching->trace_residue == expected.trace_residue,
+                  label + " direct specialization preserves exact proof data");
+        }
+    };
+    compare_specialized_level(
+        oneshotsea::Curve(oneshotsea::Field(1009), 799, 474),
+        weber_phi37, 0, "level-37");
 
-    const auto target_level37 =
-        oneshotsea::elkies_trace_residue_weber_bmss_reference(
-            oneshotsea::deterministic_curve(target_prime(), 45077, 2),
-            weber_phi37);
-    check(target_level37.has_value() && *target_level37 == 29,
-          "416-bit target level-37 Weber residue matches the Magma oracle");
+    compare_specialized_level(
+        oneshotsea::deterministic_curve(target_prime(), 45077, 2),
+        weber_phi37, 29, "416-bit target level-37");
 }
 
 }  // namespace

@@ -1,0 +1,63 @@
+{
+  "schema": "oneshotsea.direct-specialization-ab.v1",
+  "status": "negative_table_optimization_boundary_validated",
+  "date": "2026-08-02",
+  "implementation": {
+    "base_commit_before_uncommitted_candidate": "ff2c05fbc146ad8a83b23c9865235152d6eb5580",
+    "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101)",
+    "platform": "Darwin 25.5.0 arm64 T8132",
+    "baseline_define": "ONESHOTSEA_TABLE_SPECIALIZATION_REUSE=0",
+    "candidate_define": "ONESHOTSEA_TABLE_SPECIALIZATION_REUSE=1",
+    "production_decision": "do not enable the table-only rearrangement; retain the specialization API for a direct CRT producer"
+  },
+  "fixture": {
+    "prime_bits": 416,
+    "prime_decimal": "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": 202607300000,
+    "global_index": 1000030,
+    "level": 409,
+    "table_directory": "/private/tmp/oneshotsea-p125-weber-magma-891c9d4/table-409",
+    "table_manifest_sha256": "12b441664f87301255969e352c03dea4b9bf6d627d18105969d7488cb5b88616"
+  },
+  "method": {
+    "schedule": [
+      "baseline", "candidate", "candidate", "baseline", "baseline",
+      "candidate", "candidate", "baseline", "baseline", "candidate"
+    ],
+    "runs_per_variant": 5,
+    "command_template": "./build-spec-{off,on}/benchmark_p125_poly_trusted sea TABLE_DIRECTORY 409",
+    "timing_unit": "microseconds"
+  },
+  "semantic_projection": {
+    "all_ten_runs_agree_on_parsed_fields": true,
+    "exact_trace_residue_mod_409": 19,
+    "exact_constraint_modulus": 176688,
+    "compatible_source_lifts": 1,
+    "complete_trace_present_after_single_level": false
+  },
+  "baseline": {
+    "sea_us": [6965229, 7027024, 6963282, 7142579, 6923698],
+    "modular_roots_us": [853988, 895915, 870617, 874081, 865610],
+    "normalized_codomain_us": [30229, 25427, 27145, 25258, 23911],
+    "bmss_us": [2311971, 2333465, 2324127, 2366792, 2244591],
+    "eigenvalue_us": [3761494, 3766663, 3732943, 3868967, 3778906]
+  },
+  "candidate": {
+    "sea_us": [7011972, 7070804, 6923089, 6972102, 6782351],
+    "modular_roots_us": [911946, 934586, 876621, 857762, 1046898],
+    "normalized_codomain_us": [1076, 1416, 1069, 1101, 1071],
+    "bmss_us": [2377638, 2377882, 2269412, 2334401, 2320859],
+    "eigenvalue_us": [3712052, 3749849, 3767760, 3771631, 3408148]
+  },
+  "medians": {
+    "baseline_sea_us": 6965229,
+    "candidate_sea_us": 6972102,
+    "baseline_over_candidate_sea_ratio": 0.999014214077763,
+    "baseline_normalized_codomain_us": 25427,
+    "candidate_normalized_codomain_us": 1076,
+    "baseline_over_candidate_normalized_codomain_ratio": 23.631040892193308,
+    "baseline_roots_plus_codomain_us": 897762,
+    "candidate_roots_plus_codomain_us": 913022
+  },
+  "interpretation": "The specialized derivative removes repeated bivariate scans from codomain construction, but deriving Phi_X eagerly from a stored table moves comparable cost into root specialization. Whole-level performance is neutral within run noise. A direct CRT producer can emit Phi_X during reconstruction and is the intended beneficiary of the new boundary."
+}

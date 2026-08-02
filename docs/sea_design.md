@@ -397,11 +397,16 @@ The production search must log `modpoly_path=weber`.  A speedup measured only in
 a table-generation microbenchmark does not satisfy the specialized-path
 requirement.
 
-Direct instantiated evaluation from Sutherland's Algorithm 1 is not the first
-implementation choice.  At levels of a few hundred, the small Weber database
-is simpler and likely faster.  Reconsider direct explicit-CRT evaluation only
-if profiles show table I/O/memory is dominant or the required levels grow well
-beyond the manifest.
+The consumer boundary for direct instantiated evaluation from Sutherland's
+Algorithm 1 is now implemented.  `ModularPolynomialSpecialization` carries
+only `Phi_l^f(f,Y)` and `Phi_X^f(f,Y)`, derives `Phi_Y` locally, and feeds the
+same normalized-codomain, BMSS, and Frobenius path without a bivariate table.
+The table loader supplies an independent reference producer and the complete
+boundary is differentially tested at 416 bits.  The isogeny-volcano/explicit-
+CRT producer itself remains open; until it is implemented, the authenticated
+finite Weber catalog is still the production source.  See
+`docs/direct_specialization_boundary.md` for the exact contract, validation,
+complexity bound, and remaining work.
 
 ## 5. Exact Elkies trace residue
 

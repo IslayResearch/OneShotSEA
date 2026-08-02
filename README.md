@@ -35,7 +35,9 @@ through 401.  A pinned normalized source catalog now permits selective,
 authenticated materialization of all 166 admissible archive levels through
 997 without checking their roughly quadratic payload growth into Git.  This is
 still bounded source data, not an unbounded-input asymptotic implementation;
-direct isogeny-volcano/explicit-CRT evaluation remains the intended extension.
+the downstream SEA path now accepts the exact output of Sutherland's direct
+specialization algorithm, but the isogeny-volcano/explicit-CRT producer remains
+the intended extension.
 
 ## SEA path implemented here
 
@@ -44,6 +46,10 @@ direct isogeny-volcano/explicit-CRT evaluation remains the intended extension.
   one content-addressed source archive.  The implementation specializes them
   over the target field, extracts rational neighbors, reconstructs BMSS
   isogenies, and recovers Frobenius eigenvalues in the kernel quotient algebra.
+- **Direct-evaluation boundary.**  A checked specialization object carries
+  only `Phi_ell^f(f,Y)` and its X derivative.  The full Weber/BMSS/Frobenius
+  level consumes this object without a bivariate table and is differentially
+  validated at 416 bits.  The direct CRT producer is still open work.
 - **Exact reuse.**  A table-verified 24th-root covariance shares modular roots
   across compatible Weber lifts.  A fully validated first isogeny kernel may
   derive the characteristic-polynomial conjugate eigenvalue; the independent
@@ -64,7 +70,9 @@ The authoritative as-built description is
 [`docs/sea_design.md`](docs/sea_design.md).  The exact execution and failure
 boundaries are in [`docs/search_pipeline.md`](docs/search_pipeline.md) and the
 specialized point-counting details are in
-[`docs/weber_implementation.md`](docs/weber_implementation.md).
+[`docs/weber_implementation.md`](docs/weber_implementation.md).  The precise
+handoff to the future direct evaluator and its remaining asymptotic gap are in
+[`docs/direct_specialization_boundary.md`](docs/direct_specialization_boundary.md).
 
 ## Latest arithmetic improvement
 
@@ -162,11 +170,14 @@ The retained validation for this branch includes:
 - native Schoof, classical-j Elkies, Weber/BMSS, Atkin, trace/CRT, smoothness,
   checkpoint, certificate, and canonical-verifier tests;
 - independent Magma point counts and native/Magma trace-residue differentials;
-- a 10,000-curve Weber/Magma corpus with sound early-abort replay; and
-- deterministic full-SEA A/B projection equality at `p125`; and
+- a 10,000-curve Weber/Magma corpus with sound early-abort replay;
+- deterministic full-SEA A/B projection equality at `p125`;
 - catalog-authenticated level-409 and level-997 runs on the 416-bit target,
   including a retained, checksummed Magma full-count match for the exact
-  level-409 residue.
+  level-409 residue; and
+- full specialized-object/table differentials at level 37, including the
+  416-bit target: kernels, normalized codomains, eigenvalues, and exact residue
+  `29` agree, while malformed specialization objects fail closed.
 
 These gates test the implementation independently in several directions, but
 they do not turn the smooth-order yield model into a theorem or prove that a
@@ -215,11 +226,14 @@ benchmark log:
 2. [`src/elkies.cpp`](src/elkies.cpp) and [`src/isogeny.cpp`](src/isogeny.cpp)
    for Weber covariance, normalized codomains, BMSS reconstruction, and
    Frobenius eigenvalues;
-3. [`src/early_abort.cpp`](src/early_abort.cpp) for the sound rejection proof
+3. [`include/oneshotsea/modpoly.hpp`](include/oneshotsea/modpoly.hpp) and
+   [`docs/direct_specialization_boundary.md`](docs/direct_specialization_boundary.md)
+   for the direct-evaluation contract and its honest remaining gap;
+4. [`src/early_abort.cpp`](src/early_abort.cpp) for the sound rejection proof
    boundary;
-4. [`src/certificate.cpp`](src/certificate.cpp) for exact-order assembly and
+5. [`src/certificate.cpp`](src/certificate.cpp) for exact-order assembly and
    verifier-facing inequalities; and
-5. [`src/poly.cpp`](src/poly.cpp) plus
+6. [`src/poly.cpp`](src/poly.cpp) plus
    [`docs/kronecker_convolution.md`](docs/kronecker_convolution.md) for the
    latest arithmetic change.
 

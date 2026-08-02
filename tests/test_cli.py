@@ -357,6 +357,10 @@ class CliTests(unittest.TestCase):
             )
             self.assertEqual([record["index"] for record in curve_records],
                              ["1"])
+            self.assertEqual(
+                curve_records[-1]["trace_prior"],
+                {"modulus": "4", "residue": "2"},
+            )
             self.assertEqual(curve_records[-1]["status"],
                              "verified_certificate")
             self.assertEqual(curve_records[-1]["certificate"]["line"],
@@ -427,6 +431,54 @@ class CliTests(unittest.TestCase):
         self.assert_rejected(
             "search", "--p", 101, "--seed", 1,
             "--x1-require-point4", 1,
+        )
+
+    def test_search_can_emit_compact_production_telemetry(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 4,
+                "--range-start", 1,
+                "--range-end", 2,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 11,
+                "--trace-cap", 16,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--checkpoint", root / "checkpoint.json",
+                "--progress", root / "progress.ndjson",
+                "--certificate-out", root / "certificate.txt",
+                "--sea-level-telemetry", 0,
+                "--max-curves", 1,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            records = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertFalse(
+                records[0]["resources"]["sea_level_telemetry"]
+            )
+            self.assertFalse(any(
+                record["schema"] == "oneshotsea.search-sea-level.v1"
+                for record in records
+            ))
+            curve_records = [
+                record for record in records
+                if record["schema"] == "oneshotsea.search-curve.v1"
+            ]
+            self.assertEqual(len(curve_records), 1)
+            self.assertGreater(int(curve_records[0]["sea_levels"]), 0)
+            self.assertEqual(curve_records[0]["sea_level_timings"], [])
+            retained = json.loads(
+                (root / "progress.ndjson").read_text().strip()
+            )
+            self.assertEqual(retained["sea_level_timings"], [])
+            self.assertIn("sea", retained["timings_us"])
+
+        self.assert_rejected(
+            "search", "--p", 101, "--seed", 1,
+            "--sea-level-telemetry", 2,
         )
 
     def test_search_rejects_non_python_success_executable(self) -> None:

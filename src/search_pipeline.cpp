@@ -43,6 +43,8 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 constexpr std::chrono::seconds kSubprocessTimeout{30};
+constexpr std::string_view kTracePriorPolicy =
+    "weber-full-e2-mod4-if-validated-x1-selected-group-divisor-v1";
 
 std::uint64_t elapsed_us(Clock::time_point start) {
     const auto elapsed =
@@ -920,17 +922,39 @@ SearchCurveReport process_search_curve(
     report.global_index = global_index;
 
     Clock::time_point stage_start = Clock::now();
-    WeberCurvePair pair = [&] {
+    std::optional<ExactTracePrior> trace_prior;
+    WeberCurvePair pair = [&]() -> WeberCurvePair {
         if (config.curve_family == SearchCurveFamily::weber_f) {
-            return deterministic_weber_curve_pair(
+            WeberCurvePair generated = deterministic_weber_curve_pair(
                 config.prime, config.seed, global_index);
+            // A rational Weber/Montgomery model has full rational E[2] in the
+            // production p=1 mod 4 setting. Validate the actual canonical
+            // model before claiming the resulting order divisibility, so the
+            // general library search remains sound for other characteristics.
+            trace_prior =
+                exact_trace_prior_from_full_rational_two_torsion(
+                    generated.curve);
+            return generated;
         }
         X111ProbeResult generated = deterministic_x1_11_search_curve(
             config.prime, config.seed, global_index,
             config.x1_require_point_four);
-        return std::move(generated.sample->pair);
+        X111ProbeSample& sample = *generated.sample;
+        const std::uint64_t divisor = sample.group_divisor;
+        const std::uint64_t p_plus_one =
+            (mpz_fdiv_ui(config.prime.get_mpz_t(), divisor) + 1U) % divisor;
+        const std::uint64_t residue =
+            sample.selected_side == X111CanonicalSide::curve
+                ? p_plus_one
+                : (divisor - p_plus_one) % divisor;
+        trace_prior.emplace(config.prime, divisor, residue);
+        return std::move(sample.pair);
     }();
     report.rejected_generator_samples = pair.rejected_samples;
+    if (trace_prior.has_value()) {
+        report.trace_prior_modulus = trace_prior->modulus();
+        report.trace_prior_residue = trace_prior->residue();
+    }
     report.timings.generation_us = elapsed_us(stage_start);
 
     auto run_sea = [&](std::size_t trace_cap) {
@@ -970,7 +994,8 @@ SearchCurveReport process_search_curve(
         };
         WeberSeaResult result = run_weber_sea_reference(
             pair.curve, config.table_directory.string(), config.max_level,
-            trace_cap, progress, config.sea_threads);
+            trace_cap, progress, config.sea_threads, true, true, {},
+            trace_prior);
         report.timings.sea_us += elapsed_us(stage_start);
         ++report.sea_passes;
         report.sea_levels += result.levels.size();
@@ -1347,7 +1372,9 @@ SearchPipelineRunResult run_search_pipeline(
                 }
                 if (!options.progress_path.empty()) {
                     append_line(options.progress_path,
-                                search_curve_report_json(report, state));
+                                search_curve_report_json(
+                                    report, state,
+                                    options.include_sea_level_timings));
                 }
                 if (report_callback) {
                     report_callback(report, state);
@@ -1382,7 +1409,9 @@ SearchPipelineRunResult run_search_pipeline(
             }
             if (!options.progress_path.empty()) {
                 append_line(options.progress_path,
-                            search_curve_report_json(report, state));
+                            search_curve_report_json(
+                                report, state,
+                                options.include_sea_level_timings));
             }
             if (report_callback) {
                 report_callback(report, state);
@@ -1405,7 +1434,8 @@ SearchPipelineRunResult run_search_pipeline(
 }
 
 std::string search_curve_report_json(const SearchCurveReport& report,
-                                     const SearchState& state) {
+                                     const SearchState& state,
+                                     bool include_sea_level_timings) {
     std::ostringstream output;
     output << "{\"schema\":\"oneshotsea.search-curve.v1\",\"index\":\""
            << report.global_index << "\",\"status\":\""
@@ -1428,7 +1458,16 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << ",\"reached_smoothness\":"
            << (report.outcome.reached_smoothness_testing ? "true" : "false")
            << ",\"generator_rejections\":\""
-           << report.rejected_generator_samples << "\",\"sea_passes\":\""
+           << report.rejected_generator_samples << "\",\"trace_prior\":";
+    if (report.trace_prior_modulus.has_value() &&
+        report.trace_prior_residue.has_value()) {
+        output << "{\"modulus\":\"" << *report.trace_prior_modulus
+               << "\",\"residue\":\"" << *report.trace_prior_residue
+               << "\"}";
+    } else {
+        output << "null";
+    }
+    output << ",\"sea_passes\":\""
            << report.sea_passes << "\",\"sea_levels\":\""
            << report.sea_levels << "\",\"exact_sea_levels\":\""
            << report.exact_sea_levels << "\",\"atkin_sea_levels\":\""
@@ -1451,7 +1490,10 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << "\",\"verifier\":\"" << report.timings.verifier_us
            << "\",\"total\":\"" << report.timings.total_us
            << "\"},\"sea_level_timings\":[";
-    for (std::size_t index = 0; index < report.sea_level_timings.size(); ++index) {
+    const std::size_t retained_level_count = include_sea_level_timings
+        ? report.sea_level_timings.size()
+        : 0U;
+    for (std::size_t index = 0; index < retained_level_count; ++index) {
         if (index != 0U) {
             output << ',';
         }
@@ -1650,7 +1692,8 @@ std::string search_schedule_sha256(
                   << (config.x1_require_point_four ? "true" : "false")
                   << '\n';
     }
-    canonical << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+    canonical << "trace_prior_policy=" << kTracePriorPolicy << '\n'
+              << "sea=weber-reference-two-pass-classical-atkin-v2\n"
               << "heuristic_rejection=disabled\n"
               << "prime=" << config.prime << '\n'
               << "max_level=" << config.max_level << '\n'

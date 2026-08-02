@@ -1,5 +1,6 @@
 #include "oneshotsea/weber.hpp"
 #include "oneshotsea/weber_curve_generator.hpp"
+#include "oneshotsea/sea.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -164,6 +165,54 @@ void test_certificate_model_prefilter() {
     }
 }
 
+void test_exact_trace_prior_is_exhaustively_sound_on_small_fields() {
+    bool found_prior = false;
+    bool found_without_prior = false;
+    for (const unsigned long prime :
+         {13UL, 17UL, 29UL, 37UL, 41UL, 53UL, 61UL, 73UL,
+          89UL, 97UL, 101UL, 103UL, 107UL, 109UL}) {
+        const oneshotsea::Field field(prime);
+        for (mpz_class source_f = 1; source_f < field.modulus(); ++source_f) {
+            try {
+                const auto pair =
+                    oneshotsea::weber_curve_pair_from_f(field, source_f);
+                const auto prior =
+                    oneshotsea::exact_trace_prior_from_full_rational_two_torsion(
+                        pair.curve);
+                const mpz_class order =
+                    oneshotsea::count_points_bruteforce(pair.curve);
+                const mpz_class trace = field.modulus() + 1 - order;
+                if (prior.has_value()) {
+                    found_prior = true;
+                    check(prior->modulus() == 4U &&
+                              prior->residue() ==
+                                  mpz_fdiv_ui(trace.get_mpz_t(), 4U) &&
+                              mpz_divisible_ui_p(order.get_mpz_t(), 4U) != 0,
+                          "validated full-E[2] prior matches exhaustive point count");
+                } else {
+                    found_without_prior = true;
+                }
+            } catch (const std::domain_error&) {
+                // Direct construction deliberately excludes ramified images.
+            }
+        }
+    }
+    check(found_prior && found_without_prior,
+          "small-field sweep exercises both conditional prior outcomes");
+
+    const auto counterexample =
+        oneshotsea::deterministic_weber_curve_pair(103, 1, 0);
+    const mpz_class counterexample_order =
+        oneshotsea::count_points_bruteforce(counterexample.curve);
+    check(counterexample_order == 116,
+          "p=103 counterexample order fixture: " +
+              counterexample_order.get_str());
+    check(!oneshotsea::exact_trace_prior_from_full_rational_two_torsion(
+               counterexample.curve)
+               .has_value(),
+          "p=103 accepted Weber model conservatively receives no unvalidated prior");
+}
+
 void test_p125_generator_has_full_rational_two_torsion() {
     const mpz_class prime(
         "100000000000000000000000000000000000000000000000000000000000"
@@ -176,6 +225,13 @@ void test_p125_generator_has_full_rational_two_torsion() {
             pair.curve.field(), {pair.curve.b(), pair.curve.a(), 0, 1});
         check(oneshotsea::linear_roots(two_torsion).size() == 3U,
               "every sampled p125 production curve has full rational E[2]");
+        const auto prior =
+            oneshotsea::exact_trace_prior_from_full_rational_two_torsion(
+                pair.curve);
+        check(prior.has_value() && prior->modulus() == 4U &&
+                  prior->residue() ==
+                      (mpz_fdiv_ui(prime.get_mpz_t(), 4U) + 1U) % 4U,
+              "every sampled p125 production curve receives the mod-4 prior");
     }
 }
 
@@ -202,6 +258,7 @@ int main() {
         test_exceptional_handling();
         test_deterministic_replay_and_retry();
         test_certificate_model_prefilter();
+        test_exact_trace_prior_is_exhaustively_sound_on_small_fields();
         test_p125_generator_has_full_rational_two_torsion();
         test_curve_twist_coverage_relation();
         std::cout << "all Weber curve-generator tests passed\n";

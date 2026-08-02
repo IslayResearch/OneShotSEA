@@ -14,6 +14,31 @@
 
 namespace oneshotsea {
 
+// A caller-supplied exact congruence for the Frobenius trace. The modulus may
+// be composite, but must fit uint64, be coprime to the field characteristic,
+// and admit at least one trace in the Hasse interval. The residue is required
+// to already be canonical in [0, modulus).
+class ExactTracePrior {
+public:
+    ExactTracePrior(mpz_class prime, std::uint64_t modulus,
+                    std::uint64_t residue);
+
+    const mpz_class& prime() const { return prime_; }
+    std::uint64_t modulus() const { return modulus_; }
+    std::uint64_t residue() const { return residue_; }
+
+private:
+    mpz_class prime_;
+    std::uint64_t modulus_;
+    std::uint64_t residue_;
+};
+
+// Return t = p+1 (mod 4) only after directly validating that the short
+// Weierstrass cubic has all three rational 2-torsion roots. Curves without
+// full rational E[2] return no prior.
+std::optional<ExactTracePrior>
+exact_trace_prior_from_full_rational_two_torsion(const Curve& curve);
+
 struct WeberSeaLevelRecord {
     std::uint64_t ell;
     bool exact;
@@ -29,10 +54,12 @@ struct WeberSeaLevelRecord {
 };
 
 struct WeberSeaResult {
-    // Exact Elkies residues only. They remain the final unique-trace gate.
+    // The exact caller prior, when present, followed by exact Elkies residues.
+    // These remain the final unique-trace gate.
     TraceConstraints constraints;
-    // Exact Elkies plus independently certified Atkin constraints. This state
-    // may supply a complete bounded trace set for sound smoothness screening.
+    // The same exact prior and Elkies residues, plus independently certified
+    // Atkin constraints. This state may supply a complete bounded trace set
+    // for sound smoothness screening.
     TraceConstraints effective_constraints;
     std::vector<AtkinConstraint> atkin_constraints;
     std::vector<WeberSeaLevelRecord> levels;
@@ -65,7 +92,7 @@ std::vector<std::uint64_t> expected_information_per_cost_order(
 // levels never discard a lift. For trace_cap>1, independently certified
 // classical-j Atkin constraints at checked-in levels 5 and 7 may produce the
 // complete bounded trace set used for sound early screening. trace_cap=1
-// always requires uniqueness from exact Elkies residues alone.
+// always requires uniqueness from the exact prior and Elkies residues alone.
 WeberSeaResult run_weber_sea_reference(
     const Curve& curve, const std::string& table_directory,
     std::uint64_t max_level, std::size_t trace_cap,
@@ -73,6 +100,7 @@ WeberSeaResult run_weber_sea_reference(
     std::size_t modular_root_threads = 0,
     bool enable_root_orbit_reuse = true,
     bool enable_conjugate_eigenvalue_reuse = true,
-    const std::vector<WeberSeaLevelEstimate>& level_estimates = {});
+    const std::vector<WeberSeaLevelEstimate>& level_estimates = {},
+    const std::optional<ExactTracePrior>& trace_prior = std::nullopt);
 
 }  // namespace oneshotsea

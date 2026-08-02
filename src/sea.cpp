@@ -2,6 +2,7 @@
 
 #include "oneshotsea/atkin.hpp"
 #include "oneshotsea/modpoly.hpp"
+#include "oneshotsea/poly.hpp"
 #include "oneshotsea/weber.hpp"
 
 #include <algorithm>
@@ -61,6 +62,47 @@ std::vector<std::uint64_t> available_weber_levels(
 
 }  // namespace
 
+ExactTracePrior::ExactTracePrior(mpz_class prime, std::uint64_t modulus,
+                                 std::uint64_t residue)
+    : prime_(std::move(prime)), modulus_(modulus), residue_(residue) {
+    if (modulus_ < 2U) {
+        throw std::invalid_argument(
+            "exact trace-prior modulus must be at least two");
+    }
+    if (residue_ >= modulus_) {
+        throw std::invalid_argument(
+            "exact trace-prior residue must be canonical");
+    }
+    const mpz_class modulus_integer(std::to_string(modulus_));
+    mpz_class common_divisor;
+    mpz_gcd(common_divisor.get_mpz_t(), prime_.get_mpz_t(),
+            modulus_integer.get_mpz_t());
+    if (common_divisor != 1) {
+        throw std::invalid_argument(
+            "exact trace-prior modulus must be coprime to the characteristic");
+    }
+    TraceConstraints validation(prime_);
+    validation.refine_exact(modulus_, residue_);
+}
+
+std::optional<ExactTracePrior>
+exact_trace_prior_from_full_rational_two_torsion(const Curve& curve) {
+    if (curve.is_singular()) {
+        throw std::invalid_argument(
+            "2-torsion trace prior requires a nonsingular curve");
+    }
+    const std::vector<mpz_class> roots = linear_roots(Poly(
+        curve.field(), {curve.b(), curve.a(), 0, 1}));
+    if (roots.size() != 3U) {
+        return std::nullopt;
+    }
+    constexpr std::uint64_t divisor = 4U;
+    const mpz_class& prime = curve.field().modulus();
+    const std::uint64_t residue =
+        (mpz_fdiv_ui(prime.get_mpz_t(), divisor) + 1U) % divisor;
+    return ExactTracePrior(prime, divisor, residue);
+}
+
 std::vector<std::uint64_t> expected_information_per_cost_order(
     const std::vector<std::uint64_t>& increasing_levels,
     const std::vector<WeberSeaLevelEstimate>& estimates) {
@@ -114,7 +156,8 @@ WeberSeaResult run_weber_sea_reference(
     const WeberSeaProgress& progress,
     std::size_t modular_root_threads, bool enable_root_orbit_reuse,
     bool enable_conjugate_eigenvalue_reuse,
-    const std::vector<WeberSeaLevelEstimate>& level_estimates) {
+    const std::vector<WeberSeaLevelEstimate>& level_estimates,
+    const std::optional<ExactTracePrior>& trace_prior) {
     if (curve.is_singular()) {
         throw std::invalid_argument("SEA requires a nonsingular curve");
     }
@@ -132,11 +175,23 @@ WeberSeaResult run_weber_sea_reference(
         throw std::invalid_argument("Weber table directory does not exist");
     }
 
+    TraceConstraints initial_constraints(curve.field().modulus());
+    if (trace_prior.has_value()) {
+        if (trace_prior->prime() != curve.field().modulus()) {
+            throw std::invalid_argument(
+                "exact trace prior belongs to a different field");
+        }
+        initial_constraints.refine_exact(
+            trace_prior->modulus(), trace_prior->residue());
+    }
     WeberSeaResult result{
-        TraceConstraints(curve.field().modulus()),
-        TraceConstraints(curve.field().modulus()), {}, {},
+        initial_constraints, initial_constraints, {}, {},
         weber_f_lifts(curve.field(), curve.j_invariant()), std::nullopt};
     if (result.compatible_source_lifts.empty()) {
+        return result;
+    }
+    if (completion_fits_cap(result, trace_cap)) {
+        result.traces = enumerate_completed(result, trace_cap);
         return result;
     }
 
@@ -147,6 +202,10 @@ WeberSeaResult run_weber_sea_reference(
     }
 
     for (const std::uint64_t ell : levels) {
+        if (trace_prior.has_value() &&
+            trace_prior->modulus() % ell == 0U) {
+            continue;
+        }
         const std::filesystem::path table =
             directory / ("phi_" + std::to_string(ell) + ".txt");
         const SparseModularPolynomial modular_polynomial =

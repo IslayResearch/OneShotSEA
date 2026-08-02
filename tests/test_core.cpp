@@ -344,6 +344,36 @@ void test_modular_polynomials() {
 }
 
 void test_trace_constraints() {
+    const oneshotsea::ExactTracePrior composite_prior(101, 20, 0);
+    check(composite_prior.prime() == 101 &&
+              composite_prior.modulus() == 20U &&
+              composite_prior.residue() == 0U,
+          "validated exact trace prior accepts a composite modulus");
+    const auto invalid_prior_rejected = [](const auto& factory) {
+        try {
+            (void)factory();
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    check(invalid_prior_rejected(
+              []() { return oneshotsea::ExactTracePrior(101, 1, 0); }) &&
+              invalid_prior_rejected(
+                  []() { return oneshotsea::ExactTracePrior(101, 4, 4); }) &&
+              invalid_prior_rejected([]() {
+                  return oneshotsea::ExactTracePrior(101, 101, 0);
+              }),
+          "invalid or characteristic-sharing trace prior is rejected");
+    bool rejected_hasse_inconsistent_prior = false;
+    try {
+        (void)oneshotsea::ExactTracePrior(101, 1000, 500);
+    } catch (const std::runtime_error&) {
+        rejected_hasse_inconsistent_prior = true;
+    }
+    check(rejected_hasse_inconsistent_prior,
+          "Hasse-inconsistent exact trace prior is rejected");
+
     oneshotsea::TraceConstraints constraints(101);
     check(constraints.hasse_radius() == 20, "Hasse radius");
     const mpz_class initial_count = constraints.candidate_count();
@@ -560,6 +590,48 @@ void test_weber_sea_runner() {
               scheduled_result.levels[0].ell == 11U &&
               scheduled_result.levels[1].ell == 5U,
           "alternate prime schedule preserves the exact trace and can stop earlier");
+
+    const mpz_class brute_force_trace =
+        curve.field().modulus() + 1 -
+        oneshotsea::count_points_bruteforce(curve);
+    check(brute_force_trace == -6,
+          "SEA fixture trace agrees with exhaustive point counting");
+    const oneshotsea::ExactTracePrior exact_prior(193, 22, 16);
+    const std::vector<oneshotsea::WeberSeaLevelEstimate> prior_estimates = {
+        {5, 1, 10}, {7, 10, 1}, {11, 9, 1}};
+    const auto prior_result = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+        prior_estimates, exact_prior);
+    check(prior_result.traces == result.traces &&
+              prior_result.traces ==
+                  std::optional<std::vector<mpz_class>>(
+                      std::vector<mpz_class>{brute_force_trace}),
+          "prior-constrained SEA matches unprioritized SEA and brute force");
+    check(prior_result.levels.size() == 2U &&
+              prior_result.levels[0].ell == 7U &&
+              prior_result.levels[1].ell == 5U &&
+              std::none_of(
+                  prior_result.levels.begin(), prior_result.levels.end(),
+                  [](const oneshotsea::WeberSeaLevelRecord& level) {
+                      return level.ell == 11U;
+                  }),
+          "composite exact prior skips every table prime sharing its modulus");
+    check(prior_result.levels[0].exact_modulus == 22 &&
+              prior_result.levels[0].constraint_modulus == 154 &&
+              prior_result.levels[1].exact_modulus == 110 &&
+              prior_result.levels[1].constraint_modulus == 770,
+          "SEA level telemetry composes from identical prior constraints");
+
+    bool rejected_foreign_prior = false;
+    try {
+        (void)oneshotsea::run_weber_sea_reference(
+            curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true, {},
+            oneshotsea::ExactTracePrior(197, 22, 0));
+    } catch (const std::invalid_argument&) {
+        rejected_foreign_prior = true;
+    }
+    check(rejected_foreign_prior,
+          "SEA runner rejects an exact prior from a different field");
     check(std::all_of(
               result.levels.begin(), result.levels.end(),
               [](const oneshotsea::WeberSeaLevelRecord& record) {

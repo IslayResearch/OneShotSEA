@@ -112,6 +112,8 @@ struct SearchCurveReport {
     SearchCurveStatus status = SearchCurveStatus::sea_level_limit;
     CurveSearchOutcome outcome{CurveTerminalStage::rejected_sea, false, false};
     std::uint64_t rejected_generator_samples = 0;
+    std::optional<std::uint64_t> trace_prior_modulus;
+    std::optional<std::uint64_t> trace_prior_residue;
     std::size_t sea_passes = 0;
     std::size_t sea_levels = 0;
     std::size_t exact_sea_levels = 0;
@@ -175,6 +177,10 @@ struct SearchPipelineRunOptions {
     // Required for a nonempty run.  A canonical certificate is durably
     // published here before the checkpoint cursor advances.
     std::filesystem::path certificate_path;
+    // Per-level SEA timings are valuable for benchmarks but can dominate the
+    // retained log of a long production search. Disabling them preserves the
+    // per-curve outcome, aggregate SEA counts, and major-kernel timings.
+    bool include_sea_level_timings = true;
     // With curve_threads > 1 this callback can observe interleaved indices,
     // but invocations are serialized so each live telemetry record is atomic.
     // Level telemetry is diagnostic and never advances the checkpoint.
@@ -200,7 +206,8 @@ SearchPipelineRunResult run_search_pipeline(
     const CanonicalCertificateVerifier& verifier = {});
 
 std::string search_curve_report_json(const SearchCurveReport& report,
-                                     const SearchState& state);
+                                     const SearchState& state,
+                                     bool include_sea_level_timings = true);
 std::string search_sea_level_json(std::uint64_t global_index,
                                   const SearchSeaLevelTiming& level);
 

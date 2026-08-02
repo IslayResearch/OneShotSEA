@@ -1,8 +1,8 @@
 # Deterministic SEA search pipeline
 
-`oneshotsea search` is the production CPU path from a deterministic Weber-f
-sample to a canonical one-shot certificate.  It does not call Magma or another
-point-counting oracle.
+`oneshotsea search` is the production CPU path from a deterministic selected
+curve family to a canonical one-shot certificate.  It does not call Magma or
+another point-counting oracle.
 
 For each assigned global index it constructs both curve classes for one
 Montgomery-compatible Weber-f value, runs the checked-in Weber SEA
@@ -14,13 +14,15 @@ part, validates the result natively, and finally invokes the unmodified pinned
 successfully.
 
 The first SEA pass may stop at a bounded, complete set of Hasse-compatible
-traces.  This set includes exact Elkies residues and may also include certified
-factor-degree constraints from the authenticated classical level-5 and
-level-7 tables. If every curve and twist order in that set has exact smooth
+traces.  This set includes an independently validated exact trace prior when
+the selected family supplies one, exact Elkies residues, and optionally
+certified factor-degree constraints from the authenticated classical level-5
+and level-7 tables. If every curve and twist order in that set has exact smooth
 part at or below the certificate lower bound, rejection is sound. Otherwise
 the curve is rerun with trace cap one; Atkin constraints cannot satisfy that
 unique-trace gate, so certificate assembly still requires uniqueness from the
-exact Elkies CRT. Heuristic rejection is disabled in this command.
+exact prior plus the exact Elkies CRT. Heuristic rejection is disabled in this
+command.
 
 An example local run is:
 
@@ -46,9 +48,9 @@ checked-in Weber manifest is itself pinned by digest, and production startup
 authenticates the complete table filename set, byte counts, and per-file
 SHA-256 values before deriving the schedule identity.  Missing, extra, or
 altered tables fail before a curve is processed.  The
-schedule identity explicitly versions the Montgomery-compatibility filter, so
-checkpoints from the earlier unfiltered generator cannot be mistaken for the
-same deterministic index distribution.  The
+schedule identity explicitly versions the Montgomery-compatibility filter and
+the exact trace-prior policy, so checkpoints from an earlier generator or
+pre-prior schedule cannot be mistaken for the same deterministic search.  The
 default build identity hashes the executable.  Every completed curve is
 checkpointed by default; partial SEA residues are never trusted after restart.
 The Python interpreter is resolved to an absolute executable, content-hashed,
@@ -80,7 +82,9 @@ tables through `--max-level` to isolate a unique trace for every candidate that
 survives early screening.  Increasing the range does not remedy an inadequate
 table schedule.
 
-Every per-level search record retains `trace_residue` for exact Elkies levels,
+Every complete curve record retains the exact `trace_prior` modulus and residue
+or explicit null.  Every per-level search record retains `trace_residue` for
+exact Elkies levels,
 the accumulated `exact_modulus`, `exact_trace_candidate_count`, the combined
 `constraint_modulus`, effective `trace_candidate_count`, optional
 `atkin_projective_order`, `atkin_residue_count`, and the number of compatible
@@ -90,6 +94,14 @@ orbit reuse occurred, and the per-stage timings.  Eigen telemetry separately
 records total attempts, independent quotient-ring recoveries, and exact
 characteristic-polynomial conjugates.  These fields make the production
 optimizations auditable without changing residue semantics.
+
+Long production runs may use `--sea-level-telemetry 0`.  This suppresses the
+live per-level records and leaves each curve record's `sea_level_timings` array
+empty, while preserving the per-curve SEA level counts, exact/Atkin counts,
+trace prior, status, major-kernel timings, peak RSS, state counters, and
+checkpoint behavior.  The default is verbose and should remain enabled for
+benchmarks and residue audits.
+
 After obtaining an independent final trace, audit these claims with:
 
 ```sh
@@ -108,6 +120,7 @@ auditable with their original exact-count semantics.
 Useful resource caps include `--max-curves`, `--checkpoint-every`,
 `--curve-threads`, `--sea-threads`, `--smooth-threads`, `--smooth-max-batch`,
 `--smooth-root-auxiliary-bytes`, `--smooth-build-segment-span`,
+`--sea-level-telemetry`,
 `--assembly-attempts`,
 `--max-certificate-candidates`, and `--max-candidate-search-nodes`.  Reaching
 either candidate-enumeration bound aborts before the curve cursor advances, so
@@ -126,11 +139,34 @@ The semantic curve family defaults to `--curve-family weber-f`.  The opt-in
 it obtains a rational Weber/Montgomery image, then passes the resulting curve
 pair through the same SEA, exact-smooth, assembly, and canonical-verifier
 pipeline.  `--x1-require-point4 1` additionally filters for the validated
-point-order-four branch.  The family, formula digest, generator version, and
-point-four choice are included in the schedule digest, so a checkpoint cannot
-silently switch distributions.  The default Weber schedule bytes remain
-unchanged.  Construction details and the bounded p125 oracle evidence are in
-[the X1(11) note](x1_11_probe.md).
+point-order-four branch.
+
+The exact prior is derived from the curve actually sent to SEA and fails
+closed:
+
+- For Weber-f, the short Weierstrass cubic is directly factored first.  Only
+  three distinct rational roots establish full rational `E[2]`, hence
+  `#E = p+1-t = 0 (mod 4)` and `t = p+1 (mod 4)`.  A curve that does not pass
+  this validation receives no mod-4 prior.
+- For X1(11), let `D` be the selected-side group-order divisor, 44 or 88
+  according to the validated sample; requiring point four forces 88.  If the
+  selected Tate isomorphism class is
+  the canonical curve, SEA starts with `t = p+1 (mod D)`; if it is the
+  canonical twist, it starts with `t = -(p+1) (mod D)`.  Since 11 divides
+  either `D`, the redundant Weber level `ell=11` is skipped.  The selected-side
+  cyclic divisors remain 22 and 44 respectively; the stronger 44/88 values
+  used by the trace prior are certified group-order divisors, not claims about
+  the group exponent or an exact-order-88 point.
+
+The prior is inserted into both the exact and effective constraint states, so
+it participates in sound bounded screening and the final unique-trace gate.
+The family, formula digest, generator version, point-four choice, and trace-
+prior policy version are included in the schedule digest; every pre-policy
+checkpoint is deliberately incompatible.  Construction and oracle evidence
+are in [the X1(11) note](x1_11_probe.md).  The retained same-build p125 family
+A/B is in [the family comparison](x1_11_family_ab.md): ten observations per
+family, zero certificates, and different curve distributions, so it is
+throughput evidence rather than an empirical yield estimate.
 
 `--curve-threads N` evaluates up to `N` consecutive curves concurrently
 against one immutable exact-smooth engine and its single authenticated cache.

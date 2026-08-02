@@ -185,18 +185,57 @@ than finishing SEA to the singleton.  On index 1, cap 4096 took 1,097.637
 seconds versus 777.153 seconds for the old cap-64 baseline and 299.917 seconds
 for the optimized cap-64 replay.  No retained evidence supports a larger cap.
 
+## Completed family gate and exact trace prior
+
+The prescribed same-build comparison is complete on commit `4d0df939`.  Both
+families used the same binary, cache, table set, verifier, Python runtime,
+indices `[12,22)`, ten rolling curve slots, and one SEA and smooth thread per
+curve.
+
+| Family | Invocation wall | Seconds/curve | Curves/second | Full point counts | Certificates |
+|---|---:|---:|---:|---:|---:|
+| Weber-f | 306.19 s | 30.619 | 0.0326595 | 3/10 | 0 |
+| X1(11), point-four | 294.57 s | 29.457 | 0.0339478 | 3/10 | 0 |
+
+X1 measured 1.03945x the Weber wall throughput.  The index labels do not make
+this paired curve work: each family has a different deterministic distribution,
+and `n=10` is too small to characterize the SEA or smoothness tails.  Every
+observation was a sound smoothness rejection and neither run produced a
+certificate.  The records are benchmark-only and do not advance the
+authenticated production cursor at 12 or enlarge the unique yield sample.
+
+The conservative checked-in yield adjustment uses the guaranteed X1 cyclic
+divisor 44, whose modeled smooth-order opportunity multiplier is 1.1775.
+Multiplying it by measured wall throughput gives 1.22395x modeled opportunity
+rate.  The group-order-88 sensitivity is 1.28829x, but neither value is an
+observed certificate-yield ratio.  Group-order divisibility does not guarantee
+the same group-exponent divisor or exact-order assembly.  Full commands,
+per-curve timing/trace/RSS data, raw-output hashes, and limitations are in
+[the family A/B note](x1_11_family_ab.md) and
+[compact artifact](../artifacts/local/p125-x1-11-family-ab-20260801/result.json).
+
+The subsequently implemented exact trace-prior policy is fail-closed.  Weber
+uses `t=p+1 (mod 4)` only after the actual short Weierstrass cubic is directly
+validated to have full rational `E[2]`.  X1 uses
+`t=+(p+1) (mod D)` when its selected Tate class is the canonical curve and
+`t=-(p+1) (mod D)` when it is the canonical twist, with `D=44` or `88`
+according to the validated sample; requiring point four forces `D=88`.  SEA
+seeds both exact constraint states with this
+prior and skips redundant `ell=11` for X1.  The policy version changes the
+schedule digest, so the family A/B timings do not measure its additional SEA
+reduction and no pre-policy checkpoint can be resumed under it.
+
 ## Next local action
 
-First run a bounded, same-build K=10 comparison of the default Weber family and
-the opt-in X1(11) point-four family.  Those observations are benchmark-only and
-must not advance the authenticated cursor.  Then start the selected clean
-identity at global index 12.  A changed executable cannot reuse the `c5de573`
-checkpoint because build identity is deliberately authenticated; the new
-half-open range must therefore begin at 12 to avoid overlap.  The held-out
-scheduling A/B found the measured alternate 0.7% slower, so SEA levels remain
-in increasing order.  The command shape below is the audited template, but its
-build id, directory, and chosen family must be replaced with the committed
-benchmark winner before launch.
+First pass the complete test and clean committed-build gate for the exact
+trace-prior policy.  Then start a fresh X1(11) point-four identity at global
+index 12.  The `c5de573` production checkpoint and both family-benchmark
+checkpoints have different build/schedule identities and cannot be reused.
+Beginning at 12 preserves the authenticated cursor even though the first ten
+curves repeat benchmark observations; do not count those indices twice in
+future yield summaries.  The held-out scheduling A/B found the measured
+alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
+build id and `search-NEXT` directory below only after the clean gate.
 
 ```sh
 set -o pipefail
@@ -207,8 +246,9 @@ mkdir work/p125/search-NEXT
   --seed 202607300000 \
   --range-start 12 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
-  --curve-family FAMILY \
+  --curve-family x1-11 --x1-require-point4 1 \
   --max-level 401 --trace-cap 64 --curve-threads 10 --sea-threads 1 \
+  --sea-level-telemetry 0 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache work/p125/smooth.cache \
   --smooth-cache-sha256 afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551 \
@@ -223,13 +263,17 @@ mkdir work/p125/search-NEXT
 ```
 
 Before the continuation, confirm the emitted search-start record has
-the expected cache, table, range, seed, build, and schedule identities; confirm
-the curve record is non-heuristic and either advances soundly or produces a
-locally verified certificate.  Use one process with ten rolling curve slots,
-one SEA thread and one smooth thread per curve.  The same-binary K=10 replay
-measured 27.071 warm seconds per curve and 6.19 GB peak RSS, with 68.9 MiB of
-system-wide swapouts already included in its wall time; retain `vm_stat`
-monitoring and do not raise concurrency beyond the ten physical cores without
-a new bounded A/B.  Each completed SEA level emits and flushes
-`oneshotsea.search-sea-level.v1`, while only complete curve records and
-checkpoints advance durable state.
+the expected X1 family, point-four flag, cache, table, range, seed, build, and
+new schedule identities.  Confirm each curve record is non-heuristic and
+reports the expected mod-88 signed trace prior; confirm no `ell=11` SEA level is
+emitted.  A curve must either advance soundly or produce a locally verified
+certificate.  Use one process with ten rolling curve slots, one SEA thread and
+one smooth thread per curve.  The earlier same-binary scaling replay measured
+27.071 warm seconds per curve and 6.19 GB peak RSS, with 68.9 MiB of system-wide
+swapouts already included in its wall time; retain `vm_stat` monitoring and do
+not raise concurrency beyond the ten physical cores without a new bounded A/B.
+For the long run, `--sea-level-telemetry 0` suppresses live per-level records
+and leaves the embedded `sea_level_timings` array empty, while retaining
+per-curve SEA counts, major-kernel timings, outcomes, trace priors, RSS, and
+durable checkpoints.  Benchmark runs should retain the default verbose level
+telemetry.  Only complete curve records and checkpoints advance durable state.

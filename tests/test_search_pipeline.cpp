@@ -1,5 +1,6 @@
 #include "oneshotsea/search_pipeline.hpp"
 #include "oneshotsea/weber_table_trust.hpp"
+#include "oneshotsea/x1_11_probe.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -623,6 +624,9 @@ void test_worker_partition_is_identity_bound() {
         std::ostringstream canonical;
         canonical << "oneshotsea.search-schedule.v1\n"
                   << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "trace_prior_policy="
+                  << "weber-full-e2-mod4-if-validated-"
+                     "x1-selected-group-divisor-v1\n"
                   << "sea=weber-reference-two-pass-classical-atkin-v2\n"
                   << "heuristic_rejection=disabled\n"
                   << "prime=" << config.prime << '\n'
@@ -640,7 +644,49 @@ void test_worker_partition_is_identity_bound() {
         output << canonical.str();
     }
     check(identity.schedule_sha256 == oneshotsea::sha256_file(legacy_schedule),
-          "default Weber schedule identity remains byte-for-byte compatible");
+          "search schedule identity binds the trace-prior policy version");
+
+    const std::filesystem::path pre_policy_schedule =
+        temporary.path() / "pre-trace-prior-schedule.txt";
+    {
+        std::ostringstream canonical;
+        canonical << "oneshotsea.search-schedule.v1\n"
+                  << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "heuristic_rejection=disabled\n"
+                  << "prime=" << config.prime << '\n'
+                  << "max_level=" << config.max_level << '\n'
+                  << "early_trace_cap=" << config.early_trace_cap << '\n'
+                  << "assembly_attempts=" << config.assembly_attempts << '\n'
+                  << "certificate_seed=" << config.certificate_seed << '\n'
+                  << "python_executable_path=" << config.python_executable
+                  << '\n'
+                  << "python_executable_sha256="
+                  << oneshotsea::sha256_file(config.python_executable) << '\n'
+                  << "smooth_cache_sha256=" << digest << '\n'
+                  << "canonical_verifier_sha256=" << digest << '\n';
+        std::ofstream output(pre_policy_schedule, std::ios::binary);
+        output << canonical.str();
+    }
+    oneshotsea::SearchIdentity pre_policy_identity = identity;
+    pre_policy_identity.schedule_sha256 =
+        oneshotsea::sha256_file(pre_policy_schedule);
+    check(pre_policy_identity.schedule_sha256 != identity.schedule_sha256,
+          "trace-prior policy changes the production schedule hash");
+    const std::filesystem::path pre_policy_checkpoint =
+        temporary.path() / "pre-trace-prior.json";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(pre_policy_identity),
+        pre_policy_checkpoint);
+    bool pre_policy_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(
+            pre_policy_checkpoint, identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        pre_policy_rejected = true;
+    }
+    check(pre_policy_rejected,
+          "checkpoint rejects the pre-trace-prior schedule identity");
 
     oneshotsea::SearchPipelineConfig x1_config = small_config();
     x1_config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
@@ -693,6 +739,64 @@ void test_x1_curve_family_enters_search_pipeline() {
               first.sea_levels == repeat.sea_levels &&
               first.initial_trace_count == repeat.initial_trace_count,
           "X1 family feeds the common pipeline deterministically");
+    const auto twist_sample = oneshotsea::deterministic_x1_11_search_curve(
+        config.prime, config.seed, 7, true);
+    check(twist_sample.sample->selected_side ==
+              oneshotsea::X111CanonicalSide::twist,
+          "pinned X1 fixture exercises selected-twist semantics");
+    const mpz_class twist_fixture_trace =
+        config.prime + 1 - oneshotsea::count_points_bruteforce(
+                               twist_sample.sample->pair.curve);
+    check(first.trace_prior_modulus ==
+              std::optional<std::uint64_t>(88U) &&
+              first.trace_prior_residue ==
+                  std::optional<std::uint64_t>(18U) &&
+              first.exact_trace ==
+                  std::optional<mpz_class>(twist_fixture_trace) &&
+              twist_fixture_trace == 18 && first.sea_levels == 0U,
+          "selected-twist divisor becomes the negated curve-trace prior");
+
+    const std::string digest(64U, 'b');
+    const auto identity = oneshotsea::make_search_identity(
+        config, {7, 8}, 0, 1, digest, digest, "pipeline-test-v1");
+    const std::string report_json = oneshotsea::search_curve_report_json(
+        first, oneshotsea::SearchState(identity));
+    check(report_json.find(
+              "\"trace_prior\":{\"modulus\":\"88\",\"residue\":\"18\"}") !=
+              std::string::npos,
+          "production curve telemetry exposes the applied exact prior");
+
+    oneshotsea::SearchPipelineConfig curve_side_config = small_config();
+    curve_side_config.prime = 397;
+    curve_side_config.seed = UINT64_C(0x7821058d55e0f265);
+    curve_side_config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+    const oneshotsea::ExactSmoothEngine curve_side_smooth =
+        oneshotsea::ExactSmoothEngine::build(curve_side_config.prime);
+    const auto curve_side_report = oneshotsea::process_search_curve(
+        curve_side_config, curve_side_smooth, 0,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto curve_sample = oneshotsea::deterministic_x1_11_search_curve(
+        curve_side_config.prime, curve_side_config.seed, 0, false);
+    const mpz_class curve_fixture_trace =
+        curve_side_config.prime + 1 - oneshotsea::count_points_bruteforce(
+                                          curve_sample.sample->pair.curve);
+    check(curve_sample.sample->selected_side ==
+              oneshotsea::X111CanonicalSide::curve &&
+              curve_side_report.trace_prior_modulus ==
+                  std::optional<std::uint64_t>(44U) &&
+              curve_side_report.trace_prior_residue ==
+                  std::optional<std::uint64_t>(2U) &&
+              curve_side_report.exact_trace ==
+                  std::optional<mpz_class>(curve_fixture_trace) &&
+              curve_side_report.sea_levels == 0U,
+          "selected-curve divisor keeps the positive curve-trace prior");
+    check(std::none_of(
+              curve_side_report.sea_level_timings.begin(),
+              curve_side_report.sea_level_timings.end(),
+              [](const oneshotsea::SearchSeaLevelTiming& level) {
+                  return level.ell == 11U;
+              }),
+          "X1 group-divisor prior skips SEA level eleven");
 }
 
 void test_bounded_early_screen_default() {

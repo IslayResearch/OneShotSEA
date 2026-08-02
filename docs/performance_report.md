@@ -16,6 +16,7 @@ appropriate comparison exist.
 | Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first twelve retained curves produced 136 trace candidates and 272 order screens from twelve SEA executions | Exact work-count reduction; no wall-time ablation |
 | Prime scheduling | Available Weber levels are processed in increasing prime order | Held-out two-pair A/B: trained information/cost order 58.36 s median versus increasing 57.945 s, with identical final constraints and intrinsic evidence | Measured alternate was 0.7% slower; retain increasing order |
 | Specialized modular-polynomial path | Authenticated Weber-f tables, BMSS kernel recovery, and verified 24th-root orbit transport | Controlled orbit off/on A/B: 2.366x median wall and 3.445x modular-root speedup through level 193; at common levels 5/7, classical-j is honestly 12.449x/10.982x faster because Weber source-lift discovery dominates | Specialized hot-path ablation and tractable classical boundary measured; production-scale classical-j is unavailable |
+| Yield-biased family | Opt-in X1(11) point-four generator with the same SEA/smooth/certificate path | Same-build n=10 A/B: 294.57 s X1 versus 306.19 s Weber invocation wall; both produced ten sound rejections and zero certificates | 1.039x observed wall throughput; any yield uplift remains modeled, not observed |
 
 Every requested dimension now has either a controlled wall-time A/B or an
 exact algebraic work-count comparison.  Limitations remain explicit: early
@@ -32,6 +33,16 @@ Hasse-compatible traces.  The exact smooth engine then checks both
 `p+1-t` and `p+1+t` for every trace.  A candidate is rejected only when its
 complete `n^4`-smooth part is at most the certificate lower bound.  Heuristic
 rejection is disabled in production.
+
+The implemented exact trace-prior policy narrows this complete set without a
+heuristic assumption.  Weber-f adds `t = p+1 (mod 4)` only after directly
+finding all three rational roots of the actual short Weierstrass cubic.  For
+X1(11), the selected curve or twist gives `t = +(p+1)` or `-(p+1)` modulo its
+certified group-order divisor 44 or 88; because 11 divides either modulus, SEA
+skips the redundant `ell=11` table.  The prior participates in both sound early
+screening and the exact unique-trace gate, is emitted in curve telemetry, and
+changes the schedule digest.  The retained family A/B predates this policy, so
+it does not measure the policy's additional SEA reduction.
 
 The controlled threshold study on production index 0 found candidate counts
 of 55,089 at level 281, 195 at level 283, and one at level 307.  Screening the
@@ -373,12 +384,33 @@ warm rate:
 
 These are smooth-factor opportunity models, not certificate rates: a group
 divisor need not divide the group exponent, and exact point assembly remains a
-separate gate.  The X1(11) construction has a bounded oracle-backed probe and
-an opt-in, schedule-bound production path, but it is not selected for the next
-long run until a same-build end-to-end throughput comparison measures its
-generation overhead and SEA distribution.
+separate gate.
 
-Source: [reproducible yield artifact](../artifacts/local/p125-yield-model-20260801/result.json).
+The required same-build family comparison is now retained for global indices
+12--21.  With ten rolling curve slots, Weber took 306.19 seconds and X1(11)
+point-four took 294.57 seconds for ten curves: 30.619 versus 29.457 invocation
+seconds per curve, or **1.03945x observed X1 wall throughput**.  X1 generation
+cost more (22.386 versus 0.085 aggregate curve-seconds), but this particular
+X1 distribution spent less time in smoothness; it is therefore not valid to
+attribute the wall difference to generation or SEA in isolation.  The families
+sample different curves, so equal indices do not make a paired per-curve A/B.
+Both runs produced ten sound smoothness rejections, three full point counts,
+and **zero certificates**.  The n=10 window cannot estimate certificate yield.
+
+Using only the guaranteed cyclic divisor 44 gives the conservative checked-in
+model multiplier 1.1775.  Combining that model with observed wall throughput
+gives `1.039447 * 1.1775 = 1.22395x` modeled smooth-order opportunity rate.
+Using selected group-order divisibility by 88 gives a 1.28829x sensitivity,
+but does not establish an exact-order-88 point or an empirical certificate
+rate.  The benchmark clears the earlier throughput-penalty gate in favor of
+X1 point-four.  The exact trace-prior implementation postdates the captured
+binary and deliberately changes schedule identity; its correctness and clean
+build gate must pass before production, and the old benchmark checkpoint must
+not be resumed as that new schedule.
+
+Source: [reproducible yield artifact](../artifacts/local/p125-yield-model-20260801/result.json),
+[same-build family A/B artifact](../artifacts/local/p125-x1-11-family-ab-20260801/result.json),
+and [family A/B note](x1_11_family_ab.md).
 
 ## 8. Reproduction and interpretation rules
 
@@ -402,6 +434,10 @@ Source: [reproducible yield artifact](../artifacts/local/p125-yield-model-202608
 - The standard-library Dickman solver, observed-opportunity distinction, and
   throughput projections are in
   [the p125 yield artifact](../artifacts/local/p125-yield-model-20260801/result.json).
+- The same-build Weber/X1(11)-point-four command identity, raw hashes,
+  per-curve timing records, zero-certificate outcome, and modeled-versus-
+  observed distinction are in
+  [the family A/B artifact](../artifacts/local/p125-x1-11-family-ab-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

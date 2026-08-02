@@ -236,16 +236,27 @@ void reduce_product_coefficients(std::vector<mpz_class>& coefficients,
         modulus.leading_coefficient() == 1
             ? mpz_class(1)
             : field.inverse(modulus.leading_coefficient());
+    const std::vector<mpz_class>& modulus_coefficients =
+        modulus.coefficients();
+
+    // Keep dense elimination in Z and reduce only the coefficient currently
+    // being eliminated.  Since every update is an exact multiple of the
+    // modulus polynomial, delaying coefficient reduction preserves the
+    // residue class while avoiding a modular reduction for every inner-loop
+    // multiply/subtract.  The Poly constructor canonicalizes the final
+    // remainder once after this reduction returns.
     for (std::size_t degree = coefficients.size(); degree-- > modulus_degree;) {
         if (coefficients[degree] == 0) {
             continue;
         }
-        const mpz_class factor = field.mul(coefficients[degree], inverse_lead);
+        const mpz_class high = field.normalize(coefficients[degree]);
+        const mpz_class factor =
+            inverse_lead == 1 ? high : field.mul(high, inverse_lead);
         const std::size_t shift = degree - modulus_degree;
         for (std::size_t index = 0; index < modulus_degree; ++index) {
-            coefficients[shift + index] = field.sub(
-                coefficients[shift + index],
-                field.mul(factor, modulus.coefficient(index)));
+            mpz_submul(coefficients[shift + index].get_mpz_t(),
+                       factor.get_mpz_t(),
+                       modulus_coefficients[index].get_mpz_t());
         }
         coefficients[degree] = 0;
     }
@@ -279,21 +290,20 @@ Poly mulmod(const Poly& lhs, const Poly& rhs, const Poly& modulus) {
     if (reduced_lhs.is_zero() || reduced_rhs.is_zero()) {
         return Poly(lhs.field());
     }
+    const std::vector<mpz_class>& lhs_coefficients =
+        reduced_lhs.coefficients();
+    const std::vector<mpz_class>& rhs_coefficients =
+        reduced_rhs.coefficients();
     std::vector<mpz_class> output(
-        reduced_lhs.coefficients().size() +
-            reduced_rhs.coefficients().size() - 1U,
-        0);
-    for (std::size_t lhs_index = 0;
-         lhs_index < reduced_lhs.coefficients().size(); ++lhs_index) {
-        for (std::size_t rhs_index = 0;
-             rhs_index < reduced_rhs.coefficients().size(); ++rhs_index) {
+        lhs_coefficients.size() + rhs_coefficients.size() - 1U, 0);
+    for (std::size_t lhs_index = 0; lhs_index < lhs_coefficients.size();
+         ++lhs_index) {
+        for (std::size_t rhs_index = 0; rhs_index < rhs_coefficients.size();
+             ++rhs_index) {
             mpz_addmul(output[lhs_index + rhs_index].get_mpz_t(),
-                       reduced_lhs.coefficient(lhs_index).get_mpz_t(),
-                       reduced_rhs.coefficient(rhs_index).get_mpz_t());
+                       lhs_coefficients[lhs_index].get_mpz_t(),
+                       rhs_coefficients[rhs_index].get_mpz_t());
         }
-    }
-    for (mpz_class& coefficient : output) {
-        coefficient = lhs.field().normalize(coefficient);
     }
     reduce_product_coefficients(output, modulus);
     return Poly(lhs.field(), std::move(output));
@@ -312,25 +322,24 @@ Poly squaremod(const Poly& value, const Poly& modulus) {
     if (reduced.is_zero()) {
         return Poly(value.field());
     }
+    const std::vector<mpz_class>& reduced_coefficients =
+        reduced.coefficients();
     std::vector<mpz_class> output(
-        2U * reduced.coefficients().size() - 1U, 0);
-    for (std::size_t lhs_index = 0;
-         lhs_index < reduced.coefficients().size(); ++lhs_index) {
+        2U * reduced_coefficients.size() - 1U, 0);
+    for (std::size_t lhs_index = 0; lhs_index < reduced_coefficients.size();
+         ++lhs_index) {
         mpz_addmul(output[2U * lhs_index].get_mpz_t(),
-                   reduced.coefficient(lhs_index).get_mpz_t(),
-                   reduced.coefficient(lhs_index).get_mpz_t());
+                   reduced_coefficients[lhs_index].get_mpz_t(),
+                   reduced_coefficients[lhs_index].get_mpz_t());
         for (std::size_t rhs_index = lhs_index + 1U;
-             rhs_index < reduced.coefficients().size(); ++rhs_index) {
+             rhs_index < reduced_coefficients.size(); ++rhs_index) {
             mpz_addmul(output[lhs_index + rhs_index].get_mpz_t(),
-                       reduced.coefficient(lhs_index).get_mpz_t(),
-                       reduced.coefficient(rhs_index).get_mpz_t());
+                       reduced_coefficients[lhs_index].get_mpz_t(),
+                       reduced_coefficients[rhs_index].get_mpz_t());
             mpz_addmul(output[lhs_index + rhs_index].get_mpz_t(),
-                       reduced.coefficient(lhs_index).get_mpz_t(),
-                       reduced.coefficient(rhs_index).get_mpz_t());
+                       reduced_coefficients[lhs_index].get_mpz_t(),
+                       reduced_coefficients[rhs_index].get_mpz_t());
         }
-    }
-    for (mpz_class& coefficient : output) {
-        coefficient = value.field().normalize(coefficient);
     }
     reduce_product_coefficients(output, modulus);
     return Poly(value.field(), std::move(output));

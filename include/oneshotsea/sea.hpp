@@ -18,7 +18,7 @@ namespace oneshotsea {
 // after exhausting its authenticated Weber levels.  Keeping the list fixed
 // makes checkpoint identities deterministic and caps the slow reference work.
 inline constexpr char kRareSchoofFallbackPolicy[] =
-    "retained-state-exact-schoof-3,5,13,17,19-v1";
+    "retained-state-exact-schoof-3,5,7,11,13,17,19,23,29,31,37-v2";
 
 // A caller-supplied exact congruence for the Frobenius trace. The modulus may
 // be composite, but must fit uint64, be coprime to the field characteristic,

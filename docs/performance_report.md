@@ -69,6 +69,18 @@ same-binary no-fallback completion baseline, so these are completion and
 release-gate evidence, not a speedup claim. The final replay satisfies the
 committed-build recovery gate. See [the fallback audit](schoof_fallback.md).
 
+Index 246 then exceeded the committed v1 tail: the final production binary
+computed exact levels 13 and 17 but stopped fail-closed at 5,542 exact and 791
+effective traces. It emitted `sea_level_limit`, did not advance the checkpoint,
+and did not claim a rejection. A v2 prototype added missing exact levels 7,
+11, 13, 17, and 37, reaching 2/2 traces in 82.850855 seconds of summed fallback
+work; exact screening of four curve/twist orders produced a sound smoothness
+rejection. The 78.273594-second level-37 residue dominated that tail. The v1
+and v2 walls are not a speed comparison because their curve/SEA thread layouts
+and telemetry differ. The combined native/Magma working-tree test-all passed,
+but a final committed frozen-v2 replay remains required before production
+relaunches. See [the fallback audit](schoof_fallback.md).
+
 The retained production history through global index 11 contains twelve sound
 smoothness rejections.  In total, 136 complete trace candidates generated 272
 exact curve/twist order screens, and no exact point count was completed.  This
@@ -119,6 +131,15 @@ before and 0.703 ms after (2.70x), `mulmod` at 3.345 versus 2.183 ms (1.53x),
 and `squaremod` at 3.333 versus 2.183 ms (1.53x).  Five interleaved quotient-
 Frobenius pairs improved from 1.883760 to 1.212438 seconds median (1.554x), with
 identical degree and evaluation checksums in every pair.
+
+The specialized square's schoolbook leaves were then tightened by accumulating
+undoubled cross terms in place with `mpz_addmul`, doubling each output
+coefficient once, and adding the diagonal squares afterward.  Reverse-order
+same-input p125 level-193 pairs improved external SEA wall from 15.275 to
+14.165 seconds (1.07836x), modular roots by 1.08654x, and eigen recovery by
+1.08973x, with all 42 non-timing level projections unchanged.  This is a
+bounded SEA result rather than a full-search throughput claim; see
+[the addmul artifact](../artifacts/local/p125-polynomial-square-addmul-20260801/result.json).
 
 A follow-up exact cleanup retained the modulus and denominator coefficient
 vectors by const reference in the two quadratic elimination loops, removing an
@@ -581,9 +602,16 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
 - The specialized three-square recurrence, adversarial differential boundary,
   isolated production-degree timings, and exact full p125 replay are in
   [the polynomial-square artifact](../artifacts/local/p125-polynomial-square-20260801/result.json).
+- The in-place square cross-term identity, same-input reverse-order p125 pairs,
+  exact projection hashes, and full validation boundary are in
+  [the square-addmul artifact](../artifacts/local/p125-polynomial-square-addmul-20260801/result.json).
 - The prototype and final committed index-206 retained-state Schoof commands,
   exact CRT replays, fallback residues, raw hashes, and release gate are in
   [the fallback artifact](../artifacts/local/p125-index206-schoof-fallback-20260801/result.json).
+- The fail-closed index-246 v1 production attempt and v2 prototype recovery,
+  including both raw identities, CRT transitions, and the open final-build
+  gate, are in
+  [the v2 fallback artifact](../artifacts/local/p125-index246-schoof-fallback-v2-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

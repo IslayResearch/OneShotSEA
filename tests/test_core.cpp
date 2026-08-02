@@ -1121,9 +1121,14 @@ void test_schoof_residues() {
     }
 
     const auto curve = oneshotsea::deterministic_curve(101, 0xc0ffee, 0);
+    const mpz_class curve_trace =
+        102 - oneshotsea::count_points_bruteforce(curve);
+    check(oneshotsea::schoof_trace_mod_ell(curve, 37) ==
+              mpz_fdiv_ui(curve_trace.get_mpz_t(), 37U),
+          "native Schoof supports the rare-tail level 37");
     bool rejected_large_ell = false;
     try {
-        static_cast<void>(oneshotsea::schoof_trace_mod_ell(curve, 37));
+        static_cast<void>(oneshotsea::schoof_trace_mod_ell(curve, 41));
     } catch (const std::invalid_argument&) {
         rejected_large_ell = true;
     }
@@ -1205,7 +1210,7 @@ void test_retained_state_schoof_fallback() {
               two_stage.traces->front() == trace &&
               two_stage.schoof_fallback_levels.size() == 3U &&
               two_stage.schoof_fallback_levels[1].ell == 5U &&
-              two_stage.schoof_fallback_levels[2].ell == 13U,
+              two_stage.schoof_fallback_levels[2].ell == 7U,
           "unique-trace extension carries state and computes only new levels");
 
     for (std::uint64_t index = 0U; index < 4U; ++index) {
@@ -1227,13 +1232,17 @@ void test_retained_state_schoof_fallback() {
     }
 
     // For p = 3 (mod 4), y^2 = x^3 + x is supersingular with trace zero.
-    // This field is large enough that the product through ell=17 leaves
-    // multiple Hasse candidates, forcing the fixed ell=19 tail in a unit
-    // test without relying on an external point-counting implementation.
-    const mpz_class tail_prime = 10000019;
+    // Seed the exact state with every earlier fixed prime. This field leaves
+    // {-M,0,M} in the Hasse interval for their product M, forcing ell=37;
+    // multiplying M by 37 makes the known trace unique.
+    const mpz_class tail_prime("10000000000000000000139");
     const oneshotsea::Curve tail_curve(
         oneshotsea::Field(tail_prime), 1, 0);
     oneshotsea::TraceConstraints tail_initial(tail_prime);
+    for (const std::uint64_t ell :
+         {3U, 5U, 7U, 11U, 13U, 17U, 19U, 23U, 29U, 31U}) {
+        tail_initial.refine_exact(ell, 0U);
+    }
     oneshotsea::WeberSeaResult full_tail{
         tail_initial, tail_initial, {}, {}, {}, {}, std::nullopt};
     oneshotsea::extend_weber_sea_with_schoof_fallback(
@@ -1241,10 +1250,10 @@ void test_retained_state_schoof_fallback() {
     check(full_tail.traces.has_value() &&
               full_tail.traces->size() == 1U &&
               full_tail.traces->front() == 0 &&
-              full_tail.schoof_fallback_levels.size() == 5U &&
-              full_tail.schoof_fallback_levels.back().ell == 19U &&
+              full_tail.schoof_fallback_levels.size() == 1U &&
+              full_tail.schoof_fallback_levels.back().ell == 37U &&
               full_tail.schoof_fallback_levels.back().trace_residue == 0U,
-          "fixed fallback tail reaches ell=19 and recovers a known supersingular trace");
+          "fixed fallback tail reaches ell=37 and recovers a known supersingular trace");
 
     oneshotsea::TraceConstraints conflict_exact(prime);
     conflict_exact.refine_exact(4U, mpz_fdiv_ui(trace.get_mpz_t(), 4U));

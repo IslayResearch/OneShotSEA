@@ -340,15 +340,43 @@ replay supplies sound index-206 evidence. The full residue/count audit is in
 [the fallback note](schoof_fallback.md) and
 [artifact](../artifacts/local/p125-index206-schoof-fallback-20260801/result.json).
 
+## Index-246 v1 stop and v2 recovery gate
+
+The first sound-only X1(27) production attempt at index 246 used the final
+`976924b` binary and v1 fallback policy. It failed closed at
+`sea_level_limit` after exact levels 13 and 17 left 5,542 exact and 791
+effective traces. The checkpoint remains incomplete at 246 with zero attempted
+curves. This is authenticated implementation-limit evidence, not a rejection;
+the retained production directory is unchanged.
+
+An isolated v2 prototype expanded the fixed exact sequence through level 37.
+Its missing levels 7, 11, 13, 17, and 37 reduced the ordinary
+1,224,852/174,979 sets through 174,979, 15,908, 1,224, 72, and finally 2
+exact/effective traces. Exact screening produced a nonheuristic
+`sound_smoothness_reject` and advanced the isolated `[246,247)` checkpoint.
+Fallback work summed to 82.850855 seconds, including 78.273594 seconds at
+level 37; invocation wall was 259.23 seconds. This is prototype mathematical
+recovery only. The full identities, raw hashes, CRCs, reconstructed command
+boundary, residues, and independent CRT audit are in
+[the v2 fallback artifact](../artifacts/local/p125-index246-schoof-fallback-v2-20260801/result.json).
+
+The combined native/Magma working-tree test-all passed. Commit the v2 policy
+and level-37 limit, freeze and hash the committed binary, then replay index 246
+with incomplete skip disabled. Only an agreeing final-build replay may close
+the gate. Do not modify or resume the v1 checkpoint under the new schedule.
+
 ## Next local action
 
-The authenticated production frontier is 246. Indices 0--205 and 207--245
-have sound production outcomes; index 206 now has a separate final
-committed-build sound replay, while its old production checkpoint remains an
-explicit historical heuristic skip. Start a new X1(27) point-four identity at
-global index 246 with exact fallback enabled and incomplete skip disabled;
-every older checkpoint remains evidence rather than resumable state under the
-new schedule.
+The authenticated production frontier remains 246. Indices 0--205 and
+207--245 have sound production outcomes; index 206 has a separate final
+committed-build sound replay. Index 246's v1 attempt failed closed without
+advancing, and its v2 recovery is still prototype evidence. The working-tree
+test gate passed; commit v2, freeze its binary, and complete the final
+index-246 replay.
+After it agrees, start a new X1(27) point-four production identity at global
+index 247 with exact fallback enabled and incomplete skip disabled. Every
+older checkpoint remains evidence rather than resumable state under the new
+schedule.
 The held-out scheduling A/B found the measured
 alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
 build id and `search-NEXT` directory below with the exact committed
@@ -361,7 +389,7 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 246 --range-end 1000000 \
+  --range-start 247 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --curve-family x1-27 --x1-require-point4 1 \
   --max-level 401 --trace-cap 16 --schoof-fallback 1 \
@@ -380,7 +408,8 @@ mkdir work/p125/search-NEXT
   --max-curves 1000 2>&1 | tee work/p125/search-NEXT/search.log
 ```
 
-Before the continuation, confirm the emitted search-start record has
+Run this continuation only after the final committed/frozen-v2 index-246 replay
+agrees. Before the continuation, confirm the emitted search-start record has
 the expected X1(27) family, point-four flag, exact-fallback policy, disabled
 incomplete skip, cache, table, range, seed, build, and new schedule identities.
 Confirm each curve record is non-heuristic and reports the expected mod-432

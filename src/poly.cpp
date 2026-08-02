@@ -169,18 +169,18 @@ std::vector<mpz_class> schoolbook_square(
         return {};
     }
     std::vector<mpz_class> output(2U * value.size() - 1U, 0);
-    mpz_class cross_term;
     for (std::size_t left = 0; left < value.size(); ++left) {
-        mpz_addmul(output[2U * left].get_mpz_t(),
-                   value[left].get_mpz_t(), value[left].get_mpz_t());
         for (std::size_t right = left + 1U; right < value.size(); ++right) {
-            mpz_mul(cross_term.get_mpz_t(), value[left].get_mpz_t(),
-                    value[right].get_mpz_t());
-            mpz_mul_2exp(cross_term.get_mpz_t(), cross_term.get_mpz_t(), 1U);
-            mpz_add(output[left + right].get_mpz_t(),
-                    output[left + right].get_mpz_t(),
-                    cross_term.get_mpz_t());
+            mpz_addmul(output[left + right].get_mpz_t(),
+                       value[left].get_mpz_t(), value[right].get_mpz_t());
         }
+    }
+    for (mpz_class& coefficient : output) {
+        mpz_mul_2exp(coefficient.get_mpz_t(), coefficient.get_mpz_t(), 1U);
+    }
+    for (std::size_t index = 0; index < value.size(); ++index) {
+        mpz_addmul(output[2U * index].get_mpz_t(),
+                   value[index].get_mpz_t(), value[index].get_mpz_t());
     }
     return output;
 }

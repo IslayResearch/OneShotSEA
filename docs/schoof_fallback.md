@@ -6,14 +6,17 @@ adds a fixed, schedule-bound tail of exact Schoof residues while retaining the
 already computed trace prior, exact CRT, certified Atkin constraints, and
 Weber telemetry. It does not rerun the full table schedule.
 
-The fixed policy is
-`retained-state-exact-schoof-3,5,13,17,19-v1`. Missing exact moduli are tried
-in that order and the extension stops as soon as the complete exact and
-effective Hasse sets fit the requested cap. A modulus already present in the
-exact state is skipped. When a Schoof residue upgrades an existing Atkin
-modulus, the implementation first verifies agreement with the certified Atkin
-residue set, then rebuilds the effective state from exact constraints plus
-only the remaining nonredundant Atkin constraints. Contradiction fails closed.
+The current fixed policy is
+`retained-state-exact-schoof-3,5,7,11,13,17,19,23,29,31,37-v2`. The original
+committed index-206 evidence used the shorter
+`retained-state-exact-schoof-3,5,13,17,19-v1` policy and remains valid under
+that historical identity. Missing exact moduli are tried in policy order and
+the extension stops as soon as the complete exact and effective Hasse sets fit
+the requested cap. A modulus already present in the exact state is skipped.
+When a Schoof residue upgrades an existing Atkin modulus, the implementation
+first verifies agreement with the certified Atkin residue set, then rebuilds
+the effective state from exact constraints plus only the remaining
+nonredundant Atkin constraints. Contradiction fails closed.
 Each level is staged copy-on-write: contradictory Atkin evidence or a throwing
 progress callback leaves the retained exact/effective state and fallback
 telemetry unchanged, including a prior bounded trace enumeration during a
@@ -30,10 +33,12 @@ fallback levels; it does not repeat SEA.
 Checked-in tests cover exact/Atkin upgrades and contradictions, existing exact
 modulus skips, a two-stage cap-16-to-cap-1 continuation, post-identity option
 mutation, and transactional callback failure. Four small-field brute-force
-differentials recover the complete trace. A known supersingular curve over
-`p=10000019` forces every fixed level through 19 and recovers trace zero,
-covering the expensive end of the policy without adding a target-sized test to
-the fast suite.
+differentials recover the complete trace. A known supersingular curve with
+every earlier v2 modulus preseeded forces the new level 37 tail and recovers
+trace zero, covering the expensive end of the policy without adding a
+target-sized test to the fast suite. The reference division-polynomial,
+residue, and complete-count paths accept levels through 37 and reject larger
+levels.
 
 ## Index-206 recovery result
 
@@ -121,6 +126,55 @@ the short prefix and frozen-binary digest.
 
 This satisfies the final committed/frozen-binary recovery gate. The old
 production checkpoint remains unchanged as historical heuristic evidence;
-the separate authenticated replay supplies the sound index-206 outcome.
-Sound-only X1(27) production can therefore start at index 246 with exact
-fallback enabled and incomplete skip disabled.
+the separate authenticated replay supplies the sound index-206 outcome. That
+cleared the way for the subsequent X1(27) production attempt at index 246,
+described below.
+
+## Index-246 v1 stop and v2 prototype recovery
+
+The first X1(27) production attempt at index 246 used final commit `976924b`,
+its frozen binary, the v1 fallback policy, cap 16, and incomplete skip off. It
+exhausted ordinary SEA at 1,224,852 exact and 174,979 effective candidates.
+The only missing v1 levels, 13 and 17, reduced those sets to 5,542 and 791,
+still above cap. The runner emitted `sea_level_limit`, kept the checkpoint at
+246 with zero attempted curves, and stopped. This was the intended fail-closed
+behavior: nonheuristic, but neither a rejection nor a completed curve. Its
+retained launcher and raw directory remain unchanged at
+`work/p125/search-976924b-x127p4-cap16-schoof-sound`.
+
+The v2 prototype expands the fixed sequence to
+`3,5,7,11,13,17,19,23,29,31,37` and raises the reference Schoof limit to 37.
+For index 246, levels 3, 5, 19, 23, 29, and 31 were already exact. The retained
+extension computed:
+
+| exact level | residue | exact candidates | effective candidates | elapsed |
+|---:|---:|---:|---:|---:|
+| 7 | 0 | 174,979 | 174,979 | 0.097260 s |
+| 11 | 9 | 15,908 | 15,908 | 0.546832 s |
+| 13 | 6 | 1,224 | 1,224 | 1.032204 s |
+| 17 | 0 | 72 | 72 | 2.900965 s |
+| 37 | 26 | 2 | 2 | 78.273594 s |
+
+The 82.850855-second fallback reduced both complete Hasse sets to 2. Exact
+smoothness screening checked all four curve/twist orders and returned a
+nonheuristic `sound_smoothness_reject`. The isolated prototype checkpoint
+advanced to 247 complete. Invocation wall was 259.23 seconds and reported peak
+RSS was 6,268,567,552 bytes. The 234.54-second v1 wall is not a comparison:
+v1 used ten rolling curve slots with one SEA thread each, while the prototype
+used one curve, ten SEA threads, and verbose level telemetry.
+
+The v2 build id authenticates prototype binary SHA-256
+`eb6a08ec6e9b4f94bf5c65f843ab5dfaeb80f9dd86adbca3975f11a54d67c7a0`.
+No launcher was retained; the artifact distinguishes authoritative
+search-start fields from the executable and `--max-curves 1` facts
+reconstructed from the execution transcript. It also pins both attempts' raw
+hashes, checkpoint CRCs, exact CRT replay, policy source delta, and outcome
+boundaries:
+[`artifacts/local/p125-index246-schoof-fallback-v2-20260801/result.json`](../artifacts/local/p125-index246-schoof-fallback-v2-20260801/result.json).
+
+This prototype closes the mathematical path, not the deployment gate. The
+combined native/Magma working-tree test-all passed. Commit v2, freeze and hash
+the committed binary, and replay index 246 with incomplete skip off. Only an
+agreeing final-build replay may close 246; the unchanged v1 production
+checkpoint must not be relabeled or resumed under the v2 schedule. Production
+relaunch begins at 247 only after that gate.

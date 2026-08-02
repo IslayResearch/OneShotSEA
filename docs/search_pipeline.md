@@ -99,8 +99,8 @@ but cannot create a false-positive certificate.
 Sound-only runs may instead opt into `--schoof-fallback 1`. After all
 authenticated Weber levels are exhausted without fitting the trace cap, this
 extends the retained exact/Atkin state with the fixed exact-Schoof sequence
-`3,5,13,17,19`, stopping as soon as the complete exact and effective Hasse
-sets fit. It skips moduli already exact, verifies an exact upgrade against any
+`3,5,7,11,13,17,19,23,29,31,37`, stopping as soon as the complete exact and
+effective Hasse sets fit. It skips moduli already exact, verifies an exact upgrade against any
 existing Atkin residue set, and rebuilds effective constraints without the
 now-redundant Atkin modulus. Contradiction fails closed. A surviving early
 screen continues the same state toward uniqueness rather than rerunning the

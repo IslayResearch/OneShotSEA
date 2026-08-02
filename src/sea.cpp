@@ -20,8 +20,8 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-constexpr std::array<std::uint64_t, 5> kRareSchoofFallbackLevels = {
-    3U, 5U, 13U, 17U, 19U,
+constexpr std::array<std::uint64_t, 11> kRareSchoofFallbackLevels = {
+    3U, 5U, 7U, 11U, 13U, 17U, 19U, 23U, 29U, 31U, 37U,
 };
 
 bool is_prime(std::uint64_t value) {

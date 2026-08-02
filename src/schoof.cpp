@@ -13,7 +13,7 @@
 namespace oneshotsea {
 namespace {
 
-constexpr std::uint64_t kMaxReferenceSchoofEll = 31;
+constexpr std::uint64_t kMaxReferenceSchoofEll = 37;
 
 struct RawElement {
     Poly u;
@@ -594,7 +594,7 @@ Poly division_polynomial_reference(const Curve& curve, std::uint64_t ell) {
         throw std::invalid_argument("division polynomial requires a nonsingular curve");
     }
     if (ell > kMaxReferenceSchoofEll) {
-        throw std::invalid_argument("ell exceeds the reference torsion limit of 31");
+        throw std::invalid_argument("ell exceeds the reference torsion limit of 37");
     }
     if (!is_small_prime(ell) || ell == 2) {
         throw std::invalid_argument("ell must be an odd prime");
@@ -751,7 +751,7 @@ std::uint64_t schoof_trace_mod_ell(const Curve& curve, std::uint64_t ell) {
         throw std::invalid_argument("Schoof residue requires a nonsingular curve");
     }
     if (ell > kMaxReferenceSchoofEll) {
-        throw std::invalid_argument("ell exceeds the reference Schoof limit of 31");
+        throw std::invalid_argument("ell exceeds the reference Schoof limit of 37");
     }
     if (!is_small_prime(ell) || ell == 2) {
         throw std::invalid_argument("ell must be an odd prime");
@@ -804,7 +804,7 @@ SchoofCountResult schoof_count_reference(const Curve& curve, std::uint64_t max_e
         throw std::invalid_argument("max_ell must be at least 3");
     }
     if (max_ell > kMaxReferenceSchoofEll) {
-        throw std::invalid_argument("max_ell exceeds the reference Schoof limit of 31");
+        throw std::invalid_argument("max_ell exceeds the reference Schoof limit of 37");
     }
     TraceConstraints constraints(curve.field().modulus());
     std::vector<std::uint64_t> levels;

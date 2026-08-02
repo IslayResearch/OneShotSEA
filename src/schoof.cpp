@@ -6,6 +6,7 @@
 #include "oneshotsea/trace.hpp"
 
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -145,14 +146,17 @@ struct QuotientRing {
     const Field* field;
     Poly modulus;
     Poly curve_rhs;
-    PolyModContext arithmetic;
+    std::optional<PolyModContext> arithmetic;
 
     QuotientRing(const Field& input_field, Poly input_modulus,
                  const Poly& input_curve_rhs)
         : field(&input_field),
           modulus(std::move(input_modulus)),
-          curve_rhs(mod(input_curve_rhs, modulus)),
-          arithmetic(modulus) {}
+          curve_rhs(mod(input_curve_rhs, modulus)) {
+        if constexpr (kQuotientContextReuse) {
+            arithmetic.emplace(modulus);
+        }
+    }
 };
 
 struct Element {
@@ -162,7 +166,11 @@ struct Element {
 };
 
 Element element(const QuotientRing& ring, const Poly& u, const Poly& v) {
-    return {&ring, ring.arithmetic.reduce(u), ring.arithmetic.reduce(v)};
+    if constexpr (kQuotientContextReuse) {
+        return {&ring, ring.arithmetic->reduce(u),
+                ring.arithmetic->reduce(v)};
+    }
+    return {&ring, mod(u, ring.modulus), mod(v, ring.modulus)};
 }
 
 Element constant(const QuotientRing& ring, const mpz_class& value) {
@@ -191,14 +199,14 @@ Element element_sub(const Element& lhs, const Element& rhs) {
 Poly quotient_multiply(const QuotientRing& ring, const Poly& lhs,
                        const Poly& rhs) {
     if constexpr (kQuotientContextReuse) {
-        return ring.arithmetic.multiply(lhs, rhs);
+        return ring.arithmetic->multiply(lhs, rhs);
     }
     return mulmod(lhs, rhs, ring.modulus);
 }
 
 Poly quotient_square(const QuotientRing& ring, const Poly& value) {
     if constexpr (kQuotientContextReuse) {
-        return ring.arithmetic.square(value);
+        return ring.arithmetic->square(value);
     }
     return squaremod(value, ring.modulus);
 }
@@ -206,7 +214,7 @@ Poly quotient_square(const QuotientRing& ring, const Poly& value) {
 Poly quotient_pow(const QuotientRing& ring, Poly base,
                   const mpz_class& exponent) {
     if constexpr (kQuotientContextReuse) {
-        return ring.arithmetic.pow(std::move(base), exponent);
+        return ring.arithmetic->pow(std::move(base), exponent);
     }
     return powmod(std::move(base), exponent, ring.modulus);
 }

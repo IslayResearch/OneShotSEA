@@ -42,7 +42,19 @@ mkdir -p "$output"
     --output "$output/reciprocal" \
     --repetitions 5
 
+"$benchmark_runner" \
+    --label quotient-context \
+    --baseline "$project_root/build-ab-no-quotient-context/benchmark_p125_poly_trusted" \
+    --candidate "$project_root/build-ab-candidate/benchmark_p125_poly_trusted" \
+    --build-commands "$build_recipe" \
+    --build-log "$output/BUILD.log" \
+    --table-dir "$table_dir" \
+    --output "$output/quotient-context" \
+    --repetitions 5
+
 python3 "$project_root/tools/summarize_p125_poly_ab.py" \
     "$output/kronecker" --output "$output/kronecker-summary.json"
 python3 "$project_root/tools/summarize_p125_poly_ab.py" \
     "$output/reciprocal" --output "$output/reciprocal-summary.json"
+python3 "$project_root/tools/summarize_p125_poly_ab.py" \
+    "$output/quotient-context" --output "$output/quotient-context-summary.json"

@@ -41,8 +41,11 @@ build_variant build-ab-no-kronecker \
     "$common_cxxflags -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0"
 build_variant build-ab-no-reciprocal \
     "$common_cxxflags -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0"
+build_variant build-ab-no-quotient-context \
+    "$common_cxxflags -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0"
 
 sha256sum \
     build-ab-candidate/benchmark_p125_poly_trusted \
     build-ab-no-kronecker/benchmark_p125_poly_trusted \
-    build-ab-no-reciprocal/benchmark_p125_poly_trusted
+    build-ab-no-reciprocal/benchmark_p125_poly_trusted \
+    build-ab-no-quotient-context/benchmark_p125_poly_trusted

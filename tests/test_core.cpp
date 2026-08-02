@@ -144,7 +144,7 @@ void test_thresholded_polynomial_products() {
     }
     const oneshotsea::Field large_field(target_prime());
     for (const std::size_t size : {31U, 32U, 33U, 47U, 48U, 64U, 97U,
-                                   129U, 194U}) {
+                                   129U, 194U, 281U, 401U}) {
         check_thresholded_products(large_field, size);
     }
 

@@ -17,7 +17,8 @@ for command in g++ gcc make nproc sha256sum; do
 done
 
 jobs=$(nproc)
-common_cxxflags='-O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow'
+# The current RunPod image uses GCC 9, whose spelling for C++20 is c++2a.
+common_cxxflags='-O2 -g -std=c++2a -Wall -Wextra -Wpedantic -Wconversion -Wshadow'
 common_cflags='-O2 -g -std=c11'
 
 build_variant() {

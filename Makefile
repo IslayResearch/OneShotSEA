@@ -30,7 +30,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-poly-reduction benchmark-poly-reduction test-oracle test-differential test-runpod test-all clean
+.PHONY: all test test-poly-square test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -60,10 +60,14 @@ $(BUILD_DIR)/oneshotsea: src/main.cpp $(BUILD_DIR)/liboneshotsea.a \
 $(BUILD_DIR)/test_core: tests/test_core.cpp $(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a $(LDFLAGS) $(LDLIBS) -o $@
 
-$(BUILD_DIR)/test_poly_reduction: tests/test_poly_reduction.cpp \
-		$(BUILD_DIR)/liboneshotsea.a
+$(BUILD_DIR)/test_poly_square: tests/test_poly_square.cpp $(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a $(LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD_DIR)/benchmark_p125_poly_trusted: \
+		tools/benchmark_p125_poly_trusted.cpp $(BUILD_DIR)/liboneshotsea.a \
+		$(BUILD_DIR)/smooth.o
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
-		$(LDFLAGS) $(LDLIBS) -o $@
+		$(BUILD_DIR)/smooth.o $(LDFLAGS) $(OPENMP_LDFLAGS) $(LDLIBS) -o $@
 
 $(BUILD_DIR)/test_smooth: tests/test_smooth.c $(BUILD_DIR)/smooth.o
 	$(CC) $(CPPFLAGS) -Ithird_party/oneshot_fast_ecpp $(OPENMP_CPPFLAGS) \
@@ -131,11 +135,20 @@ $(BUILD_DIR)/test_x1_27_probe: \
 test: $(BUILD_DIR)/test_core
 	./$(BUILD_DIR)/test_core
 
-test-poly-reduction: $(BUILD_DIR)/test_poly_reduction
-	./$(BUILD_DIR)/test_poly_reduction
+test-poly-square: $(BUILD_DIR)/test_poly_square
+	./$(BUILD_DIR)/test_poly_square
 
-benchmark-poly-reduction: $(BUILD_DIR)/test_poly_reduction
-	./$(BUILD_DIR)/test_poly_reduction --bench
+test-atkin: $(BUILD_DIR)/test_atkin
+	./$(BUILD_DIR)/test_atkin
+
+test-progress-audit:
+	python3 tests/test_progress_audit.py -v
+
+test-yield-model:
+	python3 tests/test_yield_model.py -v
+
+test-performance-artifacts:
+	python3 tools/audit_performance_artifacts.py
 
 test-cli: all
 	python3 tests/test_cli.py -v
@@ -218,7 +231,10 @@ test-differential: all
 test-runpod: all
 	scripts/runpod/test.sh
 
-test-all: test test-poly-reduction test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod
+test-aws:
+	scripts/aws/test.sh
+
+test-all: test test-poly-square test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

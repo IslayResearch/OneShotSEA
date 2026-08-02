@@ -87,132 +87,75 @@ std::size_t bounded_worker_count(std::size_t requested,
     return std::min(requested, work_items);
 }
 
-constexpr std::uint64_t kWeberRootTransportOrder = 24U;
-
-struct WeberRootTransportPlan {
-    std::vector<std::size_t> representatives;
-    std::vector<std::size_t> representative_by_source;
-    std::vector<mpz_class> root_multipliers;
+struct WeberRootOrbit {
+    std::size_t representative = 0;
+    std::vector<std::size_t> members;
 };
 
-bool supports_weber_root_transport(
+bool has_weber_root_covariance(
     const SparseModularPolynomial& modular_polynomial) {
-    const std::uint64_t ell_mod =
-        modular_polynomial.level() % kWeberRootTransportOrder;
-    if ((ell_mod * ell_mod) % kWeberRootTransportOrder != 1U) {
-        return false;
-    }
-    const std::uint64_t target =
-        (ell_mod + 1U) % kWeberRootTransportOrder;
+    // If every nonzero X^a Y^b term has a + ell*b = ell+1 (mod 24), then
+    // Phi(zeta*X, zeta^ell*Y) = zeta^(ell+1)*Phi(X,Y) for zeta^24=1.
+    // Verify the identity from the loaded table instead of trusting its path or
+    // provenance; an unverified table retains the direct per-lift root path.
+    constexpr std::uint64_t kWeberWeightModulus = 24U;
+    const std::uint64_t ell = modular_polynomial.level();
+    const std::uint64_t expected = (ell + 1U) % kWeberWeightModulus;
     for (const BivariateTerm& term : modular_polynomial.terms()) {
         if (term.coefficient == 0) {
             continue;
         }
-        const std::uint64_t exponent =
-            (ell_mod *
-                 (static_cast<std::uint64_t>(term.x_degree) %
-                  kWeberRootTransportOrder) +
-             static_cast<std::uint64_t>(term.y_degree) %
-                 kWeberRootTransportOrder) %
-            kWeberRootTransportOrder;
-        if (exponent != target) {
+        const std::uint64_t weight =
+            (static_cast<std::uint64_t>(term.x_degree) %
+                 kWeberWeightModulus +
+             (ell % kWeberWeightModulus) *
+                 (static_cast<std::uint64_t>(term.y_degree) %
+                  kWeberWeightModulus)) %
+            kWeberWeightModulus;
+        if (weight != expected) {
             return false;
         }
     }
     return true;
 }
 
-WeberRootTransportPlan plan_weber_root_transport(
-    const Field& field,
-    const SparseModularPolynomial& modular_polynomial,
-    const std::vector<mpz_class>& source_lifts) {
-    WeberRootTransportPlan plan{
-        {}, std::vector<std::size_t>(source_lifts.size(), 0U),
-        std::vector<mpz_class>(source_lifts.size(), 1)};
-    const bool use_symmetry =
-        supports_weber_root_transport(modular_polynomial);
-    std::map<mpz_class, std::size_t> representative_by_power;
-    const mpz_class orbit_exponent(
-        static_cast<unsigned long>(kWeberRootTransportOrder));
-    const mpz_class ell_exponent(
-        static_cast<unsigned long>(modular_polynomial.level()));
-    for (std::size_t source_index = 0; source_index < source_lifts.size();
-         ++source_index) {
-        const mpz_class& source_f = source_lifts[source_index];
-        if (!use_symmetry || source_f == 0) {
-            plan.representatives.push_back(source_index);
-            plan.representative_by_source[source_index] = source_index;
-            continue;
+std::vector<WeberRootOrbit> make_weber_root_orbits(
+    const Field& field, const SparseModularPolynomial& modular_polynomial,
+    const std::vector<mpz_class>& source_lifts, bool enable_root_orbit_reuse,
+    bool& covariance_verified) {
+    covariance_verified = enable_root_orbit_reuse &&
+        mpz_probab_prime_p(field.modulus().get_mpz_t(), 25) != 0 &&
+        has_weber_root_covariance(modular_polynomial);
+    std::vector<WeberRootOrbit> orbits;
+    orbits.reserve(source_lifts.size());
+    if (!covariance_verified) {
+        for (std::size_t index = 0; index < source_lifts.size(); ++index) {
+            orbits.push_back({index, {index}});
         }
-        const mpz_class power = field.pow(source_f, orbit_exponent);
-        const auto [position, inserted] =
-            representative_by_power.emplace(power, source_index);
-        if (inserted) {
-            plan.representatives.push_back(source_index);
-            plan.representative_by_source[source_index] = source_index;
-            continue;
-        }
-        const std::size_t representative = position->second;
-        const mpz_class ratio =
-            field.divide(source_f, source_lifts[representative]);
-        if (field.pow(ratio, orbit_exponent) != 1) {
-            throw std::logic_error(
-                "Weber source lifts with equal 24th powers are not in one orbit");
-        }
-        plan.representative_by_source[source_index] = representative;
-        plan.root_multipliers[source_index] =
-            field.pow(ratio, ell_exponent);
+        return orbits;
     }
-    return plan;
-}
 
-void transport_weber_neighbor_roots(
-    const Field& field,
-    const SparseModularPolynomial& modular_polynomial,
-    const std::vector<mpz_class>& source_lifts,
-    const WeberRootTransportPlan& plan,
-    std::vector<std::vector<mpz_class>>& neighbor_sets) {
-    if (plan.representative_by_source.size() != source_lifts.size() ||
-        plan.root_multipliers.size() != source_lifts.size() ||
-        neighbor_sets.size() != source_lifts.size()) {
-        throw std::logic_error("invalid Weber root-transport plan dimensions");
-    }
-    for (std::size_t source_index = 0; source_index < source_lifts.size();
-         ++source_index) {
-        const std::size_t representative =
-            plan.representative_by_source[source_index];
-        if (representative == source_index) {
+    std::map<mpz_class, std::size_t> orbit_by_power;
+    for (std::size_t index = 0; index < source_lifts.size(); ++index) {
+        const mpz_class normalized = field.normalize(source_lifts[index]);
+        // The Weber-to-j relation cannot produce zero, but callers may supply
+        // arbitrary restricted lifts.  Preserve the exact direct path for that
+        // exceptional input rather than attempting to form a quotient.
+        if (normalized == 0) {
+            orbits.push_back({index, {index}});
             continue;
         }
-        if (representative >= source_lifts.size() ||
-            plan.root_multipliers[source_index] == 0) {
-            throw std::logic_error("invalid Weber root-transport representative");
-        }
-        const std::vector<mpz_class>& representative_roots =
-            neighbor_sets[representative];
-        std::vector<mpz_class>& transported = neighbor_sets[source_index];
-        transported.reserve(representative_roots.size());
-        for (const mpz_class& root : representative_roots) {
-            const mpz_class mapped = field.mul(
-                plan.root_multipliers[source_index], root);
-            if (modular_polynomial
-                    .evaluate_with_derivatives(
-                        field, source_lifts[source_index], mapped)
-                    .value != 0) {
-                throw std::logic_error(
-                    "transported Weber modular root failed validation");
-            }
-            transported.push_back(mapped);
-        }
-        std::sort(transported.begin(), transported.end());
-        transported.erase(
-            std::unique(transported.begin(), transported.end()),
-            transported.end());
-        if (transported.size() != representative_roots.size()) {
-            throw std::logic_error(
-                "Weber root transport did not preserve root multiplicity");
+        const mpz_class power = field.pow(normalized, 24);
+        const auto existing = orbit_by_power.find(power);
+        if (existing == orbit_by_power.end()) {
+            const std::size_t orbit_index = orbits.size();
+            orbit_by_power.emplace(power, orbit_index);
+            orbits.push_back({index, {index}});
+        } else {
+            orbits[existing->second].members.push_back(index);
         }
     }
+    return orbits;
 }
 
 }  // namespace
@@ -457,14 +400,18 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
     };
     started = Clock::now();
     std::vector<std::vector<mpz_class>> neighbor_sets(source_lifts->size());
-    const WeberRootTransportPlan root_plan = plan_weber_root_transport(
-        field, weber_modular_polynomial, *source_lifts);
-    // Preserve the worker-group metric and configured ceiling. The work queue
-    // itself contains only orbit representatives, so idle workers return
-    // immediately when symmetry collapses many source lifts to one job.
+    bool covariance_verified = false;
+    const std::vector<WeberRootOrbit> root_orbits = make_weber_root_orbits(
+        field, weber_modular_polynomial, *source_lifts,
+        enable_root_orbit_reuse, covariance_verified);
+    measured.modular_root_orbits = root_orbits.size();
+    measured.modular_root_reused_lifts =
+        source_lifts->size() - root_orbits.size();
+    measured.modular_root_orbit_reuse =
+        covariance_verified && measured.modular_root_reused_lifts != 0U;
     measured.modular_root_workers = bounded_worker_count(
-        modular_root_threads, source_lifts->size());
-    std::atomic<std::size_t> next_representative{0U};
+        modular_root_threads, root_orbits.size());
+    std::atomic<std::size_t> next_root_orbit{0U};
     std::vector<std::future<void>> root_jobs;
     root_jobs.reserve(measured.modular_root_workers);
     for (std::size_t worker = 0; worker < measured.modular_root_workers;
@@ -472,15 +419,17 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
         root_jobs.push_back(std::async(
             std::launch::async,
             [&field, &weber_modular_polynomial, source_lifts,
-             &neighbor_sets, &root_plan, &next_representative]() {
+             &root_orbits, &neighbor_sets, &next_root_orbit, ell]() {
                 while (true) {
-                    const std::size_t work_index =
-                        next_representative.fetch_add(1U);
-                    if (work_index >= root_plan.representatives.size()) {
+                    const std::size_t orbit_index =
+                        next_root_orbit.fetch_add(1U);
+                    if (orbit_index >= root_orbits.size()) {
                         return;
                     }
-                    const std::size_t source_index =
-                        root_plan.representatives[work_index];
+                    const WeberRootOrbit& orbit = root_orbits[orbit_index];
+                    const std::size_t source_index = orbit.representative;
+                    const mpz_class representative_f =
+                        field.normalize((*source_lifts)[source_index]);
                     const Poly specialized =
                         weber_modular_polynomial.evaluate_x(
                             field, representative_f);
@@ -517,9 +466,6 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
     for (auto& job : root_jobs) {
         job.get();
     }
-    transport_weber_neighbor_roots(
-        field, weber_modular_polynomial, *source_lifts, root_plan,
-        neighbor_sets);
     measured.modular_roots_us += elapsed_us(started);
 
     for (std::size_t source_index = 0; source_index < source_lifts->size();

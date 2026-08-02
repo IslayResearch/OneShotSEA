@@ -118,6 +118,9 @@ done
 echo "completed_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     >>"$output/ENVIRONMENT.txt"
 chmod 0444 "$output/ENVIRONMENT.txt"
-find "$output" -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
-    | sort -z \
-    | xargs -0 sha256sum >"$output/SHA256SUMS"
+(
+    cd "$output"
+    find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+        | sort -z \
+        | xargs -0 sha256sum
+) >"$output/SHA256SUMS"

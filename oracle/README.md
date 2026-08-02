@@ -177,6 +177,15 @@ digest.  This first production-state slice explicitly records
 `smoothness_audited:false`; it must not be cited as an audit of the smooth-part
 engine or sound/heuristic early-abort decision.
 
+Corpus/record schema v2 also stores a separately executed, fully validated
+fallback-off native counterfactual for the same prime and curve index.  It
+captures both ways the implemented heuristic policy can skip work: failure to
+reach the configured first-pass trace cap, and failure of the fresh exact
+cap-one continuation after a sound smoothness survivor.  The counterfactual is
+run with `schoof_fallback=0`; the offline report combines it only with the
+explicit `skip_incomplete_curves=1` policy and never attributes those skips to
+sound rejection.
+
 A direct-runtime breadth smoke is:
 
 ```sh
@@ -227,8 +236,9 @@ The offline audit streams the canonical corpus and rechecks its manifest and
 record digest, reconstructs the complete early trace set from the effective
 CRT residue classes, requires the Magma trace even when it occupies the least
 favorable list position, and independently trial-factors every curve/twist
-order.  It reports the exact sound policy and the implemented
-`--skip-incomplete-curves` counterfactual separately.  In particular, a
+order.  It reports the exact sound policy and the explicit
+`--schoof-fallback 0 --skip-incomplete-curves 1` counterfactual separately,
+including first-pass and cap-one second-pass skips.  In particular, a
 heuristic false negative means the true curve or twist has exact smooth part
 above `L`; it is never folded into the zero-false-negative sound result.  The
 tool deliberately refuses buckets above 32 bits rather than attempting an

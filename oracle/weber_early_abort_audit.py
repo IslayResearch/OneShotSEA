@@ -6,18 +6,42 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import marshal
 from math import isqrt
 import os
 from pathlib import Path
 import sys
 import time
+import types
 from typing import Any, TextIO
 
 
-CORPUS_SCHEMA = "oneshotsea.weber-oracle-corpus.v1"
-RECORD_SCHEMA = "oneshotsea.weber-oracle-curve.v1"
-AUDIT_SCHEMA = "oneshotsea.weber-early-abort-audit.v1"
+CORPUS_SCHEMA = "oneshotsea.weber-oracle-corpus.v2"
+RECORD_SCHEMA = "oneshotsea.weber-oracle-curve.v2"
+AUDIT_SCHEMA = "oneshotsea.weber-early-abort-audit.v2"
 MAX_AUDIT_BITS = 32
+MAX_U64 = (1 << 64) - 1
+MAX_TRACE_CAP = 4096
+MAX_GENERATOR_REJECTIONS = 4096
+MAX_OUTPUT_BYTES = 64 * 1024 * 1024
+CONFIGURATION_KEYS = {
+    "bit_sizes",
+    "command_timeout_seconds",
+    "curves_per_size",
+    "max_generator_rejections",
+    "max_level",
+    "max_output_bytes",
+    "max_prime_attempts",
+    "prime_generation_domain",
+    "schoof_fallback",
+    "sea_threads",
+    "seed",
+    "smoothness_audited",
+    "start_index",
+    "trace_cap",
+}
+TOOL_SOURCE = Path(__file__).resolve()
+LOADED_MODULE_CODE = sys._getframe().f_code
 
 
 class AuditError(RuntimeError):
@@ -49,6 +73,75 @@ def load_json(text: str, label: str) -> dict[str, Any]:
 
 def canonical_json(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def stable_code_payload(code: types.CodeType) -> tuple[object, ...]:
+    constants = tuple(
+        stable_code_payload(value) if isinstance(value, types.CodeType) else value
+        for value in code.co_consts
+    )
+    return (
+        code.co_argcount,
+        code.co_posonlyargcount,
+        code.co_kwonlyargcount,
+        code.co_nlocals,
+        code.co_stacksize,
+        code.co_flags,
+        code.co_code,
+        constants,
+        code.co_names,
+        code.co_varnames,
+        code.co_filename,
+        code.co_name,
+        code.co_qualname,
+        code.co_firstlineno,
+        code.co_linetable,
+        code.co_exceptiontable,
+        code.co_freevars,
+        code.co_cellvars,
+    )
+
+
+def code_digest(code: types.CodeType) -> str:
+    return hashlib.sha256(marshal.dumps(stable_code_payload(code))).hexdigest()
+
+
+def source_code_digest(source: bytes) -> str:
+    compiled = compile(source, LOADED_MODULE_CODE.co_filename, "exec")
+    return code_digest(compiled)
+
+
+def loaded_module_code_digest() -> str:
+    # CPython 3.14 may materialize deferred code metadata on the first complete
+    # recursive inspection.  Discard that warm-up serialization, then bind the
+    # stable executing code object used for comparison and reporting.
+    previous: str | None = None
+    for _ in range(8):
+        current = code_digest(LOADED_MODULE_CODE)
+        if current == previous:
+            return current
+        previous = current
+    fail("loaded audit module code did not stabilize")
+
+
+def stat_identity(value: os.stat_result) -> tuple[int, int, int, int, int]:
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def read_stable_bytes(path: Path, label: str) -> tuple[bytes, tuple[int, ...]]:
+    with path.open("rb") as stream:
+        before = stat_identity(os.fstat(stream.fileno()))
+        value = stream.read()
+        after = stat_identity(os.fstat(stream.fileno()))
+    if before != after or stat_identity(path.stat()) != after:
+        fail(f"{label} changed while it was read")
+    return value, after
 
 
 def exact_object(value: object, keys: set[str], label: str) -> dict[str, Any]:
@@ -97,7 +190,7 @@ def primes_through(limit: int) -> list[int]:
 
 
 def exact_smooth_part(value: int, bound: int, primes: list[int]) -> int:
-    """Return the exact bound-smooth part of a positive <=32-bit order."""
+    """Return the exact bound-smooth part of an order over a <=32-bit field."""
     if value <= 0:
         fail("candidate order is nonpositive")
     remaining = value
@@ -141,10 +234,25 @@ def rate(numerator: int, denominator: int) -> float:
     return numerator / denominator if denominator else 0.0
 
 
-def validate_manifest(root: Path) -> tuple[dict[str, Any], Path, int, str]:
+def validate_manifest(
+    root: Path,
+) -> tuple[
+    dict[str, Any],
+    Path,
+    int,
+    str,
+    str,
+    tuple[int, ...],
+    dict[str, int | str | bool | list[int]],
+]:
     manifest_path = root / "manifest.json"
     records_path = root / "records.ndjson"
-    manifest = load_json(manifest_path.read_text(encoding="utf-8"), "manifest")
+    manifest_bytes, manifest_stat = read_stable_bytes(manifest_path, "manifest")
+    try:
+        manifest_text = manifest_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        fail(f"manifest is not UTF-8: {exc}")
+    manifest = load_json(manifest_text, "manifest")
     if manifest.get("schema") != CORPUS_SCHEMA or manifest.get("status") != "complete":
         fail("input is not a completed Weber oracle corpus")
     identity = manifest.get("identity")
@@ -174,34 +282,176 @@ def validate_manifest(root: Path) -> tuple[dict[str, Any], Path, int, str]:
         or any(character not in "0123456789abcdef" for character in expected_sha)
     ):
         fail("manifest record digest is invalid")
-    if sha256_file(records_path) != expected_sha:
-        fail("record stream digest disagrees with the manifest")
-    configuration = manifest.get("configuration")
-    bit_sizes = configuration.get("bit_sizes") if type(configuration) is dict else None
+    configuration = exact_object(
+        manifest.get("configuration"), CONFIGURATION_KEYS, "manifest configuration"
+    )
+    bit_sizes = configuration["bit_sizes"]
     if (
         type(bit_sizes) is not list
         or not bit_sizes
-        or any(type(bits) is not int or bits < 3 or bits > MAX_AUDIT_BITS for bits in bit_sizes)
+        or any(type(bits) is not int or bits < 4 or bits > MAX_AUDIT_BITS for bits in bit_sizes)
     ):
         fail(f"early-abort audit is limited to corpus buckets through {MAX_AUDIT_BITS} bits")
-    return manifest, records_path, count, expected_sha
+    curves_per_size = unsigned_integer(
+        configuration["curves_per_size"], "configuration curves-per-size"
+    )
+    command_timeout = unsigned_integer(
+        configuration["command_timeout_seconds"], "configuration timeout"
+    )
+    max_output = unsigned_integer(
+        configuration["max_output_bytes"], "configuration output cap"
+    )
+    max_prime_attempts = unsigned_integer(
+        configuration["max_prime_attempts"], "configuration prime-attempt cap"
+    )
+    max_generator_rejections = unsigned_integer(
+        configuration["max_generator_rejections"],
+        "configuration generator-rejection cap",
+    )
+    max_level = unsigned_integer(configuration["max_level"], "configuration max level")
+    sea_threads = unsigned_integer(
+        configuration["sea_threads"], "configuration SEA threads"
+    )
+    trace_cap = unsigned_integer(configuration["trace_cap"], "configuration trace cap")
+    seed = decimal(configuration["seed"], "configuration seed")
+    start_index = decimal(configuration["start_index"], "configuration start index")
+    if (
+        curves_per_size == 0
+        or command_timeout == 0
+        or not 0 < max_output <= MAX_OUTPUT_BYTES
+        or max_prime_attempts == 0
+        or max_generator_rejections > MAX_GENERATOR_REJECTIONS
+        or max_level < 5
+        or not 0 < trace_cap <= MAX_TRACE_CAP
+        or seed > MAX_U64
+        or start_index > MAX_U64
+        or configuration["schoof_fallback"] is not True
+        or configuration["smoothness_audited"] is not False
+        or configuration["prime_generation_domain"]
+        != "oneshotsea.weber-oracle-corpus.v1"
+    ):
+        fail("manifest configuration violates the bounded audit contract")
+    scheduled_count = len(bit_sizes) * curves_per_size
+    if count != scheduled_count:
+        fail("manifest record count disagrees with its bucket schedule")
+    next_integer = start_index + count
+    if next_integer > MAX_U64 + 1:
+        fail("manifest curve schedule crosses the uint64 index boundary")
+    expected_next = None if next_integer == MAX_U64 + 1 else str(next_integer)
+    if record_identity["next_curve_index"] != expected_next:
+        fail("manifest next curve index disagrees with its schedule")
+    normalized_configuration: dict[str, int | str | bool | list[int]] = {
+        "bit_sizes": list(bit_sizes),
+        "curves_per_size": curves_per_size,
+        "command_timeout_seconds": command_timeout,
+        "max_output_bytes": max_output,
+        "max_prime_attempts": max_prime_attempts,
+        "max_generator_rejections": max_generator_rejections,
+        "prime_generation_domain": str(configuration["prime_generation_domain"]),
+        "max_level": max_level,
+        "sea_threads": sea_threads,
+        "trace_cap": trace_cap,
+        "seed": str(seed),
+        "start_index": str(start_index),
+        "schoof_fallback": True,
+        "smoothness_audited": False,
+    }
+    return (
+        manifest,
+        records_path,
+        count,
+        expected_sha,
+        hashlib.sha256(manifest_bytes).hexdigest(),
+        manifest_stat,
+        normalized_configuration,
+    )
 
 
 def audit_record(
     record: dict[str, Any],
     ordinal: int,
     primes: list[int],
+    *,
+    configuration: dict[str, int | str | bool | list[int]],
+    expected_bits: int,
+    expected_bucket_ordinal: int,
+    expected_index: int,
 ) -> dict[str, object]:
     if record.get("schema") != RECORD_SCHEMA or record.get("ordinal") != ordinal:
         fail(f"record {ordinal} has an invalid schema or ordinal")
+    if (
+        unsigned_integer(
+            record.get("bucket_ordinal"), f"record {ordinal} bucket ordinal"
+        )
+        != expected_bucket_ordinal
+        or unsigned_integer(
+            record.get("prime_generation_attempts"),
+            f"record {ordinal} prime-generation attempts",
+        )
+        not in range(1, int(configuration["max_prime_attempts"]) + 1)
+    ):
+        fail(f"record {ordinal} disagrees with its configured bucket schedule")
     native = record.get("native")
+    heuristic = record.get("heuristic_fallback_off")
     oracle = record.get("oracle")
-    if type(native) is not dict or type(oracle) is not dict:
-        fail(f"record {ordinal} is missing native/oracle objects")
+    if type(native) is not dict or type(heuristic) is not dict or type(oracle) is not dict:
+        fail(f"record {ordinal} is missing native/heuristic/oracle objects")
+    if (
+        native.get("schema") != "oneshotsea.weber-audit.v1"
+        or heuristic.get("schema") != "oneshotsea.weber-audit.v1"
+    ):
+        fail(f"record {ordinal} has an unexpected native schema")
     p = decimal(native.get("p"), f"record {ordinal} p")
     requested_bits = unsigned_integer(record.get("requested_bits"), f"record {ordinal} bit bucket")
-    if p.bit_length() != requested_bits or requested_bits > MAX_AUDIT_BITS:
+    if (
+        p.bit_length() != requested_bits
+        or requested_bits != expected_bits
+        or requested_bits > MAX_AUDIT_BITS
+        or decimal(native.get("seed"), f"record {ordinal} native seed")
+        != int(configuration["seed"])
+        or decimal(native.get("index"), f"record {ordinal} native index")
+        != expected_index
+        or decimal(native.get("max_level"), f"record {ordinal} native max level")
+        != int(configuration["max_level"])
+        or decimal(native.get("trace_cap"), f"record {ordinal} native trace cap")
+        != int(configuration["trace_cap"])
+        or decimal(native.get("sea_threads"), f"record {ordinal} native SEA threads")
+        != int(configuration["sea_threads"])
+        or native.get("schoof_fallback") is not True
+        or native.get("smoothness_audited") is not False
+        or native.get("complete") is not True
+        or native.get("final_exact_only") is not True
+        or decimal(
+            native.get("rejected_samples"), f"record {ordinal} generator rejections"
+        )
+        > int(configuration["max_generator_rejections"])
+    ):
         fail(f"record {ordinal} has a mismatched or unsupported bit bucket")
+    for key in (
+        "p",
+        "seed",
+        "index",
+        "max_level",
+        "trace_cap",
+        "sea_threads",
+        "smoothness_audited",
+        "rejected_samples",
+        "weber_f",
+        "j",
+        "twist_parameter",
+        "curve",
+        "twist",
+        "trace_prior",
+    ):
+        if heuristic.get(key) != native.get(key):
+            fail(f"record {ordinal} fallback-off counterfactual changed {key}")
+    if heuristic.get("schoof_fallback") is not False:
+        fail(f"record {ordinal} counterfactual did not disable fallback")
+    if heuristic.get("unique_mode") not in {
+        "already_exact_singleton",
+        "fresh_cap_one",
+    }:
+        fail(f"record {ordinal} counterfactual has an invalid unique mode")
     radius = isqrt(4 * p)
 
     early = native.get("early")
@@ -217,7 +467,11 @@ def audit_record(
     if traces != sorted(set(traces)) or any(abs(trace) > radius for trace in traces):
         fail(f"record {ordinal} trace list is noncanonical")
     trace_count = decimal(early.get("trace_count"), f"record {ordinal} trace count")
-    if trace_count != len(traces) or trace_count == 0:
+    if (
+        trace_count != len(traces)
+        or trace_count == 0
+        or trace_count > int(configuration["trace_cap"])
+    ):
         fail(f"record {ordinal} trace count disagrees with its trace list")
     modulus = decimal(
         early.get("constraint_modulus"), f"record {ordinal} constraint modulus"
@@ -260,6 +514,20 @@ def audit_record(
         or curve_order + twist_order != 2 * p + 2
     ):
         fail(f"record {ordinal} oracle curve/twist identities disagree")
+    native_final = native.get("final")
+    if (
+        type(native_final) is not dict
+        or decimal(
+            native.get("final_exact_trace"),
+            f"record {ordinal} native final trace",
+            signed=True,
+        )
+        != true_trace
+        or native_final.get("status") != "complete"
+        or native_final.get("trace_count") != "1"
+        or native_final.get("traces") != [str(true_trace)]
+    ):
+        fail(f"record {ordinal} native completion disagrees with the oracle")
 
     smooth_bound = requested_bits**4
     q = isqrt(p)
@@ -288,6 +556,55 @@ def audit_record(
     levels = early.get("levels")
     if type(fallback_levels) is not list or type(levels) is not list:
         fail(f"record {ordinal} has invalid level/fallback arrays")
+    heuristic_early = heuristic.get("early")
+    if type(heuristic_early) is not dict:
+        fail(f"record {ordinal} counterfactual early state is missing")
+    used_early_fallback = bool(fallback_levels)
+    if used_early_fallback:
+        if (
+            heuristic_early.get("status") != "level_limit"
+            or heuristic_early.get("fallback_levels") != []
+            or heuristic_early.get("trace_count") is not None
+            or heuristic_early.get("traces") is not None
+        ):
+            fail(f"record {ordinal} fallback-off first pass is not incomplete")
+    elif heuristic_early != early:
+        fail(f"record {ordinal} fallback-off first pass changed scientific state")
+    counterfactual_complete = heuristic.get("complete")
+    if type(counterfactual_complete) is not bool:
+        fail(f"record {ordinal} counterfactual completion flag is invalid")
+    heuristic_final = heuristic.get("final")
+    if type(heuristic_final) is not dict:
+        fail(f"record {ordinal} counterfactual final state is missing")
+    if counterfactual_complete:
+        if (
+            heuristic.get("final_exact_only") is not True
+            or decimal(
+                heuristic.get("final_exact_trace"),
+                f"record {ordinal} counterfactual final trace",
+                signed=True,
+            )
+            != true_trace
+            or heuristic_final.get("status") != "complete"
+            or heuristic_final.get("trace_count") != "1"
+            or heuristic_final.get("traces") != [str(true_trace)]
+        ):
+            fail(f"record {ordinal} completed counterfactual disagrees with the oracle")
+    elif (
+        heuristic.get("final_exact_only") is not False
+        or heuristic.get("final_exact_trace") is not None
+        or heuristic_final.get("status") not in {"level_limit", "no_rational_weber_lift"}
+        or heuristic_final.get("trace_count") is not None
+        or heuristic_final.get("traces") is not None
+        or heuristic.get("unique_mode") != "fresh_cap_one"
+    ):
+        fail(f"record {ordinal} incomplete counterfactual claims completion")
+    if used_early_fallback:
+        heuristic_stage: str | None = "first_pass"
+    elif survivors == 0 or counterfactual_complete:
+        heuristic_stage = None
+    else:
+        heuristic_stage = "second_pass"
     return {
         "trace_count": trace_count,
         "level_count": len(levels),
@@ -295,16 +612,32 @@ def audit_record(
         "order_evaluations": order_evaluations,
         "opportunity": opportunity,
         "sound_rejection": survivors == 0,
-        "heuristic_rejection": bool(fallback_levels),
+        "heuristic_rejection": heuristic_stage is not None,
+        "heuristic_rejection_stage": heuristic_stage,
     }
 
 
 def audit_corpus(root: Path) -> dict[str, object]:
     started = time.monotonic()
-    manifest, records_path, expected_count, records_sha = validate_manifest(root)
-    # At 32 bits every possible curve/twist order is below 2^32+2^17.  Trial
-    # primes through its square root prove complete factorization without a
-    # production smooth cache or probabilistic factorization dependency.
+    tool_source, tool_stat = read_stable_bytes(TOOL_SOURCE, "audit tool source")
+    tool_source_sha = hashlib.sha256(tool_source).hexdigest()
+    expected_code_sha = source_code_digest(tool_source)
+    loaded_code_sha = loaded_module_code_digest()
+    if expected_code_sha != loaded_code_sha:
+        fail("audit tool source does not match its complete loaded module code")
+    (
+        manifest,
+        records_path,
+        expected_count,
+        expected_records_sha,
+        manifest_sha,
+        manifest_stat,
+        configuration,
+    ) = validate_manifest(root)
+    # At 32 bits every possible curve/twist order is below 2^32+2^17, while
+    # 65537^2 = 2^32+2^17+1. Trial primes through the square root of that strict
+    # bound therefore prove complete factorization without a production smooth
+    # cache or probabilistic factorization dependency.
     primes = primes_through(isqrt((1 << MAX_AUDIT_BITS) + (1 << 17)))
     results = {
         "order_evaluations": 0,
@@ -314,25 +647,49 @@ def audit_corpus(root: Path) -> dict[str, object]:
         "sound_survivors": 0,
         "sound_false_negatives": 0,
         "heuristic_rejections": 0,
+        "heuristic_first_pass_rejections": 0,
+        "heuristic_second_pass_rejections": 0,
         "heuristic_false_negatives": 0,
-        "fallback_curves": 0,
+        "early_fallback_curves": 0,
     }
     trace_histogram: dict[str, int] = {}
     level_histogram: dict[str, int] = {}
     fallback_histogram: dict[str, int] = {}
     count = 0
-    with records_path.open("r", encoding="utf-8") as stream:
-        for count, line in enumerate(stream, start=1):
-            if not line.endswith("\n"):
+    records_hasher = hashlib.sha256()
+    with records_path.open("rb") as stream:
+        records_stat = stat_identity(os.fstat(stream.fileno()))
+        for count, raw_line in enumerate(stream, start=1):
+            records_hasher.update(raw_line)
+            if not raw_line.endswith(b"\n"):
                 fail(f"record {count - 1} is not newline terminated")
+            try:
+                line = raw_line.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                fail(f"record {count - 1} is not UTF-8: {exc}")
             record = load_json(line, f"record {count - 1}")
             if line != canonical_json(record) + "\n":
                 fail(f"record {count - 1} is not canonically encoded")
-            outcome = audit_record(record, count - 1, primes)
+            bucket_index = (count - 1) // int(configuration["curves_per_size"])
+            expected_bits = configuration["bit_sizes"][bucket_index]
+            expected_bucket_ordinal = (count - 1) % int(
+                configuration["curves_per_size"]
+            )
+            expected_index = int(configuration["start_index"]) + count - 1
+            outcome = audit_record(
+                record,
+                count - 1,
+                primes,
+                configuration=configuration,
+                expected_bits=expected_bits,
+                expected_bucket_ordinal=expected_bucket_ordinal,
+                expected_index=expected_index,
+            )
             results["order_evaluations"] += int(outcome["order_evaluations"])
             opportunity = bool(outcome["opportunity"])
             sound_rejection = bool(outcome["sound_rejection"])
             heuristic_rejection = bool(outcome["heuristic_rejection"])
+            heuristic_stage = outcome["heuristic_rejection_stage"]
             if opportunity:
                 results["smooth_opportunity_curves"] += 1
             if sound_rejection:
@@ -345,16 +702,53 @@ def audit_corpus(root: Path) -> dict[str, object]:
                 results["sound_survivors"] += 1
             if heuristic_rejection:
                 results["heuristic_rejections"] += 1
-                results["fallback_curves"] += 1
+                if heuristic_stage == "first_pass":
+                    results["heuristic_first_pass_rejections"] += 1
+                    results["early_fallback_curves"] += 1
+                elif heuristic_stage == "second_pass":
+                    results["heuristic_second_pass_rejections"] += 1
+                else:
+                    fail(f"record {count - 1} has an invalid heuristic stage")
                 if opportunity:
                     results["heuristic_false_negatives"] += 1
             increment(trace_histogram, int(outcome["trace_count"]))
             increment(level_histogram, int(outcome["level_count"]))
             increment(fallback_histogram, int(outcome["fallback_count"]))
+        records_stat_after = stat_identity(os.fstat(stream.fileno()))
+    actual_records_sha = records_hasher.hexdigest()
+    if (
+        records_stat_after != records_stat
+        or stat_identity(records_path.stat()) != records_stat
+    ):
+        fail("record stream changed while it was audited")
+    if actual_records_sha != expected_records_sha:
+        fail("audited record stream digest disagrees with the manifest")
     if count != expected_count:
         fail("record stream count disagrees with the manifest")
     if results["sound_false_negatives"]:
         fail("sound policy produced a false negative")
+    completion_manifest, completion_manifest_stat = read_stable_bytes(
+        root / "manifest.json", "manifest completion identity"
+    )
+    completion_tool, completion_tool_stat = read_stable_bytes(
+        TOOL_SOURCE, "audit tool completion source"
+    )
+    if (
+        hashlib.sha256(completion_manifest).hexdigest() != manifest_sha
+        or completion_manifest_stat != manifest_stat
+    ):
+        fail("manifest identity changed during the audit")
+    if (
+        hashlib.sha256(completion_tool).hexdigest() != tool_source_sha
+        or completion_tool_stat != tool_stat
+        or source_code_digest(completion_tool) != loaded_code_sha
+    ):
+        fail("audit tool source identity changed during the audit")
+    if (
+        sha256_file(records_path) != actual_records_sha
+        or stat_identity(records_path.stat()) != records_stat
+    ):
+        fail("record stream completion identity changed during the audit")
     elapsed = time.monotonic() - started
     opportunity_count = results["smooth_opportunity_curves"]
     heuristic_false_negatives = results["heuristic_false_negatives"]
@@ -363,15 +757,16 @@ def audit_corpus(root: Path) -> dict[str, object]:
         "schema": AUDIT_SCHEMA,
         "corpus": {
             "path": str(root.resolve()),
-            "manifest_sha256": sha256_file(root / "manifest.json"),
-            "records_sha256": records_sha,
+            "manifest_sha256": manifest_sha,
+            "records_sha256": actual_records_sha,
             "record_count": expected_count,
             "git_commit": identity.get("git_commit"),
             "native_sha256": identity.get("native_sha256"),
         },
         "audit_tool": {
-            "path": str(Path(__file__).resolve()),
-            "sha256": sha256_file(Path(__file__).resolve()),
+            "path": str(TOOL_SOURCE),
+            "sha256": tool_source_sha,
+            "loaded_module_code_sha256": loaded_code_sha,
             "python": sys.version.split()[0],
         },
         "policy": {
@@ -383,9 +778,18 @@ def audit_corpus(root: Path) -> dict[str, object]:
                 "reject only when every enumerated curve/twist order has "
                 "exact smooth part <= lower_bound"
             ),
-            "heuristic": (
-                "skip states that require retained exact-Schoof fallback"
-            ),
+            "heuristic_configuration": {
+                "schoof_fallback": False,
+                "skip_incomplete_curves": True,
+            },
+            "heuristic_stages": {
+                "first_pass": (
+                    "skip when the configured trace cap is not reached after all Weber tables"
+                ),
+                "second_pass": (
+                    "after a sound smoothness survivor, skip when a fresh exact cap-one Weber pass is incomplete"
+                ),
+            },
             "heuristic_false_negative_label": (
                 "true curve/twist has exact smooth part > lower_bound"
             ),

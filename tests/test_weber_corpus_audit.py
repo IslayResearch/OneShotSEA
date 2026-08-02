@@ -22,6 +22,7 @@ BOOTSTRAP = ROOT / "oracle" / "weber_corpus_audit.py"
 TABLES = ROOT / "data" / "modpoly" / "weber_f"
 sys.path.insert(0, str(ROOT / "oracle"))
 import weber_corpus_audit_driver as driver  # noqa: E402
+import weber_early_abort_audit as early_audit  # noqa: E402
 
 
 FAKE_MAGMA = r"""
@@ -84,6 +85,38 @@ class WeberCorpusAuditTests(unittest.TestCase):
         if completed.returncode != 0:
             raise AssertionError(completed.stderr)
         cls.row = json.loads(completed.stdout)
+        completed = subprocess.run(
+            [
+                str(NATIVE),
+                "--p",
+                "101",
+                "--seed",
+                "17",
+                "--range-start",
+                "0",
+                "--count",
+                "1",
+                "--max-level",
+                "5",
+                "--trace-cap",
+                "4",
+                "--sea-threads",
+                "1",
+                "--table-dir",
+                str(TABLES),
+                "--schoof-fallback",
+                "0",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=30,
+        )
+        if completed.returncode != 0:
+            raise AssertionError(completed.stderr)
+        cls.fallback_off_row = json.loads(completed.stdout)
         completed = subprocess.run(
             [
                 str(NATIVE),
@@ -297,6 +330,26 @@ class WeberCorpusAuditTests(unittest.TestCase):
         self.assertNotIn("timings", normalized["early"]["levels"][0])
         self.assertNotIn("elapsed_us", normalized["final"]["fallback_levels"][0])
 
+    def test_validates_fallback_off_second_pass_incompleteness(self) -> None:
+        normalized = driver.validate_native_record(
+            self.fallback_off_row,
+            prime=101,
+            seed=17,
+            index=0,
+            max_level=5,
+            trace_cap=4,
+            sea_threads=1,
+            available_levels={5},
+            curve_oracle={"order": 108, "trace": -6},
+            twist_oracle={"order": 96, "trace": 6},
+            expected_fallback=False,
+            require_complete=False,
+        )
+        self.assertEqual(normalized["early"]["trace_count"], "4")
+        self.assertEqual(normalized["final"]["status"], "level_limit")
+        self.assertFalse(normalized["complete"])
+        self.assertIsNone(normalized["final_exact_trace"])
+
     def test_accepts_fail_closed_supersingular_atkin_exception(self) -> None:
         normalized = driver.validate_native_record(
             self.supersingular_row,
@@ -505,12 +558,29 @@ class WeberCorpusAuditTests(unittest.TestCase):
                         "nondeterministic_native_timing_fields_archived"
                     ]
                 )
+                # The contract suite intentionally runs from a dirty tree.
+                # Normalize only this temporary fake artifact so the offline
+                # clean-source gate can exercise the remaining v2 topology.
+                manifest["identity"]["git_worktree_clean_at_start"] = True
+                manifest["identity"]["git_worktree_clean_at_completion"] = True
+                manifest["identity"]["validated_at_completion"] = True
+                (output / "manifest.json").write_text(
+                    early_audit.canonical_json(manifest) + "\n",
+                    encoding="utf-8",
+                )
                 record = json.loads((output / "records.ndjson").read_text())
                 self.assertTrue(record["native"]["complete"])
+                self.assertFalse(
+                    record["heuristic_fallback_off"]["schoof_fallback"]
+                )
                 self.assertEqual(
                     int(record["oracle"]["curve"]["order"])
                     + int(record["oracle"]["twist"]["order"]),
                     2 * int(record["native"]["p"]) + 2,
+                )
+                audit_report = early_audit.audit_corpus(output)
+                self.assertEqual(
+                    audit_report["results"]["sound_false_negatives"], 0
                 )
                 digests.append(manifest["records"]["sha256"])
             self.assertEqual(digests[0], digests[1])

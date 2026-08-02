@@ -75,9 +75,10 @@ ORIGINAL_PRIME_CHECK = Path(
     )
 ).resolve()
 
-SCHEMA = "oneshotsea.weber-oracle-corpus.v1"
-RECORD_SCHEMA = "oneshotsea.weber-oracle-curve.v1"
+SCHEMA = "oneshotsea.weber-oracle-corpus.v2"
+RECORD_SCHEMA = "oneshotsea.weber-oracle-curve.v2"
 NATIVE_SCHEMA = "oneshotsea.weber-audit.v1"
+PRIME_GENERATION_DOMAIN = "oneshotsea.weber-oracle-corpus.v1"
 FALLBACK_LEVELS = (3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37)
 MAX_TWIST_PARAMETER = 1_000_000
 MAX_TRACE_CAP = 4096
@@ -629,6 +630,7 @@ def validate_state(
     trace_cap: int,
     final: bool,
     production_early: bool = False,
+    allow_fallback: bool = True,
 ) -> tuple[dict[str, Any], ConstraintState, ConstraintState]:
     state = require_object(value, STATE_KEYS, label)
     exact = initial
@@ -764,6 +766,8 @@ def validate_state(
     fallback_value = state["fallback_levels"]
     if type(fallback_value) is not list:
         raise AuditError(f"{label} fallback levels are not a JSON array")
+    if fallback_value and not allow_fallback:
+        raise AuditError(f"{label} used disabled exact Schoof fallback")
     if production_early and fallback_value:
         if len(levels_value) != len(expected_table_levels):
             raise AuditError(f"{label} entered fallback before exhausting Weber tables")
@@ -820,11 +824,12 @@ def validate_state(
         if candidate_count(prime, completion_state) > trace_cap:
             if len(levels_value) != len(expected_table_levels):
                 raise AuditError(f"{label} stopped before exhausting Weber tables")
-            next_fallback = next(
-                (ell for ell in FALLBACK_LEVELS if exact.modulus % ell), None
-            )
-            if next_fallback is not None:
-                raise AuditError(f"{label} stopped before exhausting exact fallback")
+            if allow_fallback:
+                next_fallback = next(
+                    (ell for ell in FALLBACK_LEVELS if exact.modulus % ell), None
+                )
+                if next_fallback is not None:
+                    raise AuditError(f"{label} stopped before exhausting exact fallback")
 
     exact_modulus = unsigned_decimal(state["exact_modulus"], f"{label} exact modulus")
     effective_modulus = unsigned_decimal(state["constraint_modulus"], f"{label} effective modulus")
@@ -916,6 +921,8 @@ def validate_native_record(
     curve_oracle: dict[str, int],
     twist_oracle: dict[str, int],
     max_generator_rejections: int = MAX_GENERATOR_REJECTIONS,
+    expected_fallback: bool = True,
+    require_complete: bool = True,
 ) -> dict[str, Any]:
     record = require_object(value, TOP_LEVEL_KEYS, "native Weber audit")
     if record["schema"] != NATIVE_SCHEMA:
@@ -930,8 +937,11 @@ def validate_native_record(
     )
     if echoed != (prime, seed, index, max_level, trace_cap, sea_threads):
         raise AuditError("native Weber audit returned mismatched inputs")
-    if not exact_boolean(record["schoof_fallback"], "native fallback flag"):
-        raise AuditError("native Weber audit did not enable exact Schoof fallback")
+    fallback_enabled = exact_boolean(
+        record["schoof_fallback"], "native fallback flag"
+    )
+    if fallback_enabled != expected_fallback:
+        raise AuditError("native Weber audit returned a mismatched fallback policy")
     if exact_boolean(record["smoothness_audited"], "native smoothness-audited flag"):
         raise AuditError("native Weber audit unexpectedly claims smoothness coverage")
     rejected = unsigned_decimal(
@@ -1009,6 +1019,15 @@ def validate_native_record(
         initial = ConstraintState(modulus, (residue,))
         normalized_prior = {"modulus": str(modulus), "residue": str(residue)}
 
+    mode = record["unique_mode"]
+    allowed_modes = (
+        {"already_exact_singleton", "retained_schoof_fallback"}
+        if expected_fallback
+        else {"already_exact_singleton", "fresh_cap_one"}
+    )
+    if type(mode) is not str or mode not in allowed_modes:
+        raise AuditError("native Weber audit returned an invalid unique mode")
+
     early, early_exact, _early_effective = validate_state(
         record["early"],
         "native early state",
@@ -1021,6 +1040,7 @@ def validate_native_record(
         trace_cap=trace_cap,
         final=False,
         production_early=True,
+        allow_fallback=expected_fallback,
     )
     final, final_exact, _final_effective = validate_state(
         record["final"],
@@ -1031,15 +1051,11 @@ def validate_native_record(
         initial=initial,
         available_levels=available_levels,
         max_level=max_level,
-        trace_cap=trace_cap,
+        trace_cap=(1 if mode == "fresh_cap_one" else trace_cap),
         final=True,
+        production_early=(mode == "fresh_cap_one"),
+        allow_fallback=expected_fallback,
     )
-    mode = record["unique_mode"]
-    if type(mode) is not str or mode not in {
-        "already_exact_singleton",
-        "retained_schoof_fallback",
-    }:
-        raise AuditError("native Weber audit returned an invalid unique mode")
     if mode == "already_exact_singleton":
         if int(early["exact_trace_candidate_count"]) != 1:
             raise AuditError("already-exact mode lacks an early exact singleton")
@@ -1060,21 +1076,35 @@ def validate_native_record(
             for level in appended_fallback[:-1]
         ) or int(appended_fallback[-1]["exact_trace_candidate_count"]) != 1:
             raise AuditError("retained fallback did not stop at the first exact singleton")
+    if mode == "fresh_cap_one":
+        if early["fallback_levels"] or final["fallback_levels"]:
+            raise AuditError("fallback-off counterfactual contains fallback levels")
     complete = exact_boolean(record["complete"], "native complete flag")
     final_exact_only = exact_boolean(
         record["final_exact_only"], "native final-exact-only flag"
     )
-    final_trace = canonical_decimal(
-        record["final_exact_trace"], "native final exact trace", signed=True
+    final_trace_value = record["final_exact_trace"]
+    final_trace = (
+        None
+        if final_trace_value is None
+        else canonical_decimal(
+            final_trace_value, "native final exact trace", signed=True
+        )
     )
-    if (
-        not complete
-        or not final_exact_only
-        or candidate_count(prime, final_exact) != 1
-        or final["traces"] != [str(curve_trace)]
-        or final_trace != curve_trace
-    ):
+    scientifically_complete = (
+        complete
+        and final_exact_only
+        and candidate_count(prime, final_exact) == 1
+        and final["traces"] == [str(curve_trace)]
+        and final_trace == curve_trace
+    )
+    if require_complete and not scientifically_complete:
         raise AuditError("native final state is not the exact Magma-trace singleton")
+    if not require_complete:
+        if complete != scientifically_complete or final_exact_only != complete:
+            raise AuditError("native counterfactual completion flags disagree with replay")
+        if not complete and (final_trace is not None or final["traces"] is not None):
+            raise AuditError("incomplete native counterfactual claims a final trace")
     if early_exact.modulus > final_exact.modulus or final_exact.modulus % early_exact.modulus:
         raise AuditError("native final exact state does not refine the early state")
     return {
@@ -1085,7 +1115,7 @@ def validate_native_record(
         "max_level": str(max_level),
         "trace_cap": str(trace_cap),
         "sea_threads": str(sea_threads),
-        "schoof_fallback": True,
+        "schoof_fallback": expected_fallback,
         "smoothness_audited": False,
         "rejected_samples": str(rejected),
         "weber_f": str(weber_f),
@@ -1097,9 +1127,9 @@ def validate_native_record(
         "early": early,
         "unique_mode": mode,
         "final": final,
-        "final_exact_trace": str(final_trace),
-        "final_exact_only": True,
-        "complete": True,
+        "final_exact_trace": None if final_trace is None else str(final_trace),
+        "final_exact_only": final_exact_only,
+        "complete": complete,
     }
 
 
@@ -1228,6 +1258,7 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
         "started_utc": utc_now(),
         "invocation_argv": invocation,
         "configuration": {
+            "prime_generation_domain": PRIME_GENERATION_DOMAIN,
             "seed": str(args.seed),
             "bit_sizes": list(args.bit_sizes),
             "curves_per_size": args.curves_per_size,
@@ -1382,7 +1413,7 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
                         args.seed,
                         bits,
                         bucket_ordinal,
-                        domain=SCHEMA,
+                        domain=PRIME_GENERATION_DOMAIN,
                         timeout_seconds=args.command_timeout_seconds,
                         max_output_bytes=args.max_output_bytes,
                         max_attempts=args.max_prime_attempts,
@@ -1410,6 +1441,32 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
                             "1",
                         ],
                         "native production Weber audit",
+                        timeout_seconds=args.command_timeout_seconds,
+                        max_output_bytes=args.max_output_bytes,
+                    )
+                    heuristic_native_record = run_json(
+                        [
+                            str(native),
+                            "--p",
+                            str(prime),
+                            "--seed",
+                            str(args.seed),
+                            "--range-start",
+                            str(curve_cursor),
+                            "--count",
+                            "1",
+                            "--max-level",
+                            str(args.max_level),
+                            "--trace-cap",
+                            str(args.trace_cap),
+                            "--sea-threads",
+                            str(args.sea_threads),
+                            "--table-dir",
+                            str(table_snapshot),
+                            "--schoof-fallback",
+                            "0",
+                        ],
+                        "native fallback-off heuristic counterfactual",
                         timeout_seconds=args.command_timeout_seconds,
                         max_output_bytes=args.max_output_bytes,
                     )
@@ -1456,6 +1513,21 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
                         twist_oracle=twist_oracle,
                         max_generator_rejections=args.max_generator_rejections,
                     )
+                    normalized_heuristic = validate_native_record(
+                        heuristic_native_record,
+                        prime=prime,
+                        seed=args.seed,
+                        index=curve_cursor,
+                        max_level=args.max_level,
+                        trace_cap=args.trace_cap,
+                        sea_threads=args.sea_threads,
+                        available_levels=available_levels,
+                        curve_oracle=curve_oracle,
+                        twist_oracle=twist_oracle,
+                        max_generator_rejections=args.max_generator_rejections,
+                        expected_fallback=False,
+                        require_complete=False,
+                    )
                     record = {
                         "schema": RECORD_SCHEMA,
                         "ordinal": count,
@@ -1463,6 +1535,7 @@ def audit(args: argparse.Namespace, invocation: list[str]) -> dict[str, Any]:
                         "requested_bits": bits,
                         "prime_generation_attempts": prime_attempts,
                         "native": normalized_native,
+                        "heuristic_fallback_off": normalized_heuristic,
                         "oracle": {
                             "curve": {
                                 "order": str(curve_oracle["order"]),

@@ -47,8 +47,8 @@ mkdir -p "$output"
 
 "$benchmark_runner" \
     --label quotient-context \
-    --baseline "$project_root/build-ab-no-quotient-context/benchmark_p125_poly_trusted" \
-    --candidate "$project_root/build-ab-candidate/benchmark_p125_poly_trusted" \
+    --baseline "$project_root/build-ab-candidate/benchmark_p125_poly_trusted" \
+    --candidate "$project_root/build-ab-with-quotient-context/benchmark_p125_poly_trusted" \
     --build-commands "$build_recipe" \
     --build-log "$output/BUILD.log" \
     --table-dir "$table_dir" \

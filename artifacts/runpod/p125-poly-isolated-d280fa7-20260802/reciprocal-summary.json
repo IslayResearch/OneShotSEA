@@ -1,0 +1,246 @@
+{
+  "baseline_peak_rss_kib": 7184,
+  "candidate_peak_rss_kib": 8204,
+  "candidate_to_baseline_peak_rss_ratio": 1.1419821826280623,
+  "checksum_records_verified": 55,
+  "environment": {
+    "baseline": "/workspace/OneShotSEA-d280fa7/build-ab-no-reciprocal/benchmark_p125_poly_trusted",
+    "baseline_sha256": "1594be47db82d38ce7136de80b55596223c40b98ea9fd1e00691b47c0d9990de",
+    "build_commands_sha256": "6df1bf9fe99ef88ec21b0a8124d2957e6b7fdead57d1e34d969a522c0a1366f4",
+    "build_log_sha256": "1dd48487b9d25f62987a74b061d593a57ec7316c28fce61e7fead8e07871c2f5",
+    "candidate": "/workspace/OneShotSEA-d280fa7/build-ab-candidate/benchmark_p125_poly_trusted",
+    "candidate_sha256": "55f6b3d1b78407cc98594ceb8d381371265a9570d9e75a025ec4bb1e2b1d4514",
+    "compiler": "g++-11 (Ubuntu 11.5.0-10ubuntu1~20~ppa3) 11.5.0",
+    "completed_utc": "2026-08-02T23:29:26Z",
+    "label": "reciprocal",
+    "nproc": "16",
+    "repetitions": "5",
+    "retained_baseline_sha256": "1594be47db82d38ce7136de80b55596223c40b98ea9fd1e00691b47c0d9990de",
+    "retained_candidate_sha256": "55f6b3d1b78407cc98594ceb8d381371265a9570d9e75a025ec4bb1e2b1d4514",
+    "schema": "oneshotsea.p125-poly-isolated-ab.v1",
+    "source_commit": "d280fa7bf3dcbb938f7dc2f12912ebc08914b827",
+    "source_tracked_diff_clean": "true",
+    "started_utc": "2026-08-02T23:19:27Z",
+    "table_dir": "/workspace/OneShotSEA-d280fa7/data/modpoly/weber_f",
+    "table_manifest_sha256": "022a0459d16805cb4615641d9e8563e3310e9f00e33f6ef9a9fd99cd54ff6928",
+    "time": "",
+    "uname": "Linux aff31eb93e73 6.8.0-60-generic #63~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Tue Apr 22 19:00:15 UTC 2 x86_64 x86_64 x86_64 GNU/Linux"
+  },
+  "gates": {
+    "accepted": false,
+    "candidate_rss_increase_at_most_5_percent": false,
+    "every_mode_mean_improves": true,
+    "every_paired_ratio_above_one": true,
+    "pooled_frobenius_speedup_above_1_05": true,
+    "sea_speedup_above_1_05": true,
+    "semantic_projections_identical": true
+  },
+  "gating_modes": [
+    "frobenius-194",
+    "frobenius-281",
+    "frobenius-401",
+    "sea"
+  ],
+  "label": "reciprocal",
+  "modes": {
+    "frobenius-194": {
+      "baseline_mean_us": 11284099.0,
+      "candidate_mean_us": 6715423.0,
+      "maximum_rss_kib": {
+        "a1": 6160,
+        "a2": 6168,
+        "b1": 4104,
+        "b2": 4116
+      },
+      "paired_speedups": [
+        1.7112821877472542,
+        1.6490219195268232
+      ],
+      "primary_timing_us": {
+        "a1": 6752919,
+        "a2": 6677927,
+        "b1": 11556150,
+        "b2": 11012048
+      },
+      "projection_sha256": "e9eb7bb34b1c364dd81daabdfa1a83704e1a92e613aef970e7d4342d344a7d8d",
+      "speedup": 1.6803258707604867,
+      "timing_details_us": {
+        "a1": {
+          "degree": 194,
+          "elapsed_us": 6752919,
+          "repetitions": 5
+        },
+        "a2": {
+          "degree": 194,
+          "elapsed_us": 6677927,
+          "repetitions": 5
+        },
+        "b1": {
+          "degree": 194,
+          "elapsed_us": 11556150,
+          "repetitions": 5
+        },
+        "b2": {
+          "degree": 194,
+          "elapsed_us": 11012048,
+          "repetitions": 5
+        }
+      }
+    },
+    "frobenius-281": {
+      "baseline_mean_us": 22025918.5,
+      "candidate_mean_us": 10811730.0,
+      "maximum_rss_kib": {
+        "a1": 6176,
+        "a2": 6172,
+        "b1": 5152,
+        "b2": 5128
+      },
+      "paired_speedups": [
+        2.043039498320121,
+        2.031285971529827
+      ],
+      "primary_timing_us": {
+        "a1": 10924895,
+        "a2": 10698565,
+        "b1": 22319992,
+        "b2": 21731845
+      },
+      "projection_sha256": "f8ac1c5fd98bb7db82ef73ea7e947cf7ee92baf1d34125f003e362d12e07fa5b",
+      "speedup": 2.0372242462584618,
+      "timing_details_us": {
+        "a1": {
+          "degree": 281,
+          "elapsed_us": 10924895,
+          "repetitions": 5
+        },
+        "a2": {
+          "degree": 281,
+          "elapsed_us": 10698565,
+          "repetitions": 5
+        },
+        "b1": {
+          "degree": 281,
+          "elapsed_us": 22319992,
+          "repetitions": 5
+        },
+        "b2": {
+          "degree": 281,
+          "elapsed_us": 21731845,
+          "repetitions": 5
+        }
+      }
+    },
+    "frobenius-401": {
+      "baseline_mean_us": 42897036.5,
+      "candidate_mean_us": 17345138.0,
+      "maximum_rss_kib": {
+        "a1": 5132,
+        "a2": 5132,
+        "b1": 5136,
+        "b2": 5136
+      },
+      "paired_speedups": [
+        2.506304987498379,
+        2.4398932922464143
+      ],
+      "primary_timing_us": {
+        "a1": 17368948,
+        "a2": 17321328,
+        "b1": 43531881,
+        "b2": 42262192
+      },
+      "projection_sha256": "39b87983e324c45f476541211f90b1f350a28a142ec15b07e3a56eb0ecd469d7",
+      "speedup": 2.4731447221694056,
+      "timing_details_us": {
+        "a1": {
+          "degree": 401,
+          "elapsed_us": 17368948,
+          "repetitions": 5
+        },
+        "a2": {
+          "degree": 401,
+          "elapsed_us": 17321328,
+          "repetitions": 5
+        },
+        "b1": {
+          "degree": 401,
+          "elapsed_us": 43531881,
+          "repetitions": 5
+        },
+        "b2": {
+          "degree": 401,
+          "elapsed_us": 42262192,
+          "repetitions": 5
+        }
+      }
+    },
+    "sea": {
+      "baseline_mean_us": 84418829.5,
+      "candidate_mean_us": 65626607.5,
+      "maximum_rss_kib": {
+        "a1": 8204,
+        "a2": 7204,
+        "b1": 6160,
+        "b2": 7184
+      },
+      "paired_speedups": [
+        1.2934300272739547,
+        1.2792687268319118
+      ],
+      "primary_timing_us": {
+        "a1": 65638446,
+        "a2": 65614769,
+        "b1": 84898737,
+        "b2": 83938922
+      },
+      "projection_sha256": "8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6",
+      "speedup": 1.2863506543439718,
+      "timing_details_us": {
+        "a1": {
+          "bmss_us": 17848948,
+          "eigenvalue_us": 23005381,
+          "generation_us": 4638644,
+          "modular_roots_us": 24481197,
+          "normalized_codomain_us": 173040,
+          "sea_us": 65638446,
+          "source_lifts_us": 0,
+          "total_us": 70277099
+        },
+        "a2": {
+          "bmss_us": 17851183,
+          "eigenvalue_us": 23021988,
+          "generation_us": 4643527,
+          "modular_roots_us": 24439946,
+          "normalized_codomain_us": 172341,
+          "sea_us": 65614769,
+          "source_lifts_us": 0,
+          "total_us": 70258307
+        },
+        "b1": {
+          "bmss_us": 17777631,
+          "eigenvalue_us": 27973897,
+          "generation_us": 4663567,
+          "modular_roots_us": 38841706,
+          "normalized_codomain_us": 174734,
+          "sea_us": 84898737,
+          "source_lifts_us": 0,
+          "total_us": 89562314
+        },
+        "b2": {
+          "bmss_us": 17639492,
+          "eigenvalue_us": 27631462,
+          "generation_us": 4705052,
+          "modular_roots_us": 38373439,
+          "normalized_codomain_us": 165406,
+          "sea_us": 83938922,
+          "source_lifts_us": 0,
+          "total_us": 88643984
+        }
+      }
+    }
+  },
+  "pooled_frobenius_gate_applicable": true,
+  "pooled_frobenius_speedup": 2.185318251674374,
+  "schema": "oneshotsea.p125-poly-isolated-ab-summary.v1"
+}

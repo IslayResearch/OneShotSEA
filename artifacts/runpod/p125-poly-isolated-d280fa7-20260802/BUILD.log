@@ -1,0 +1,244 @@
+mkdir -p build-ab-candidate
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/field.cpp -o build-ab-candidate/field.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/poly.cpp -o build-ab-candidate/poly.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/curve.cpp -o build-ab-candidate/curve.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/modpoly.cpp -o build-ab-candidate/modpoly.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/trace.cpp -o build-ab-candidate/trace.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/atkin.cpp -o build-ab-candidate/atkin.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/weber_table_trust.cpp -o build-ab-candidate/weber_table_trust.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/early_abort.cpp -o build-ab-candidate/early_abort.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/schoof.cpp -o build-ab-candidate/schoof.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/elkies.cpp -o build-ab-candidate/elkies.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/isogeny.cpp -o build-ab-candidate/isogeny.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/weber.cpp -o build-ab-candidate/weber.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/sea.cpp -o build-ab-candidate/sea.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/smooth_cache.cpp -o build-ab-candidate/smooth_cache.o
+g++-11 -Iinclude -fopenmp -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/smooth_bounded.cpp -o build-ab-candidate/smooth_bounded.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/integrity.cpp -o build-ab-candidate/integrity.o
+src/trace.cpp: In function ‘uint64_t oneshotsea::{anonymous}::mul_mod(uint64_t, uint64_t, uint64_t)’:
+src/trace.cpp:20:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   20 |         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+      |                               ^~~~~~~~
+src/trace.cpp:20:69: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   20 |         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+      |                                                                     ^~~~~~~~
+src/trace.cpp: In function ‘uint64_t oneshotsea::{anonymous}::add_mod(uint64_t, uint64_t, uint64_t)’:
+src/trace.cpp:26:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   26 |         (static_cast<unsigned __int128>(lhs) + rhs) % modulus);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/exact_smooth.cpp -o build-ab-candidate/exact_smooth.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/factor.cpp -o build-ab-candidate/factor.o
+src/elkies.cpp: In function ‘uint64_t oneshotsea::{anonymous}::inverse_mod_small(uint64_t, uint64_t)’:
+src/elkies.cpp:22:35: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   22 |         if ((static_cast<unsigned __int128>(value) * candidate) % modulus == 1) {
+      |                                   ^~~~~~~~
+src/elkies.cpp: In function ‘uint64_t oneshotsea::{anonymous}::conjugate_frobenius_eigenvalue(const mpz_class&, uint64_t, uint64_t)’:
+src/elkies.cpp:34:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   34 |         (static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+      |                               ^~~~~~~~
+src/elkies.cpp: In function ‘uint64_t oneshotsea::trace_residue_from_eigenvalue(const mpz_class&, uint64_t, uint64_t)’:
+src/elkies.cpp:227:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+  227 |         (static_cast<unsigned __int128>(eigenvalue) +
+      |                               ^~~~~~~~
+src/elkies.cpp:228:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+  228 |          static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/search_checkpoint.cpp -o build-ab-candidate/search_checkpoint.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/certificate.cpp -o build-ab-candidate/certificate.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/weber_curve_generator.cpp -o build-ab-candidate/weber_curve_generator.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/x1_11_probe.cpp -o build-ab-candidate/x1_11_probe.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/x1_27_probe.cpp -o build-ab-candidate/x1_27_probe.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/search_pipeline.cpp -o build-ab-candidate/search_pipeline.o
+gcc-11 -Iinclude -Ithird_party/oneshot_fast_ecpp -fopenmp \
+	-O2 -g -std=c11 -c third_party/oneshot_fast_ecpp/smooth.c -o build-ab-candidate/smooth.o
+ar rcs build-ab-candidate/liboneshotsea.a build-ab-candidate/field.o build-ab-candidate/poly.o build-ab-candidate/curve.o build-ab-candidate/modpoly.o build-ab-candidate/trace.o build-ab-candidate/atkin.o build-ab-candidate/weber_table_trust.o build-ab-candidate/early_abort.o build-ab-candidate/schoof.o build-ab-candidate/elkies.o build-ab-candidate/isogeny.o build-ab-candidate/weber.o build-ab-candidate/sea.o build-ab-candidate/smooth_cache.o build-ab-candidate/smooth_bounded.o build-ab-candidate/integrity.o build-ab-candidate/exact_smooth.o build-ab-candidate/factor.o build-ab-candidate/search_checkpoint.o build-ab-candidate/certificate.o build-ab-candidate/weber_curve_generator.o build-ab-candidate/x1_11_probe.o build-ab-candidate/x1_27_probe.o build-ab-candidate/search_pipeline.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow tools/benchmark_p125_poly_trusted.cpp build-ab-candidate/liboneshotsea.a \
+	build-ab-candidate/smooth.o -pthread -fopenmp -lgmpxx -lgmp -o build-ab-candidate/benchmark_p125_poly_trusted
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow tests/test_core.cpp build-ab-candidate/liboneshotsea.a -pthread -lgmpxx -lgmp -o build-ab-candidate/test_core
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow tests/test_poly_square.cpp build-ab-candidate/liboneshotsea.a -pthread -lgmpxx -lgmp -o build-ab-candidate/test_poly_square
+core tests: ok
+polynomial square differential: ok
+mkdir -p build-ab-no-kronecker
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/field.cpp -o build-ab-no-kronecker/field.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/poly.cpp -o build-ab-no-kronecker/poly.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/curve.cpp -o build-ab-no-kronecker/curve.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/modpoly.cpp -o build-ab-no-kronecker/modpoly.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/trace.cpp -o build-ab-no-kronecker/trace.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/atkin.cpp -o build-ab-no-kronecker/atkin.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/weber_table_trust.cpp -o build-ab-no-kronecker/weber_table_trust.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/early_abort.cpp -o build-ab-no-kronecker/early_abort.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/schoof.cpp -o build-ab-no-kronecker/schoof.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/elkies.cpp -o build-ab-no-kronecker/elkies.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/isogeny.cpp -o build-ab-no-kronecker/isogeny.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/weber.cpp -o build-ab-no-kronecker/weber.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/sea.cpp -o build-ab-no-kronecker/sea.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/smooth_cache.cpp -o build-ab-no-kronecker/smooth_cache.o
+g++-11 -Iinclude -fopenmp -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/smooth_bounded.cpp -o build-ab-no-kronecker/smooth_bounded.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/integrity.cpp -o build-ab-no-kronecker/integrity.o
+src/trace.cpp: In function ‘uint64_t oneshotsea::{anonymous}::mul_mod(uint64_t, uint64_t, uint64_t)’:
+src/trace.cpp:20:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   20 |         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+      |                               ^~~~~~~~
+src/trace.cpp:20:69: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   20 |         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+      |                                                                     ^~~~~~~~
+src/trace.cpp: In function ‘uint64_t oneshotsea::{anonymous}::add_mod(uint64_t, uint64_t, uint64_t)’:
+src/trace.cpp:26:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   26 |         (static_cast<unsigned __int128>(lhs) + rhs) % modulus);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/exact_smooth.cpp -o build-ab-no-kronecker/exact_smooth.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/factor.cpp -o build-ab-no-kronecker/factor.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/search_checkpoint.cpp -o build-ab-no-kronecker/search_checkpoint.o
+src/elkies.cpp: In function ‘uint64_t oneshotsea::{anonymous}::inverse_mod_small(uint64_t, uint64_t)’:
+src/elkies.cpp:22:35: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   22 |         if ((static_cast<unsigned __int128>(value) * candidate) % modulus == 1) {
+      |                                   ^~~~~~~~
+src/elkies.cpp: In function ‘uint64_t oneshotsea::{anonymous}::conjugate_frobenius_eigenvalue(const mpz_class&, uint64_t, uint64_t)’:
+src/elkies.cpp:34:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   34 |         (static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+      |                               ^~~~~~~~
+src/elkies.cpp: In function ‘uint64_t oneshotsea::trace_residue_from_eigenvalue(const mpz_class&, uint64_t, uint64_t)’:
+src/elkies.cpp:227:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+  227 |         (static_cast<unsigned __int128>(eigenvalue) +
+      |                               ^~~~~~~~
+src/elkies.cpp:228:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+  228 |          static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/certificate.cpp -o build-ab-no-kronecker/certificate.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/weber_curve_generator.cpp -o build-ab-no-kronecker/weber_curve_generator.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/x1_11_probe.cpp -o build-ab-no-kronecker/x1_11_probe.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/x1_27_probe.cpp -o build-ab-no-kronecker/x1_27_probe.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 -MMD -MP -c src/search_pipeline.cpp -o build-ab-no-kronecker/search_pipeline.o
+gcc-11 -Iinclude -Ithird_party/oneshot_fast_ecpp -fopenmp \
+	-O2 -g -std=c11 -c third_party/oneshot_fast_ecpp/smooth.c -o build-ab-no-kronecker/smooth.o
+ar rcs build-ab-no-kronecker/liboneshotsea.a build-ab-no-kronecker/field.o build-ab-no-kronecker/poly.o build-ab-no-kronecker/curve.o build-ab-no-kronecker/modpoly.o build-ab-no-kronecker/trace.o build-ab-no-kronecker/atkin.o build-ab-no-kronecker/weber_table_trust.o build-ab-no-kronecker/early_abort.o build-ab-no-kronecker/schoof.o build-ab-no-kronecker/elkies.o build-ab-no-kronecker/isogeny.o build-ab-no-kronecker/weber.o build-ab-no-kronecker/sea.o build-ab-no-kronecker/smooth_cache.o build-ab-no-kronecker/smooth_bounded.o build-ab-no-kronecker/integrity.o build-ab-no-kronecker/exact_smooth.o build-ab-no-kronecker/factor.o build-ab-no-kronecker/search_checkpoint.o build-ab-no-kronecker/certificate.o build-ab-no-kronecker/weber_curve_generator.o build-ab-no-kronecker/x1_11_probe.o build-ab-no-kronecker/x1_27_probe.o build-ab-no-kronecker/search_pipeline.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 tools/benchmark_p125_poly_trusted.cpp build-ab-no-kronecker/liboneshotsea.a \
+	build-ab-no-kronecker/smooth.o -pthread -fopenmp -lgmpxx -lgmp -o build-ab-no-kronecker/benchmark_p125_poly_trusted
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 tests/test_core.cpp build-ab-no-kronecker/liboneshotsea.a -pthread -lgmpxx -lgmp -o build-ab-no-kronecker/test_core
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0 tests/test_poly_square.cpp build-ab-no-kronecker/liboneshotsea.a -pthread -lgmpxx -lgmp -o build-ab-no-kronecker/test_poly_square
+core tests: ok
+polynomial square differential: ok
+mkdir -p build-ab-no-reciprocal
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/field.cpp -o build-ab-no-reciprocal/field.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/poly.cpp -o build-ab-no-reciprocal/poly.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/curve.cpp -o build-ab-no-reciprocal/curve.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/modpoly.cpp -o build-ab-no-reciprocal/modpoly.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/trace.cpp -o build-ab-no-reciprocal/trace.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/atkin.cpp -o build-ab-no-reciprocal/atkin.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/weber_table_trust.cpp -o build-ab-no-reciprocal/weber_table_trust.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/early_abort.cpp -o build-ab-no-reciprocal/early_abort.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/schoof.cpp -o build-ab-no-reciprocal/schoof.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/elkies.cpp -o build-ab-no-reciprocal/elkies.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/isogeny.cpp -o build-ab-no-reciprocal/isogeny.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/weber.cpp -o build-ab-no-reciprocal/weber.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/sea.cpp -o build-ab-no-reciprocal/sea.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/smooth_cache.cpp -o build-ab-no-reciprocal/smooth_cache.o
+g++-11 -Iinclude -fopenmp -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/smooth_bounded.cpp -o build-ab-no-reciprocal/smooth_bounded.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/integrity.cpp -o build-ab-no-reciprocal/integrity.o
+src/trace.cpp: In function ‘uint64_t oneshotsea::{anonymous}::mul_mod(uint64_t, uint64_t, uint64_t)’:
+src/trace.cpp:20:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   20 |         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+      |                               ^~~~~~~~
+src/trace.cpp:20:69: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   20 |         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+      |                                                                     ^~~~~~~~
+src/trace.cpp: In function ‘uint64_t oneshotsea::{anonymous}::add_mod(uint64_t, uint64_t, uint64_t)’:
+src/trace.cpp:26:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   26 |         (static_cast<unsigned __int128>(lhs) + rhs) % modulus);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/exact_smooth.cpp -o build-ab-no-reciprocal/exact_smooth.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/factor.cpp -o build-ab-no-reciprocal/factor.o
+src/elkies.cpp: In function ‘uint64_t oneshotsea::{anonymous}::inverse_mod_small(uint64_t, uint64_t)’:
+src/elkies.cpp:22:35: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   22 |         if ((static_cast<unsigned __int128>(value) * candidate) % modulus == 1) {
+      |                                   ^~~~~~~~
+src/elkies.cpp: In function ‘uint64_t oneshotsea::{anonymous}::conjugate_frobenius_eigenvalue(const mpz_class&, uint64_t, uint64_t)’:
+src/elkies.cpp:34:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   34 |         (static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/search_checkpoint.cpp -o build-ab-no-reciprocal/search_checkpoint.o
+src/elkies.cpp: In function ‘uint64_t oneshotsea::trace_residue_from_eigenvalue(const mpz_class&, uint64_t, uint64_t)’:
+src/elkies.cpp:227:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+  227 |         (static_cast<unsigned __int128>(eigenvalue) +
+      |                               ^~~~~~~~
+src/elkies.cpp:228:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+  228 |          static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/certificate.cpp -o build-ab-no-reciprocal/certificate.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/weber_curve_generator.cpp -o build-ab-no-reciprocal/weber_curve_generator.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/x1_11_probe.cpp -o build-ab-no-reciprocal/x1_11_probe.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/x1_27_probe.cpp -o build-ab-no-reciprocal/x1_27_probe.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 -MMD -MP -c src/search_pipeline.cpp -o build-ab-no-reciprocal/search_pipeline.o
+gcc-11 -Iinclude -Ithird_party/oneshot_fast_ecpp -fopenmp \
+	-O2 -g -std=c11 -c third_party/oneshot_fast_ecpp/smooth.c -o build-ab-no-reciprocal/smooth.o
+ar rcs build-ab-no-reciprocal/liboneshotsea.a build-ab-no-reciprocal/field.o build-ab-no-reciprocal/poly.o build-ab-no-reciprocal/curve.o build-ab-no-reciprocal/modpoly.o build-ab-no-reciprocal/trace.o build-ab-no-reciprocal/atkin.o build-ab-no-reciprocal/weber_table_trust.o build-ab-no-reciprocal/early_abort.o build-ab-no-reciprocal/schoof.o build-ab-no-reciprocal/elkies.o build-ab-no-reciprocal/isogeny.o build-ab-no-reciprocal/weber.o build-ab-no-reciprocal/sea.o build-ab-no-reciprocal/smooth_cache.o build-ab-no-reciprocal/smooth_bounded.o build-ab-no-reciprocal/integrity.o build-ab-no-reciprocal/exact_smooth.o build-ab-no-reciprocal/factor.o build-ab-no-reciprocal/search_checkpoint.o build-ab-no-reciprocal/certificate.o build-ab-no-reciprocal/weber_curve_generator.o build-ab-no-reciprocal/x1_11_probe.o build-ab-no-reciprocal/x1_27_probe.o build-ab-no-reciprocal/search_pipeline.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 tools/benchmark_p125_poly_trusted.cpp build-ab-no-reciprocal/liboneshotsea.a \
+	build-ab-no-reciprocal/smooth.o -pthread -fopenmp -lgmpxx -lgmp -o build-ab-no-reciprocal/benchmark_p125_poly_trusted
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 tests/test_core.cpp build-ab-no-reciprocal/liboneshotsea.a -pthread -lgmpxx -lgmp -o build-ab-no-reciprocal/test_core
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0 tests/test_poly_square.cpp build-ab-no-reciprocal/liboneshotsea.a -pthread -lgmpxx -lgmp -o build-ab-no-reciprocal/test_poly_square
+core tests: ok
+polynomial square differential: ok
+mkdir -p build-ab-no-quotient-context
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/field.cpp -o build-ab-no-quotient-context/field.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/poly.cpp -o build-ab-no-quotient-context/poly.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/curve.cpp -o build-ab-no-quotient-context/curve.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/modpoly.cpp -o build-ab-no-quotient-context/modpoly.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/trace.cpp -o build-ab-no-quotient-context/trace.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/atkin.cpp -o build-ab-no-quotient-context/atkin.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/weber_table_trust.cpp -o build-ab-no-quotient-context/weber_table_trust.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/early_abort.cpp -o build-ab-no-quotient-context/early_abort.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/schoof.cpp -o build-ab-no-quotient-context/schoof.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/elkies.cpp -o build-ab-no-quotient-context/elkies.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/isogeny.cpp -o build-ab-no-quotient-context/isogeny.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/weber.cpp -o build-ab-no-quotient-context/weber.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/sea.cpp -o build-ab-no-quotient-context/sea.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/smooth_cache.cpp -o build-ab-no-quotient-context/smooth_cache.o
+g++-11 -Iinclude -fopenmp -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/smooth_bounded.cpp -o build-ab-no-quotient-context/smooth_bounded.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/integrity.cpp -o build-ab-no-quotient-context/integrity.o
+src/trace.cpp: In function ‘uint64_t oneshotsea::{anonymous}::mul_mod(uint64_t, uint64_t, uint64_t)’:
+src/trace.cpp:20:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   20 |         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+      |                               ^~~~~~~~
+src/trace.cpp:20:69: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   20 |         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+      |                                                                     ^~~~~~~~
+src/trace.cpp: In function ‘uint64_t oneshotsea::{anonymous}::add_mod(uint64_t, uint64_t, uint64_t)’:
+src/trace.cpp:26:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   26 |         (static_cast<unsigned __int128>(lhs) + rhs) % modulus);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/exact_smooth.cpp -o build-ab-no-quotient-context/exact_smooth.o
+src/elkies.cpp: In function ‘uint64_t oneshotsea::{anonymous}::inverse_mod_small(uint64_t, uint64_t)’:
+src/elkies.cpp:22:35: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   22 |         if ((static_cast<unsigned __int128>(value) * candidate) % modulus == 1) {
+      |                                   ^~~~~~~~
+src/elkies.cpp: In function ‘uint64_t oneshotsea::{anonymous}::conjugate_frobenius_eigenvalue(const mpz_class&, uint64_t, uint64_t)’:
+src/elkies.cpp:34:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+   34 |         (static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+      |                               ^~~~~~~~
+src/elkies.cpp: In function ‘uint64_t oneshotsea::trace_residue_from_eigenvalue(const mpz_class&, uint64_t, uint64_t)’:
+src/elkies.cpp:227:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+  227 |         (static_cast<unsigned __int128>(eigenvalue) +
+      |                               ^~~~~~~~
+src/elkies.cpp:228:31: warning: ISO C++ does not support ‘__int128’ for ‘type name’ [-Wpedantic]
+  228 |          static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+      |                               ^~~~~~~~
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/factor.cpp -o build-ab-no-quotient-context/factor.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/search_checkpoint.cpp -o build-ab-no-quotient-context/search_checkpoint.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/certificate.cpp -o build-ab-no-quotient-context/certificate.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/weber_curve_generator.cpp -o build-ab-no-quotient-context/weber_curve_generator.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/x1_11_probe.cpp -o build-ab-no-quotient-context/x1_11_probe.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/x1_27_probe.cpp -o build-ab-no-quotient-context/x1_27_probe.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 -MMD -MP -c src/search_pipeline.cpp -o build-ab-no-quotient-context/search_pipeline.o
+gcc-11 -Iinclude -Ithird_party/oneshot_fast_ecpp -fopenmp \
+	-O2 -g -std=c11 -c third_party/oneshot_fast_ecpp/smooth.c -o build-ab-no-quotient-context/smooth.o
+ar rcs build-ab-no-quotient-context/liboneshotsea.a build-ab-no-quotient-context/field.o build-ab-no-quotient-context/poly.o build-ab-no-quotient-context/curve.o build-ab-no-quotient-context/modpoly.o build-ab-no-quotient-context/trace.o build-ab-no-quotient-context/atkin.o build-ab-no-quotient-context/weber_table_trust.o build-ab-no-quotient-context/early_abort.o build-ab-no-quotient-context/schoof.o build-ab-no-quotient-context/elkies.o build-ab-no-quotient-context/isogeny.o build-ab-no-quotient-context/weber.o build-ab-no-quotient-context/sea.o build-ab-no-quotient-context/smooth_cache.o build-ab-no-quotient-context/smooth_bounded.o build-ab-no-quotient-context/integrity.o build-ab-no-quotient-context/exact_smooth.o build-ab-no-quotient-context/factor.o build-ab-no-quotient-context/search_checkpoint.o build-ab-no-quotient-context/certificate.o build-ab-no-quotient-context/weber_curve_generator.o build-ab-no-quotient-context/x1_11_probe.o build-ab-no-quotient-context/x1_27_probe.o build-ab-no-quotient-context/search_pipeline.o
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 tools/benchmark_p125_poly_trusted.cpp build-ab-no-quotient-context/liboneshotsea.a \
+	build-ab-no-quotient-context/smooth.o -pthread -fopenmp -lgmpxx -lgmp -o build-ab-no-quotient-context/benchmark_p125_poly_trusted
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 tests/test_core.cpp build-ab-no-quotient-context/liboneshotsea.a -pthread -lgmpxx -lgmp -o build-ab-no-quotient-context/test_core
+g++-11 -Iinclude -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -DONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0 tests/test_poly_square.cpp build-ab-no-quotient-context/liboneshotsea.a -pthread -lgmpxx -lgmp -o build-ab-no-quotient-context/test_poly_square
+core tests: ok
+polynomial square differential: ok
+55f6b3d1b78407cc98594ceb8d381371265a9570d9e75a025ec4bb1e2b1d4514  build-ab-candidate/benchmark_p125_poly_trusted
+5d1bb376ad35a7858dd177fadbfefe440b78cb0e9887a23b43a9861f0182e96b  build-ab-no-kronecker/benchmark_p125_poly_trusted
+1594be47db82d38ce7136de80b55596223c40b98ea9fd1e00691b47c0d9990de  build-ab-no-reciprocal/benchmark_p125_poly_trusted
+38f8349c3568faac78af598b876c9f74b12d7853567369134527661d280303a1  build-ab-no-quotient-context/benchmark_p125_poly_trusted

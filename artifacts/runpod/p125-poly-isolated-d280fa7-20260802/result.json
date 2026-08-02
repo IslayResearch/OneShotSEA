@@ -1,0 +1,102 @@
+{
+  "schema": "oneshotsea.p125-poly-isolated-runpod-result.v1",
+  "date": "2026-08-02",
+  "classification": "retained isolated timing evidence; Kronecker and reciprocal timing gates pass but production-memory promotion remains pending; quotient-context reuse is rejected",
+  "host": {
+    "pod_id": "ohfo3hbov7ot8v",
+    "workload": "cpu3g",
+    "allocated_vcpu": 16,
+    "allocated_ram_gib": 64,
+    "recorded_hourly_rate_usd": 0.643
+  },
+  "identity": {
+    "benchmark_source_commit": "d280fa7bf3dcbb938f7dc2f12912ebc08914b827",
+    "validator_commit": "0eca68c70104d354611ffe1b2985c72726a83bd1",
+    "candidate_binary_sha256": "55f6b3d1b78407cc98594ceb8d381371265a9570d9e75a025ec4bb1e2b1d4514",
+    "compiler": "g++-11 (Ubuntu 11.5.0-10ubuntu1~20~ppa3) 11.5.0",
+    "raw_bundles": 3,
+    "checksummed_files_per_bundle": 55,
+    "semantic_projection_sha256": "8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6"
+  },
+  "method": {
+    "schedule_per_optimization": ["baseline", "candidate", "candidate", "baseline"],
+    "frobenius_degrees": [194, 281, 401],
+    "repetitions_per_frobenius_invocation": 5,
+    "sea_max_level": 401,
+    "sea_threads": 1,
+    "semantic_projections_required_identical": true,
+    "paired_ratios_required_above_one": true,
+    "pooled_frobenius_speedup_required": 1.05,
+    "sea_speedup_required": 1.05,
+    "candidate_rss_ratio_maximum": 1.05,
+    "quotient_context_gating_modes": ["sea"],
+    "quotient_context_note": "Standalone Frobenius controls do not route through Schoof's quotient context and are retained as non-gating controls."
+  },
+  "results": {
+    "kronecker": {
+      "baseline_binary_sha256": "5d1bb376ad35a7858dd177fadbfefe440b78cb0e9887a23b43a9861f0182e96b",
+      "pooled_frobenius_speedup": 2.6213361365958328,
+      "sea_speedup": 1.7224304577606746,
+      "sea_paired_speedups": [1.728041188088504, 1.7168983579973374],
+      "baseline_peak_rss_kib": 6160,
+      "candidate_peak_rss_kib": 7188,
+      "candidate_rss_increase_kib": 1028,
+      "candidate_to_baseline_peak_rss_ratio": 1.1668831168831169,
+      "timing_gates_pass": true,
+      "rss_gate_pass": false,
+      "accepted": false,
+      "decision": "hold production promotion pending the same-30 production-path replay's peak-RSS gate"
+    },
+    "reciprocal": {
+      "baseline_binary_sha256": "1594be47db82d38ce7136de80b55596223c40b98ea9fd1e00691b47c0d9990de",
+      "pooled_frobenius_speedup": 2.185318251674374,
+      "sea_speedup": 1.2863506543439718,
+      "sea_paired_speedups": [1.2934300272739547, 1.2792687268319118],
+      "baseline_peak_rss_kib": 7184,
+      "candidate_peak_rss_kib": 8204,
+      "candidate_rss_increase_kib": 1020,
+      "candidate_to_baseline_peak_rss_ratio": 1.1419821826280623,
+      "timing_gates_pass": true,
+      "rss_gate_pass": false,
+      "accepted": false,
+      "decision": "hold production promotion pending the same-30 production-path replay's peak-RSS gate"
+    },
+    "quotient_context": {
+      "baseline_binary_sha256": "38f8349c3568faac78af598b876c9f74b12d7853567369134527661d280303a1",
+      "pooled_frobenius_control_ratio": 1.0010208991633869,
+      "sea_speedup": 1.035832943871942,
+      "sea_paired_speedups": [1.039904063231547, 1.0317657797468904],
+      "baseline_peak_rss_kib": 7196,
+      "candidate_peak_rss_kib": 8196,
+      "candidate_rss_increase_kib": 1000,
+      "candidate_to_baseline_peak_rss_ratio": 1.1389660922734852,
+      "sea_speed_gate_pass": false,
+      "rss_gate_pass": false,
+      "accepted": false,
+      "decision": "disable by default; retain the compile-time experimental path and exact differential coverage"
+    }
+  },
+  "execution": {
+    "raw_run_start_utc": "2026-08-02T23:04:30Z",
+    "raw_run_end_utc": "2026-08-02T23:37:26Z",
+    "raw_run_elapsed_seconds": 1975.6,
+    "wrapper_exit_status": 1,
+    "wrapper_exit_interpretation": "all raw bundles completed; the original Python 3.8-incompatible summarizer then failed before writing summaries",
+    "recovery": "summaries were generated from immutable raw bundles with clean validator commit 0eca68c70104d354611ffe1b2985c72726a83bd1",
+    "raw_run_estimated_cost_usd": 0.35286411111111105,
+    "benchmark_workstream_start_utc": "2026-08-02T22:53:12Z",
+    "benchmark_workstream_through_validation_end_utc": "2026-08-02T23:37:26Z",
+    "benchmark_workstream_elapsed_seconds": 2654,
+    "benchmark_workstream_estimated_cost_usd": 0.4740338888888889,
+    "whole_pod_session_through_retrieval_estimated_cost_usd": 4.808746944444445,
+    "aws_cost_usd": 0.0,
+    "cost_note": "Elapsed time times the recorded compute-plus-disk rate; RunPod billing is authoritative."
+  },
+  "audit": {
+    "nested_sha256sums_passed": true,
+    "saved_summaries_equal_local_recomputation": true,
+    "kronecker_summary_sha256": "aa5d371ab759a2046b2ae2665dbc54943db864e3d37a1b70140a990059156211",
+    "reciprocal_summary_sha256": "9054ea7a5e47f21fa842bfe3c902c5348ef6718b108bb0d0c91554837b8d0d77",
+    "quotient_context_summary_sha256": "702638f6ea37ec410fe98318fe98caed0e8677d45485ee7e8d0ef485485d8781"
+  }
+}

@@ -1,0 +1,10 @@
+timing.schema=oneshotsea.p125-poly-trusted-timing.v1
+timing.mode=sea
+timing.generation_us=2024432
+timing.sea_us=115044028
+timing.total_us=117068481
+timing.source_lifts_us=0
+timing.modular_roots_us=53920015
+timing.normalized_codomain_us=180220
+timing.bmss_us=18783674
+timing.eigenvalue_us=42024525

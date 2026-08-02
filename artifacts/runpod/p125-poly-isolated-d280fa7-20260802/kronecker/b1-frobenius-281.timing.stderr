@@ -1,0 +1,5 @@
+timing.schema=oneshotsea.p125-poly-trusted-timing.v1
+timing.mode=frobenius
+timing.degree=281
+timing.repetitions=5
+timing.elapsed_us=27125261

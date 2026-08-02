@@ -414,19 +414,24 @@ from 49.322 to 46.754 seconds (1.05493x) and eigen recovery from 17.681 to
 projections, 55 exact level projections, and the final trace matched. Evidence
 is in `artifacts/local/p125-element-subring-window-20260801/result.json`.
 
-The quotient ring now owns one prepared `PolyModContext` for the complete
-Frobenius/eigenvalue calculation.  Previously each polynomial-subring power
-prepared a reciprocal reducer, but subsequent Jacobian point multiplication
-and squaring fell back to generic long reduction.  Three interleaved
-compile-time off/on runs on the catalog-authenticated level-409 p125 fixture
-reduced median eigenvalue recovery from 2.836558 to 2.282278 seconds
-(1.24286x), median SEA from 5.155449 to 4.597293 seconds (1.12141x), and median
-full invocation time from 7.666286 to 7.074818 seconds (1.08360x).  Roots and
-BMSS were stable controls, and all six non-timing projections had SHA-256
-`f873221610f2984b744e76fa9a4de88545f9049ab1c5254961b36d73e8004606`.
-The compile switch exists only for the controlled ablation; production enables
-reuse.  Compact evidence is in
+The quotient ring can own one prepared `PolyModContext` for the complete
+Frobenius/eigenvalue calculation.  Three local compile-time off/on runs on the
+catalog-authenticated level-409 p125 fixture reduced median eigenvalue recovery
+from 2.836558 to 2.282278 seconds (1.24286x), median SEA from 5.155449 to
+4.597293 seconds (1.12141x), and median full invocation time from 7.666286 to
+7.074818 seconds (1.08360x).  Roots and BMSS were stable controls, and all six
+non-timing projections matched.  That compact experiment is retained in
 [`artifacts/local/p125-quotient-context-20260802/result.json`](../artifacts/local/p125-quotient-context-20260802/result.json).
+
+A stronger isolated RunPod B/A/A/B gate then exercised the complete level-401
+SEA path with an honestly disabled baseline that did not even construct the
+prepared context.  The two pairs improved only 1.03990x and 1.03177x, for a
+mean 1.03583x SEA speedup, and candidate peak RSS increased by 1,000 KiB.  The
+semantic projections remained identical, but the result misses both the
+predeclared 1.05x speed threshold and the 5% isolated-RSS threshold.  Reuse is
+therefore disabled by default and retained only as an experimental compile-time
+path.  Raw commands, binaries, checksums, and the rejected summary are in
+[`artifacts/runpod/p125-poly-isolated-d280fa7-20260802`](../artifacts/runpod/p125-poly-isolated-d280fa7-20260802/result.json).
 
 ### Classical-j comparison boundary
 

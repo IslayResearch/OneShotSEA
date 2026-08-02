@@ -1,0 +1,15 @@
+Sun Aug  2 23:04:30 UTC 2026
+GNU time 1.7
+GNU time 1.7
+GNU time 1.7
+Traceback (most recent call last):
+  File "/workspace/OneShotSEA-d280fa7/tools/summarize_p125_poly_ab.py", line 223, in <module>
+    raise SystemExit(main())
+  File "/workspace/OneShotSEA-d280fa7/tools/summarize_p125_poly_ab.py", line 213, in main
+    result = summarize(arguments.bundle)
+  File "/workspace/OneShotSEA-d280fa7/tools/summarize_p125_poly_ab.py", line 104, in summarize
+    checksum_records = _verify_checksums(directory)
+  File "/workspace/OneShotSEA-d280fa7/tools/summarize_p125_poly_ab.py", line 47, in _verify_checksums
+    relative = fields[1].removeprefix("*")
+AttributeError: 'str' object has no attribute 'removeprefix'
+Sun Aug  2 23:37:26 UTC 2026

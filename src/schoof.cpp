@@ -19,7 +19,7 @@ constexpr std::uint64_t kMaxReferenceSchoofEll = 37;
 constexpr bool kQuotientContextReuse =
     ONESHOTSEA_QUOTIENT_CONTEXT_REUSE != 0;
 #else
-constexpr bool kQuotientContextReuse = true;
+constexpr bool kQuotientContextReuse = false;
 #endif
 
 struct RawElement {

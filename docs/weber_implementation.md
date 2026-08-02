@@ -5,8 +5,11 @@ function proposed in the task. It follows Section 7.3 of
 [Broeker-Lauter-Sutherland](https://arxiv.org/abs/1001.0402) and Sections 3.8
 and 3.9 of [Sutherland](https://arxiv.org/abs/1202.3985).
 The checked-in authenticated table set contains 77 admissible prime levels
-through 401.  Its finite-field polynomial arithmetic is still the GMP-backed
-exact implementation rather than the aspirational fixed-limb/Newton backend.
+through 401.  A pinned normalized source catalog covers all 166 admissible
+levels through 997 in the same content-addressed archive, and the converter can
+materialize an authenticated compact subset on demand.  Its finite-field
+polynomial arithmetic is still the GMP-backed exact implementation rather than
+the aspirational fixed-limb/Newton backend.
 
 ## Exact normalization
 
@@ -60,6 +63,14 @@ levels should use the isogeny-volcano/explicit-CRT algorithms from the papers,
 retaining the same normalization, sparsity, and `X^ell Y^ell=-1` sign test.
 The generated level-5 and level-7 tables, hashes, and provenance are checked in
 under `data/modpoly/weber_f/`.
+
+For the bounded archive-backed path, `tools/fetch_weber_tables.py` verifies the
+pinned archive, expands the symmetric source rows, and checks each normalized
+payload against `SOURCE_CATALOG.txt`.  Production pins the catalog digest, not
+one particular subset manifest.  This lets a run use level 409 or any selected
+catalog level through 997 while still rejecting a self-consistent forged
+manifest.  The exact trust model and commands are in
+[`weber_on_demand_catalog.md`](weber_on_demand_catalog.md).
 
 ## Finite-field admission and sign cases
 
@@ -177,14 +188,21 @@ records and 15 final trace candidates.
 
 ## Remaining production work
 
-The end-to-end path is complete through the level-401 production schedule and
-has processed eight unique `p125` curves soundly.  The checked-in manifest is
-pinned by digest, and production startup verifies every table filename, byte
-count, and SHA-256 before SEA.  Differential tests cover classical-j/BMSS,
-native Schoof, the 416-bit target field, and Magma oracle traces.
+The end-to-end path is complete through the checked-in level-401 production
+schedule and has processed representative `p125` curves soundly.  Selective
+catalog materialization has also run the custom 416-bit SEA path at levels 409
+and 997; level 409 produced two independently validated isogenies and exact
+trace residue 19, matching a retained, checksummed independent Magma full
+point count.
+Production startup verifies the pinned source catalog plus every selected
+table filename, byte count, and SHA-256.  Differential tests cover
+classical-j/BMSS, native Schoof, the 416-bit target field, and Magma oracle
+traces.
 
-The remaining outcome blocker is not a missing large-level evaluator: it is
-finding a `p125` order whose exact smooth part supports a canonical certificate.
+The immediate outcome blocker is finding a `p125` order whose exact smooth
+part supports a canonical certificate.  Separately, the archive-backed path
+stops at 997; an honest unbounded asymptotic implementation still requires the
+direct isogeny-volcano/explicit-CRT evaluator described by the cited papers.
 The root/eigen balance now varies with the source-lift orbit count; new
 production telemetry must decide the next performance change.  Faster
 fixed-limb field arithmetic, cross-level batching, and a measured small-prime

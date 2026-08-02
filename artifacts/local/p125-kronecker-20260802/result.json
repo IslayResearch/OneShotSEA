@@ -1,0 +1,98 @@
+{
+  "schema": "oneshotsea.p125-kronecker-ab.v1",
+  "date": "2026-08-02",
+  "base_commit": "814cb58de3f0606e39f8137ccfb6d74d7b60520f",
+  "candidate_binary_sha256": "2aa66e127ccf0c28ba004b30b93e5e52f90d5a106c68e565d25e9cf07bf72517",
+  "baseline_binary_sha256": "77e54333cbbe733579031138ad5c7899ba70b0be50b70a80c4aa5b1bdf2b8ee5",
+  "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101), arm64-apple-darwin25.5.0",
+  "host": "Apple M4 Mac mini, Darwin 25.5.0 arm64",
+  "target_prime": "1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+  "seed": "202607300000",
+  "global_index": "1000030",
+  "point_four_required": true,
+  "max_level": 401,
+  "trace_cap": 16,
+  "sea_threads": 1,
+  "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+  "candidate_kronecker_coefficient_threshold": 48,
+  "baseline_compile_definition": "ONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD=0",
+  "frobenius_bssb": {
+    "degree_194": {
+      "baseline_us": [2256666, 1943294],
+      "candidate_us": [1845913, 1744221],
+      "baseline_mean_us": 2099980.0,
+      "candidate_mean_us": 1795067.0,
+      "speedup": 1.1698616263
+    },
+    "degree_401": {
+      "baseline_us": [7775238, 7598144],
+      "candidate_us": [6541661, 6544681],
+      "baseline_mean_us": 7686691.0,
+      "candidate_mean_us": 6543171.0,
+      "speedup": 1.1747654157
+    }
+  },
+  "full_sea_bssb": {
+    "baseline": [
+      {
+        "sea_us": 44586533,
+        "modular_roots_us": 20853251,
+        "bmss_us": 7994384,
+        "eigenvalue_us": 15602011
+      },
+      {
+        "sea_us": 64224432,
+        "modular_roots_us": 28351380,
+        "bmss_us": 10817114,
+        "eigenvalue_us": 24812113
+      }
+    ],
+    "candidate": [
+      {
+        "sea_us": 39325126,
+        "modular_roots_us": 18268275,
+        "bmss_us": 7714849,
+        "eigenvalue_us": 13204100
+      },
+      {
+        "sea_us": 54051302,
+        "modular_roots_us": 23348903,
+        "bmss_us": 10451783,
+        "eigenvalue_us": 20015092
+      }
+    ],
+    "means": {
+      "baseline_sea_us": 54405482.5,
+      "candidate_sea_us": 46688214.0,
+      "sea_speedup": 1.1652937185,
+      "baseline_modular_roots_us": 24602315.5,
+      "candidate_modular_roots_us": 20808589.0,
+      "modular_roots_speedup": 1.1823154131,
+      "baseline_bmss_us": 9405749.0,
+      "candidate_bmss_us": 9083316.0,
+      "bmss_speedup": 1.0354972787,
+      "baseline_eigenvalue_us": 20207062.0,
+      "candidate_eigenvalue_us": 16609596.0,
+      "eigenvalue_speedup": 1.2165896148
+    },
+    "projection_sha256": "8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6",
+    "projection_hash_count": 4,
+    "all_projections_equal": true
+  },
+  "validation": {
+    "optimized_core": "pass",
+    "optimized_poly_square_differential": "pass",
+    "asan_ubsan_core": "pass",
+    "asan_ubsan_poly_square_differential": "pass",
+    "cli_end_to_end_search_and_verifier": "pass",
+    "native_reference_and_contract_suites": "pass",
+    "magma_point_count_oracle": "pass",
+    "magma_native_differential": "pass",
+    "runpod_and_aws_dry_run_contracts": "pass"
+  },
+  "limitations": [
+    "The benchmark is one deterministic p125 curve and establishes arithmetic throughput, not certificate yield.",
+    "The B/S/S/B bracket experienced host-load drift; reverse ordering and paired means bound it, while the isolated Frobenius brackets provide the cleaner kernel measurement.",
+    "The compile-time zero threshold is an audit baseline only; production uses the default threshold 48."
+  ]
+}

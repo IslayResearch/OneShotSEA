@@ -1,14 +1,19 @@
 from pathlib import Path
 import hashlib
+import io
 import json
 import subprocess
 import sys
+import tarfile
+import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import generate_weber_modpoly as weber  # noqa: E402
+import fetch_weber_tables as fetch  # noqa: E402
 
 
 class WeberModpolyTests(unittest.TestCase):
@@ -66,6 +71,87 @@ class WeberModpolyTests(unittest.TestCase):
                 hashlib.sha256(path.read_bytes()).hexdigest(),
                 manifest["files"][path.name]["sha256"],
             )
+
+    def test_pinned_source_catalog_covers_current_and_future_levels(self) -> None:
+        directory = ROOT / "data" / "modpoly" / "weber_f"
+        payload = (directory / "SOURCE_CATALOG.txt").read_bytes()
+        self.assertEqual(hashlib.sha256(payload).hexdigest(),
+                         fetch.SOURCE_CATALOG_SHA256)
+        catalog = fetch._parse_source_catalog(payload)
+        self.assertEqual(len(catalog), 166)
+        self.assertIn(401, catalog)
+        self.assertIn(409, catalog)
+        self.assertIn(997, catalog)
+        manifest = json.loads((directory / "MANIFEST.json").read_text())
+        for record in manifest["files"].values():
+            self.assertEqual(
+                catalog[record["level"]],
+                (record["bytes"], record["sha256"]),
+            )
+        fetch.verify(directory)
+
+    def test_selective_archive_materialization_is_catalog_bound(self) -> None:
+        upstream = b"[6,0] 1\n[5,5] -1\n[1,1] 4\n"
+        archive_buffer = io.BytesIO()
+        with tarfile.open(fileobj=archive_buffer, mode="w:gz") as archive:
+            member = tarfile.TarInfo("temp/phi1_5.new")
+            member.size = len(upstream)
+            archive.addfile(member, io.BytesIO(upstream))
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "tables"
+            with mock.patch.object(
+                fetch, "_load_archive", return_value=archive_buffer.getvalue()
+            ):
+                fetch.generate(
+                    output,
+                    [5],
+                    None,
+                    ROOT / "data" / "modpoly" / "weber_f" /
+                    "SOURCE_CATALOG.txt",
+                )
+            fetch.verify(output)
+            self.assertEqual(
+                (output / "phi_5.txt").read_bytes(),
+                (ROOT / "data" / "modpoly" / "weber_f" /
+                 "phi_5.txt").read_bytes(),
+            )
+            manifest = json.loads((output / "MANIFEST.json").read_text())
+            self.assertEqual(manifest["levels"], [5])
+            self.assertEqual(set(manifest["files"]), {"phi_5.txt"})
+
+    def test_level_selection_fails_closed(self) -> None:
+        self.assertEqual(fetch._requested_levels(None, "5,409,997"),
+                         [5, 409, 997])
+        self.assertEqual(fetch._requested_levels(400, None)[-1], 397)
+        for selection in ("", "5,5", "7,5", "4", "1009", "abc"):
+            with self.subTest(selection=selection), self.assertRaises(ValueError):
+                fetch._requested_levels(None, selection)
+        for maximum in (4, 998):
+            with self.assertRaises(ValueError):
+                fetch._requested_levels(maximum, None)
+
+    def test_archive_load_has_network_and_size_bounds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            archive = Path(temporary) / "oversized.tar.gz"
+            archive.write_bytes(b"1234")
+            with mock.patch.object(fetch, "ARCHIVE_MAX_BYTES", 3):
+                with self.assertRaisesRegex(ValueError, "byte limit"):
+                    fetch._load_archive(archive)
+
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b"pinned"
+        with mock.patch.object(fetch.urllib.request, "urlopen",
+                               return_value=response) as opener:
+            with mock.patch.object(fetch, "_sha256",
+                                   return_value=fetch.ARCHIVE_SHA256):
+                self.assertEqual(fetch._load_archive(None), b"pinned")
+        opener.assert_called_once_with(
+            fetch.ARCHIVE_URL,
+            timeout=fetch.ARCHIVE_DOWNLOAD_TIMEOUT_SECONDS,
+        )
+        response.__enter__.return_value.read.assert_called_once_with(
+            fetch.ARCHIVE_MAX_BYTES + 1
+        )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,110 @@
+{
+  "schema": "oneshotsea.runpod-p125-production.v1",
+  "classification": "bounded production-path search evidence; zero certificates in this interval is not a certificate-rate estimate",
+  "run": {
+    "run_id": "p125-runpod-cpu16-prod-20260802b",
+    "pod_id": "ohfo3hbov7ot8v",
+    "run_kind": "production",
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "range": {
+      "start_inclusive": "1000030",
+      "configured_end_exclusive": "1000000000",
+      "last_completed_inclusive": "1000826",
+      "curves_completed": 797
+    },
+    "deployment_commit": "ffedd29f85cc54afb60025904350f4cb7585762f",
+    "binary_sha256": "383207a8c0b1f0c05a26183e2073afbbf8fe6a7c771eac4a194077e2175aecaf",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "command_sha256": "cb666a57282b3ec5c6dd95922b145a27786f16071635d010050221289b68a462",
+    "start_utc": "2026-08-02T18:51:07Z",
+    "end_utc": "2026-08-02T22:51:08Z",
+    "exit_status": 124,
+    "exit_interpretation": "expected GNU timeout status at the configured four-hour wall limit"
+  },
+  "configuration": {
+    "curve_family": "x1-27",
+    "x1_require_point_four": true,
+    "max_level": 401,
+    "trace_cap": 16,
+    "schoof_fallback": true,
+    "skip_incomplete_curves": false,
+    "curve_threads": 16,
+    "sea_threads": 1,
+    "smooth_threads": 1,
+    "smooth_coordinators": 0,
+    "smooth_max_batch": 128,
+    "wall_time_limit_seconds": 14400
+  },
+  "outcome": {
+    "curves_attempted": 797,
+    "sound_smoothness_rejections": 797,
+    "heuristic_rejections": 0,
+    "full_point_counts_completed": 394,
+    "candidates_reaching_smoothness": 797,
+    "candidate_attempts": 0,
+    "certificate_assembly_calls": 0,
+    "certificates_found": 0,
+    "range_exhausted": false,
+    "hard_wall_limit_reached": true,
+    "checkpoint_next_index": "1000827"
+  },
+  "aggregate_curve_work": {
+    "generator_rejections": 139782,
+    "sea_levels": 47305,
+    "exact_sea_levels": 24081,
+    "atkin_sea_levels": 729,
+    "schoof_fallback_levels": 3,
+    "timings_us": {
+      "generation": 5115772267,
+      "sea": 131286378786,
+      "smoothness": 49485825472,
+      "total": 185887985497,
+      "minimum_curve_total": 90686629,
+      "maximum_curve_total": 437148024
+    }
+  },
+  "host_resource_record": {
+    "elapsed_seconds": 14400,
+    "attempt_epoch_seconds": 14401,
+    "user_seconds": 184949.27,
+    "system_seconds": 213.55,
+    "average_cpu_percent": 1285,
+    "maximum_resident_set_kbytes": 10551312,
+    "maximum_resident_set_bytes": 10804543488,
+    "swaps": 0
+  },
+  "throughput_and_cost": {
+    "elapsed_seconds_per_curve": 18.0677540778,
+    "curves_per_hour": 199.25,
+    "full_point_counts_per_hour": 98.5,
+    "recorded_hourly_rate_usd": 0.643,
+    "bounded_production_compute_cost_usd": 2.572,
+    "estimate_note": "Configured wall time times the recorded compute-plus-disk hourly rate; RunPod billing is authoritative.",
+    "whole_pod_session_through_fetch_hours": 6.71416666667,
+    "whole_pod_session_through_fetch_estimated_cost_usd": 4.31720916667,
+    "whole_session_note": "Includes cache preparation, probes, evidence work, and idle transitions from pod startup through artifact retrieval.",
+    "aws_cost_usd": 0.0,
+    "optimistic_model_source": "artifacts/local/p125-x1-27-family-ab-20260801/result.json",
+    "optimistic_model_probability_field": "modeled_opportunity_comparison.cyclic_divisor_case.x1_27_optimistic_paired_probability",
+    "optimistic_x1_27_paired_probability": 0.000010446455027346424,
+    "optimistic_x1_27_expected_curves": 95726.253296667,
+    "optimistic_hours_at_observed_production_rate": 480.43288982,
+    "optimistic_compute_cost_usd_at_observed_production_rate": 308.918348154,
+    "four_hour_fraction_of_optimistic_expected_curves": 0.008325824657,
+    "model_warning": "The checked-in expected-curve value is an optimistic smooth-order opportunity model, not a verified-certificate probability. Exact-order assembly and curve/twist dependence can reduce realized yield."
+  },
+  "local_audit": {
+    "sha256sums_passed_before_result_addition": true,
+    "manifest_command_sha256_recomputed": true,
+    "progress_records": 797,
+    "progress_indices_contiguous": true,
+    "checkpoint_counters_match_progress": true,
+    "expected_timeout_status": true,
+    "certificate_file_absent": true,
+    "manifest_sha256": "749e39a9e8489909cf3fe2fa9b0ac447da2f6c3047c2c5b5ff2de76432781a81",
+    "checkpoint_sha256": "46fa8c7bcaceb5097307fb941c49c7583f3ad3dace7596e18d8d2c5f27d407df",
+    "progress_sha256": "04c950096c66c1f55646bc7f4d778524a7a4d0e233a05737e4c3ff9ab9b6bbf2",
+    "resource_usage_sha256": "03f349bf8782af72c737ef89ff4923c9438be23c73b046c1ee9eefe94eb9dbf8"
+  }
+}

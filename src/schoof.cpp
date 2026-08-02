@@ -6,6 +6,7 @@
 #include "oneshotsea/trace.hpp"
 
 #include <map>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -14,6 +15,12 @@ namespace oneshotsea {
 namespace {
 
 constexpr std::uint64_t kMaxReferenceSchoofEll = 37;
+#if defined(ONESHOTSEA_QUOTIENT_CONTEXT_REUSE)
+constexpr bool kQuotientContextReuse =
+    ONESHOTSEA_QUOTIENT_CONTEXT_REUSE != 0;
+#else
+constexpr bool kQuotientContextReuse = true;
+#endif
 
 struct RawElement {
     Poly u;
@@ -139,6 +146,17 @@ struct QuotientRing {
     const Field* field;
     Poly modulus;
     Poly curve_rhs;
+    std::optional<PolyModContext> arithmetic;
+
+    QuotientRing(const Field& input_field, Poly input_modulus,
+                 const Poly& input_curve_rhs)
+        : field(&input_field),
+          modulus(std::move(input_modulus)),
+          curve_rhs(mod(input_curve_rhs, modulus)) {
+        if constexpr (kQuotientContextReuse) {
+            arithmetic.emplace(modulus);
+        }
+    }
 };
 
 struct Element {
@@ -148,6 +166,10 @@ struct Element {
 };
 
 Element element(const QuotientRing& ring, const Poly& u, const Poly& v) {
+    if constexpr (kQuotientContextReuse) {
+        return {&ring, ring.arithmetic->reduce(u),
+                ring.arithmetic->reduce(v)};
+    }
     return {&ring, mod(u, ring.modulus), mod(v, ring.modulus)};
 }
 
@@ -174,26 +196,51 @@ Element element_sub(const Element& lhs, const Element& rhs) {
     return element_add(lhs, element_neg(rhs));
 }
 
+Poly quotient_multiply(const QuotientRing& ring, const Poly& lhs,
+                       const Poly& rhs) {
+    if constexpr (kQuotientContextReuse) {
+        return ring.arithmetic->multiply(lhs, rhs);
+    }
+    return mulmod(lhs, rhs, ring.modulus);
+}
+
+Poly quotient_square(const QuotientRing& ring, const Poly& value) {
+    if constexpr (kQuotientContextReuse) {
+        return ring.arithmetic->square(value);
+    }
+    return squaremod(value, ring.modulus);
+}
+
+Poly quotient_pow(const QuotientRing& ring, Poly base,
+                  const mpz_class& exponent) {
+    if constexpr (kQuotientContextReuse) {
+        return ring.arithmetic->pow(std::move(base), exponent);
+    }
+    return powmod(std::move(base), exponent, ring.modulus);
+}
+
 Element element_mul(const Element& lhs, const Element& rhs) {
     require_same_ring(lhs, rhs);
-    const Poly uu = mulmod(lhs.u, rhs.u, lhs.ring->modulus);
-    const Poly vv = mulmod(lhs.v, rhs.v, lhs.ring->modulus);
-    const Poly uv = mulmod(lhs.u, rhs.v, lhs.ring->modulus);
-    const Poly vu = mulmod(lhs.v, rhs.u, lhs.ring->modulus);
+    const QuotientRing& ring = *lhs.ring;
+    const Poly uu = quotient_multiply(ring, lhs.u, rhs.u);
+    const Poly vv = quotient_multiply(ring, lhs.v, rhs.v);
+    const Poly uv = quotient_multiply(ring, lhs.u, rhs.v);
+    const Poly vu = quotient_multiply(ring, lhs.v, rhs.u);
     return {
         lhs.ring,
-        add(uu, mulmod(lhs.ring->curve_rhs, vv, lhs.ring->modulus)),
+        add(uu, quotient_multiply(ring, lhs.ring->curve_rhs, vv)),
         add(uv, vu),
     };
 }
 
 Element element_square(const Element& value) {
-    const Poly uu = squaremod(value.u, value.ring->modulus);
-    const Poly vv = squaremod(value.v, value.ring->modulus);
-    const Poly uv = mulmod(value.u, value.v, value.ring->modulus);
+    const QuotientRing& ring = *value.ring;
+    const Poly uu = quotient_square(ring, value.u);
+    const Poly vv = quotient_square(ring, value.v);
+    const Poly uv = quotient_multiply(ring, value.u, value.v);
     return {
         value.ring,
-        add(uu, mulmod(value.ring->curve_rhs, vv, value.ring->modulus)),
+        add(uu, quotient_multiply(ring, value.ring->curve_rhs, vv)),
         scalar_mul(uv, 2),
     };
 }
@@ -216,7 +263,7 @@ Element element_pow(Element base, mpz_class exponent) {
     if (base.v.is_zero()) {
         return element(
             *base.ring,
-            powmod(base.u, exponent, base.ring->modulus),
+            quotient_pow(*base.ring, std::move(base.u), exponent),
             Poly(*base.ring->field));
     }
     Element result = constant(*base.ring, 1);
@@ -582,7 +629,7 @@ bool quotient_element_pow_paths_agree_for_testing(
     const Poly& modulus, const Poly& curve_rhs, const Poly& u,
     const Poly& v, const mpz_class& exponent) {
     const Field& field = modulus.field();
-    const QuotientRing ring{&field, modulus, mod(curve_rhs, modulus)};
+    const QuotientRing ring(field, modulus, curve_rhs);
     const Element base = element(ring, u, v);
     const Element selected = element_pow(base, exponent);
     const Element binary = element_pow_binary_reference(base, exponent);
@@ -645,7 +692,7 @@ std::optional<std::uint64_t> try_frobenius_eigenvalue_impl(
 
     const Field& field = curve.field();
     const Poly curve_rhs(field, {curve.b(), curve.a(), 0, 1});
-    const QuotientRing ring{&field, kernel, mod(curve_rhs, kernel)};
+    const QuotientRing ring(field, kernel, curve_rhs);
     const Element x = element(ring, Poly::x(field), Poly(field));
     const Element y = element(ring, Poly(field), Poly::constant(field, 1));
     const JacobianPoint generic{x, y, constant(ring, 1)};
@@ -766,7 +813,7 @@ std::uint64_t schoof_trace_mod_ell(const Curve& curve, std::uint64_t ell) {
     const Field& field = curve.field();
     const Poly psi_ell = division_polynomial_reference(curve, ell);
     const Poly curve_rhs(field, {curve.b(), curve.a(), 0, 1});
-    const QuotientRing ring{&field, psi_ell, mod(curve_rhs, psi_ell)};
+    const QuotientRing ring(field, psi_ell, curve_rhs);
     const Element x = element(ring, Poly::x(field), Poly(field));
     const Element y = element(ring, Poly(field), Poly::constant(field, 1));
     const Element one = constant(ring, 1);

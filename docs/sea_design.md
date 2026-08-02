@@ -41,9 +41,13 @@ fails before SEA.
 ### 0.2 Custom SEA and specialized modular-polynomial path
 
 The point counter is project-native C++20 with exact GMP-backed field and
-polynomial arithmetic; production does not call Magma, Sage, PARI, FLINT, or
-another point counter.  Startup authenticates the complete 77-level Weber-f
-table set through prime level 401, including exact filenames, byte counts, and
+polynomial arithmetic; balanced dense products use an exact limb-aligned
+Kronecker convolution above their measured crossover, with Karatsuba and
+schoolbook fallbacks. Production does not call Magma, Sage, PARI, FLINT, or
+another point counter.  Startup authenticates the checked-in 77-level Weber-f
+subset through prime level 401 against a pinned normalized source catalog.
+The same catalog supports selectively materialized subsets of all 166
+admissible archive levels through 997, with exact filenames, byte counts, and
 SHA-256 values.  Each admitted curve begins from its validated retained Weber
 source coordinate, directly specializes `Phi_l^f(f,Y) mod p`, finds rational
 neighbors, recovers normalized isogenies with the BMSS power-series/Padé path,
@@ -393,11 +397,16 @@ The production search must log `modpoly_path=weber`.  A speedup measured only in
 a table-generation microbenchmark does not satisfy the specialized-path
 requirement.
 
-Direct instantiated evaluation from Sutherland's Algorithm 1 is not the first
-implementation choice.  At levels of a few hundred, the small Weber database
-is simpler and likely faster.  Reconsider direct explicit-CRT evaluation only
-if profiles show table I/O/memory is dominant or the required levels grow well
-beyond the manifest.
+The consumer boundary for direct instantiated evaluation from Sutherland's
+Algorithm 1 is now implemented.  `ModularPolynomialSpecialization` carries
+only `Phi_l^f(f,Y)` and `Phi_X^f(f,Y)`, derives `Phi_Y` locally, and feeds the
+same normalized-codomain, BMSS, and Frobenius path without a bivariate table.
+The table loader supplies an independent reference producer and the complete
+boundary is differentially tested at 416 bits.  The isogeny-volcano/explicit-
+CRT producer itself remains open; until it is implemented, the authenticated
+finite Weber catalog is still the production source.  See
+`docs/direct_specialization_boundary.md` for the exact contract, validation,
+complexity bound, and remaining work.
 
 ## 5. Exact Elkies trace residue
 
@@ -958,8 +967,9 @@ The following items are not assumptions that may silently enter proof logic.
   implementations, to reduce the descent overhead; the exact constant must be
   measured.  It is a performance claim, not a correctness premise.
 - **Elkies density and maximum level.**  Half-density is heuristic for scheduling.
-  The program extends the table manifest/schedule rather than assuming level
-  509 always suffices.
+  The program extends the table manifest/schedule through the pinned
+  source-catalog range rather than assuming level 509 always suffices, and must
+  use direct generation/evaluation after the finite level-997 boundary.
 - **Smooth-score model.**  It is intentionally incomplete and can miss a
   winning curve.  Only its rejection statistics, never its output, enter the
   proof path.

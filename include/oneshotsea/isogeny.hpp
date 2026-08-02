@@ -22,6 +22,14 @@ Curve normalized_codomain_from_weber_modpoly(
     const Curve& source, const SparseModularPolynomial& weber_modular_polynomial,
     const mpz_class& source_weber_f, const mpz_class& neighbor_weber_f);
 
+// The same normalized Weber codomain construction using only the specialized
+// polynomials produced by Sutherland's direct-evaluation interface.  No full
+// bivariate modular polynomial is required at this boundary.
+Curve normalized_codomain_from_weber_specialization(
+    const Curve& source,
+    const ModularPolynomialSpecialization& weber_specialization,
+    const mpz_class& neighbor_weber_f);
+
 struct BmssIsogenyResult {
     Poly kernel;
     Poly numerator;

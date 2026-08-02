@@ -378,12 +378,12 @@ traces matched.  This is a paired mechanism benchmark, not an estimate of the
 frequency of 36-lift curves.  Evidence is in
 `artifacts/local/p125-known-source-lift-20260801/result.json`.
 
-A reusable reciprocal-reduction context was also tested behind a complete
-exactness gate and rejected.  It slowed a degree-194 Frobenius pair from a
-1.95062-second median to 2.22974 seconds (14.31%), and deterministic p125 Weber
-level 277 from 3.79822 to 4.06195 seconds (6.94%); its eigenvalue stage alone
-was 21.20% slower.  All mathematical outputs matched, and the prototype was
-fully reverted.  The measured negative is retained in
+A pre-Kronecker reusable reciprocal-reduction context was tested behind a
+complete exactness gate and rejected.  It slowed a degree-194 Frobenius pair
+from a 1.95062-second median to 2.22974 seconds (14.31%), and deterministic
+p125 Weber level 277 from 3.79822 to 4.06195 seconds (6.94%); its eigenvalue
+stage alone was 21.20% slower.  All mathematical outputs matched, and the
+prototype was fully reverted.  The measured historical negative is retained in
 `artifacts/local/p125-reciprocal-reduction-20260801/result.json`.
 
 The accepted follow-up removes a redundant normalization pass over each raw
@@ -413,6 +413,20 @@ from 49.322 to 46.754 seconds (1.05493x) and eigen recovery from 17.681 to
 15.069 seconds (1.17333x); roots and BMSS were stable controls. All kernel
 projections, 55 exact level projections, and the final trace matched. Evidence
 is in `artifacts/local/p125-element-subring-window-20260801/result.json`.
+
+The quotient ring now owns one prepared `PolyModContext` for the complete
+Frobenius/eigenvalue calculation.  Previously each polynomial-subring power
+prepared a reciprocal reducer, but subsequent Jacobian point multiplication
+and squaring fell back to generic long reduction.  Three interleaved
+compile-time off/on runs on the catalog-authenticated level-409 p125 fixture
+reduced median eigenvalue recovery from 2.836558 to 2.282278 seconds
+(1.24286x), median SEA from 5.155449 to 4.597293 seconds (1.12141x), and median
+full invocation time from 7.666286 to 7.074818 seconds (1.08360x).  Roots and
+BMSS were stable controls, and all six non-timing projections had SHA-256
+`f873221610f2984b744e76fa9a4de88545f9049ab1c5254961b36d73e8004606`.
+The compile switch exists only for the controlled ablation; production enables
+reuse.  Compact evidence is in
+[`artifacts/local/p125-quotient-context-20260802/result.json`](../artifacts/local/p125-quotient-context-20260802/result.json).
 
 ### Classical-j comparison boundary
 
@@ -483,6 +497,44 @@ evidence.  The RunPod scripts establish a safe operational path only.  GPU
 acceleration remains disabled; no GPU speedup, cost efficiency, or batch-size
 claim is justified until a homogeneous multi-limb kernel improves end-to-end
 curve throughput against this CPU baseline.
+
+An exact limb-aligned Kronecker convolution now handles balanced polynomial
+products and squares from 48 coefficients.  Same-source reverse-order p125
+brackets improved degree-194 and degree-401 quotient Frobenius by 1.16986x and
+1.17477x.  A full deterministic 55-level SEA replay improved the SEA subtotal
+from 54.405483 to 46.688214 seconds (1.16529x); every baseline and candidate
+projection had identical SHA-256
+`8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6`.
+The full bracket experienced host-load drift and therefore uses paired means;
+the isolated Frobenius brackets are cleaner kernel evidence.  This is an SEA
+throughput result, not yet a new multi-curve search-throughput or yield result.
+See [the packed-convolution audit](kronecker_convolution.md).
+
+With that packed-convolution foundation in place, reciprocal reduction was
+reimplemented and re-measured.  One reversed-modulus inverse is now amortized
+across each polynomial exponentiation, and its quotient products use packed
+convolution.  Against the same source compiled with reciprocal reduction
+disabled, reverse-order p125 brackets improved degree-194 and degree-401
+Frobenius from 2.114704 to 1.191504 seconds (1.77482x) and 7.948951 to
+2.473199 seconds (3.21404x).  Full SEA improved from 56.073711 to 42.228734
+seconds (1.32786x), with modular roots improving 1.88712x and all four exact
+projections unchanged.  Threshold 48 was neutral end to end versus threshold
+96 and regressed at degree 48, so production activates conservatively at
+degree 96.  See [the post-Kronecker reciprocal audit](reciprocal_reduction_ab.md).
+
+The modular-polynomial trust boundary no longer pins only the checked-in
+level-401 manifest.  A 12,727-byte normalized source catalog binds all 166
+admissible levels through 997 in the same content-addressed upstream archive,
+and the converter can materialize any compact subset.  On the fixed 416-bit
+p125 curve, newly admitted level 409 produced two validated isogenies and exact
+trace residue 19 in 5.118 seconds, matching a retained independent Magma full
+point count; the top catalog level 997 completed its
+no-rational-neighbor path in 2.140 seconds.  The ordinary level-401 projection
+remained SHA-256
+`8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6`.
+This is a bounded range/trust extension, not a direct-evaluation performance
+claim.  See [the catalog audit](weber_on_demand_catalog.md) and the
+[checksummed native/Magma bundle](../artifacts/local/p125-weber-catalog-magma-20260802/README.md).
 
 Source: [AWS benchmark](aws_benchmark_20260801.md), [AWS operations](aws.md), and [RunPod operations](runpod.md).
 
@@ -663,6 +715,12 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
   [the known-source artifact](../artifacts/local/p125-known-source-lift-20260801/result.json).
 - The exact but slower reciprocal-reduction prototype is recorded in
   [the negative A/B artifact](../artifacts/local/p125-reciprocal-reduction-20260801/result.json).
+- The accepted post-Kronecker reciprocal reducer, independent differentials,
+  threshold ablation, and B/S/S/B p125 timing are in
+  [the reciprocal/Kronecker artifact](../artifacts/local/p125-reciprocal-kronecker-20260802/result.json).
+- The archive digest, 166-level normalized source catalog, trust adversaries,
+  and isolated p125 levels 409/997 are in
+  [the Weber catalog artifact](../artifacts/local/p125-weber-catalog-20260802/result.json).
 - The accepted redundant-normalization removal and exact paired p125 timing
   are in [the deferred-normalization artifact](../artifacts/local/p125-deferred-product-normalization-20260801/result.json).
 - The exact-cost polynomial window, quotient-ring differential boundary,

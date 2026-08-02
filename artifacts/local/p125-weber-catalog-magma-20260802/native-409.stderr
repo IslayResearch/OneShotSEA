@@ -1,0 +1,12 @@
+timing.schema=oneshotsea.p125-poly-trusted-timing.v1
+timing.mode=sea
+timing.generation_us=2445860
+timing.sea_us=5117677
+timing.total_us=7563553
+timing.source_lifts_us=0
+timing.modular_roots_us=682740
+timing.normalized_codomain_us=14431
+timing.bmss_us=1620276
+timing.eigenvalue_us=2794958
+        7.76 real         7.52 user         0.02 sys
+time: sysctl kern.clockrate: Operation not permitted

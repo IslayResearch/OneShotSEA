@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <stdexcept>
 
@@ -21,6 +22,19 @@ void require_probable_prime_field(const Poly& polynomial) {
 }
 
 constexpr std::size_t kKaratsubaCoefficientThreshold = 32U;
+#if defined(ONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD)
+constexpr std::size_t kKroneckerCoefficientThreshold =
+    static_cast<std::size_t>(ONESHOTSEA_KRONECKER_COEFFICIENT_THRESHOLD);
+#else
+constexpr std::size_t kKroneckerCoefficientThreshold = 48U;
+#endif
+#if defined(ONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD)
+constexpr std::size_t kReciprocalReductionDegreeThreshold =
+    static_cast<std::size_t>(
+        ONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD);
+#else
+constexpr std::size_t kReciprocalReductionDegreeThreshold = 96U;
+#endif
 constexpr unsigned int kMaximumPowmodWindowBits = 5U;
 
 struct PowmodWindowStep {
@@ -113,40 +127,6 @@ PowmodPlan make_powmod_plan(const mpz_class& exponent) {
     return best;
 }
 
-Poly apply_powmod_plan(const Poly& base, const PowmodPlan& plan,
-                       const Poly& modulus) {
-    if (plan.exponent_is_zero) {
-        return Poly::constant(base.field(), 1);
-    }
-    std::vector<Poly> odd_powers;
-    odd_powers.reserve(
-        static_cast<std::size_t>((plan.maximum_odd_power + 1U) / 2U));
-    odd_powers.push_back(base);
-    if (plan.maximum_odd_power > 1U) {
-        const Poly base_squared = squaremod(base, modulus);
-        for (unsigned int odd = 3U; odd <= plan.maximum_odd_power; odd += 2U) {
-            odd_powers.push_back(
-                mulmod(odd_powers.back(), base_squared, modulus));
-        }
-    }
-    const auto table_value = [&odd_powers](unsigned int odd_power)
-                                 -> const Poly& {
-        return odd_powers.at(
-            static_cast<std::size_t>((odd_power - 1U) / 2U));
-    };
-    Poly result = table_value(plan.first_odd_power);
-    for (const PowmodWindowStep& step : plan.steps) {
-        for (std::size_t count = 0U; count < step.squarings; ++count) {
-            result = squaremod(result, modulus);
-        }
-        result = mulmod(result, table_value(step.odd_power), modulus);
-    }
-    for (std::size_t count = 0U; count < plan.trailing_squarings; ++count) {
-        result = squaremod(result, modulus);
-    }
-    return result;
-}
-
 std::vector<mpz_class> schoolbook_product(
     std::span<const mpz_class> lhs, std::span<const mpz_class> rhs) {
     if (lhs.empty() || rhs.empty()) {
@@ -183,6 +163,129 @@ std::vector<mpz_class> schoolbook_square(
                    value[index].get_mpz_t(), value[index].get_mpz_t());
     }
     return output;
+}
+
+std::size_t ceiling_log2(std::size_t value) {
+    if (value == 0U) {
+        throw std::invalid_argument("logarithm requires a positive value");
+    }
+    std::size_t result = 0U;
+    --value;
+    while (value != 0U) {
+        ++result;
+        value >>= 1U;
+    }
+    return result;
+}
+
+// Pack nonnegative coefficients into fixed-width, limb-aligned digits.  The
+// digit width is chosen so that an entire convolution coefficient is strictly
+// smaller than the radix, making integer multiplication an exact polynomial
+// convolution with no inter-digit carries (Kronecker substitution).
+std::size_t kronecker_digit_limbs(const Field& field,
+                                  std::size_t maximum_summands) {
+    const std::size_t modulus_bits =
+        mpz_sizeinbase(field.modulus().get_mpz_t(), 2);
+    const std::size_t summand_bits = ceiling_log2(maximum_summands);
+    if (modulus_bits >
+        (std::numeric_limits<std::size_t>::max() - summand_bits) / 2U) {
+        throw std::overflow_error("Kronecker digit width overflow");
+    }
+    const std::size_t digit_bits = 2U * modulus_bits + summand_bits;
+    const std::size_t limb_bits = static_cast<std::size_t>(GMP_NUMB_BITS);
+    return digit_bits / limb_bits +
+           static_cast<std::size_t>(digit_bits % limb_bits != 0U);
+}
+
+mpz_class kronecker_pack(std::span<const mpz_class> coefficients,
+                         std::size_t digit_limbs) {
+    if (coefficients.empty()) {
+        return 0;
+    }
+    if (digit_limbs == 0U ||
+        coefficients.size() >
+            std::numeric_limits<std::size_t>::max() / digit_limbs) {
+        throw std::overflow_error("Kronecker packed size overflow");
+    }
+    const std::size_t total_limbs = coefficients.size() * digit_limbs;
+    if (total_limbs >
+        static_cast<std::size_t>(std::numeric_limits<mp_size_t>::max())) {
+        throw std::overflow_error("Kronecker packed value is too large");
+    }
+
+    mpz_class packed;
+    mp_ptr destination =
+        mpz_limbs_write(packed.get_mpz_t(), static_cast<mp_size_t>(total_limbs));
+    std::fill_n(destination, total_limbs, static_cast<mp_limb_t>(0));
+    for (std::size_t index = 0U; index < coefficients.size(); ++index) {
+        if (mpz_sgn(coefficients[index].get_mpz_t()) < 0) {
+            throw std::logic_error(
+                "Kronecker substitution requires normalized coefficients");
+        }
+        const std::size_t coefficient_limbs =
+            mpz_size(coefficients[index].get_mpz_t());
+        if (coefficient_limbs > digit_limbs) {
+            throw std::logic_error(
+                "Kronecker coefficient exceeds its packed digit");
+        }
+        if (coefficient_limbs != 0U) {
+            std::copy_n(mpz_limbs_read(coefficients[index].get_mpz_t()),
+                        coefficient_limbs,
+                        destination + index * digit_limbs);
+        }
+    }
+    mpz_limbs_finish(packed.get_mpz_t(),
+                     static_cast<mp_size_t>(total_limbs));
+    return packed;
+}
+
+std::vector<mpz_class> kronecker_unpack(const mpz_class& packed,
+                                        std::size_t digit_limbs,
+                                        std::size_t coefficient_count) {
+    std::vector<mpz_class> coefficients(coefficient_count);
+    const std::size_t packed_limbs = mpz_size(packed.get_mpz_t());
+    const mp_srcptr source = mpz_limbs_read(packed.get_mpz_t());
+    for (std::size_t index = 0U; index < coefficient_count; ++index) {
+        if (index > std::numeric_limits<std::size_t>::max() / digit_limbs) {
+            throw std::overflow_error("Kronecker unpack offset overflow");
+        }
+        const std::size_t offset = index * digit_limbs;
+        if (offset >= packed_limbs) {
+            break;
+        }
+        const std::size_t count =
+            std::min(digit_limbs, packed_limbs - offset);
+        mp_ptr destination = mpz_limbs_write(
+            coefficients[index].get_mpz_t(), static_cast<mp_size_t>(count));
+        std::copy_n(source + offset, count, destination);
+        mpz_limbs_finish(coefficients[index].get_mpz_t(),
+                         static_cast<mp_size_t>(count));
+    }
+    return coefficients;
+}
+
+std::vector<mpz_class> kronecker_product(
+    std::span<const mpz_class> lhs, std::span<const mpz_class> rhs,
+    const Field& field) {
+    if (lhs.empty() || rhs.empty()) {
+        return {};
+    }
+    if (lhs.size() >
+        std::numeric_limits<std::size_t>::max() - rhs.size() + 1U) {
+        throw std::overflow_error("Kronecker coefficient count overflow");
+    }
+    const std::size_t digit_limbs =
+        kronecker_digit_limbs(field, std::min(lhs.size(), rhs.size()));
+    const std::size_t coefficient_count = lhs.size() + rhs.size() - 1U;
+    if (coefficient_count >
+        static_cast<std::size_t>(std::numeric_limits<mp_size_t>::max()) /
+            digit_limbs) {
+        throw std::overflow_error("Kronecker product size overflow");
+    }
+    const mpz_class packed_lhs = kronecker_pack(lhs, digit_limbs);
+    const mpz_class packed_rhs = kronecker_pack(rhs, digit_limbs);
+    return kronecker_unpack(packed_lhs * packed_rhs, digit_limbs,
+                            coefficient_count);
 }
 
 std::vector<mpz_class> add_coefficient_slices(
@@ -278,6 +381,30 @@ std::vector<mpz_class> karatsuba_square(
     return output;
 }
 
+std::vector<mpz_class> coefficient_product(
+    std::span<const mpz_class> lhs, std::span<const mpz_class> rhs,
+    const Field& field) {
+    if (!lhs.empty() && !rhs.empty()) {
+        const std::size_t smaller = std::min(lhs.size(), rhs.size());
+        const std::size_t larger = std::max(lhs.size(), rhs.size());
+        if (kKroneckerCoefficientThreshold != 0U &&
+            smaller >= kKroneckerCoefficientThreshold &&
+            larger / smaller < 2U) {
+            return kronecker_product(lhs, rhs, field);
+        }
+    }
+    return karatsuba_product(lhs, rhs);
+}
+
+std::vector<mpz_class> coefficient_square(
+    std::span<const mpz_class> value, const Field& field) {
+    if (kKroneckerCoefficientThreshold != 0U &&
+        value.size() >= kKroneckerCoefficientThreshold) {
+        return kronecker_product(value, value, field);
+    }
+    return karatsuba_square(value);
+}
+
 void split_linear_factors(const Poly& polynomial, std::vector<mpz_class>& roots) {
     if (polynomial.degree() <= 0) {
         return;
@@ -331,6 +458,12 @@ Poly::Poly(const Field& field, std::vector<mpz_class> coefficients)
     trim();
 }
 
+Poly::Poly(const Field& field, std::vector<mpz_class> coefficients,
+           NormalizedCoefficientsTag)
+    : field_(field), coefficients_(std::move(coefficients)) {
+    trim();
+}
+
 Poly Poly::constant(const Field& field, const mpz_class& value) {
     return Poly(field, {value});
 }
@@ -378,7 +511,7 @@ Poly Poly::derivative() const {
     for (std::size_t i = 1; i < coefficients_.size(); ++i) {
         output[i - 1U] = field_.mul(coefficients_[i], mpz_class(i));
     }
-    return Poly(field_, std::move(output));
+    return Poly(field_, std::move(output), NormalizedCoefficientsTag{});
 }
 
 Poly Poly::monic() const {
@@ -401,7 +534,8 @@ Poly add(const Poly& lhs, const Poly& rhs) {
     for (std::size_t i = 0; i < size; ++i) {
         output[i] = lhs.field().add(lhs.coefficient(i), rhs.coefficient(i));
     }
-    return Poly(lhs.field(), std::move(output));
+    return Poly(lhs.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
 }
 
 Poly sub(const Poly& lhs, const Poly& rhs) {
@@ -411,7 +545,8 @@ Poly sub(const Poly& lhs, const Poly& rhs) {
     for (std::size_t i = 0; i < size; ++i) {
         output[i] = lhs.field().sub(lhs.coefficient(i), rhs.coefficient(i));
     }
-    return Poly(lhs.field(), std::move(output));
+    return Poly(lhs.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
 }
 
 Poly neg(const Poly& value) {
@@ -419,7 +554,8 @@ Poly neg(const Poly& value) {
     for (auto& coefficient : output) {
         coefficient = value.field().neg(coefficient);
     }
-    return Poly(value.field(), std::move(output));
+    return Poly(value.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
 }
 
 Poly mul(const Poly& lhs, const Poly& rhs) {
@@ -427,8 +563,8 @@ Poly mul(const Poly& lhs, const Poly& rhs) {
     if (lhs.is_zero() || rhs.is_zero()) {
         return Poly(lhs.field());
     }
-    std::vector<mpz_class> output = karatsuba_product(
-        lhs.coefficients(), rhs.coefficients());
+    std::vector<mpz_class> output = coefficient_product(
+        lhs.coefficients(), rhs.coefficients(), lhs.field());
     return Poly(lhs.field(), std::move(output));
 }
 
@@ -437,7 +573,8 @@ Poly scalar_mul(const Poly& value, const mpz_class& scalar) {
     for (auto& coefficient : output) {
         coefficient = value.field().mul(coefficient, scalar);
     }
-    return Poly(value.field(), std::move(output));
+    return Poly(value.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
 }
 
 std::pair<Poly, Poly> divmod(const Poly& numerator, const Poly& denominator) {
@@ -456,11 +593,14 @@ std::pair<Poly, Poly> divmod(const Poly& numerator, const Poly& denominator) {
         static_cast<std::size_t>(numerator.degree() - denominator.degree() + 1), 0);
     const std::size_t denominator_degree =
         static_cast<std::size_t>(denominator.degree());
+    const bool monic = denominator.leading_coefficient() == 1;
     const mpz_class inverse_lead =
-        field.inverse(denominator.leading_coefficient());
+        monic ? mpz_class(1) : field.inverse(denominator.leading_coefficient());
     while (remainder.size() > denominator_degree) {
         const std::size_t shift = remainder.size() - denominator_degree - 1U;
-        const mpz_class factor = field.mul(remainder.back(), inverse_lead);
+        const mpz_class factor = monic
+            ? remainder.back()
+            : field.mul(remainder.back(), inverse_lead);
         quotient[shift] = factor;
         for (std::size_t index = 0; index <= denominator_degree; ++index) {
             remainder[shift + index] = field.sub(
@@ -471,8 +611,10 @@ std::pair<Poly, Poly> divmod(const Poly& numerator, const Poly& denominator) {
             remainder.pop_back();
         }
     }
-    return {Poly(field, std::move(quotient)),
-            Poly(field, std::move(remainder))};
+    return {Poly(field, std::move(quotient),
+                 Poly::NormalizedCoefficientsTag{}),
+            Poly(field, std::move(remainder),
+                 Poly::NormalizedCoefficientsTag{})};
 }
 
 Poly mod(const Poly& numerator, const Poly& denominator) {
@@ -488,10 +630,9 @@ void reduce_product_coefficients(std::vector<mpz_class>& coefficients,
         modulus.coefficients();
     const std::size_t modulus_degree =
         static_cast<std::size_t>(modulus.degree());
+    const bool monic = modulus.leading_coefficient() == 1;
     const mpz_class inverse_lead =
-        modulus.leading_coefficient() == 1
-            ? mpz_class(1)
-            : field.inverse(modulus.leading_coefficient());
+        monic ? mpz_class(1) : field.inverse(modulus.leading_coefficient());
     for (std::size_t degree = coefficients.size(); degree-- > modulus_degree;) {
         if (coefficients[degree] == 0) {
             continue;
@@ -502,7 +643,9 @@ void reduce_product_coefficients(std::vector<mpz_class>& coefficients,
         // mpz_submul can accumulate the exact integer representative and each
         // coefficient only needs normalization when it becomes a pivot (or
         // once at the end).
-        const mpz_class factor = field.mul(coefficients[degree], inverse_lead);
+        const mpz_class factor =
+            monic ? field.normalize(coefficients[degree])
+                  : field.mul(coefficients[degree], inverse_lead);
         const std::size_t shift = degree - modulus_degree;
         for (std::size_t index = 0; index < modulus_degree; ++index) {
             mpz_submul(coefficients[shift + index].get_mpz_t(),
@@ -528,6 +671,181 @@ const Poly& reduced_operand(const Poly& value, const Poly& modulus,
 
 }  // namespace
 
+// Reusable quotient-ring arithmetic.  For sufficiently large monic moduli,
+// reverse-polynomial division replaces the quadratic high-coefficient
+// elimination loop by two balanced coefficient convolutions.  The inverse is
+// bound to an owned copy of the modulus and can be shared by all arithmetic in
+// one SEA kernel quotient.
+PolyModContext::PolyModContext(const Poly& modulus) : modulus_(modulus) {
+    if (kReciprocalReductionDegreeThreshold == 0U ||
+        modulus_.degree() <= 0 || modulus_.leading_coefficient() != 1) {
+        return;
+    }
+    const std::size_t degree = static_cast<std::size_t>(modulus_.degree());
+    if (degree < kReciprocalReductionDegreeThreshold) {
+        return;
+    }
+
+    // If M is monic of degree d, reverse(M) has constant coefficient one.
+    // Compute its inverse modulo x^d by the exact coefficient recurrence.
+    reciprocal_.assign(degree, 0);
+    reciprocal_[0] = 1;
+    const Field& field = modulus_.field();
+    const std::vector<mpz_class>& coefficients = modulus_.coefficients();
+    for (std::size_t output_degree = 1U; output_degree < degree;
+         ++output_degree) {
+        mpz_class accumulated = 0;
+        for (std::size_t input_degree = 1U;
+             input_degree <= output_degree; ++input_degree) {
+            const mpz_class& reversed_modulus_coefficient =
+                coefficients[degree - input_degree];
+            if (reversed_modulus_coefficient != 0 &&
+                reciprocal_[output_degree - input_degree] != 0) {
+                mpz_addmul(
+                    accumulated.get_mpz_t(),
+                    reversed_modulus_coefficient.get_mpz_t(),
+                    reciprocal_[output_degree - input_degree].get_mpz_t());
+            }
+        }
+        reciprocal_[output_degree] = field.normalize(-accumulated);
+    }
+}
+
+Poly PolyModContext::reduce(const Poly& value) const {
+    require_same_field(value, modulus_);
+    return mod(value, modulus_);
+}
+
+Poly PolyModContext::multiply(const Poly& lhs, const Poly& rhs) const {
+    if (reciprocal_.empty()) {
+        return mulmod(lhs, rhs, modulus_);
+    }
+    require_same_field(lhs, rhs);
+    require_same_field(lhs, modulus_);
+    Poly lhs_storage(lhs.field());
+    Poly rhs_storage(lhs.field());
+    const Poly& reduced_lhs = reduced_operand(lhs, modulus_, lhs_storage);
+    const Poly& reduced_rhs = reduced_operand(rhs, modulus_, rhs_storage);
+    if (reduced_lhs.is_zero() || reduced_rhs.is_zero()) {
+        return Poly(lhs.field());
+    }
+    std::vector<mpz_class> output = coefficient_product(
+        reduced_lhs.coefficients(), reduced_rhs.coefficients(), lhs.field());
+    reduce_coefficients(output);
+    return Poly(lhs.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
+}
+
+Poly PolyModContext::square(const Poly& value) const {
+    if (reciprocal_.empty()) {
+        return squaremod(value, modulus_);
+    }
+    require_same_field(value, modulus_);
+    Poly storage(value.field());
+    const Poly& reduced = reduced_operand(value, modulus_, storage);
+    if (reduced.is_zero()) {
+        return Poly(value.field());
+    }
+    std::vector<mpz_class> output =
+        coefficient_square(reduced.coefficients(), value.field());
+    reduce_coefficients(output);
+    return Poly(value.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
+}
+
+void PolyModContext::reduce_coefficients(
+    std::vector<mpz_class>& coefficients) const {
+    const std::size_t modulus_degree =
+        static_cast<std::size_t>(modulus_.degree());
+    if (coefficients.size() <= modulus_degree ||
+        coefficients.size() > 2U * modulus_degree - 1U) {
+        reduce_product_coefficients(coefficients, modulus_);
+        return;
+    }
+
+    const Field& field = modulus_.field();
+    const std::size_t quotient_size = coefficients.size() - modulus_degree;
+    if (quotient_size > reciprocal_.size()) {
+        throw std::logic_error(
+            "reciprocal quotient exceeds its prepared precision");
+    }
+
+    // Fast monic division: reverse the high part of C, multiply by
+    // reverse(M)^-1 modulo x^k, then reverse the first k coefficients to
+    // obtain the quotient.  Raw convolution coefficients are normalized only
+    // at the F_p boundaries required by the division identity.
+    std::vector<mpz_class> reversed_high(quotient_size);
+    for (std::size_t index = 0U; index < quotient_size; ++index) {
+        reversed_high[index] = field.normalize(
+            coefficients[coefficients.size() - 1U - index]);
+    }
+    std::vector<mpz_class> reversed_quotient = coefficient_product(
+        reversed_high,
+        std::span<const mpz_class>(reciprocal_.data(), quotient_size), field);
+    std::vector<mpz_class> quotient(quotient_size);
+    for (std::size_t index = 0U; index < quotient_size; ++index) {
+        quotient[quotient_size - 1U - index] =
+            field.normalize(reversed_quotient[index]);
+    }
+    const std::vector<mpz_class> quotient_times_modulus =
+        coefficient_product(quotient, modulus_.coefficients(), field);
+    for (std::size_t index = 0U; index < modulus_degree; ++index) {
+        coefficients[index] = field.normalize(
+            coefficients[index] - quotient_times_modulus[index]);
+    }
+    coefficients.resize(modulus_degree);
+}
+
+namespace {
+
+Poly apply_powmod_plan(const Poly& base, const PowmodPlan& plan,
+                       const PolyModContext& context) {
+    if (plan.exponent_is_zero) {
+        return Poly::constant(base.field(), 1);
+    }
+    std::vector<Poly> odd_powers;
+    odd_powers.reserve(
+        static_cast<std::size_t>((plan.maximum_odd_power + 1U) / 2U));
+    odd_powers.push_back(base);
+    if (plan.maximum_odd_power > 1U) {
+        const Poly base_squared = context.square(base);
+        for (unsigned int odd = 3U; odd <= plan.maximum_odd_power; odd += 2U) {
+            odd_powers.push_back(
+                context.multiply(odd_powers.back(), base_squared));
+        }
+    }
+    const auto table_value = [&odd_powers](unsigned int odd_power)
+                                 -> const Poly& {
+        return odd_powers.at(
+            static_cast<std::size_t>((odd_power - 1U) / 2U));
+    };
+    Poly result = table_value(plan.first_odd_power);
+    for (const PowmodWindowStep& step : plan.steps) {
+        for (std::size_t count = 0U; count < step.squarings; ++count) {
+            result = context.square(result);
+        }
+        result = context.multiply(result, table_value(step.odd_power));
+    }
+    for (std::size_t count = 0U; count < plan.trailing_squarings; ++count) {
+        result = context.square(result);
+    }
+    return result;
+}
+
+}  // namespace
+
+Poly PolyModContext::pow(Poly base, mpz_class exponent) const {
+    require_same_field(base, modulus_);
+    if (modulus_.is_zero()) {
+        throw std::domain_error("polynomial modulus is zero");
+    }
+    if (exponent < 0) {
+        throw std::invalid_argument("negative polynomial exponent");
+    }
+    base = reduce(base);
+    return apply_powmod_plan(base, make_powmod_plan(exponent), *this);
+}
+
 Poly mulmod(const Poly& lhs, const Poly& rhs, const Poly& modulus) {
     require_same_field(lhs, rhs);
     require_same_field(lhs, modulus);
@@ -544,10 +862,11 @@ Poly mulmod(const Poly& lhs, const Poly& rhs, const Poly& modulus) {
     if (reduced_lhs.is_zero() || reduced_rhs.is_zero()) {
         return Poly(lhs.field());
     }
-    std::vector<mpz_class> output = karatsuba_product(
-        reduced_lhs.coefficients(), reduced_rhs.coefficients());
+    std::vector<mpz_class> output = coefficient_product(
+        reduced_lhs.coefficients(), reduced_rhs.coefficients(), lhs.field());
     reduce_product_coefficients(output, modulus);
-    return Poly(lhs.field(), std::move(output));
+    return Poly(lhs.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
 }
 
 Poly squaremod(const Poly& value, const Poly& modulus) {
@@ -564,9 +883,10 @@ Poly squaremod(const Poly& value, const Poly& modulus) {
         return Poly(value.field());
     }
     std::vector<mpz_class> output =
-        karatsuba_square(reduced.coefficients());
+        coefficient_square(reduced.coefficients(), value.field());
     reduce_product_coefficients(output, modulus);
-    return Poly(value.field(), std::move(output));
+    return Poly(value.field(), std::move(output),
+                Poly::NormalizedCoefficientsTag{});
 }
 
 Poly gcd(Poly lhs, Poly rhs) {
@@ -580,15 +900,7 @@ Poly gcd(Poly lhs, Poly rhs) {
 }
 
 Poly powmod(Poly base, mpz_class exponent, const Poly& modulus) {
-    require_same_field(base, modulus);
-    if (modulus.is_zero()) {
-        throw std::domain_error("polynomial modulus is zero");
-    }
-    if (exponent < 0) {
-        throw std::invalid_argument("negative polynomial exponent");
-    }
-    base = mod(base, modulus);
-    return apply_powmod_plan(base, make_powmod_plan(exponent), modulus);
+    return PolyModContext(modulus).pow(std::move(base), std::move(exponent));
 }
 
 int rational_root_count(const Poly& polynomial) {

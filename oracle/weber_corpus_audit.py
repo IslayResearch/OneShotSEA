@@ -24,10 +24,30 @@ POINT_COUNT_SOURCE = HERE / "point_count.m"
 PRIME_CHECK_SOURCE = HERE / "prime_check.m"
 
 
+def stable_code_constant(value: object) -> object:
+    if isinstance(value, types.CodeType):
+        return ("code", stable_code_payload(value))
+    if isinstance(value, slice):
+        return (
+            "slice",
+            stable_code_constant(value.start),
+            stable_code_constant(value.stop),
+            stable_code_constant(value.step),
+        )
+    if isinstance(value, tuple):
+        return ("tuple", tuple(stable_code_constant(item) for item in value))
+    if isinstance(value, frozenset):
+        return (
+            "frozenset",
+            frozenset(stable_code_constant(item) for item in value),
+        )
+    return value
+
+
 def stable_code_payload(code: types.CodeType) -> tuple[object, ...]:
-    constants = tuple(
-        stable_code_payload(value) if isinstance(value, types.CodeType) else value
-        for value in code.co_consts
+    constants = tuple(stable_code_constant(value) for value in code.co_consts)
+    line_table = (
+        code.co_linetable if hasattr(code, "co_linetable") else code.co_lnotab
     )
     return (
         code.co_argcount,
@@ -42,10 +62,10 @@ def stable_code_payload(code: types.CodeType) -> tuple[object, ...]:
         code.co_varnames,
         code.co_filename,
         code.co_name,
-        code.co_qualname,
+        getattr(code, "co_qualname", code.co_name),
         code.co_firstlineno,
-        code.co_linetable,
-        code.co_exceptiontable,
+        line_table,
+        getattr(code, "co_exceptiontable", b""),
         code.co_freevars,
         code.co_cellvars,
     )
@@ -53,7 +73,7 @@ def stable_code_payload(code: types.CodeType) -> tuple[object, ...]:
 
 def loaded_bootstrap_code_digest() -> str:
     return hashlib.sha256(
-        marshal.dumps(stable_code_payload(LOADED_MODULE_CODE))
+        marshal.dumps(stable_code_payload(LOADED_MODULE_CODE), 2)
     ).hexdigest()
 
 

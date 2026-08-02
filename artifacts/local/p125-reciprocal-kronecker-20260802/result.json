@@ -1,0 +1,120 @@
+{
+  "schema": "oneshotsea.p125-reciprocal-kronecker-ab.v1",
+  "date": "2026-08-02",
+  "base_commit": "474c6cd8427428a2a2a0df8893fa3eda04ab578c",
+  "source_diff_sha256": "13e6a916b7940ed5f27256ba2372482a34ad62350ded3dec94e24a65ff4f33ff",
+  "classification": "accepted exact arithmetic optimization; bounded single-curve throughput evidence",
+  "change": "one reciprocal quotient-reduction context per polynomial exponentiation, using exact packed convolution",
+  "candidate_binary_sha256": "430657781cc6b755610638cdd8c975b4f484b6ac4cfd47ca221e9aff9f07e1a6",
+  "baseline_binary_sha256": "0551ade5db0c525e188d30e14d5292e466f2cea760bc99d4777abb34c84cca0b",
+  "baseline_compile_definition": "ONESHOTSEA_RECIPROCAL_REDUCTION_DEGREE_THRESHOLD=0",
+  "candidate_reciprocal_degree_threshold": 96,
+  "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101)",
+  "host": "Apple M4, macOS 26.5.1 (25F80), arm64",
+  "target": "nextprime(10^125), 416 bits",
+  "max_level": 401,
+  "sea_threads": 1,
+  "frobenius_bssb": {
+    "degree_194": {
+      "baseline_us": [2136179, 2093229],
+      "candidate_us": [1205301, 1177707],
+      "baseline_mean_us": 2114704.0,
+      "candidate_mean_us": 1191504.0,
+      "speedup": 1.7748190522,
+      "projection_sha256": "441a733c086c464efdf6a27c413bdd26f2ae88ac23cb9cf8b64bbc132f134fa6",
+      "all_projections_equal": true
+    },
+    "degree_401": {
+      "baseline_us": [8009056, 7888845],
+      "candidate_us": [2425547, 2520850],
+      "baseline_mean_us": 7948950.5,
+      "candidate_mean_us": 2473198.5,
+      "speedup": 3.2140366008,
+      "projection_sha256": "3901a7cf4212b2b2bfdedbfd384bef0d0167d752f3b7add74512b76710349d33",
+      "all_projections_equal": true
+    }
+  },
+  "full_sea_bssb": {
+    "baseline_sea_us": [56318171, 55829251],
+    "candidate_sea_us": [42204601, 42252867],
+    "means": {
+      "baseline_sea_us": 56073711.0,
+      "candidate_sea_us": 42228734.0,
+      "sea_speedup": 1.3278567859,
+      "baseline_modular_roots_us": 24462616.5,
+      "candidate_modular_roots_us": 12962948.0,
+      "modular_roots_speedup": 1.8871183083,
+      "baseline_bmss_us": 10636576.0,
+      "candidate_bmss_us": 10588071.5,
+      "bmss_speedup": 1.0045810514,
+      "baseline_eigenvalue_us": 20718544.5,
+      "candidate_eigenvalue_us": 18444186.5,
+      "eigenvalue_speedup": 1.1233102908
+    },
+    "projection_sha256": "8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6",
+    "projection_hash_count": 4,
+    "all_projections_equal": true
+  },
+  "threshold_evaluation": {
+    "degree_48_single_sample": {
+      "threshold_96_us": 172388,
+      "threshold_48_us": 256536,
+      "decision": "small-degree regression"
+    },
+    "degree_64_bssb": {
+      "threshold_96_us": [276564, 250988],
+      "threshold_48_us": [238572, 251815],
+      "threshold_96_mean_us": 263776.0,
+      "threshold_48_mean_us": 245193.5,
+      "speedup": 1.0757870824
+    },
+    "degree_80_bssb": {
+      "threshold_96_us": [374221, 395860],
+      "threshold_48_us": [330106, 350154],
+      "threshold_96_mean_us": 385040.5,
+      "threshold_48_mean_us": 340130.0,
+      "speedup": 1.1320392203
+    },
+    "full_sea_96_over_48": {
+      "protocol": "96/48/48/96",
+      "threshold_96_us": [42750672, 42582213],
+      "threshold_48_us": [42423925, 42810916],
+      "threshold_96_mean_us": 42666442.5,
+      "threshold_48_mean_us": 42617420.5,
+      "threshold_96_over_48_ratio": 1.0011502854,
+      "all_projections_equal": true
+    },
+    "decision": "retain conservative default 96: lowering it has no material full-SEA benefit and degree 48 regresses"
+  },
+  "exactness": {
+    "independent_reference": "binary exponentiation using the unchanged public long reducer",
+    "threshold_degrees": [95, 96, 97, 129, 194, 401],
+    "full_p125_exponent_degrees": [96, 194],
+    "nonmonic_fallback_checked": true,
+    "sparse_monic_checked": true,
+    "repeated_factor_checked": true,
+    "high_degree_input_checked": true
+  },
+  "validation": {
+    "optimized_core": "pass",
+    "optimized_poly_square_differential": "pass",
+    "asan_ubsan_core": "pass",
+    "asan_ubsan_poly_square_differential": "pass",
+    "leak_sanitizer": "not run: unsupported by Apple AddressSanitizer",
+    "cas_free_native_and_contract_suite": "pass",
+    "python_3_14_oracle_audit_compatibility": "pass",
+    "fresh_magma": "not run: no Magma executable discoverable on this host",
+    "independent_oracle_continuity": "unchanged full projection was Magma-validated by the immediately preceding packed-convolution audit"
+  },
+  "historical_comparison": {
+    "pre_kronecker_artifact": "../p125-reciprocal-reduction-20260801/result.json",
+    "pre_kronecker_degree_194_relative_slowdown": 1.14309,
+    "explanation": "the accepted implementation amortizes one inverse per powmod and executes the quotient products with exact packed convolution"
+  },
+  "limitations": [
+    "The benchmark is one deterministic p125 curve and establishes arithmetic throughput, not certificate yield.",
+    "No new p125 certificate was found by this benchmark.",
+    "The fixed authenticated table schedule still ends at level 401 and is not by itself the on-demand specialization required for an unbounded-input asymptotic implementation.",
+    "The threshold choice is empirical for this implementation and host; it does not alter the SEA search exponent."
+  ]
+}

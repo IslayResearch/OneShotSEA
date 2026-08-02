@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -632,7 +633,7 @@ class CliTests(unittest.TestCase):
             smooth_cache = root / "smooth.cache"
             checkpoint = root / "checkpoint.json"
             smooth_cache.write_bytes(b"same inode")
-            checkpoint.hardlink_to(smooth_cache)
+            os.link(smooth_cache, checkpoint)
             self.assert_rejected(
                 "search", "--p", 101, "--seed", 17,
                 "--range-start", 0, "--range-end", 1,

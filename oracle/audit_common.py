@@ -120,10 +120,33 @@ def digest(path: Path) -> str:
     return value.hexdigest()
 
 
+def stable_code_constant(value: Any) -> Any:
+    if isinstance(value, types.CodeType):
+        return ("code", stable_code_payload(value))
+    if isinstance(value, slice):
+        # CPython 3.14 may constant-fold subscription bounds into a slice,
+        # which marshal format 2 cannot serialize directly.  Preserve its
+        # complete typed structure rather than dropping the new constant.
+        return (
+            "slice",
+            stable_code_constant(value.start),
+            stable_code_constant(value.stop),
+            stable_code_constant(value.step),
+        )
+    if isinstance(value, tuple):
+        return ("tuple", tuple(stable_code_constant(item) for item in value))
+    if isinstance(value, frozenset):
+        return (
+            "frozenset",
+            frozenset(stable_code_constant(item) for item in value),
+        )
+    return value
+
+
 def stable_code_payload(code: types.CodeType) -> tuple[Any, ...]:
-    constants = tuple(
-        stable_code_payload(value) if isinstance(value, types.CodeType) else value
-        for value in code.co_consts
+    constants = tuple(stable_code_constant(value) for value in code.co_consts)
+    line_table = (
+        code.co_linetable if hasattr(code, "co_linetable") else code.co_lnotab
     )
     return (
         code.co_argcount,
@@ -138,10 +161,10 @@ def stable_code_payload(code: types.CodeType) -> tuple[Any, ...]:
         code.co_varnames,
         code.co_filename,
         code.co_name,
-        code.co_qualname,
+        getattr(code, "co_qualname", code.co_name),
         code.co_firstlineno,
-        code.co_linetable,
-        code.co_exceptiontable,
+        line_table,
+        getattr(code, "co_exceptiontable", b""),
         code.co_freevars,
         code.co_cellvars,
     )
@@ -158,7 +181,7 @@ def loaded_module_code_digest(module: types.ModuleType) -> str:
     for name, function in sorted(functions):
         value.update(name.encode("utf-8"))
         value.update(b"\0")
-        value.update(marshal.dumps(stable_code_payload(function.__code__)))
+        value.update(marshal.dumps(stable_code_payload(function.__code__), 2))
     return value.hexdigest()
 
 
@@ -166,7 +189,7 @@ def source_module_code_digest(path: Path, _module_name: str = "") -> str:
     """Digest the complete compiled module code without executing the source."""
     source = path.read_bytes()
     code = compile(source, str(path), "exec")
-    return hashlib.sha256(marshal.dumps(stable_code_payload(code))).hexdigest()
+    return hashlib.sha256(marshal.dumps(stable_code_payload(code), 2)).hexdigest()
 
 
 def directory_tree_identity(root: Path) -> dict[str, int | str]:

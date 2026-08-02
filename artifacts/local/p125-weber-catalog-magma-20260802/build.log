@@ -1,0 +1,30 @@
+mkdir -p build
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/field.cpp -o build/field.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/poly.cpp -o build/poly.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/curve.cpp -o build/curve.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/modpoly.cpp -o build/modpoly.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/trace.cpp -o build/trace.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/atkin.cpp -o build/atkin.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/weber_table_trust.cpp -o build/weber_table_trust.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/early_abort.cpp -o build/early_abort.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/schoof.cpp -o build/schoof.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/elkies.cpp -o build/elkies.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/isogeny.cpp -o build/isogeny.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/weber.cpp -o build/weber.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/sea.cpp -o build/sea.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/smooth_cache.cpp -o build/smooth_cache.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -I/opt/homebrew/opt/libomp/include -Xpreprocessor -fopenmp -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/smooth_bounded.cpp -o build/smooth_bounded.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/integrity.cpp -o build/integrity.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/exact_smooth.cpp -o build/exact_smooth.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/factor.cpp -o build/factor.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/search_checkpoint.cpp -o build/search_checkpoint.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/certificate.cpp -o build/certificate.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/weber_curve_generator.cpp -o build/weber_curve_generator.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/x1_11_probe.cpp -o build/x1_11_probe.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/x1_27_probe.cpp -o build/x1_27_probe.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -MMD -MP -c src/search_pipeline.cpp -o build/search_pipeline.o
+cc -Iinclude -isystem /opt/homebrew/opt/gmp/include -Ithird_party/oneshot_fast_ecpp -I/opt/homebrew/opt/libomp/include -Xpreprocessor -fopenmp \
+		-O2 -g -std=c11 -c third_party/oneshot_fast_ecpp/smooth.c -o build/smooth.o
+ar rcs build/liboneshotsea.a build/field.o build/poly.o build/curve.o build/modpoly.o build/trace.o build/atkin.o build/weber_table_trust.o build/early_abort.o build/schoof.o build/elkies.o build/isogeny.o build/weber.o build/sea.o build/smooth_cache.o build/smooth_bounded.o build/integrity.o build/exact_smooth.o build/factor.o build/search_checkpoint.o build/certificate.o build/weber_curve_generator.o build/x1_11_probe.o build/x1_27_probe.o build/search_pipeline.o
+c++ -Iinclude -isystem /opt/homebrew/opt/gmp/include -O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow tools/benchmark_p125_poly_trusted.cpp build/liboneshotsea.a \
+		build/smooth.o -L/opt/homebrew/opt/gmp/lib -L/opt/homebrew/opt/libomp/lib -Wl,-rpath,/opt/homebrew/opt/libomp/lib -lomp -lgmpxx -lgmp -o build/benchmark_p125_poly_trusted

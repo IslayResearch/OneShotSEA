@@ -1,0 +1,71 @@
+{
+  "schema": "oneshotsea.p125-quotient-context-ab.v1",
+  "date": "2026-08-02",
+  "base_commit": "105822641b8e7f7caa84da2e805cfd770f67f629",
+  "classification": "accepted quotient-ring prepared-reduction reuse",
+  "host": "Apple M4, macOS 26.5.1 (25F80), arm64",
+  "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101)",
+  "target": "nextprime(10^125), 416 bits",
+  "level": 409,
+  "table_manifest_sha256": "12b441664f87301255969e352c03dea4b9bf6d627d18105969d7488cb5b88616",
+  "trace_residue": 19,
+  "builds": {
+    "baseline": {
+      "cppflag": "ONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0",
+      "binary_sha256": "3d1ae670c612c629c361f602449aa71f66a18a3d461b9afc1490f45ef7ec6cb6"
+    },
+    "candidate": {
+      "cppflag": "ONESHOTSEA_QUOTIENT_CONTEXT_REUSE=1",
+      "binary_sha256": "a1f380c606176870e4bdc0023580cea2ff34bcf3d65b58871df7d0f9668c7e4b"
+    }
+  },
+  "run_order": [
+    "baseline",
+    "candidate",
+    "candidate",
+    "baseline",
+    "baseline",
+    "candidate"
+  ],
+  "baseline_runs_us": [
+    {"sea": 5155449, "eigenvalue": 2836558, "total": 7713144},
+    {"sea": 5179013, "eigenvalue": 2860475, "total": 7642546},
+    {"sea": 5120191, "eigenvalue": 2795416, "total": 7666286}
+  ],
+  "candidate_runs_us": [
+    {"sea": 4597293, "eigenvalue": 2282278, "total": 7070565},
+    {"sea": 4609597, "eigenvalue": 2286477, "total": 7081800},
+    {"sea": 4595015, "eigenvalue": 2270557, "total": 7074818}
+  ],
+  "medians_us": {
+    "baseline": {
+      "sea": 5155449,
+      "eigenvalue": 2836558,
+      "total": 7666286
+    },
+    "candidate": {
+      "sea": 4597293,
+      "eigenvalue": 2282278,
+      "total": 7074818
+    }
+  },
+  "speedups": {
+    "sea": 1.1214097078432894,
+    "eigenvalue": 1.2428626135816934,
+    "total": 1.0836018679208426
+  },
+  "semantic_projection_sha256": "f873221610f2984b744e76fa9a4de88545f9049ab1c5254961b36d73e8004606",
+  "all_six_semantic_projections_identical": true,
+  "validation": {
+    "polynomial_square_and_prepared_context_differential": "pass",
+    "forced_linear_and_mitm_eigenvalue_differential": "pass: 18 kernels",
+    "core_suite": "pass",
+    "asan_ubsan_poly_eigenvalue_and_core": "pass; macOS leak detection unsupported and disabled",
+    "exact_level_409_residue_unchanged": true
+  },
+  "limitations": [
+    "This is a single-level arithmetic ablation, not a multi-curve production throughput measurement.",
+    "The change improves quotient-ring constants but does not remove the finite modular-polynomial catalog boundary.",
+    "The compile-time disabled path is retained only to make the exact A/B reproducible."
+  ]
+}

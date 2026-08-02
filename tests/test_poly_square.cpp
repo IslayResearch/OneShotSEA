@@ -57,14 +57,23 @@ void check_square(const oneshotsea::Poly& value,
           label + ": specialized != generic mulmod");
     check(oneshotsea::equal(specialized, generic_full),
           label + ": specialized != mod(generic mul)");
+
+    const oneshotsea::PolyModContext context(modulus);
+    check(oneshotsea::equal(context.square(value), generic_full),
+          label + ": prepared square != mod(generic mul)");
+    check(oneshotsea::equal(context.multiply(value, value), generic_full),
+          label + ": prepared multiply != mod(generic mul)");
+    check(oneshotsea::equal(context.reduce(value),
+                            oneshotsea::mod(value, modulus)),
+          label + ": prepared reduction != generic mod");
 }
 
 void run() {
     const oneshotsea::Field field(target_prime());
     std::uint64_t domain = 1;
     for (const std::size_t degree :
-         {1U, 2U, 30U, 31U, 32U, 33U, 63U, 64U, 65U,
-          128U, 129U, 130U, 193U, 194U, 195U}) {
+         {1U, 2U, 30U, 31U, 32U, 33U, 47U, 48U, 49U, 63U, 64U, 65U,
+          128U, 129U, 130U, 193U, 194U, 195U, 281U, 401U, 402U}) {
         for (const bool monic : {true, false}) {
             const oneshotsea::Poly modulus =
                 modulus_of_degree(field, degree, domain++, monic);
@@ -76,7 +85,7 @@ void run() {
         }
     }
 
-    for (const std::size_t degree : {32U, 64U, 129U, 194U}) {
+    for (const std::size_t degree : {32U, 64U, 129U, 194U, 281U, 401U}) {
         const oneshotsea::Poly modulus =
             modulus_of_degree(field, degree, domain++, false);
         const oneshotsea::Poly high =

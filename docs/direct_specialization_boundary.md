@@ -1,8 +1,8 @@
 # Direct modular-polynomial specialization boundary
 
-Status: implemented and differentially validated.  This is the consumer
-boundary for a direct isogeny-volcano/explicit-CRT evaluator.  The producer
-that computes these values without a bivariate table is not yet implemented.
+Status: the consumer and explicit-CRT orchestration are implemented and
+differentially validated.  The remaining producer is the per-auxiliary-prime
+Hilbert-class-polynomial/Weber-volcano callback; production still uses tables.
 
 ## Contract
 
@@ -24,14 +24,16 @@ checked later: the candidate must be a root, both modular derivatives and both
 Weber-to-j derivatives must be nonzero, the source must map to the curve's
 `j`, and the characteristic must be prime and different from `ell`.
 
-These are structural checks, not an authenticity proof for the coefficients.
+These are structural checks, not by themselves an authenticity proof for the coefficients.
 A wrong but well-shaped specialization can still omit a rational root.  A
 positive kernel is protected by the independent BMSS map validation and
 Frobenius check; a no-root/Atkin conclusion necessarily depends on the direct
-producer's CRT reconstruction being correct.  The future producer must enforce
-its height/CRT termination bound and expose enough deterministic evidence to
-test that trust boundary.  The constructor alone must never be cited as a
-certificate of a negative classification.
+producer's CRT reconstruction being correct.  The new explicit-CRT layer
+enforces a strict product bound, validates every centered lift, and exposes the
+product and prime count.  Authenticity is still incomplete until the
+per-prime volcano producer and a proved Weber height bound are connected.  The
+constructor alone must never be cited as a certificate of a negative
+classification.
 
 This is intentionally a small interface.  Sutherland's Algorithm 1 outputs
 `phi(Y)=Phi_ell(j(E),Y)` and optionally `phi_X(Y)` and `phi_XX(Y)`.  The
@@ -57,6 +59,16 @@ orbits.  That is deliberate: the X1(27) curve generator already retains the
 exact source Weber coordinate.  A direct evaluator therefore computes exactly
 one specialization per level and can hand it to this function without any
 full bivariate table.
+
+`reconstruct_weber_specialization_algorithm1` validates the suitable order,
+enforces the necessary Weber order congruences, selects witnessed CRT primes,
+and feeds streamed per-prime coefficients through exact bounded CRT into this
+object.  The congruences alone do not prove that the auxiliary Weber values
+enumerated modulo each CRT prime belong to the corresponding class-invariant
+set; the callback must enforce that membership while implementing the
+remaining volcano seam.  The target source is a separate input and need not
+belong to the auxiliary order.  See
+[`explicit_crt_producer.md`](explicit_crt_producer.md).
 
 `SparseModularPolynomial::specialize_x_with_derivative` is the table-backed
 reference producer.  It evaluates `Phi(f,Y)` and `Phi_X(f,Y)` together in one
@@ -91,9 +103,10 @@ raw timing arrays, build switches, and parsed semantic checks are retained in
 
 ## Asymptotic meaning
 
-This patch is necessary for the intended asymptotic implementation, but it is
-not sufficient.  It removes the API dependency on a stored bivariate table;
-it does not yet remove the current finite table catalog from the producer.
+The implemented boundary and explicit-CRT scaffold are necessary for the
+intended asymptotic implementation, but not sufficient.  They remove the API
+dependency on a stored bivariate table and implement bounded reconstruction;
+they do not yet remove the finite table catalog from the per-prime producer.
 
 For Algorithm 1, Sutherland proves under GRH an expected running time
 
@@ -109,21 +122,24 @@ per-curve cost is what permits the one-shot search's separate smoothness
 heuristic to remain `p^(1/8+o(1))` rather than inheriting a table-generation
 cost exponential in `n`.
 
-The branch does not yet meet that premise for unbounded inputs.  The remaining
-producer work is substantial and concrete:
+The branch does not yet meet that premise for unbounded inputs.  Steps 1 and 5
+below now have checked scaffolding; order discovery, the proof of the
+normalization-specific bound, and steps 2--4 remain substantial:
 
-1. select suitable quadratic orders and CRT primes with documented bounds;
+1. discover suitable quadratic orders and compute a proved Weber coefficient
+   bound (validation and CRT-prime selection are implemented);
 2. compute and authenticate the required Hilbert class polynomial state;
 3. enumerate the surface and floor of each `ell`-isogeny volcano modulo every
    CRT prime;
 4. specialize the Weber modular function modulo each CRT prime while retaining
    the X derivative; and
-5. reconstruct `value` and `x_derivative` modulo `q` with an explicit CRT,
-   then instantiate this checked interface.
+5. supply per-prime `value` and `x_derivative` residues to the implemented
+   exact CRT and checked specialization interface.
 
-Until those steps exist, the honest claim is: the SEA consumer is ready for a
-direct evaluator and is validated beyond 400 bits, while the production
-specialization source remains a bounded authenticated archive.
+Until those steps exist, the honest claim is: the SEA consumer and CRT
+orchestration are ready for a volcano evaluator and are validated beyond 400
+bits, while the production specialization source remains a bounded
+authenticated archive.
 
 ## Why this is reviewable now
 

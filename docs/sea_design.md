@@ -398,15 +398,19 @@ a table-generation microbenchmark does not satisfy the specialized-path
 requirement.
 
 The consumer boundary for direct instantiated evaluation from Sutherland's
-Algorithm 1 is now implemented.  `ModularPolynomialSpecialization` carries
-only `Phi_l^f(f,Y)` and `Phi_X^f(f,Y)`, derives `Phi_Y` locally, and feeds the
-same normalized-codomain, BMSS, and Frobenius path without a bivariate table.
-The table loader supplies an independent reference producer and the complete
-boundary is differentially tested at 416 bits.  The isogeny-volcano/explicit-
-CRT producer itself remains open; until it is implemented, the authenticated
-finite Weber catalog is still the production source.  See
+Algorithm 1 is implemented.  `ModularPolynomialSpecialization` carries only
+`Phi_l^f(f,Y)` and `Phi_X^f(f,Y)`, derives `Phi_Y` locally, and feeds the same
+normalized-codomain, BMSS, and Frobenius path without a bivariate table.  The
+new producer scaffold validates suitable orders, selects witnessed CRT primes,
+preserves target-field power lifts, streams the two residue channels, and
+reconstructs them with exact height-checked CRT.  The table loader supplies an
+independent per-prime reference and the path is differentially tested at 416
+bits.  Suitable-order discovery, a proved Weber height bound, and the
+Hilbert-class-polynomial/isogeny-volcano callback remain open; until they are
+implemented, the authenticated finite Weber catalog is still the production
+source.  See `docs/explicit_crt_producer.md` and
 `docs/direct_specialization_boundary.md` for the exact contract, validation,
-complexity bound, and remaining work.
+complexity boundary, and remaining work.
 
 ## 5. Exact Elkies trace residue
 

@@ -684,12 +684,26 @@ def validate_state(
             oracle_discriminant == 0
             or pow(oracle_discriminant, (ell - 1) // 2, ell) == 1
         )
-        expected_classification = (
-            "exact_elkies"
-            if discriminant_square
-            else ("certified_atkin" if ell in {5, 7} else "unconstrained")
+        # Over a prime field of characteristic greater than three, a
+        # supersingular curve has trace zero.  Its classical modular
+        # specialization can have repeated or mixed-degree factors, for which
+        # the production Atkin classifier deliberately returns no evidence.
+        # Treating that level as unconstrained is sound; it is not a claimed
+        # Atkin classification.  Ordinary nonsquare levels 5 and 7 still must
+        # use the independently replayable trusted classical-j evidence.
+        supersingular_atkin_exception = (
+            oracle_trace == 0 and not discriminant_square and ell in {5, 7}
         )
-        if classification != expected_classification:
+        allowed_classifications = (
+            {"exact_elkies"}
+            if discriminant_square
+            else (
+                {"certified_atkin", "unconstrained"}
+                if supersingular_atkin_exception
+                else ({"certified_atkin"} if ell in {5, 7} else {"unconstrained"})
+            )
+        )
+        if classification not in allowed_classifications:
             raise AuditError(
                 f"{level_label} classification disagrees with the Magma trace"
             )

@@ -148,6 +148,70 @@ class WeberCorpusAuditTests(unittest.TestCase):
         if completed.returncode != 0:
             raise AssertionError(completed.stderr)
         cls.fallback_row = json.loads(completed.stdout)
+        completed = subprocess.run(
+            [
+                str(NATIVE),
+                "--p",
+                "42223",
+                "--seed",
+                "202608020005",
+                "--range-start",
+                "741",
+                "--count",
+                "1",
+                "--max-level",
+                "13",
+                "--trace-cap",
+                "16",
+                "--sea-threads",
+                "1",
+                "--table-dir",
+                str(TABLES),
+                "--schoof-fallback",
+                "1",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=30,
+        )
+        if completed.returncode != 0:
+            raise AssertionError(completed.stderr)
+        cls.supersingular_row = json.loads(completed.stdout)
+        completed = subprocess.run(
+            [
+                str(NATIVE),
+                "--p",
+                "39367",
+                "--seed",
+                "202608020005",
+                "--range-start",
+                "21",
+                "--count",
+                "1",
+                "--max-level",
+                "13",
+                "--trace-cap",
+                "16",
+                "--sea-threads",
+                "1",
+                "--table-dir",
+                str(TABLES),
+                "--schoof-fallback",
+                "1",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=30,
+        )
+        if completed.returncode != 0:
+            raise AssertionError(completed.stderr)
+        cls.supersingular_atkin_row = json.loads(completed.stdout)
 
     def validated(self, row: dict[str, object] | None = None) -> dict[str, object]:
         return driver.validate_native_record(
@@ -232,6 +296,48 @@ class WeberCorpusAuditTests(unittest.TestCase):
         )
         self.assertNotIn("timings", normalized["early"]["levels"][0])
         self.assertNotIn("elapsed_us", normalized["final"]["fallback_levels"][0])
+
+    def test_accepts_fail_closed_supersingular_atkin_exception(self) -> None:
+        normalized = driver.validate_native_record(
+            self.supersingular_row,
+            prime=42223,
+            seed=202608020005,
+            index=741,
+            max_level=13,
+            trace_cap=16,
+            sea_threads=1,
+            available_levels={5, 7, 11, 13},
+            curve_oracle={"order": 42224, "trace": 0},
+            twist_oracle={"order": 42224, "trace": 0},
+        )
+        self.assertEqual(normalized["early"]["levels"][0]["ell"], 5)
+        self.assertEqual(
+            normalized["early"]["levels"][0]["classification"],
+            "unconstrained",
+        )
+        self.assertEqual(normalized["final_exact_trace"], "0")
+
+    def test_accepts_certified_supersingular_atkin_when_available(self) -> None:
+        normalized = driver.validate_native_record(
+            self.supersingular_atkin_row,
+            prime=39367,
+            seed=202608020005,
+            index=21,
+            max_level=13,
+            trace_cap=16,
+            sea_threads=1,
+            available_levels={5, 7, 11, 13},
+            curve_oracle={"order": 39368, "trace": 0},
+            twist_oracle={"order": 39368, "trace": 0},
+        )
+        self.assertEqual(
+            normalized["early"]["levels"][0]["classification"],
+            "certified_atkin",
+        )
+        self.assertEqual(
+            normalized["early"]["atkin_constraints"][0]["projective_order"],
+            2,
+        )
 
     def test_independent_projective_order_and_full_atkin_set(self) -> None:
         self.assertEqual(driver.projective_order(5, 101, -6), 3)

@@ -160,6 +160,13 @@ certified Atkin projective orders and their complete allowed residue sets,
 retained exact Schoof fallback state, all candidate counts and trace lists, and
 the final exact-only singleton.  The curve and twist orders must sum to
 `2*p+2`, and no intermediate constraint may eliminate the Magma trace.
+`unconstrained` means that no residue evidence was committed, not that the
+Frobenius discriminant was mathematically unclassifiable.  In particular, a
+trace-zero supersingular specialization at trusted level 5 or 7 may be
+non-square-free and therefore fail closed as unconstrained; when the classical
+factor pattern is usable, its certified Atkin order and full residue set are
+still replayed.  Ordinary nonsquare downgrades at those trusted levels are
+rejected.
 
 The table source is copied into the create-only artifact before execution.  The
 native emitter authenticates that copied table set, while the driver binds and
@@ -194,6 +201,39 @@ deterministic Weber generator is rejected if it requires more than 4096
 admission candidates for a record; these hard bounds prevent hostile or corrupt
 native output from turning the independent replay into unbounded work.
 
+For the required small/medium early-abort corpus, use only buckets through 32
+bits so an independent trial-factor audit can prove exact `n^4`-smooth parts
+without importing the production smooth cache:
+
+```sh
+python3 oracle/weber_corpus_audit.py \
+  --magma-runtime /path/to/actual/magma-executable \
+  --magma-root /path/to/magma-installation \
+  --native build/oracle_weber_audit \
+  --table-dir data/modpoly/weber_f \
+  --output-dir artifacts/local/weber-oracle-10000-20260802 \
+  --seed 202608020005 \
+  --bit-sizes 16,20,24,28,32 --curves-per-size 2000 \
+  --max-level 193 --trace-cap 16 --sea-threads 1 \
+  --command-timeout-seconds 3600 --max-output-bytes 8388608 \
+  --max-prime-attempts 1000000
+
+python3 oracle/weber_early_abort_audit.py \
+  artifacts/local/weber-oracle-10000-20260802 \
+  --output artifacts/local/weber-early-abort-10000-20260802.json
+```
+
+The offline audit streams the canonical corpus and rechecks its manifest and
+record digest, reconstructs the complete early trace set from the effective
+CRT residue classes, requires the Magma trace even when it occupies the least
+favorable list position, and independently trial-factors every curve/twist
+order.  It reports the exact sound policy and the implemented
+`--skip-incomplete-curves` counterfactual separately.  In particular, a
+heuristic false negative means the true curve or twist has exact smooth part
+above `L`; it is never folded into the zero-false-negative sound result.  The
+tool deliberately refuses buckets above 32 bits rather than attempting an
+unbounded trial factorization.
+
 ## Tests
 
 Run the oracle tests from the repository root:
@@ -215,6 +255,7 @@ plus retained-fallback fixture and a reproducible fake-Magma end-to-end run:
 ```sh
 make test-weber-audit
 make test-weber-corpus
+make test-weber-early-abort-audit
 ```
 
 The fixtures include `j=0`, `j=1728`/supersingular, ordinary, negative

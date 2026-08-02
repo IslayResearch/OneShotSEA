@@ -11,7 +11,7 @@ appropriate comparison exist.
 
 | Required dimension | Implemented path | Best retained evidence | Status |
 |---|---|---|---|
-| Early abort | Complete bounded trace enumeration followed by exact full-`n^4` smooth screening of both signs | Same-build X1 caps 16/1 took 260.34/260.30 s wall (indistinguishable), while cap 16 reduced summed concurrent curve work 1.08% and avoided two full point counts; the larger cap-64 screen was 4.55% slower | Implemented and policy-calibrated; fixed-wave wall benefit over completing every point count was not observed |
+| Early abort | Complete bounded trace enumeration followed by exact full-`n^4` smooth screening of both signs | A source-bound 10,000-curve Magma corpus found 122 sound rejections, 14 before unique trace, and zero sound false negatives; same-build X1 caps 16/1 remained wall-indistinguishable | Implemented and independently audited; fixed-wave wall benefit over completing every point count was not observed |
 | Batching | Batched polynomial reduction, batched remainder-tree smooth extraction, and a rolling shared-cache curve window | Reducer A/B: 2.07x synthetic median and 2.59x complete curve work; same-binary curve window: 1.46x full invocation and 1.73x warm-window throughput | Measured at kernel, smooth-batch, and complete-curve levels; level-major table reuse remains unimplemented |
 | Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first twelve retained curves produced 136 trace candidates and 272 order screens from twelve SEA executions | Exact work-count reduction; no wall-time ablation |
 | Prime scheduling | Available Weber levels are processed in increasing prime order | Held-out two-pair A/B: trained information/cost order 58.36 s median versus increasing 57.945 s, with identical final constraints and intrinsic evidence | Measured alternate was 0.7% slower; retain increasing order |
@@ -33,6 +33,32 @@ Hasse-compatible traces.  The exact smooth engine then checks both
 `p+1-t` and `p+1+t` for every trace.  A candidate is rejected only when its
 complete `n^4`-smooth part is at most the certificate lower bound.  Heuristic
 rejection is disabled in production.
+
+### Source-bound 10,000-curve oracle audit
+
+The production Weber emitter was compared with Magma 2.29-1 on 2,000
+deterministic curves in each of the 16-, 20-, 24-, 28-, and 32-bit prime
+buckets.  Every record includes the normal exact-Schoof-fallback result and a
+separately executed fallback-off counterfactual for the same curve.  The
+create-only corpus is bound to clean commit `dc79fbd`, the native executable,
+all 82 authenticated table files, the controlled Magma installation, and the
+driver/common/oracle source bytes.  Its 10,000 records have SHA-256
+`0e02c9cb090bc3292a37fd924a092e21bef5629a3140541ed83db51bad1dfe6e`.
+
+An offline audit then reconstructed every bounded trace set, required the
+Magma trace, and independently trial-factored 107,220 curve/twist orders.  It
+found 122 sound rejections, including 14 before a unique trace and therefore
+14 saved full point counts, with **zero sound false negatives**.  The explicit
+`schoof_fallback=0, skip_incomplete_curves=1` counterfactual skipped no curve
+in this corpus, so both its observed rejection rate and false-negative rate
+were zero.  This is an observed policy result, not evidence that the heuristic
+can never skip: the test suite separately pins first- and second-pass
+false-negative fixtures and keeps those labels out of the sound metric.
+
+The corpus took 4,116 seconds on the local Apple M4; the streaming offline
+factor/replay pass took 3.61 seconds.  Compact identities, commands, hashes,
+and results are retained in
+[`artifacts/local/weber-oracle-v2-10000-20260802/result.json`](../artifacts/local/weber-oracle-v2-10000-20260802/result.json).
 
 The implemented exact trace-prior policy narrows this complete set without a
 heuristic assumption.  Weber-f adds `t = p+1 (mod 4)` only after directly

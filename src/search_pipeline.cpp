@@ -5,6 +5,7 @@
 #include "oneshotsea/weber_table_trust.hpp"
 #include "oneshotsea/weber_curve_generator.hpp"
 #include "oneshotsea/x1_11_probe.hpp"
+#include "oneshotsea/x1_27_probe.hpp"
 
 #include <algorithm>
 #include <array>
@@ -45,6 +46,8 @@ using Clock = std::chrono::steady_clock;
 constexpr std::chrono::seconds kSubprocessTimeout{30};
 constexpr std::string_view kTracePriorPolicy =
     "weber-full-e2-mod4-if-validated-x1-selected-group-divisor-point4-p5mod8-176-v2";
+constexpr std::string_view kX127TracePriorPolicy =
+    "x1-27-exact-order-full-e2-point4-p5mod8-selected-group-divisor-432-v1";
 constexpr std::string_view kWeberSourceLiftPolicy =
     "generator-retained-unramified-singleton-v1";
 
@@ -248,7 +251,7 @@ void validate_config(const SearchPipelineConfig& config,
         case SearchCurveFamily::weber_f:
             if (config.x1_require_point_four) {
                 throw std::invalid_argument(
-                    "point-four filtering requires the X1(11) curve family");
+                    "point-four filtering requires an X1 curve family");
             }
             break;
         case SearchCurveFamily::x1_11:
@@ -256,6 +259,13 @@ void validate_config(const SearchPipelineConfig& config,
                 mpz_fdiv_ui(config.prime.get_mpz_t(), 4U) != 1U) {
                 throw std::invalid_argument(
                     "X1(11) search requires characteristic not eleven and p=1 mod 4");
+            }
+            break;
+        case SearchCurveFamily::x1_27:
+            if (config.prime == 3 ||
+                mpz_fdiv_ui(config.prime.get_mpz_t(), 4U) != 1U) {
+                throw std::invalid_argument(
+                    "X1(27) search requires characteristic not three and p=1 mod 4");
             }
             break;
         default:
@@ -281,6 +291,15 @@ void validate_config(const SearchPipelineConfig& config,
     if (!config.expected_schedule_sha256.empty()) {
         validate_digest(config.expected_schedule_sha256,
                         "expected schedule digest");
+        if (config.expected_smooth_cache_sha256.empty() ||
+            config.expected_verifier_sha256.empty()) {
+            throw std::invalid_argument(
+                "expected schedule requires smooth-cache and verifier digests");
+        }
+    }
+    if (!config.expected_smooth_cache_sha256.empty()) {
+        validate_digest(config.expected_smooth_cache_sha256,
+                        "expected smooth-cache digest");
     }
     if (!config.expected_table_manifest_sha256.empty()) {
         validate_digest(config.expected_table_manifest_sha256,
@@ -791,6 +810,8 @@ const char* search_curve_family_name(SearchCurveFamily family) {
             return "weber-f";
         case SearchCurveFamily::x1_11:
             return "x1-11";
+        case SearchCurveFamily::x1_27:
+            return "x1-27";
     }
     throw std::logic_error("unknown search curve family");
 }
@@ -942,15 +963,30 @@ SearchCurveReport process_search_curve(
                     generated.curve);
             return generated;
         }
-        X111ProbeResult generated = deterministic_x1_11_search_curve(
+        if (config.curve_family == SearchCurveFamily::x1_11) {
+            X111ProbeResult generated = deterministic_x1_11_search_curve(
+                config.prime, config.seed, global_index,
+                config.x1_require_point_four);
+            X111ProbeSample& sample = *generated.sample;
+            const std::uint64_t divisor = sample.group_divisor;
+            const std::uint64_t p_plus_one =
+                (mpz_fdiv_ui(config.prime.get_mpz_t(), divisor) + 1U) % divisor;
+            const std::uint64_t residue =
+                sample.selected_side == X111CanonicalSide::curve
+                    ? p_plus_one
+                    : (divisor - p_plus_one) % divisor;
+            trace_prior.emplace(config.prime, divisor, residue);
+            return std::move(sample.pair);
+        }
+        X127ProbeResult generated = deterministic_x1_27_search_curve(
             config.prime, config.seed, global_index,
             config.x1_require_point_four);
-        X111ProbeSample& sample = *generated.sample;
+        X127ProbeSample& sample = *generated.sample;
         const std::uint64_t divisor = sample.group_divisor;
         const std::uint64_t p_plus_one =
             (mpz_fdiv_ui(config.prime.get_mpz_t(), divisor) + 1U) % divisor;
         const std::uint64_t residue =
-            sample.selected_side == X111CanonicalSide::curve
+            sample.selected_side == X127CanonicalSide::curve
                 ? p_plus_one
                 : (divisor - p_plus_one) % divisor;
         trace_prior.emplace(config.prime, divisor, residue);
@@ -1223,6 +1259,18 @@ SearchPipelineRunResult run_search_pipeline(
     const SearchReportCallback& report_callback,
     const CanonicalCertificateVerifier& verifier) {
     validate_config(config, &smooth_engine);
+    if (config.expected_schedule_sha256.empty() ||
+        config.expected_smooth_cache_sha256.empty() ||
+        config.expected_table_manifest_sha256.empty() ||
+        config.expected_verifier_sha256.empty()) {
+        throw std::invalid_argument(
+            "search execution requires authenticated schedule, cache, table, and verifier identities");
+    }
+    if (sha256_file(config.canonical_verifier) !=
+        config.expected_verifier_sha256) {
+        throw std::invalid_argument(
+            "canonical verifier contents changed after identity creation");
+    }
     if (state.identity().prime != config.prime ||
         state.identity().seed != config.seed) {
         throw std::invalid_argument("search state does not match pipeline target/seed");
@@ -1231,6 +1279,14 @@ SearchPipelineRunResult run_search_pipeline(
         state.identity().schedule_sha256 != config.expected_schedule_sha256) {
         throw std::invalid_argument(
             "search state does not match the configured schedule identity");
+    }
+    if (!config.expected_schedule_sha256.empty() &&
+        search_schedule_sha256(config,
+                               config.expected_smooth_cache_sha256,
+                               config.expected_verifier_sha256) !=
+            config.expected_schedule_sha256) {
+        throw std::invalid_argument(
+            "configured search semantics changed after identity creation");
     }
     if (!config.expected_table_manifest_sha256.empty() &&
         state.identity().table_manifest_sha256 !=
@@ -1397,8 +1453,8 @@ SearchPipelineRunResult run_search_pipeline(
                     report.status == SearchCurveStatus::sea_level_limit
                         ? SearchCurveStatus::heuristic_level_limit_skip
                         : SearchCurveStatus::heuristic_no_lift_skip;
-                report.outcome = {
-                    CurveTerminalStage::rejected_heuristic, false, false};
+                report.outcome.terminal_stage =
+                    CurveTerminalStage::rejected_heuristic;
             }
             if (report.certificate.has_value()) {
                 // Anchor the exact winning cursor before exposing its artifacts.
@@ -1716,15 +1772,26 @@ std::string search_schedule_sha256(
     if (config.curve_family == SearchCurveFamily::weber_f) {
         // Preserve the exact published default schedule identity.
         canonical << "curve_generator=weber-f-montgomery-filtered-v2\n";
-    } else {
+    } else if (config.curve_family == SearchCurveFamily::x1_11) {
         canonical << "curve_generator=" << kX111ProbeGeneratorVersion << '\n'
                   << "curve_generator_formula_sha256="
                   << kX111FormulaSourceSha256 << '\n'
                   << "x1_require_point_four="
                   << (config.x1_require_point_four ? "true" : "false")
                   << '\n';
+    } else {
+        canonical << "curve_generator=" << kX127ProbeGeneratorVersion << '\n'
+                  << "curve_generator_formula_sha256="
+                  << kX127FormulaSourceSha256 << '\n'
+                  << "x1_require_point_four="
+                  << (config.x1_require_point_four ? "true" : "false")
+                  << '\n';
     }
-    canonical << "trace_prior_policy=" << kTracePriorPolicy << '\n'
+    canonical << "trace_prior_policy="
+              << (config.curve_family == SearchCurveFamily::x1_27
+                      ? kX127TracePriorPolicy
+                      : kTracePriorPolicy)
+              << '\n'
               << "weber_source_lift_policy=" << kWeberSourceLiftPolicy
               << '\n'
               << "sea=weber-reference-two-pass-classical-atkin-v2\n"

@@ -86,12 +86,23 @@ table schedule.
 Long discovery runs may instead opt into
 `--skip-incomplete-curves 1`.  This converts only those two incomplete
 outcomes into `heuristic_level_limit_skip` or `heuristic_no_lift_skip`, advances
-the cursor, and increments only `rejected_heuristic`.  The progress event sets
+the cursor, and increments only `rejected_heuristic` among the terminal-stage
+counters. Orthogonal work milestones such as `candidates_reaching_smoothness`
+remain accurate when incompleteness occurs on the second SEA pass. The
+progress event sets
 `heuristic:true` and `outcome_class:heuristic_rejection`; it is never reported
 as a sound rejection or full point count.  The policy is part of the schedule
 digest, so its checkpoint cannot be substituted into a sound-only run.  It may
 lose a curve that would have yielded a certificate under a larger table set,
 but cannot create a false-positive certificate.
+
+At run entry the library recomputes the schedule digest from the current
+semantic configuration plus the expected smooth-cache and verifier digests.
+This rejects post-identity configuration mutation before any curve is
+processed; comparing a caller-supplied expected digest to the checkpoint alone
+would not establish that binding. Search execution requires authenticated
+schedule, cache, table, and verifier identities; empty expected fields are
+accepted only while constructing an identity, not while running one.
 
 Every complete curve record retains the exact `trace_prior` modulus and residue
 or explicit null.  Every per-level search record retains `trace_residue` for
@@ -109,11 +120,11 @@ optimizations auditable without changing residue semantics.
 Long production runs may use `--sea-level-telemetry 0`.  This suppresses the
 live per-level records and leaves each curve record's `sea_level_timings` array
 empty, but preserves `final_exact_trace_candidates` and
-`final_trace_candidates` so an incomplete skip remains quantitatively auditable.
-empty, while preserving the per-curve SEA level counts, exact/Atkin counts,
-trace prior, status, major-kernel timings, peak RSS, state counters, and
-checkpoint behavior.  The default is verbose and should remain enabled for
-benchmarks and residue audits.
+`final_trace_candidates` so an incomplete skip remains quantitatively
+auditable, along with the per-curve SEA level counts, exact/Atkin counts, trace
+prior, status, major-kernel timings, peak RSS, state counters, and checkpoint
+behavior. The default is verbose and should remain enabled for benchmarks and
+residue audits.
 
 After obtaining an independent final trace, audit these claims with:
 
@@ -147,11 +158,12 @@ prime product.  A capped run can be resumed with the identical command.
 Resource settings that cannot change mathematical output are logged but are
 not part of the semantic schedule identity.
 
-The semantic curve family defaults to `--curve-family weber-f`.  The opt-in
-`--curve-family x1-11` deterministically samples the pinned X1(11) model until
-it obtains a rational Weber/Montgomery image, then passes the resulting curve
-pair through the same SEA, exact-smooth, assembly, and canonical-verifier
-pipeline.  `--x1-require-point4 1` additionally filters for the validated
+The semantic curve family defaults to `--curve-family weber-f`. The opt-in
+`--curve-family x1-11` and `--curve-family x1-27` modes deterministically
+sample their pinned torsion models until they obtain a rational
+Weber/Montgomery image, then pass the resulting curve pair through the same
+SEA, exact-smooth, assembly, and canonical-verifier pipeline.
+`--x1-require-point4 1` additionally filters for the validated
 point-order-four branch.
 
 The exact prior is derived from the curve actually sent to SEA and fails
@@ -175,13 +187,20 @@ closed:
   the group exponent or an exact-order-88/176 point.  The conditional proof
   and its counterexample boundary are in
   [the point-four divisor note](x1_11_point4_176.md).
+- For X1(27), exact order 27 plus full rational `E[2]` gives group divisor 108;
+  point four promotes it to 216, and the retained `p = 5 (mod 8)` Weber branch
+  promotes it to 432. The selected curve/twist sign rule is identical, with a
+  distinct schedule-bound trace-prior policy. The conservative cyclic divisor
+  is 108. Construction and adversarial evidence are in
+  [the X1(27) note](x1_27_probe.md).
 
 The prior is inserted into both the exact and effective constraint states, so
 it participates in sound bounded screening and the final unique-trace gate.
 The family, formula digest, generator version, point-four choice, and trace-
 prior policy version are included in the schedule digest; every pre-policy
 checkpoint is deliberately incompatible.  Construction and oracle evidence
-are in [the X1(11) note](x1_11_probe.md).  The retained same-build p125 family
+are in [the X1(11) note](x1_11_probe.md) and
+[the X1(27) note](x1_27_probe.md). The retained same-build p125 family
 A/B is in [the family comparison](x1_11_family_ab.md): ten observations per
 family, zero certificates, and different curve distributions, so it is
 throughput evidence rather than an empirical yield estimate.

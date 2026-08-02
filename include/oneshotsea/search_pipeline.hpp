@@ -18,6 +18,7 @@ namespace oneshotsea {
 enum class SearchCurveFamily : std::uint8_t {
     weber_f,
     x1_11,
+    x1_27,
 };
 
 const char* search_curve_family_name(SearchCurveFamily family);
@@ -31,8 +32,9 @@ struct SearchPipelineConfig {
     mpz_class prime;
     std::uint64_t seed = 0;
     SearchCurveFamily curve_family = SearchCurveFamily::weber_f;
-    // Semantic only for x1_11. Requiring point four additionally guarantees
-    // the validated order-divisor metadata recorded by that generator.
+    // Semantic only for X1 families. Requiring point four additionally
+    // guarantees the validated order-divisor metadata recorded by the
+    // selected generator.
     bool x1_require_point_four = false;
     std::filesystem::path table_directory;
     std::uint64_t max_level = 0;
@@ -55,6 +57,7 @@ struct SearchPipelineConfig {
     // content identities.  Library users may leave these empty while building
     // an identity, then set them before executing the run.
     std::string expected_schedule_sha256;
+    std::string expected_smooth_cache_sha256;
     std::string expected_table_manifest_sha256;
     std::string expected_verifier_sha256;
     std::string expected_python_sha256;

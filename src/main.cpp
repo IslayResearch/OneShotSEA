@@ -193,7 +193,7 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11] [--x1-require-point4 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -313,9 +313,11 @@ int main(int argc, char** argv) {
                 config.curve_family = oneshotsea::SearchCurveFamily::weber_f;
             } else if (curve_family == "x1-11") {
                 config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+            } else if (curve_family == "x1-27") {
+                config.curve_family = oneshotsea::SearchCurveFamily::x1_27;
             } else {
                 throw std::invalid_argument(
-                    "--curve-family must be weber-f or x1-11");
+                    "--curve-family must be weber-f, x1-11, or x1-27");
             }
             const std::uint64_t x1_require_point_four = optional_u64(
                 options, "x1-require-point4", 0U);
@@ -328,7 +330,7 @@ int main(int argc, char** argv) {
                     oneshotsea::SearchCurveFamily::weber_f &&
                 config.x1_require_point_four) {
                 throw std::invalid_argument(
-                    "--x1-require-point4 requires --curve-family x1-11");
+                    "--x1-require-point4 requires an X1 curve family");
             }
             config.table_directory = required(options, "table-dir");
             config.max_level = required_u64(options, "max-level");
@@ -491,6 +493,7 @@ int main(int argc, char** argv) {
                     config, global_range, worker_id, worker_count, cache_sha,
                     verifier_sha, build_id);
             config.expected_schedule_sha256 = identity.schedule_sha256;
+            config.expected_smooth_cache_sha256 = cache_sha;
             config.expected_table_manifest_sha256 =
                 identity.table_manifest_sha256;
             config.expected_verifier_sha256 = verifier_sha;

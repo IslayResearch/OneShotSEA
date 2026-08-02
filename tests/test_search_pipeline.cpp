@@ -1,6 +1,7 @@
 #include "oneshotsea/search_pipeline.hpp"
 #include "oneshotsea/weber_table_trust.hpp"
 #include "oneshotsea/x1_11_probe.hpp"
+#include "oneshotsea/x1_27_probe.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -203,6 +204,8 @@ void test_small_prime_resume_and_canonical_verification() {
     const oneshotsea::SearchIdentity identity = oneshotsea::make_search_identity(
         config, {1, 2}, 0, 1, smooth_sha, verifier_sha, "pipeline-test-v1");
     config.expected_schedule_sha256 = identity.schedule_sha256;
+    config.expected_smooth_cache_sha256 = smooth_sha;
+    config.expected_verifier_sha256 = verifier_sha;
     config.expected_table_manifest_sha256 =
         identity.table_manifest_sha256;
     oneshotsea::SearchState state(identity);
@@ -296,6 +299,10 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
         oneshotsea::sha256_file(config.canonical_verifier),
         "parallel-pipeline-test-v1");
     config.expected_schedule_sha256 = identity.schedule_sha256;
+    config.expected_smooth_cache_sha256 =
+        oneshotsea::sha256_file(smooth_cache);
+    config.expected_verifier_sha256 =
+        oneshotsea::sha256_file(config.canonical_verifier);
     config.expected_table_manifest_sha256 = identity.table_manifest_sha256;
 
     struct Observation {
@@ -416,6 +423,9 @@ void test_parallel_stop_discards_later_reports() {
             oneshotsea::sha256_file(limited.canonical_verifier),
             "parallel-stop-limit-v1");
     limited.expected_schedule_sha256 = limited_identity.schedule_sha256;
+    limited.expected_smooth_cache_sha256 = smooth_sha;
+    limited.expected_verifier_sha256 =
+        oneshotsea::sha256_file(limited.canonical_verifier);
     limited.expected_table_manifest_sha256 =
         limited_identity.table_manifest_sha256;
     oneshotsea::SearchState limited_state(limited_identity);
@@ -462,6 +472,9 @@ void test_parallel_stop_discards_later_reports() {
             oneshotsea::sha256_file(limited.canonical_verifier),
             "parallel-stop-certificate-v1");
     limited.expected_schedule_sha256 = winning_identity.schedule_sha256;
+    limited.expected_smooth_cache_sha256 = smooth_sha;
+    limited.expected_verifier_sha256 =
+        oneshotsea::sha256_file(limited.canonical_verifier);
     limited.expected_table_manifest_sha256 =
         winning_identity.table_manifest_sha256;
     oneshotsea::SearchState winning_state(winning_identity);
@@ -515,6 +528,8 @@ void test_sea_level_limit_does_not_advance_cursor() {
             limited, {1, 2}, 0, 1, smooth_sha, verifier_sha,
             "level-limit-test-v1");
     limited.expected_schedule_sha256 = limited_identity.schedule_sha256;
+    limited.expected_smooth_cache_sha256 = smooth_sha;
+    limited.expected_verifier_sha256 = verifier_sha;
     limited.expected_table_manifest_sha256 =
         limited_identity.table_manifest_sha256;
     oneshotsea::SearchState limited_state(limited_identity);
@@ -574,6 +589,8 @@ void test_sea_level_limit_does_not_advance_cursor() {
               limited_identity.schedule_sha256,
           "incomplete-skip policy is bound into schedule identity");
     skipping.expected_schedule_sha256 = skipping_identity.schedule_sha256;
+    skipping.expected_smooth_cache_sha256 = smooth_sha;
+    skipping.expected_verifier_sha256 = verifier_sha;
     skipping.expected_table_manifest_sha256 =
         skipping_identity.table_manifest_sha256;
     oneshotsea::SearchState skipping_state(skipping_identity);
@@ -616,12 +633,90 @@ void test_sea_level_limit_does_not_advance_cursor() {
               "progress explicitly labels incomplete heuristic skip");
     }
 
+    oneshotsea::SearchPipelineConfig second_pass = small_config();
+    second_pass.skip_incomplete_curves = true;
+    const oneshotsea::SearchIdentity second_pass_identity =
+        oneshotsea::make_search_identity(
+            second_pass, {0, 1}, 0, 1, smooth_sha, verifier_sha,
+            "second-pass-skip-test-v1");
+    second_pass.expected_schedule_sha256 =
+        second_pass_identity.schedule_sha256;
+    second_pass.expected_smooth_cache_sha256 = smooth_sha;
+    second_pass.expected_verifier_sha256 = verifier_sha;
+    second_pass.expected_table_manifest_sha256 =
+        second_pass_identity.table_manifest_sha256;
+    oneshotsea::SearchState second_pass_state(second_pass_identity);
+    oneshotsea::SearchPipelineRunOptions second_pass_options;
+    second_pass_options.max_curves = 1;
+    second_pass_options.checkpoint_path = temporary.path() / "second-pass.json";
+    second_pass_options.progress_path = temporary.path() / "second-pass.ndjson";
+    second_pass_options.certificate_path = temporary.path() / "second-pass.cert";
+    bool second_pass_reached_smoothness = false;
+    const auto second_pass_result = oneshotsea::run_search_pipeline(
+        second_pass, smooth, second_pass_state, second_pass_options,
+        [&](const oneshotsea::SearchCurveReport& report,
+            const oneshotsea::SearchState&) {
+            second_pass_reached_smoothness =
+                report.outcome.reached_smoothness_testing;
+        });
+    check(second_pass_result.curves_processed == 1U &&
+              second_pass_state.counters().rejected_heuristic == 1U &&
+              second_pass_state.counters().candidates_reaching_smoothness ==
+                  1U &&
+              second_pass_reached_smoothness,
+          "second-pass heuristic skip preserves completed work milestones");
+
+    oneshotsea::SearchPipelineConfig mutated = small_config();
+    const oneshotsea::SearchIdentity sound_identity =
+        oneshotsea::make_search_identity(
+            mutated, {0, 1}, 0, 1, smooth_sha, verifier_sha,
+            "mutated-schedule-test-v1");
+    mutated.expected_schedule_sha256 = sound_identity.schedule_sha256;
+    mutated.expected_smooth_cache_sha256 = smooth_sha;
+    mutated.expected_verifier_sha256 = verifier_sha;
+    mutated.expected_table_manifest_sha256 =
+        sound_identity.table_manifest_sha256;
+    mutated.skip_incomplete_curves = true;
+    oneshotsea::SearchState mutated_state(sound_identity);
+    oneshotsea::SearchPipelineRunOptions mutated_options;
+    mutated_options.max_curves = 1;
+    mutated_options.checkpoint_path = temporary.path() / "mutated.json";
+    mutated_options.progress_path = temporary.path() / "mutated.ndjson";
+    mutated_options.certificate_path = temporary.path() / "mutated.cert";
+    bool mutation_rejected = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            mutated, smooth, mutated_state, mutated_options);
+    } catch (const std::invalid_argument&) {
+        mutation_rejected = true;
+    }
+    check(mutation_rejected && mutated_state.next_index() == 0U,
+          "post-identity semantic mutation is rejected before processing");
+
+    oneshotsea::SearchPipelineConfig unbound = small_config();
+    const oneshotsea::SearchIdentity unbound_identity =
+        oneshotsea::make_search_identity(
+            unbound, {0, 1}, 0, 1, smooth_sha, verifier_sha,
+            "unbound-schedule-test-v1");
+    oneshotsea::SearchState unbound_state(unbound_identity);
+    bool unbound_rejected = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            unbound, smooth, unbound_state, mutated_options);
+    } catch (const std::invalid_argument&) {
+        unbound_rejected = true;
+    }
+    check(unbound_rejected && unbound_state.next_index() == 0U,
+          "search execution rejects missing authenticated identities");
+
     oneshotsea::SearchPipelineConfig sufficient = small_config();
     const oneshotsea::SearchIdentity sufficient_identity =
         oneshotsea::make_search_identity(
             sufficient, {1, 2}, 0, 1, smooth_sha, verifier_sha,
             "level-limit-test-v1");
     sufficient.expected_schedule_sha256 = sufficient_identity.schedule_sha256;
+    sufficient.expected_smooth_cache_sha256 = smooth_sha;
+    sufficient.expected_verifier_sha256 = verifier_sha;
     sufficient.expected_table_manifest_sha256 =
         sufficient_identity.table_manifest_sha256;
     oneshotsea::SearchState sufficient_state(sufficient_identity);
@@ -852,6 +947,16 @@ void test_worker_partition_is_identity_bound() {
                   x1_identity.schedule_sha256,
           "X1 point-four requirement changes schedule identity only");
 
+    oneshotsea::SearchPipelineConfig x127_config = small_config();
+    x127_config.curve_family = oneshotsea::SearchCurveFamily::x1_27;
+    x127_config.x1_require_point_four = true;
+    const auto x127_identity = oneshotsea::make_search_identity(
+        x127_config, {10, 21}, 2, 3, digest, digest, "pipeline-test-v1");
+    check(x127_identity.range == identity.range &&
+              x127_identity.schedule_sha256 !=
+                  x1_point_four_identity.schedule_sha256,
+          "X1(27) generator and formula identity bind the schedule");
+
     const std::filesystem::path checkpoint = temporary.path() / "weber.json";
     oneshotsea::save_search_checkpoint(
         oneshotsea::SearchState(identity), checkpoint);
@@ -863,6 +968,17 @@ void test_worker_partition_is_identity_bound() {
     }
     check(mismatch_rejected,
           "checkpoint rejects a mismatched curve-family schedule");
+
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(x1_point_four_identity), checkpoint);
+    bool x127_mismatch_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(checkpoint, x127_identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        x127_mismatch_rejected = true;
+    }
+    check(x127_mismatch_rejected,
+          "checkpoint rejects X1(11)/X1(27) schedule substitution");
 }
 
 void test_x1_curve_family_enters_search_pipeline() {
@@ -945,6 +1061,41 @@ void test_x1_curve_family_enters_search_pipeline() {
                   return level.ell == 11U;
               }),
           "X1 group-divisor prior skips SEA level eleven");
+}
+
+void test_x1_27_curve_family_enters_search_pipeline() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.prime = 461;
+    config.seed = UINT64_C(202607300000);
+    config.curve_family = oneshotsea::SearchCurveFamily::x1_27;
+    config.x1_require_point_four = true;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto report = oneshotsea::process_search_curve(
+        config, smooth, 0,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto generated = oneshotsea::deterministic_x1_27_search_curve(
+        config.prime, config.seed, 0, true);
+    const auto& sample = *generated.sample;
+    const mpz_class curve_trace =
+        config.prime + 1 -
+        oneshotsea::count_points_bruteforce(sample.pair.curve);
+    const std::uint64_t p_plus_one =
+        (mpz_fdiv_ui(config.prime.get_mpz_t(), 432U) + 1U) % 432U;
+    const std::uint64_t expected_residue =
+        sample.selected_side == oneshotsea::X127CanonicalSide::curve
+            ? p_plus_one
+            : (432U - p_plus_one) % 432U;
+
+    check(sample.group_divisor == 432U &&
+              report.trace_prior_modulus ==
+                  std::optional<std::uint64_t>(432U) &&
+              report.trace_prior_residue ==
+                  std::optional<std::uint64_t>(expected_residue) &&
+              report.exact_trace == std::optional<mpz_class>(curve_trace) &&
+              report.sea_levels == 0U,
+          "X1(27) point-four p=5 mod 8 divisor enters production trace prior");
 }
 
 void test_known_weber_source_lift_pipeline_determinism() {
@@ -1034,6 +1185,7 @@ int main() {
         test_bounded_early_screen_default();
         test_worker_partition_is_identity_bound();
         test_x1_curve_family_enters_search_pipeline();
+        test_x1_27_curve_family_enters_search_pipeline();
         test_known_weber_source_lift_pipeline_determinism();
         test_sea_level_limit_does_not_advance_cursor();
         test_parallel_stop_discards_later_reports();

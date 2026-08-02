@@ -34,8 +34,8 @@ currently includes:
   and a content-authenticated portable 5.4 GB `p125` cache;
 - rolling multi-curve execution against one shared immutable smooth cache,
   with deterministic in-order checkpoint and certificate publication;
-- an opt-in, schedule-bound X1(11) curve family with independently checked
-  11-torsion, full rational `E[2]`, and an optional point-order-four filter;
+- opt-in, schedule-bound X1(11) and X1(27) curve families with independently
+  checked torsion, full rational `E[2]`, and optional point-order-four filters;
 - exhaustive certificate-divisor search, exact Montgomery point-order checks,
   crash-safe checkpoints, identity-bound artifacts, and the pinned canonical
   verifier; and

@@ -424,6 +424,32 @@ class CliTests(unittest.TestCase):
             )
             self.assertEqual(records[-1]["processed"], "0")
 
+            x127 = self.run_cli(
+                "search",
+                "--p", 461,
+                "--seed", 202607300000,
+                "--range-start", 0,
+                "--range-end", 1,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 11,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "x127-smooth.cache",
+                "--checkpoint", root / "x127-checkpoint.json",
+                "--curve-family", "x1-27",
+                "--x1-require-point4", 1,
+                "--max-curves", 0,
+            )
+            self.assertEqual(x127.returncode, 0, x127.stderr)
+            x127_records = [
+                json.loads(line) for line in x127.stdout.splitlines()
+            ]
+            self.assertEqual(x127_records[0]["curve_family"], "x1-27")
+            self.assertTrue(
+                x127_records[0]["resources"]["x1_require_point_four"]
+            )
+            self.assertEqual(x127_records[-1]["processed"], "0")
+
         self.assert_rejected(
             "search", "--p", 101, "--seed", 1,
             "--curve-family", "unknown",

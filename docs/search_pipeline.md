@@ -96,6 +96,18 @@ digest, so its checkpoint cannot be substituted into a sound-only run.  It may
 lose a curve that would have yielded a certificate under a larger table set,
 but cannot create a false-positive certificate.
 
+Sound-only runs may instead opt into `--schoof-fallback 1`. After all
+authenticated Weber levels are exhausted without fitting the trace cap, this
+extends the retained exact/Atkin state with the fixed exact-Schoof sequence
+`3,5,13,17,19`, stopping as soon as the complete exact and effective Hasse
+sets fit. It skips moduli already exact, verifies an exact upgrade against any
+existing Atkin residue set, and rebuilds effective constraints without the
+now-redundant Atkin modulus. Contradiction fails closed. A surviving early
+screen continues the same state toward uniqueness rather than rerunning the
+Weber schedule. The policy is schedule-bound, defaults off, and is independent
+of the heuristic incomplete-skip option. Design and target-sized recovery
+evidence are in [the Schoof fallback note](schoof_fallback.md).
+
 At run entry the library recomputes the schedule digest from the current
 semantic configuration plus the expected smooth-cache and verifier digests.
 This rejects post-identity configuration mutation before any curve is
@@ -123,8 +135,9 @@ empty, but preserves `final_exact_trace_candidates` and
 `final_trace_candidates` so an incomplete skip remains quantitatively
 auditable, along with the per-curve SEA level counts, exact/Atkin counts, trace
 prior, status, major-kernel timings, peak RSS, state counters, and checkpoint
-behavior. The default is verbose and should remain enabled for benchmarks and
-residue audits.
+behavior. Compact fallback telemetry remains in `schoof_fallback_levels` with
+each exact prime, residue, modulus, candidate count, and elapsed time. The
+default is verbose and should remain enabled for benchmarks and residue audits.
 
 After obtaining an independent final trace, audit these claims with:
 

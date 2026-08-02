@@ -14,6 +14,12 @@
 
 namespace oneshotsea {
 
+// The production search may opt into this fixed, schedule-bound tail only
+// after exhausting its authenticated Weber levels.  Keeping the list fixed
+// makes checkpoint identities deterministic and caps the slow reference work.
+inline constexpr char kRareSchoofFallbackPolicy[] =
+    "retained-state-exact-schoof-3,5,13,17,19-v1";
+
 // A caller-supplied exact congruence for the Frobenius trace. The modulus may
 // be composite, but must fit uint64, be coprime to the field characteristic,
 // and admit at least one trace in the Hasse interval. The residue is required
@@ -53,6 +59,16 @@ struct WeberSeaLevelRecord {
     ElkiesStageTimings timings;
 };
 
+struct SchoofFallbackLevelRecord {
+    std::uint64_t ell;
+    std::uint64_t trace_residue;
+    mpz_class exact_modulus;
+    mpz_class constraint_modulus;
+    mpz_class exact_trace_candidate_count;
+    mpz_class trace_candidate_count;
+    std::uint64_t elapsed_us;
+};
+
 struct WeberSeaResult {
     // The exact caller prior, when present, followed by exact Elkies residues.
     // These remain the final unique-trace gate.
@@ -63,11 +79,14 @@ struct WeberSeaResult {
     TraceConstraints effective_constraints;
     std::vector<AtkinConstraint> atkin_constraints;
     std::vector<WeberSeaLevelRecord> levels;
+    std::vector<SchoofFallbackLevelRecord> schoof_fallback_levels;
     std::vector<mpz_class> compatible_source_lifts;
     std::optional<std::vector<mpz_class>> traces;
 };
 
 using WeberSeaProgress = std::function<void(const WeberSeaLevelRecord&)>;
+using SchoofFallbackProgress =
+    std::function<void(const SchoofFallbackLevelRecord&)>;
 
 // Benchmark-only scheduling input.  information_units may use any fixed
 // scale (for example measured microbits of trace-candidate reduction), while
@@ -107,5 +126,14 @@ WeberSeaResult run_weber_sea_reference(
     const std::vector<WeberSeaLevelEstimate>& level_estimates = {},
     const std::optional<ExactTracePrior>& trace_prior = std::nullopt,
     const std::optional<mpz_class>& known_source_lift = std::nullopt);
+
+// Extend an already-computed Weber state with a fixed set of independent,
+// exact Schoof residues. Existing exact prior/table moduli are skipped. If an
+// exact residue upgrades an existing Atkin modulus, effective constraints are
+// rebuilt from the exact state plus only the remaining nonredundant Atkin
+// constraints. The existing Weber work is never repeated.
+void extend_weber_sea_with_schoof_fallback(
+    const Curve& curve, WeberSeaResult& result, std::size_t trace_cap,
+    const SchoofFallbackProgress& progress = {});
 
 }  // namespace oneshotsea

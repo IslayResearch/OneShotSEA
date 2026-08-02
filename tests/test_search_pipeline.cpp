@@ -282,6 +282,45 @@ void test_small_prime_resume_and_canonical_verification() {
     check(event_count == 1U, "one NDJSON event per completed curve");
 }
 
+void test_search_uses_retained_schoof_fallback_without_second_sea_pass() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.max_level = 5U;
+    config.early_trace_cap = 1U;
+    config.enable_schoof_fallback = true;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto report = oneshotsea::process_search_curve(
+        config, smooth, 1U,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto generated = oneshotsea::deterministic_weber_curve_pair(
+        config.prime, config.seed, 1U);
+    const mpz_class expected_trace =
+        config.prime + 1 -
+        oneshotsea::count_points_bruteforce(generated.curve);
+    check(report.status != oneshotsea::SearchCurveStatus::sea_level_limit &&
+              report.exact_trace ==
+                  std::optional<mpz_class>(expected_trace) &&
+              report.sea_passes == 1U &&
+              !report.schoof_fallback_levels.empty(),
+          "search completes from retained SEA state without a second table pass");
+    for (const auto& level : report.schoof_fallback_levels) {
+        check(level.trace_residue ==
+                  mpz_fdiv_ui(expected_trace.get_mpz_t(), level.ell),
+              "search fallback residue matches the brute-force trace");
+    }
+    const std::string digest(64U, 'd');
+    const auto identity = oneshotsea::make_search_identity(
+        config, {1, 2}, 0, 1, digest, digest, "fallback-pipeline-test-v1");
+    const std::string report_json = oneshotsea::search_curve_report_json(
+        report, oneshotsea::SearchState(identity), false);
+    check(report_json.find("\"schoof_fallback_level_count\":\"") !=
+                  std::string::npos &&
+              report_json.find("\"schoof_fallback_levels\":[{") !=
+                  std::string::npos,
+          "search telemetry retains compact exact-Schoof evidence");
+}
+
 void test_parallel_curve_ordering_and_shared_checkpoint() {
     TemporaryDirectory temporary;
     oneshotsea::SearchPipelineConfig config = small_config();
@@ -693,6 +732,27 @@ void test_sea_level_limit_does_not_advance_cursor() {
     check(mutation_rejected && mutated_state.next_index() == 0U,
           "post-identity semantic mutation is rejected before processing");
 
+    oneshotsea::SearchPipelineConfig fallback_mutated = small_config();
+    fallback_mutated.expected_schedule_sha256 =
+        sound_identity.schedule_sha256;
+    fallback_mutated.expected_smooth_cache_sha256 = smooth_sha;
+    fallback_mutated.expected_verifier_sha256 = verifier_sha;
+    fallback_mutated.expected_table_manifest_sha256 =
+        sound_identity.table_manifest_sha256;
+    fallback_mutated.enable_schoof_fallback = true;
+    oneshotsea::SearchState fallback_mutated_state(sound_identity);
+    bool fallback_mutation_rejected = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            fallback_mutated, smooth, fallback_mutated_state,
+            mutated_options);
+    } catch (const std::invalid_argument&) {
+        fallback_mutation_rejected = true;
+    }
+    check(fallback_mutation_rejected &&
+              fallback_mutated_state.next_index() == 0U,
+          "post-identity Schoof-fallback mutation is rejected before processing");
+
     oneshotsea::SearchPipelineConfig unbound = small_config();
     const oneshotsea::SearchIdentity unbound_identity =
         oneshotsea::make_search_identity(
@@ -777,6 +837,7 @@ void test_worker_partition_is_identity_bound() {
                   << "weber_source_lift_policy="
                      "generator-retained-unramified-singleton-v1\n"
                   << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "rare_schoof_fallback=disabled\n"
                   << "heuristic_rejection=disabled\n"
                   << "prime=" << config.prime << '\n'
                   << "max_level=" << config.max_level << '\n'
@@ -795,6 +856,14 @@ void test_worker_partition_is_identity_bound() {
     check(identity.schedule_sha256 ==
               oneshotsea::sha256_file(canonical_schedule),
           "search schedule identity binds trace-prior and known-lift policy versions");
+
+    oneshotsea::SearchPipelineConfig fallback_config = config;
+    fallback_config.enable_schoof_fallback = true;
+    const auto fallback_identity = oneshotsea::make_search_identity(
+        fallback_config, {10, 21}, 2, 3, digest, digest,
+        "pipeline-test-v1");
+    check(fallback_identity.schedule_sha256 != identity.schedule_sha256,
+          "fixed Schoof fallback policy is bound into schedule identity");
 
     const std::filesystem::path pre_source_lift_schedule =
         temporary.path() / "pre-source-lift-schedule.txt";
@@ -1191,6 +1260,7 @@ int main() {
         test_parallel_stop_discards_later_reports();
         test_parallel_curve_ordering_and_shared_checkpoint();
         test_small_prime_resume_and_canonical_verification();
+        test_search_uses_retained_schoof_fallback_without_second_sea_pass();
         std::cout << "search pipeline tests passed\n";
         return 0;
     } catch (const std::exception& error) {

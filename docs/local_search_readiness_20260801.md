@@ -315,14 +315,34 @@ and each repeat times the same ten curves. Full hashes, calculations, and
 limitations are in [the X1(27) family A/B note](x1_27_family_ab.md) and
 [artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json).
 
+## Index-206 exact fallback recovery gate
+
+An authenticated prototype replay retried X1(11) point-four index 206 with cap
+16, exact Schoof fallback enabled, and incomplete skip disabled. The retained
+ordinary state had 45,948 exact and 9,189 effective candidates. Exact residues
+`t=0 mod 3`, `t=0 mod 5`, `t=2 mod 13`, and `t=0 mod 17` reduced both complete
+sets to 14. Exact smoothness screening then produced a nonheuristic
+`sound_smoothness_reject`; there was no full point count, assembly call, or
+certificate. Invocation wall was 172.17 seconds.
+
+This closes the mathematical path on the prototype, not the final deployment
+gate. The replay binary and mailbox patch are content-pinned, but the code was
+not yet the final committed production identity. After the fallback lands and
+the full test/oracle suite passes, freeze the final binary and replay index 206
+again with `--skip-incomplete-curves 0`. Do not alter the old production
+checkpoint's explicit heuristic record. The full residue/count audit is in
+[the fallback note](schoof_fallback.md) and
+[artifact](../artifacts/local/p125-index206-schoof-fallback-20260801/result.json).
+
 ## Next local action
 
-Authenticated production identities have advanced through index 176. The
-exact-cost polynomial-window build stopped cleanly at `next_index=177` for a
-bounded arithmetic A/B. Start the polynomial-subring Element-window X1(11)
-point-four identity at global index 177 after its clean test, commit, and push
-gates; its new build identity means the old checkpoint is evidence, not
-resumable state.
+The authenticated production frontier is 246: indices 0--205 and 207--245
+have sound outcomes, while the old production identity records index 206 as an
+explicit heuristic skip. Commit and fully test the exact fallback, freeze its
+binary, and complete the sound final-build index-206 replay described above.
+Then start a new X1(27) point-four identity at global index 246 with exact
+fallback enabled and incomplete skip disabled; every older checkpoint remains
+evidence rather than resumable state under the new schedule.
 The held-out scheduling A/B found the measured
 alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
 build id and `search-NEXT` directory below with the exact committed
@@ -335,10 +355,11 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 177 --range-end 1000000 \
+  --range-start 246 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
-  --curve-family x1-11 --x1-require-point4 1 \
-  --max-level 401 --trace-cap 16 --curve-threads 10 --sea-threads 1 \
+  --curve-family x1-27 --x1-require-point4 1 \
+  --max-level 401 --trace-cap 16 --schoof-fallback 1 \
+  --skip-incomplete-curves 0 --curve-threads 10 --sea-threads 1 \
   --sea-level-telemetry 0 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache work/p125/smooth.cache \
@@ -354,10 +375,11 @@ mkdir work/p125/search-NEXT
 ```
 
 Before the continuation, confirm the emitted search-start record has
-the expected X1 family, point-four flag, cache, table, range, seed, build, and
-new schedule identities.  Confirm each curve record is non-heuristic and
-reports the expected mod-176 signed trace prior; confirm no `ell=11` SEA level is
-emitted.  A curve must either advance soundly or produce a locally verified
+the expected X1(27) family, point-four flag, exact-fallback policy, disabled
+incomplete skip, cache, table, range, seed, build, and new schedule identities.
+Confirm each curve record is non-heuristic and reports the expected mod-432
+signed trace prior; confirm no redundant exact-prior SEA level is emitted. A
+curve must either advance soundly or produce a locally verified
 certificate.  Use one process with ten rolling curve slots, one SEA thread and
 one smooth thread per curve.  The earlier same-binary scaling replay measured
 27.071 warm seconds per curve and 6.19 GB peak RSS, with 68.9 MiB of system-wide

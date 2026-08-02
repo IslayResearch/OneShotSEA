@@ -42,6 +42,10 @@ struct SearchPipelineConfig {
     // twist order, so 64 traces fill the search CLI's 128-order default.  A
     // larger cap can make an early exact screen slower than finishing SEA.
     std::size_t early_trace_cap = 64;
+    // Opt into the fixed retained-state exact-Schoof tail after all configured
+    // Weber levels fail to fit the requested trace cap. This is semantic and
+    // is bound into the resumable schedule identity.
+    bool enable_schoof_fallback = false;
     bool skip_incomplete_curves = false;
     // Maximum concurrent modular-root jobs inside SEA. Zero selects the
     // available CPU concurrency. This is a resource setting and deliberately
@@ -114,6 +118,17 @@ struct SearchSeaLevelTiming {
     std::uint64_t conjugate_eigenvalues_derived = 0;
 };
 
+struct SearchSchoofFallbackTiming {
+    std::size_t pass = 0;
+    std::uint64_t ell = 0;
+    std::uint64_t trace_residue = 0;
+    mpz_class exact_modulus = 1;
+    mpz_class constraint_modulus = 1;
+    mpz_class exact_trace_candidate_count = 0;
+    mpz_class trace_candidate_count = 0;
+    std::uint64_t elapsed_us = 0;
+};
+
 struct SearchCurveReport {
     std::uint64_t global_index = 0;
     SearchCurveStatus status = SearchCurveStatus::sea_level_limit;
@@ -125,6 +140,7 @@ struct SearchCurveReport {
     std::size_t sea_levels = 0;
     std::size_t exact_sea_levels = 0;
     std::size_t atkin_sea_levels = 0;
+    std::vector<SearchSchoofFallbackTiming> schoof_fallback_levels;
     std::optional<mpz_class> final_exact_trace_candidate_count;
     std::optional<mpz_class> final_trace_candidate_count;
     std::vector<SearchSeaLevelTiming> sea_level_timings;

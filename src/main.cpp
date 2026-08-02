@@ -193,7 +193,7 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -344,6 +344,8 @@ int main(int argc, char** argv) {
                 options, "sea-level-telemetry", 1U);
             const std::uint64_t skip_incomplete_curves = optional_u64(
                 options, "skip-incomplete-curves", 0U);
+            const std::uint64_t schoof_fallback = optional_u64(
+                options, "schoof-fallback", 0U);
             const std::uint64_t assembly_attempts = optional_u64(
                 options, "assembly-attempts", 400U);
             const std::uint64_t max_certificate_candidates = optional_u64(
@@ -352,7 +354,7 @@ int main(int argc, char** argv) {
                 options, "max-candidate-search-nodes", 1000000U);
             if (trace_cap > std::numeric_limits<std::size_t>::max() ||
                 curve_threads == 0U || sea_level_telemetry_value > 1U ||
-                skip_incomplete_curves > 1U ||
+                skip_incomplete_curves > 1U || schoof_fallback > 1U ||
                 curve_threads > std::numeric_limits<std::size_t>::max() ||
                 sea_threads > std::numeric_limits<std::size_t>::max() ||
                 assembly_attempts > std::numeric_limits<std::size_t>::max() ||
@@ -365,6 +367,7 @@ int main(int argc, char** argv) {
                 throw std::invalid_argument("search size option is out of range");
             }
             config.early_trace_cap = static_cast<std::size_t>(trace_cap);
+            config.enable_schoof_fallback = schoof_fallback != 0U;
             config.skip_incomplete_curves = skip_incomplete_curves != 0U;
             config.sea_threads = static_cast<std::size_t>(sea_threads);
             config.assembly_attempts =
@@ -562,6 +565,8 @@ int main(int argc, char** argv) {
                       << (config.x1_require_point_four ? "true" : "false")
                       << ",\"skip_incomplete_curves\":"
                       << (config.skip_incomplete_curves ? "true" : "false")
+                      << ",\"schoof_fallback\":"
+                      << (config.enable_schoof_fallback ? "true" : "false")
                       << ",\"sea_level_telemetry\":"
                       << (sea_level_telemetry ? "true" : "false")
                       << ",\"sea_threads\":\"" << config.sea_threads

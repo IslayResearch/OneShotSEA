@@ -1050,12 +1050,41 @@ SearchCurveReport process_search_curve(
         return result;
     };
 
+    std::size_t schoof_pass = 0U;
+    auto extend_schoof = [&](WeberSeaResult& result, std::size_t trace_cap) {
+        stage_start = Clock::now();
+        ++schoof_pass;
+        const SchoofFallbackProgress progress =
+            [&](const SchoofFallbackLevelRecord& level) {
+                report.schoof_fallback_levels.push_back({
+                    schoof_pass,
+                    level.ell,
+                    level.trace_residue,
+                    level.exact_modulus,
+                    level.constraint_modulus,
+                    level.exact_trace_candidate_count,
+                    level.trace_candidate_count,
+                    level.elapsed_us,
+                });
+            };
+        extend_weber_sea_with_schoof_fallback(
+            pair.curve, result, trace_cap, progress);
+        report.timings.sea_us += elapsed_us(stage_start);
+        report.final_exact_trace_candidate_count =
+            result.constraints.candidate_count();
+        report.final_trace_candidate_count =
+            result.effective_constraints.candidate_count();
+    };
+
     WeberSeaResult sea = run_sea(config.early_trace_cap);
     if (sea.compatible_source_lifts.empty() && sea.levels.empty()) {
         report.status = SearchCurveStatus::no_rational_weber_lift;
         report.outcome = {CurveTerminalStage::rejected_sea, false, false};
         report.timings.total_us = elapsed_us(total_start);
         return report;
+    }
+    if (!sea.traces.has_value() && config.enable_schoof_fallback) {
+        extend_schoof(sea, config.early_trace_cap);
     }
     if (!sea.traces.has_value()) {
         report.status = SearchCurveStatus::sea_level_limit;
@@ -1095,7 +1124,13 @@ SearchCurveReport process_search_curve(
     } else {
         // The early enumeration was complete, so the rejection above was
         // sound.  A survivor must now meet the stricter unique-trace gate.
-        sea = run_sea(1U);
+        if (config.enable_schoof_fallback) {
+            // Retain every authenticated Weber/Atkin residue and extend the
+            // same state. Repeating the full table pass would add no evidence.
+            extend_schoof(sea, 1U);
+        } else {
+            sea = run_sea(1U);
+        }
         if (!sea.traces.has_value()) {
             report.status = SearchCurveStatus::sea_level_limit;
             report.outcome = {CurveTerminalStage::rejected_sea, false, true};
@@ -1552,7 +1587,10 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << report.sea_passes << "\",\"sea_levels\":\""
            << report.sea_levels << "\",\"exact_sea_levels\":\""
            << report.exact_sea_levels << "\",\"atkin_sea_levels\":\""
-           << report.atkin_sea_levels << "\",\"initial_trace_count\":\""
+           << report.atkin_sea_levels
+           << "\",\"schoof_fallback_level_count\":\""
+           << report.schoof_fallback_levels.size()
+           << "\",\"initial_trace_count\":\""
            << report.initial_trace_count << '"';
     if (report.final_exact_trace_candidate_count.has_value() &&
         report.final_trace_candidate_count.has_value()) {
@@ -1632,6 +1670,25 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                << level.independent_eigenvalue_recoveries
                << "\",\"conjugate_eigenvalues_derived\":\""
                << level.conjugate_eigenvalues_derived << "\"}";
+    }
+    output << "],\"schoof_fallback_levels\":[";
+    for (std::size_t index = 0U;
+         index < report.schoof_fallback_levels.size(); ++index) {
+        if (index != 0U) {
+            output << ',';
+        }
+        const SearchSchoofFallbackTiming& level =
+            report.schoof_fallback_levels[index];
+        output << "{\"pass\":\"" << level.pass << "\",\"ell\":\""
+               << level.ell << "\",\"trace_residue\":\""
+               << level.trace_residue << "\",\"exact_modulus\":\""
+               << level.exact_modulus << "\",\"constraint_modulus\":\""
+               << level.constraint_modulus
+               << "\",\"exact_trace_candidate_count\":\""
+               << level.exact_trace_candidate_count
+               << "\",\"trace_candidate_count\":\""
+               << level.trace_candidate_count << "\",\"elapsed_us\":\""
+               << level.elapsed_us << "\"}";
     }
     output << ']';
     if (report.certificate.has_value()) {
@@ -1795,6 +1852,11 @@ std::string search_schedule_sha256(
               << "weber_source_lift_policy=" << kWeberSourceLiftPolicy
               << '\n'
               << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+              << "rare_schoof_fallback="
+              << (config.enable_schoof_fallback
+                      ? kRareSchoofFallbackPolicy
+                      : "disabled")
+              << '\n'
               << "heuristic_rejection="
               << (config.skip_incomplete_curves ? "incomplete-only"
                                                 : "disabled")

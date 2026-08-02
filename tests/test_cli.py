@@ -414,6 +414,7 @@ class CliTests(unittest.TestCase):
                 "--checkpoint", root / "checkpoint.json",
                 "--curve-family", "x1-11",
                 "--x1-require-point4", 1,
+                "--schoof-fallback", 1,
                 "--max-curves", 0,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -422,6 +423,7 @@ class CliTests(unittest.TestCase):
             self.assertTrue(
                 records[0]["resources"]["x1_require_point_four"]
             )
+            self.assertTrue(records[0]["resources"]["schoof_fallback"])
             self.assertEqual(records[-1]["processed"], "0")
 
             x127 = self.run_cli(
@@ -457,6 +459,10 @@ class CliTests(unittest.TestCase):
         self.assert_rejected(
             "search", "--p", 101, "--seed", 1,
             "--x1-require-point4", 1,
+        )
+        self.assert_rejected(
+            "search", "--p", 101, "--seed", 1,
+            "--schoof-fallback", 2,
         )
 
     def test_search_can_emit_compact_production_telemetry(self) -> None:

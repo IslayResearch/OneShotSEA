@@ -1130,6 +1130,200 @@ void test_schoof_residues() {
     check(rejected_large_ell, "reference Schoof rejects impractical ell");
 }
 
+void test_retained_state_schoof_fallback() {
+    const mpz_class prime = 101;
+    const oneshotsea::Curve curve =
+        oneshotsea::deterministic_curve(prime, 0xc0ffee, 0);
+    const mpz_class trace =
+        prime + 1 - oneshotsea::count_points_bruteforce(curve);
+
+    oneshotsea::TraceConstraints exact(prime);
+    exact.refine_exact(4U, mpz_fdiv_ui(trace.get_mpz_t(), 4U));
+    oneshotsea::TraceConstraints effective = exact;
+    const std::uint64_t residue5 = mpz_fdiv_ui(trace.get_mpz_t(), 5U);
+    const oneshotsea::AtkinConstraint atkin{
+        5U, 2U, {residue5, (residue5 + 1U) % 5U}};
+    effective.refine(atkin.ell, atkin.trace_residues);
+    oneshotsea::WeberSeaResult retained{
+        exact, effective, {atkin}, {}, {}, {}, std::nullopt};
+
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, retained, 1U);
+    check(retained.traces.has_value() && retained.traces->size() == 1U &&
+              retained.traces->front() == trace,
+          "retained-state Schoof fallback completes the exact p101 trace");
+    check(retained.schoof_fallback_levels.size() == 2U &&
+              retained.schoof_fallback_levels[0].ell == 3U &&
+              retained.schoof_fallback_levels[1].ell == 5U,
+          "fallback uses only the fixed missing exact levels");
+    for (const auto& level : retained.schoof_fallback_levels) {
+        check(level.trace_residue ==
+                  mpz_fdiv_ui(trace.get_mpz_t(), level.ell) &&
+                  level.trace_residue ==
+                      oneshotsea::schoof_trace_mod_ell(curve, level.ell),
+              "fallback residue agrees with brute force and direct Schoof");
+    }
+    check(retained.constraints.modulus() % 5 == 0 &&
+              retained.effective_constraints.modulus() ==
+                  retained.constraints.modulus(),
+          "exact level upgrades and removes redundant Atkin state");
+
+    const std::size_t retained_count =
+        retained.schoof_fallback_levels.size();
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, retained, 1U);
+    check(retained.schoof_fallback_levels.size() == retained_count,
+          "completed fallback does not recompute prior exact moduli");
+
+    oneshotsea::TraceConstraints exact_three(prime);
+    exact_three.refine_exact(3U, mpz_fdiv_ui(trace.get_mpz_t(), 3U));
+    oneshotsea::WeberSeaResult skip_existing{
+        exact_three, exact_three, {}, {}, {}, {}, std::nullopt};
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, skip_existing, 1U);
+    check(!skip_existing.schoof_fallback_levels.empty() &&
+              skip_existing.schoof_fallback_levels.front().ell == 5U &&
+              std::none_of(
+                  skip_existing.schoof_fallback_levels.begin(),
+                  skip_existing.schoof_fallback_levels.end(),
+                  [](const auto& level) { return level.ell == 3U; }),
+          "fallback skips exact moduli already supplied by a prior or table");
+
+    oneshotsea::TraceConstraints two_stage_initial(prime);
+    oneshotsea::WeberSeaResult two_stage{
+        two_stage_initial, two_stage_initial, {}, {}, {}, {}, std::nullopt};
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, two_stage, 16U);
+    check(two_stage.traces.has_value() &&
+              two_stage.traces->size() <= 16U &&
+              two_stage.schoof_fallback_levels.size() == 1U &&
+              two_stage.schoof_fallback_levels.front().ell == 3U,
+          "bounded fallback stops as soon as the early trace cap fits");
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, two_stage, 1U);
+    check(two_stage.traces.has_value() && two_stage.traces->size() == 1U &&
+              two_stage.traces->front() == trace &&
+              two_stage.schoof_fallback_levels.size() == 3U &&
+              two_stage.schoof_fallback_levels[1].ell == 5U &&
+              two_stage.schoof_fallback_levels[2].ell == 13U,
+          "unique-trace extension carries state and computes only new levels");
+
+    for (std::uint64_t index = 0U; index < 4U; ++index) {
+        const oneshotsea::Curve sample =
+            oneshotsea::deterministic_curve(prime, 0x51a11U, index);
+        if (sample.is_singular()) {
+            continue;
+        }
+        const mpz_class expected =
+            prime + 1 - oneshotsea::count_points_bruteforce(sample);
+        oneshotsea::TraceConstraints initial(prime);
+        oneshotsea::WeberSeaResult result{
+            initial, initial, {}, {}, {}, {}, std::nullopt};
+        oneshotsea::extend_weber_sea_with_schoof_fallback(
+            sample, result, 1U);
+        check(result.traces.has_value() && result.traces->size() == 1U &&
+                  result.traces->front() == expected,
+              "small-field fallback differential recovers the exact trace");
+    }
+
+    // For p = 3 (mod 4), y^2 = x^3 + x is supersingular with trace zero.
+    // This field is large enough that the product through ell=17 leaves
+    // multiple Hasse candidates, forcing the fixed ell=19 tail in a unit
+    // test without relying on an external point-counting implementation.
+    const mpz_class tail_prime = 10000019;
+    const oneshotsea::Curve tail_curve(
+        oneshotsea::Field(tail_prime), 1, 0);
+    oneshotsea::TraceConstraints tail_initial(tail_prime);
+    oneshotsea::WeberSeaResult full_tail{
+        tail_initial, tail_initial, {}, {}, {}, {}, std::nullopt};
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        tail_curve, full_tail, 1U);
+    check(full_tail.traces.has_value() &&
+              full_tail.traces->size() == 1U &&
+              full_tail.traces->front() == 0 &&
+              full_tail.schoof_fallback_levels.size() == 5U &&
+              full_tail.schoof_fallback_levels.back().ell == 19U &&
+              full_tail.schoof_fallback_levels.back().trace_residue == 0U,
+          "fixed fallback tail reaches ell=19 and recovers a known supersingular trace");
+
+    oneshotsea::TraceConstraints conflict_exact(prime);
+    conflict_exact.refine_exact(4U, mpz_fdiv_ui(trace.get_mpz_t(), 4U));
+    conflict_exact.refine_exact(3U, mpz_fdiv_ui(trace.get_mpz_t(), 3U));
+    oneshotsea::TraceConstraints conflict_effective = conflict_exact;
+    const oneshotsea::AtkinConstraint conflicting{
+        5U, 2U, {(residue5 + 2U) % 5U}};
+    conflict_effective.refine(
+        conflicting.ell, conflicting.trace_residues);
+    oneshotsea::WeberSeaResult conflict{
+        conflict_exact, conflict_effective, {conflicting}, {}, {}, {},
+        std::nullopt};
+    const mpz_class conflict_exact_modulus =
+        conflict.constraints.modulus();
+    const mpz_class conflict_effective_modulus =
+        conflict.effective_constraints.modulus();
+    const mpz_class conflict_exact_count =
+        conflict.constraints.candidate_count();
+    const mpz_class conflict_effective_count =
+        conflict.effective_constraints.candidate_count();
+    bool rejected_conflict = false;
+    try {
+        oneshotsea::extend_weber_sea_with_schoof_fallback(
+            curve, conflict, 1U);
+    } catch (const std::runtime_error&) {
+        rejected_conflict = true;
+    }
+    check(rejected_conflict &&
+              conflict.constraints.modulus() == conflict_exact_modulus &&
+              conflict.effective_constraints.modulus() ==
+                  conflict_effective_modulus &&
+              conflict.constraints.candidate_count() ==
+                  conflict_exact_count &&
+              conflict.effective_constraints.candidate_count() ==
+                  conflict_effective_count &&
+              conflict.schoof_fallback_levels.empty(),
+          "fallback fails closed transactionally on contradictory Atkin evidence");
+
+    oneshotsea::TraceConstraints callback_initial(prime);
+    oneshotsea::WeberSeaResult callback_failure{
+        callback_initial, callback_initial, {}, {}, {}, {}, std::nullopt};
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, callback_failure, 16U);
+    const mpz_class callback_exact_modulus =
+        callback_failure.constraints.modulus();
+    const mpz_class callback_effective_modulus =
+        callback_failure.effective_constraints.modulus();
+    const mpz_class callback_exact_count =
+        callback_failure.constraints.candidate_count();
+    const mpz_class callback_effective_count =
+        callback_failure.effective_constraints.candidate_count();
+    const auto callback_traces = callback_failure.traces;
+    const std::size_t callback_level_count =
+        callback_failure.schoof_fallback_levels.size();
+    bool callback_rejected = false;
+    try {
+        oneshotsea::extend_weber_sea_with_schoof_fallback(
+            curve, callback_failure, 1U,
+            [](const oneshotsea::SchoofFallbackLevelRecord&) {
+                throw std::runtime_error("forced progress callback failure");
+            });
+    } catch (const std::runtime_error&) {
+        callback_rejected = true;
+    }
+    check(callback_rejected &&
+              callback_failure.constraints.modulus() ==
+                  callback_exact_modulus &&
+              callback_failure.effective_constraints.modulus() ==
+                  callback_effective_modulus &&
+              callback_failure.constraints.candidate_count() ==
+                  callback_exact_count &&
+              callback_failure.effective_constraints.candidate_count() ==
+                  callback_effective_count &&
+              callback_failure.traces == callback_traces &&
+              callback_failure.schoof_fallback_levels.size() ==
+                  callback_level_count,
+          "second-pass callback failure leaves retained state and traces unchanged");
+}
+
 void test_elkies_residues() {
     const auto phi3 = oneshotsea::SparseModularPolynomial::load(
         3, "data/modpoly/j/phi_3.txt");
@@ -1512,6 +1706,7 @@ int main() {
         test_weber_sea_runner();
         test_early_abort();
         test_schoof_residues();
+        test_retained_state_schoof_fallback();
         test_elkies_residues();
         std::cout << "core tests: ok\n";
         return EXIT_SUCCESS;

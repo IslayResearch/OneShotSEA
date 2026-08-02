@@ -3,9 +3,12 @@
 #include "oneshotsea/atkin.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/poly.hpp"
+#include "oneshotsea/schoof.hpp"
 #include "oneshotsea/weber.hpp"
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <filesystem>
 #include <limits>
 #include <map>
@@ -14,6 +17,12 @@
 
 namespace oneshotsea {
 namespace {
+
+using Clock = std::chrono::steady_clock;
+
+constexpr std::array<std::uint64_t, 5> kRareSchoofFallbackLevels = {
+    3U, 5U, 13U, 17U, 19U,
+};
 
 bool is_prime(std::uint64_t value) {
     if (value < 2U) {
@@ -42,6 +51,46 @@ std::optional<std::vector<mpz_class>> enumerate_completed(
     const WeberSeaResult& result, std::size_t cap) {
     return cap == 1U ? result.constraints.enumerate(cap)
                      : result.effective_constraints.enumerate(cap);
+}
+
+std::uint64_t elapsed_us(Clock::time_point start) {
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            Clock::now() - start).count();
+    if (elapsed < 0) {
+        throw std::logic_error("steady clock moved backwards");
+    }
+    return static_cast<std::uint64_t>(elapsed);
+}
+
+TraceConstraints rebuilt_effective_constraints(
+    const TraceConstraints& exact_constraints,
+    const std::vector<AtkinConstraint>& atkin_constraints) {
+    TraceConstraints effective = exact_constraints;
+    for (const AtkinConstraint& atkin : atkin_constraints) {
+        const mpz_class ell(std::to_string(atkin.ell));
+        if (exact_constraints.modulus() % ell == 0) {
+            // The exact state now owns this modulus. Check that the prior
+            // certified Atkin evidence agrees before dropping it as redundant.
+            for (const mpz_class& exact : exact_constraints.residues()) {
+                const std::uint64_t residue =
+                    mpz_fdiv_ui(exact.get_mpz_t(), atkin.ell);
+                if (std::find(atkin.trace_residues.begin(),
+                              atkin.trace_residues.end(), residue) ==
+                    atkin.trace_residues.end()) {
+                    throw std::runtime_error(
+                        "exact Schoof residue contradicts certified Atkin evidence");
+                }
+            }
+            continue;
+        }
+        effective.refine(atkin.ell, atkin.trace_residues);
+    }
+    if (effective.candidate_count() == 0) {
+        throw std::runtime_error(
+            "Schoof-refined effective constraints eliminated the Hasse interval");
+    }
+    return effective;
 }
 
 std::vector<std::uint64_t> available_weber_levels(
@@ -204,7 +253,7 @@ WeberSeaResult run_weber_sea_reference(
             weber_f_lifts(curve.field(), curve.j_invariant());
     }
     WeberSeaResult result{
-        initial_constraints, initial_constraints, {}, {},
+        initial_constraints, initial_constraints, {}, {}, {},
         std::move(source_lifts), std::nullopt};
     if (result.compatible_source_lifts.empty()) {
         return result;
@@ -299,6 +348,79 @@ WeberSeaResult run_weber_sea_reference(
         result.traces = enumerate_completed(result, trace_cap);
     }
     return result;
+}
+
+void extend_weber_sea_with_schoof_fallback(
+    const Curve& curve, WeberSeaResult& result, std::size_t trace_cap,
+    const SchoofFallbackProgress& progress) {
+    if (curve.is_singular()) {
+        throw std::invalid_argument(
+            "Schoof fallback requires a nonsingular curve");
+    }
+    if (curve.field().modulus() != result.constraints.prime() ||
+        curve.field().modulus() != result.effective_constraints.prime()) {
+        throw std::invalid_argument(
+            "Schoof fallback state belongs to a different field");
+    }
+    if (trace_cap == 0U) {
+        throw std::invalid_argument("Schoof fallback trace cap must be positive");
+    }
+    if (result.constraints.candidate_count() == 0 ||
+        result.effective_constraints.candidate_count() == 0) {
+        throw std::invalid_argument(
+            "Schoof fallback requires nonempty retained constraints");
+    }
+
+    if (completion_fits_cap(result, trace_cap)) {
+        result.traces = enumerate_completed(result, trace_cap);
+        return;
+    }
+    bool committed_level = false;
+    for (const std::uint64_t ell : kRareSchoofFallbackLevels) {
+        const mpz_class ell_integer(std::to_string(ell));
+        if (result.constraints.modulus() % ell_integer == 0) {
+            continue;
+        }
+        const Clock::time_point start = Clock::now();
+        const std::uint64_t residue = schoof_trace_mod_ell(curve, ell);
+        TraceConstraints next_exact = result.constraints;
+        next_exact.refine_exact(ell, residue);
+        TraceConstraints next_effective = rebuilt_effective_constraints(
+            next_exact, result.atkin_constraints);
+        SchoofFallbackLevelRecord level{
+            ell,
+            residue,
+            next_exact.modulus(),
+            next_effective.modulus(),
+            next_exact.candidate_count(),
+            next_effective.candidate_count(),
+            elapsed_us(start),
+        };
+        std::vector<SchoofFallbackLevelRecord> next_levels =
+            result.schoof_fallback_levels;
+        next_levels.push_back(level);
+        if (progress) {
+            progress(level);
+        }
+        result.constraints = std::move(next_exact);
+        result.effective_constraints = std::move(next_effective);
+        result.schoof_fallback_levels = std::move(next_levels);
+        result.traces.reset();
+        committed_level = true;
+        if (completion_fits_cap(result, trace_cap)) {
+            result.traces = enumerate_completed(result, trace_cap);
+            break;
+        }
+    }
+    if (!committed_level) {
+        // A cap-1 continuation may revisit a state after every fixed modulus
+        // is already exact. Its earlier cap-N enumeration is not a unique
+        // trace result and must not survive a normal exhausted return.
+        result.traces.reset();
+    }
+    if (!result.traces.has_value() && completion_fits_cap(result, trace_cap)) {
+        result.traces = enumerate_completed(result, trace_cap);
+    }
 }
 
 }  // namespace oneshotsea

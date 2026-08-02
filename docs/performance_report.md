@@ -57,6 +57,17 @@ spent 465.623 s screening 2,376 orders and 1,097.637 s total.  It was a sound
 rejection, but it is not a valid speedup comparison with the later optimized
 index-1 run because the binaries differ.
 
+Index 206 exposed the distinct exhausted-table case: ordinary cap-16 SEA ended
+with 45,948 exact and 9,189 effective candidates after all 76 levels. A
+retained-state exact-Schoof prototype added residues modulo 3, 5, 13, and 17,
+reducing the complete sets to 14/14 in 3.997926 seconds of fallback work. Exact
+screening of the resulting 28 curve/twist orders produced a nonheuristic sound
+smoothness rejection. Invocation wall was 172.17 seconds, but there is no
+same-binary no-fallback completion baseline, so this is completion evidence,
+not a speedup. The measured binary was a patch-identified prototype; index 206
+must be rerun with the final committed frozen binary before the result is used
+as committed-build recovery evidence. See [the fallback audit](schoof_fallback.md).
+
 The retained production history through global index 11 contains twelve sound
 smoothness rejections.  In total, 136 complete trace candidates generated 272
 exact curve/twist order screens, and no exact point count was completed.  This
@@ -569,6 +580,9 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
 - The specialized three-square recurrence, adversarial differential boundary,
   isolated production-degree timings, and exact full p125 replay are in
   [the polynomial-square artifact](../artifacts/local/p125-polynomial-square-20260801/result.json).
+- The prototype index-206 retained-state Schoof command, exact CRT replay,
+  fallback residues, raw hashes, and final-build retest requirement are in
+  [the fallback artifact](../artifacts/local/p125-index206-schoof-fallback-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

@@ -44,7 +44,7 @@ def _verify_checksums(directory: Path) -> int:
         fields = line.split(maxsplit=1)
         if len(fields) != 2 or SHA256.fullmatch(fields[0]) is None:
             raise ValueError(f"malformed SHA256SUMS line {number}")
-        relative = fields[1].removeprefix("*")
+        relative = fields[1][1:] if fields[1].startswith("*") else fields[1]
         path = Path(relative)
         if path.is_absolute() or ".." in path.parts:
             raise ValueError(f"unsafe SHA256SUMS path on line {number}")
@@ -78,7 +78,7 @@ def _timing_us(path: Path, mode: str) -> tuple[int, dict[str, int]]:
     if values.get("timing.mode") != expected_mode:
         raise ValueError(f"wrong timing mode: {path}")
     numeric = {
-        key.removeprefix("timing."): int(value)
+        key[len("timing."):]: int(value)
         for key, value in values.items()
         if key.startswith("timing.") and key not in {"timing.schema", "timing.mode"}
     }
@@ -91,7 +91,7 @@ def _timing_us(path: Path, mode: str) -> tuple[int, dict[str, int]]:
 def _maximum_rss_kib(path: Path) -> int:
     prefix = "Maximum resident set size (kbytes):"
     matches = [
-        line.removeprefix(prefix).strip()
+        line[len(prefix):].strip()
         for line in path.read_text().splitlines()
         if line.startswith(prefix)
     ]

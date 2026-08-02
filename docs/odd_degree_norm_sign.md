@@ -46,3 +46,24 @@ suite was not run, and the prototype is not recommended for production.
 Exact commands, source and binary identities, raw hashes, projection digest,
 and limitations are pinned in
 [the negative artifact](../artifacts/local/p125-odd-degree-norm-sign-20260801/result.json).
+
+## Gauss-lemma follow-up: route closed
+
+The adjacent follow-up removed the dense resultants for the generic point's
+Jacobian coordinates. Multiplication by the recovered absolute scalar `m`
+permutes the kernel's x-root pairs `{+/-kP}`; Gauss's lemma makes the product
+of the required orientation signs exactly `(m/ell)`. The candidate therefore
+retained only the cheap `Norm_A(f) = Res(h,f)` computation.
+
+The focused 18-kernel differential test passed against both independent
+full-y recovery algorithms. A fresh strict p125 `B/S/S/B` gate also preserved
+all 43 non-timing records in every run (42 levels, 21 exact, projection SHA-256
+`5ff8d9c29b2374e37d802af9afadbbbf6a71d455aca172e396ac06acfb0b063b`).
+The targeted odd-degree eigenvalue subtotal improved `1.56006x`, but external
+wall improved only from `14.140` to `13.645` seconds, or `1.036277x`.
+
+That does not strictly exceed the predefined `1.05x` promotion gate. The full
+native/Magma suite was consequently not run, the candidate source is not for
+integration, and the odd-degree norm-sign optimization route is closed. Exact
+identities, stage totals, and raw hashes are in
+[the Gauss-lemma addendum](../artifacts/local/p125-odd-degree-gauss-norm-sign-20260801/result.json).

@@ -151,6 +151,14 @@ That does not strictly exceed the predefined 1.05x gate, so the prototype was
 rejected despite identical 42-level projections. See
 [the negative norm artifact](../artifacts/local/p125-odd-degree-norm-sign-20260801/result.json).
 
+The adjacent Gauss-lemma variant then eliminated the dense norms of the
+generic point's Jacobian coordinates, retaining only `Norm(f)`. Its focused
+18-kernel differential test passed and the targeted odd-degree subtotal
+improved by 1.56006x, but a fresh strict B/S/S/B gate moved mean wall only from
+14.140 to 13.645 seconds (1.036277x). All 43 non-timing level-and-summary
+records matched. The candidate was rejected without a full promotion suite,
+closing this route; see [the Gauss-lemma addendum](../artifacts/local/p125-odd-degree-gauss-norm-sign-20260801/result.json).
+
 A follow-up exact cleanup retained the modulus and denominator coefficient
 vectors by const reference in the two quadratic elimination loops, removing an
 `mpz_class` copy from every inner product.  Five strictly interleaved

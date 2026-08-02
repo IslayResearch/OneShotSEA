@@ -1,0 +1,88 @@
+{
+  "schema": "oneshotsea.p125-odd-degree-gauss-norm-sign.v1",
+  "date": "2026-08-01",
+  "classification": "isolated strict B/S/S/B p125 SEA gate; production was paused at frontier 367 with 120 sound records and CRC 56f74c0324fb51a1; no search state advanced; production resumed unchanged",
+  "optimization": {
+    "description": "replace the dense Norm(Y) and Norm(Z) resultants in odd-degree Frobenius sign recovery with Gauss's lemma, retaining only Norm(f)=Res(kernel,f)",
+    "identity": "multiplication by the recovered absolute scalar m permutes the x-root pairs {+/-kP}; the product of orientation signs is the Legendre symbol (m/ell), so Norm_A(R_m)=(m/ell)",
+    "baseline_commit": "43ca2d7468a5f1e28be0370deb4351b1c3f04d77",
+    "candidate_commit": "eac3d65a5f1fa9aab1500cbdcf8c00ee95f738d1",
+    "candidate_patch": "/private/tmp/oneshotsea-norm-sign.Qrfk80/gauss-candidate/0001-Recover-odd-degree-Frobenius-signs-by-norm.patch",
+    "candidate_patch_sha256": "a3cbebe3ea330f0686ef64cfcb7ab7158263488d6c5d6bcd77c2fdf04735ec91",
+    "source_sha256": {
+      "include/oneshotsea/torsion.hpp": "c4bb12af7b4cd814dda29dec9fe818292c0eb3b52c9971fb86ae9e7935e3cd00",
+      "src/schoof.cpp": "167cb15a2c050bca7613ad4749cdd6903e9a4a12c49c53d3bc78dae811c71fcc",
+      "tests/test_eigenvalue_mitm.cpp": "e6bcf32ddcdcef931a059faf9f5f49469dc7449d5cb1013d81ac0874e796f027"
+    }
+  },
+  "build": {
+    "isolated_clone": "/private/tmp/oneshotsea-norm-sign.Qrfk80/repo",
+    "baseline_binary": "/private/tmp/oneshotsea-norm-sign.Qrfk80/oneshotsea-baseline",
+    "baseline_binary_sha256": "68aa322c349d235075dbcd69c9bbd979126b9d96d28e423d32f170f29a6055dc",
+    "candidate_binary": "/private/tmp/oneshotsea-norm-sign.Qrfk80/oneshotsea-gauss",
+    "candidate_binary_sha256": "dac2038bba8e42c66c609cda7487df2a702c003603f099d09299a9ae5cafd83c",
+    "weber_manifest_sha256": "e5b84a87335523f79d47f140d70ceddee9e1c6891a7fae8aaadcae5c080de3ab"
+  },
+  "validation": {
+    "focused_command": "make -j1 test-eigenvalue-mitm",
+    "focused_result": "pass: 18 kernels; ell=3/7 division-polynomial fixtures, ell=11 validated BMSS fixture, both signs, and automatic-selector equality against retained full-y linear and meet-in-the-middle oracles",
+    "full_native_magma_suite": "not run because the candidate failed the predeclared wall-speed promotion gate"
+  },
+  "benchmark": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "a": "82574189722949072957728522659737830385005094873485824210996693879529527019787746889866491875855403894941918864621858709713497",
+    "b": "88382793148632715305152348439825220256670063248990549473997795919686351346525164593244327917236935929961279243081239139809077",
+    "common_arguments": "sea-weber-count --p P --a A --b B --max-level 193 --table-dir data/modpoly/weber_f --trace-cap 64 --sea-threads 10 --root-orbit-reuse 1 --conjugate-eigenvalue-reuse 1",
+    "order": ["baseline", "candidate", "candidate", "baseline"],
+    "promotion_gate": "wall speedup strictly greater than 1.05x",
+    "runs": [
+      {"name":"b1","wall_s":14.12,"modular_roots_us":8365723,"bmss_us":2132507,"eigenvalue_us":3265273,"odd_degree_eigenvalue_us":1955545,"even_degree_eigenvalue_us":1309728,"normalized_codomain_us":265119},
+      {"name":"s1","wall_s":13.75,"modular_roots_us":8427672,"bmss_us":2161360,"eigenvalue_us":2557495,"odd_degree_eigenvalue_us":1252402,"even_degree_eigenvalue_us":1305093,"normalized_codomain_us":268687},
+      {"name":"s2","wall_s":13.54,"modular_roots_us":8438899,"bmss_us":2182218,"eigenvalue_us":2574407,"odd_degree_eigenvalue_us":1257039,"even_degree_eigenvalue_us":1317368,"normalized_codomain_us":270956},
+      {"name":"b2","wall_s":14.16,"modular_roots_us":8395728,"bmss_us":2152387,"eigenvalue_us":3278637,"odd_degree_eigenvalue_us":1959335,"even_degree_eigenvalue_us":1319302,"normalized_codomain_us":268230}
+    ],
+    "means": {
+      "baseline_wall_s": 14.14,
+      "candidate_wall_s": 13.645,
+      "wall_speedup": 1.0362770245511177,
+      "baseline_modular_roots_us": 8380725.5,
+      "candidate_modular_roots_us": 8433285.5,
+      "modular_roots_speedup": 0.9937675535827644,
+      "baseline_bmss_us": 2142447,
+      "candidate_bmss_us": 2171789,
+      "bmss_speedup": 0.986489479410753,
+      "baseline_eigenvalue_us": 3271955,
+      "candidate_eigenvalue_us": 2565951,
+      "eigenvalue_speedup": 1.2751432120098942,
+      "baseline_odd_degree_eigenvalue_us": 1957440,
+      "candidate_odd_degree_eigenvalue_us": 1254720.5,
+      "odd_degree_eigenvalue_speedup": 1.5600605871985036,
+      "baseline_even_degree_eigenvalue_us": 1314515,
+      "candidate_even_degree_eigenvalue_us": 1311230.5,
+      "even_degree_eigenvalue_speedup": 1.0025048990242371,
+      "baseline_normalized_codomain_us": 266674.5,
+      "candidate_normalized_codomain_us": 269821.5,
+      "normalized_codomain_speedup": 0.9883367337295211
+    }
+  },
+  "exact_equivalence": {
+    "records_per_run": 43,
+    "levels": 42,
+    "exact_levels": 21,
+    "odd_degree_exact_levels": 10,
+    "all_non_timing_level_and_summary_records_equal": true,
+    "projection_transform": "jq -cS 'if .type == \"level\" then del(.timings_us) else . end'",
+    "projection_sha256_all_four_runs": "5ff8d9c29b2374e37d802af9afadbbbf6a71d455aca172e396ac06acfb0b063b"
+  },
+  "raw": {
+    "retention": "raw logs and projections remain in the isolated benchmark directory and are pinned by hash; they are not committed",
+    "logs": [
+      {"name":"b1","path":"/private/tmp/oneshotsea-norm-sign.Qrfk80/g-b1.log","sha256":"22f32ccd0f5b3756ed6d6807b8516e26d8cccccaab8ea54a0547ef32c67c6461"},
+      {"name":"s1","path":"/private/tmp/oneshotsea-norm-sign.Qrfk80/g-s1.log","sha256":"e20f80570ef98d854f5c0c7959fbf80d2a39b45f5b7a8a215d988eacf78b5ef8"},
+      {"name":"s2","path":"/private/tmp/oneshotsea-norm-sign.Qrfk80/g-s2.log","sha256":"18d490088151a73b9e89fda70930fd54656102525e3ae28725f3774df4519a43"},
+      {"name":"b2","path":"/private/tmp/oneshotsea-norm-sign.Qrfk80/g-b2.log","sha256":"0fcb0fffaf9a6b1c1df9f27cb42aab57a00e91119bcfb71da7bf9ceaae295b54"}
+    ],
+    "external_time_note": "/usr/bin/time emitted a sandbox-only sysctl kern.clockrate diagnostic after each normal program summary; real/user/sys measurements were still emitted"
+  },
+  "decision": "rejected and route closed: 1.036277x does not strictly exceed the required 1.05x wall gate; do not integrate the candidate source"
+}

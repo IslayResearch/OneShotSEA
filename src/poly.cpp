@@ -21,6 +21,131 @@ void require_probable_prime_field(const Poly& polynomial) {
 }
 
 constexpr std::size_t kKaratsubaCoefficientThreshold = 32U;
+constexpr unsigned int kMaximumPowmodWindowBits = 5U;
+
+struct PowmodWindowStep {
+    std::size_t squarings;
+    unsigned int odd_power;
+};
+
+struct PowmodPlan {
+    bool exponent_is_zero = true;
+    unsigned int window_bits = 1U;
+    unsigned int first_odd_power = 0U;
+    unsigned int maximum_odd_power = 0U;
+    std::vector<PowmodWindowStep> steps;
+    std::size_t trailing_squarings = 0U;
+    std::size_t operation_count = 0U;
+};
+
+PowmodPlan powmod_plan_for_width(const mpz_class& exponent,
+                                 unsigned int window_bits) {
+    PowmodPlan plan;
+    plan.window_bits = window_bits;
+    if (exponent == 0) {
+        return plan;
+    }
+    plan.exponent_is_zero = false;
+    const std::size_t bit_count = mpz_sizeinbase(exponent.get_mpz_t(), 2);
+    std::size_t cursor = bit_count;
+    bool first = true;
+    std::size_t pending_zero_squarings = 0U;
+    while (cursor > 0U) {
+        const std::size_t high_bit = cursor - 1U;
+        if (mpz_tstbit(exponent.get_mpz_t(), high_bit) == 0) {
+            ++pending_zero_squarings;
+            --cursor;
+            continue;
+        }
+        const std::size_t low_limit =
+            cursor > window_bits ? cursor - window_bits : 0U;
+        std::size_t low_bit = low_limit;
+        while (low_bit < high_bit &&
+               mpz_tstbit(exponent.get_mpz_t(), low_bit) == 0) {
+            ++low_bit;
+        }
+        unsigned int odd_power = 0U;
+        for (std::size_t bit = high_bit + 1U; bit-- > low_bit;) {
+            odd_power = static_cast<unsigned int>(
+                (odd_power << 1U) |
+                static_cast<unsigned int>(
+                    mpz_tstbit(exponent.get_mpz_t(), bit) != 0));
+        }
+        const std::size_t width = high_bit - low_bit + 1U;
+        plan.maximum_odd_power =
+            std::max(plan.maximum_odd_power, odd_power);
+        if (first) {
+            plan.first_odd_power = odd_power;
+            first = false;
+        } else {
+            plan.steps.push_back(
+                {pending_zero_squarings + width, odd_power});
+        }
+        pending_zero_squarings = 0U;
+        cursor = low_bit;
+    }
+    plan.trailing_squarings = pending_zero_squarings;
+
+    plan.operation_count = plan.trailing_squarings + plan.steps.size();
+    for (const PowmodWindowStep& step : plan.steps) {
+        plan.operation_count += step.squarings;
+    }
+    if (plan.maximum_odd_power > 1U) {
+        // One square for base^2, then one multiply for every odd table entry.
+        plan.operation_count +=
+            1U + static_cast<std::size_t>(
+                       (plan.maximum_odd_power - 1U) / 2U);
+    }
+    return plan;
+}
+
+PowmodPlan make_powmod_plan(const mpz_class& exponent) {
+    PowmodPlan best = powmod_plan_for_width(exponent, 1U);
+    for (unsigned int width = 2U; width <= kMaximumPowmodWindowBits;
+         ++width) {
+        PowmodPlan candidate = powmod_plan_for_width(exponent, width);
+        // Exact operation-count selection prevents table setup from regressing
+        // sparse or small arbitrary exponents. Ties retain the smaller table.
+        if (candidate.operation_count < best.operation_count) {
+            best = std::move(candidate);
+        }
+    }
+    return best;
+}
+
+Poly apply_powmod_plan(const Poly& base, const PowmodPlan& plan,
+                       const Poly& modulus) {
+    if (plan.exponent_is_zero) {
+        return Poly::constant(base.field(), 1);
+    }
+    std::vector<Poly> odd_powers;
+    odd_powers.reserve(
+        static_cast<std::size_t>((plan.maximum_odd_power + 1U) / 2U));
+    odd_powers.push_back(base);
+    if (plan.maximum_odd_power > 1U) {
+        const Poly base_squared = squaremod(base, modulus);
+        for (unsigned int odd = 3U; odd <= plan.maximum_odd_power; odd += 2U) {
+            odd_powers.push_back(
+                mulmod(odd_powers.back(), base_squared, modulus));
+        }
+    }
+    const auto table_value = [&odd_powers](unsigned int odd_power)
+                                 -> const Poly& {
+        return odd_powers.at(
+            static_cast<std::size_t>((odd_power - 1U) / 2U));
+    };
+    Poly result = table_value(plan.first_odd_power);
+    for (const PowmodWindowStep& step : plan.steps) {
+        for (std::size_t count = 0U; count < step.squarings; ++count) {
+            result = squaremod(result, modulus);
+        }
+        result = mulmod(result, table_value(step.odd_power), modulus);
+    }
+    for (std::size_t count = 0U; count < plan.trailing_squarings; ++count) {
+        result = squaremod(result, modulus);
+    }
+    return result;
+}
 
 std::vector<mpz_class> schoolbook_product(
     std::span<const mpz_class> lhs, std::span<const mpz_class> rhs) {
@@ -413,18 +538,8 @@ Poly powmod(Poly base, mpz_class exponent, const Poly& modulus) {
     if (exponent < 0) {
         throw std::invalid_argument("negative polynomial exponent");
     }
-    Poly result = Poly::constant(base.field(), 1);
     base = mod(base, modulus);
-    while (exponent > 0) {
-        if (mpz_odd_p(exponent.get_mpz_t()) != 0) {
-            result = mulmod(result, base, modulus);
-        }
-        exponent >>= 1;
-        if (exponent > 0) {
-            base = squaremod(base, modulus);
-        }
-    }
-    return result;
+    return apply_powmod_plan(base, make_powmod_plan(exponent), modulus);
 }
 
 int rational_root_count(const Poly& polynomial) {

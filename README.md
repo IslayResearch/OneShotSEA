@@ -19,7 +19,8 @@ claimed until the unmodified pinned verifier accepts it. The repository
 currently includes:
 
 - a portable GMP-backed finite-field and thresholded Karatsuba polynomial
-  layer, native Schoof reference, and independent Python/Magma oracle paths;
+  layer with exact-cost windowed quotient exponentiation, native Schoof
+  reference, and independent Python/Magma oracle paths;
 - an authenticated 77-level Weber-f schedule through level 401, normalized
   BMSS isogeny recovery, exact Frobenius residues, verified 24th-root
   source-lift orbit reuse, and exact conjugate-eigenvalue reuse;

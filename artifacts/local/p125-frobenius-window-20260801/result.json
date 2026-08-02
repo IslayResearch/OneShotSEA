@@ -1,0 +1,115 @@
+{
+  "schema": "oneshotsea.frobenius-window-ab.v1",
+  "date": "2026-08-01",
+  "classification": "bounded local paired benchmark; production paused at authenticated next_index 146; no search cursor advanced",
+  "host": "Apple M4, 10 cores, 16 GiB",
+  "compiler": "Apple clang 21.0.0, arm64-apple-darwin25.5.0",
+  "change": "replace right-to-left binary Poly::powmod with an exact-cost-selected unsigned odd-power window of width at most five",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "curve_family": "x1-11",
+    "index": 17,
+    "known_source_lift": true,
+    "max_level": 401,
+    "trace_cap": 16,
+    "sea_threads": 1
+  },
+  "operation_counts": {
+    "definition": "quotient-ring squarings and multiplications, including odd-power-table construction",
+    "p": {"binary": 566, "windowed": 478, "reduction": 0.15547703180212014},
+    "p_minus_one_over_two": {"binary": 564, "windowed": 477, "reduction": 0.15425531914893617},
+    "p_squared": {"binary": 1182, "windowed": 964, "reduction": 0.1844331641285956},
+    "p_squared_minus_one_over_two": {"binary": 1180, "windowed": 963, "reduction": 0.1838983050847458}
+  },
+  "build": {
+    "baseline_commit": "9655670bc8667cfee91afd91b4cdbca5ce2b1752",
+    "benchmark_source_sha256": "a13766e3eb5428686b51e6fdfd1e605d7fb1720a7a8fcaf2e8ac8cdad3ac85c1",
+    "baseline_library_sha256": "4fe1bb46b6b4892368e4009fd125bb37861a19fd143b63d433906d209669384a",
+    "patched_library_sha256_at_benchmark": "1931e0bb19780cf03b7b94a9f92c459e371ea0afb111e231bef1f1a41188a6ef",
+    "baseline_benchmark_binary_sha256": "26b399e768d2416ad4a86f4e5b9bf0ba2818698bebc47d3dd2c53db3c36d9ba1",
+    "patched_benchmark_binary_sha256": "6606ef14b999ccbed452903b5d50ebd059be982f4aa7adb286920c4a572acdee",
+    "patched_poly_source_sha256_at_benchmark": "1abe566f97f5414812534806e09553ff15479aa75b227d0c2668246771c2caa9",
+    "expanded_core_test_sha256_at_benchmark": "73468f503271bd7de0f2b6badaff8c9455912a2e3c18d66910d9dcfed7e366e7",
+    "prototype_patch_sha256": "812a00cbc9ac9af3f437d3549c83d31d939c150c4c09c9dd1348d5483c9b1e5c"
+  },
+  "runs": [
+    {
+      "pair": 1,
+      "mode": "baseline",
+      "elapsed_us": 56795370,
+      "modular_roots_us": 31840311,
+      "bmss_us": 7324001,
+      "eigenvalue_us": 17502496,
+      "external_real_seconds": 57.76
+    },
+    {
+      "pair": 1,
+      "mode": "windowed",
+      "elapsed_us": 49124211,
+      "modular_roots_us": 23978000,
+      "bmss_us": 7410707,
+      "eigenvalue_us": 17608617,
+      "external_real_seconds": 49.97
+    },
+    {
+      "pair": 2,
+      "mode": "windowed",
+      "elapsed_us": 49231732,
+      "modular_roots_us": 24047538,
+      "bmss_us": 7406780,
+      "eigenvalue_us": 17650432,
+      "external_real_seconds": 49.75
+    },
+    {
+      "pair": 2,
+      "mode": "baseline",
+      "elapsed_us": 57380928,
+      "modular_roots_us": 32174390,
+      "bmss_us": 7422360,
+      "eigenvalue_us": 17652191,
+      "external_real_seconds": 58.05
+    }
+  ],
+  "means": {
+    "baseline_elapsed_us": 57088149,
+    "windowed_elapsed_us": 49177971.5,
+    "elapsed_speedup": 1.1608479825159117,
+    "elapsed_reduction": 0.13856076328556388,
+    "baseline_modular_roots_us": 32007350.5,
+    "windowed_modular_roots_us": 24012769,
+    "modular_root_speedup": 1.3329304296393307,
+    "modular_root_reduction": 0.2497732981678693,
+    "baseline_external_real_seconds": 57.905,
+    "windowed_external_real_seconds": 49.86,
+    "external_real_speedup": 1.1613517849979944
+  },
+  "exact_equivalence": {
+    "level_count": 55,
+    "final_trace_count": 1,
+    "ell_sequence": true,
+    "exact_classification": true,
+    "trace_residues": true,
+    "exact_moduli": true,
+    "trace_candidate_counts": true,
+    "final_trace_vector": true,
+    "projection_sha256": "22b0daab7318b737f93bf44c3ba57006ad9a2a76e86ed308ae84d57827631e27",
+    "final_trace": "99665767869812870924682147829487733751548741139379532401938818"
+  },
+  "tests": {
+    "short_exponents_zero_through_1024": true,
+    "target_p_and_half_p_exponents": true,
+    "target_p_squared_and_half_p_squared_exponents": true,
+    "nonmonic_quotient": true,
+    "reducible_repeated_factor_quotient": true,
+    "constant_modulus": true,
+    "zero_modulus": true,
+    "negative_exponent": true,
+    "focused_core_test": "passed",
+    "clean_test_all_with_magma": "passed"
+  },
+  "raw": {
+    "summary": "raw-summary.txt",
+    "summary_sha256": "3c482e09e29aee5be57ecf92acf66870fa5ed8b9645ef51a3445ba27005ac6de"
+  }
+}

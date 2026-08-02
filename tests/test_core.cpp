@@ -48,6 +48,27 @@ std::uint64_t small_pow_mod(std::uint64_t base, std::uint64_t exponent,
     return result;
 }
 
+oneshotsea::Poly binary_powmod_reference(
+    oneshotsea::Poly base, mpz_class exponent,
+    const oneshotsea::Poly& modulus) {
+    if (exponent < 0) {
+        throw std::invalid_argument("negative reference exponent");
+    }
+    oneshotsea::Poly result =
+        oneshotsea::Poly::constant(base.field(), 1);
+    base = oneshotsea::mod(base, modulus);
+    while (exponent > 0) {
+        if (mpz_odd_p(exponent.get_mpz_t()) != 0) {
+            result = oneshotsea::mulmod(result, base, modulus);
+        }
+        exponent >>= 1;
+        if (exponent > 0) {
+            base = oneshotsea::squaremod(base, modulus);
+        }
+    }
+    return result;
+}
+
 mpz_class target_prime() {
     return oneshotsea::parse_integer(
         "10000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -236,6 +257,64 @@ void test_polynomial() {
               oneshotsea::squaremod(left, modulus),
               oneshotsea::mod(oneshotsea::mul(left, left), modulus)),
           "direct modular polynomial squaring");
+
+    // Differentially cover every short exponent shape, plus the fixed large
+    // exponents used by p125 Frobenius and Schoof. The reference deliberately
+    // retains the former right-to-left binary algorithm.
+    const oneshotsea::Poly pow_base(field,
+                                    {13, 97, 5, 81, 44, 3, 72, 19, 8});
+    const oneshotsea::Poly pow_modulus(
+        field, {91, 4, 82, 17, 63, 25, 7, 9, 3});
+    for (unsigned long exponent = 0U; exponent <= 1024U; ++exponent) {
+        check(oneshotsea::equal(
+                  oneshotsea::powmod(pow_base, exponent, pow_modulus),
+                  binary_powmod_reference(pow_base, exponent, pow_modulus)),
+              "sliding-window powmod matches binary for short exponents");
+    }
+    const mpz_class p125 = target_prime();
+    for (const mpz_class& exponent :
+         std::vector<mpz_class>{p125, (p125 - 1) / 2, p125 * p125,
+                                (p125 * p125 - 1) / 2}) {
+        check(oneshotsea::equal(
+                  oneshotsea::powmod(pow_base, exponent, pow_modulus),
+                  binary_powmod_reference(pow_base, exponent, pow_modulus)),
+              "sliding-window powmod matches binary for target exponents");
+    }
+    const oneshotsea::Poly repeated_factor_modulus =
+        oneshotsea::scalar_mul(oneshotsea::mul(f, f), 3);
+    for (const mpz_class& exponent :
+         std::vector<mpz_class>{p125, (p125 - 1) / 2, p125 * p125,
+                                (p125 * p125 - 1) / 2}) {
+        check(oneshotsea::equal(
+                  oneshotsea::powmod(pow_base, exponent,
+                                     repeated_factor_modulus),
+                  binary_powmod_reference(pow_base, exponent,
+                                          repeated_factor_modulus)),
+              "sliding-window powmod is exact in a nonmonic repeated-factor quotient");
+    }
+
+    const oneshotsea::Poly constant_modulus =
+        oneshotsea::Poly::constant(field, 7);
+    check(oneshotsea::powmod(pow_base, 0, constant_modulus).is_one() &&
+              oneshotsea::powmod(pow_base, p125, constant_modulus).is_zero(),
+          "sliding-window powmod preserves constant-modulus edge behavior");
+    bool negative_pow_rejected = false;
+    try {
+        static_cast<void>(oneshotsea::powmod(pow_base, -1, pow_modulus));
+    } catch (const std::invalid_argument&) {
+        negative_pow_rejected = true;
+    }
+    check(negative_pow_rejected,
+          "sliding-window powmod rejects negative exponents");
+    bool zero_pow_modulus_rejected = false;
+    try {
+        static_cast<void>(oneshotsea::powmod(
+            pow_base, 0, oneshotsea::Poly(field)));
+    } catch (const std::domain_error&) {
+        zero_pow_modulus_rejected = true;
+    }
+    check(zero_pow_modulus_rejected,
+          "sliding-window powmod preserves zero-modulus rejection at exponent zero");
 
     const oneshotsea::Poly temporary_field_poly(oneshotsea::Field(101), {1, 2});
     check(temporary_field_poly.evaluate(3) == 7,

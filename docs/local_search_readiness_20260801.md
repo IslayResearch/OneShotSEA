@@ -98,6 +98,24 @@ authority where that tree was subsequently extended.
   The exact binary is pinned in the run directory; the restart script checks
   its digest before execution.  The stronger trace-prior policy changes the
   schedule identity, so its successor must begin at 90.
+- The modulus-176/deferred-normalization production identity was commit
+  `9655670bc8667cfee91afd91b4cdbca5ce2b1752`, executable SHA-256
+  `77e42838a0388b152fa03949da33fd52375fda619de786260b1fcac6baf001f7`,
+  schedule `55c31578d49d91ca9050fd3eba94c93f9bfdb170b818bf4a96dff718fdc04641`,
+  and range `[90,1000000)`. It durably processed indices 90--145 as 56
+  sound early rejections, including 32 full point counts, with zero heuristic
+  rejections and zero certificates. Its checkpoint is `next_index=146`, CRC64
+  `6b9f21329467e794`; checkpoint, progress, log, and launch-script SHA-256
+  values are
+  `3f19eea6c41a9e685a52395d6c20926d4095e96804af12d8dd4208efd1cbbcd0`,
+  `198053f6c8dd131f6c487fd451ee21b89c6538984355e37f012cf472b9f32831`,
+  `43e255833ac4e3a4dfbf8727301de7ec0b3998a5f5cabb523cde985dc763e05f`,
+  and `37e18b26294b66e7c9ae5792bd6cfe5b7e6e46d6d200f638688fead35c902c7a`.
+  The immutable binary remains at `work/oneshotsea-9655670`. A failed nested-
+  binary startup, which touched no checkpoint, is separately preserved and is
+  not outcome evidence. The exact-cost Frobenius-window arithmetic changes the
+  build identity, so its successor begins at 146 rather than loading this
+  checkpoint.
 
 The filtered artifacts were extended after `docs/benchmark_20260731.md` was
 written.  Their current authoritative digests are:
@@ -262,11 +280,12 @@ reduction and no pre-policy checkpoint can be resumed under it.
 
 ## Next local action
 
-Commit `8c1605f` passed the complete test and clean-build gate for the exact
-trace-prior policy, and the cap ablation selected 16.  Authenticated production
-identities advanced through index 89.  Start the deferred-normalization,
-modulus-176 X1(11) point-four identity at global index 90; its semantic
-schedule change means the old checkpoint is evidence, not resumable state.
+Authenticated production identities have advanced through index 145. The
+modulus-176/deferred-normalization build stopped cleanly at `next_index=146`
+for a bounded arithmetic A/B. Start the exact-cost Frobenius-window X1(11)
+point-four identity at global index 146 after its clean test, commit, and push
+gates; its new build identity means the old checkpoint is evidence, not
+resumable state.
 The held-out scheduling A/B found the measured
 alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
 build id and `search-NEXT` directory below with the exact committed
@@ -279,7 +298,7 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 90 --range-end 1000000 \
+  --range-start 146 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --curve-family x1-11 --x1-require-point4 1 \
   --max-level 401 --trace-cap 16 --curve-threads 10 --sea-threads 1 \
@@ -300,7 +319,7 @@ mkdir work/p125/search-NEXT
 Before the continuation, confirm the emitted search-start record has
 the expected X1 family, point-four flag, cache, table, range, seed, build, and
 new schedule identities.  Confirm each curve record is non-heuristic and
-reports the expected mod-88 signed trace prior; confirm no `ell=11` SEA level is
+reports the expected mod-176 signed trace prior; confirm no `ell=11` SEA level is
 emitted.  A curve must either advance soundly or produce a locally verified
 certificate.  Use one process with ten rolling curve slots, one SEA thread and
 one smooth thread per curve.  The earlier same-binary scaling replay measured

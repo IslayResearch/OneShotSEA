@@ -289,6 +289,16 @@ seconds (1.03840x), and eigenvalue recovery from 18.652 to 17.810 seconds
 Evidence is in
 `artifacts/local/p125-deferred-product-normalization-20260801/result.json`.
 
+Polynomial Frobenius now uses an unsigned odd-power window selected from
+widths one through five by exact quotient-operation count, including table
+setup.  The no-inverse construction is exact in reducible and repeated-factor
+quotients; the former binary path remains the differential reference.  Two
+reverse-order p125 index-17 pairs reduced mean SEA from 57.088 to 49.178
+seconds (1.16085x), modular roots from 32.007 to 24.013 seconds (1.33293x),
+and external wall from 57.905 to 49.860 seconds (1.16135x).  All 55 exact
+level projections and the final trace matched. Evidence is in
+`artifacts/local/p125-frobenius-window-20260801/result.json`.
+
 ### Classical-j comparison boundary
 
 The checked-in low-level tables show the expected footprint direction, but
@@ -515,6 +525,9 @@ yield.
   [the negative A/B artifact](../artifacts/local/p125-reciprocal-reduction-20260801/result.json).
 - The accepted redundant-normalization removal and exact paired p125 timing
   are in [the deferred-normalization artifact](../artifacts/local/p125-deferred-product-normalization-20260801/result.json).
+- The exact-cost polynomial window, quotient-ring differential boundary,
+  operation counts, and reverse-order p125 pairs are in
+  [the Frobenius-window artifact](../artifacts/local/p125-frobenius-window-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

@@ -100,8 +100,9 @@ certificate file.  The full evidence and derived checked summary are in
 Including cache authentication/loading and the short-run tail, the probe
 measured 26.7 elapsed seconds per curve, 134.83 curves/hour, and an estimated
 `$0.1431` of worker time.  At that observed rate, the separately checked
-optimistic X1(27) smooth-order model's 96,286 curves would require about 714
-hours and `$459`.  This is deliberately not called a certificate-cost estimate:
+optimistic X1(27) cyclic-divisor smooth-order probability
+`0.000010446455027346424` implies about 95,726 curves, 710 hours, and `$456.51`.
+This is deliberately not called a certificate-cost estimate:
 the model is optimistic and exact-order assembly or curve/twist dependence can
 lower realized yield.
 
@@ -124,6 +125,14 @@ rejection.  The replacement production run must use the full positive assigned
 range count `998999970`; the separate 14,400-second timeout remains the
 effective spend boundary.  At the probe rate that cap projects about 539 curves
 and `$2.57`, or 0.56% of the optimistic expected-curve scale.
+
+Replacement run `p125-runpod-cpu16-prod-20260802b` deployed commit `ffedd29`
+over `[1000030,1000000000)` with that positive cap.  At `2026-08-02T18:56:44Z`
+the live worker had durably committed indices `1000030` and `1000031`, advanced
+its authenticated checkpoint to `1000032`, and was using about nine CPU cores.
+This proves the corrected launch escaped the zero-work path.  The run remains
+subject to the same candidate-or-four-hour fetch boundary; a mutable live
+snapshot is not presented as a completed run artifact.
 
 AWS has no active resources and incurred no cost for this work.  The retained
 four-core AWS benchmark was much slower than both the local host and this

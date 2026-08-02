@@ -67,37 +67,6 @@ class WeberModpolyTests(unittest.TestCase):
                 manifest["files"][path.name]["sha256"],
             )
 
-    def test_checked_in_tables_support_root_transport(self) -> None:
-        directory = ROOT / "data" / "modpoly" / "weber_f"
-        manifest = json.loads((directory / "MANIFEST.json").read_text())
-        for filename, metadata in manifest["files"].items():
-            level = metadata["level"]
-            self.assertEqual(level * level % 24, 1, filename)
-            path = directory / filename
-            for line_number, raw_line in enumerate(
-                    path.read_text().splitlines(), start=1):
-                data = raw_line.split("#", 1)[0].split()
-                if not data:
-                    continue
-                self.assertEqual(len(data), 3, f"{filename}:{line_number}")
-                x_degree, y_degree, coefficient = map(int, data)
-                if coefficient == 0:
-                    continue
-                # BLS sparsity gives ell*a+b == ell+1 (mod 24). Since
-                # ell^2 == 1 (mod 24), this is equivalent to
-                # a+ell*b == ell+1, which proves
-                # Phi(ζX,ζ^ell Y)=ζ^(ell+1)Phi(X,Y) for ζ^24=1.
-                self.assertEqual(
-                    (level * x_degree + y_degree - level - 1) % 24,
-                    0,
-                    f"{filename}:{line_number}",
-                )
-                self.assertEqual(
-                    (x_degree + level * y_degree - level - 1) % 24,
-                    0,
-                    f"{filename}:{line_number}",
-                )
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -9,7 +9,7 @@ cd "$project_root"
     echo "this retained build recipe targets the Linux RunPod host" >&2
     exit 1
 }
-for command in g++ gcc make nproc sha256sum; do
+for command in g++-11 gcc-11 make nproc sha256sum; do
     command -v "$command" >/dev/null || {
         echo "missing build command: $command" >&2
         exit 1
@@ -17,8 +17,8 @@ for command in g++ gcc make nproc sha256sum; do
 done
 
 jobs=$(nproc)
-# The current RunPod image uses GCC 9, whose spelling for C++20 is c++2a.
-common_cxxflags='-O2 -g -std=c++2a -Wall -Wextra -Wpedantic -Wconversion -Wshadow'
+# GCC 11 is the installed RunPod toolchain with complete std::span support.
+common_cxxflags='-O2 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow'
 common_cflags='-O2 -g -std=c11'
 
 build_variant() {
@@ -29,7 +29,7 @@ build_variant() {
         exit 1
     }
     make -j"$jobs" \
-        CC=gcc CXX=g++ BUILD_DIR="$build_dir" \
+        CC=gcc-11 CXX=g++-11 BUILD_DIR="$build_dir" \
         CPPFLAGS='-Iinclude' LDFLAGS= \
         CFLAGS="$common_cflags" CXXFLAGS="$cxxflags" \
         "$build_dir/benchmark_p125_poly_trusted" \

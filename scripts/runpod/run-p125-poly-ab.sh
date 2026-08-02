@@ -19,6 +19,9 @@ build_recipe="$script_dir/build-p125-poly-ab.sh"
 benchmark_runner="$project_root/scripts/benchmark-p125-poly-ab.sh"
 table_dir="$project_root/data/modpoly/weber_f"
 
+export CC=gcc-11
+export CXX=g++-11
+
 mkdir -p "$output"
 "$build_recipe" >"$output/BUILD.log" 2>&1
 

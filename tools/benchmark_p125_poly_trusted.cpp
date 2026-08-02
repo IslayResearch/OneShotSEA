@@ -1,4 +1,5 @@
 #include "oneshotsea/poly.hpp"
+#include "oneshotsea/search_pipeline.hpp"
 #include "oneshotsea/sea.hpp"
 #include "oneshotsea/x1_27_probe.hpp"
 
@@ -307,6 +308,12 @@ void print_constraints(const char* label,
 
 int run_sea(const std::string& table_directory) {
     const mpz_class prime = target_prime();
+    // Authenticate and bind the full production table corpus before starting
+    // either the generation or SEA timer.  This keeps the measured interval
+    // focused on the candidate hot path while making projection equality
+    // meaningful only for the exact same trusted inputs.
+    const std::string table_manifest_sha256 =
+        oneshotsea::weber_table_manifest_sha256(table_directory, kMaxLevel);
     const Clock::time_point total_started = Clock::now();
     const Clock::time_point generation_started = Clock::now();
     const oneshotsea::X127ProbeResult generated =
@@ -350,6 +357,7 @@ int run_sea(const std::string& table_directory) {
               << "sea.trace_cap=" << kTraceCap << '\n'
               << "sea.threads=" << kSeaThreads << '\n'
               << "sea.schedule=increasing\n"
+              << "sea.table_manifest_sha256=" << table_manifest_sha256 << '\n'
               << "sea.known_source_lift=true\n";
     print_bool("sea.root_orbit_reuse", true);
     print_bool("sea.conjugate_eigenvalue_reuse", true);

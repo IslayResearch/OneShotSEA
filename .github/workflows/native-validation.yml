@@ -1,0 +1,67 @@
+name: Native validation
+
+on:
+  push:
+    branches:
+      - main
+      - "agent/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CC: gcc
+      CXX: g++
+      CPPFLAGS: -Iinclude
+      LDFLAGS: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pack exact source snapshot
+        run: tar --exclude=.git -czf /tmp/oneshotsea-source.tgz .
+
+      - name: Upload exact source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: oneshotsea-source-${{ github.sha }}
+          path: /tmp/oneshotsea-source.tgz
+          compression-level: 0
+          retention-days: 1
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgmp-dev
+
+      - name: Build
+        run: make -j2
+
+      - name: Run portable native and reference tests
+        run: |
+          make test
+          make test-poly-square
+          make test-atkin
+          make test-progress-audit
+          make test-yield-model
+          make test-performance-artifacts
+          make test-cli
+          make test-reference
+          make test-factor
+          make test-certificate
+          make test-eigenvalue-mitm
+          make test-modpoly-generator
+          make test-weber-modpoly
+          make test-weber-curve-generator
+          make test-verifier
+          make test-vendor
+          make test-smooth
+          make test-smooth-cache
+          make test-exact-smooth
+          make test-search-checkpoint
+          make test-search-pipeline

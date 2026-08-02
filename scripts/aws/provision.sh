@@ -37,7 +37,7 @@ Options:
   --associate-public-ip         Explicit outbound Internet path for a public subnet
   --volume-gb N                 Encrypted root volume size (default: 100)
   --max-price-per-hour USD      Required current on-demand price ceiling
-  --max-lifetime-minutes N      Required hard-stop timer (15..10080 minutes)
+  --max-lifetime-minutes N      Required guest lifetime backstop (15..10080 minutes)
   --execute                     Validate and create one on-demand instance
 
 Dry-run is the default and does not contact AWS or write operator state. There
@@ -45,7 +45,8 @@ is no EC2 key pair and the security group must have zero ingress; all control
 uses keyless Systems Manager commands. Public addressing is opt-in only to
 provide outbound package/source access in a public subnet. The instance has
 IMDSv2 required, an encrypted delete-on-termination root disk, and a cloud-init
-hard-stop timer backed by instance-initiated termination.
+guest timer backed by instance-initiated termination. The timer is not an
+AWS-side guarantee across reboot or guest failure.
 EOF
 }
 
@@ -94,7 +95,7 @@ expected_arch="$(expected_architecture "$instance_type")"
 
 user_data="#!/usr/bin/env bash
 set -euo pipefail
-/usr/bin/systemd-run --unit=oneshotsea-hard-stop --on-active=${max_lifetime_minutes}m /usr/sbin/shutdown -h now
+/usr/bin/systemd-run --unit=oneshotsea-guest-lifetime-backstop --on-active=${max_lifetime_minutes}m /usr/sbin/shutdown -h now
 "
 
 if ! require_execute; then
@@ -109,7 +110,7 @@ if ! require_execute; then
     --iam-instance-profile "Name=${iam_instance_profile}" \
     --instance-initiated-shutdown-behavior terminate \
     --metadata-options 'HttpTokens=required,HttpEndpoint=enabled,HttpPutResponseHopLimit=1' \
-    --client-token "oneshotsea-${launch_id}" --user-data '[hard-stop timer; no secrets]'
+    --client-token "oneshotsea-${launch_id}" --user-data '[guest-lifetime timer; no secrets]'
   printf 'DRY-RUN: encrypted gp3 root volume=%s GiB, delete-on-termination=true, expected architecture=%s\n' \
     "$volume_gb" "$expected_arch"
   if [[ -n "$task_tag" ]]; then

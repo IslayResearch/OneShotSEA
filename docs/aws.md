@@ -26,12 +26,17 @@ Query tagged charges for an exclusive date range with:
 ```sh
 scripts/aws/cost.sh --start 2026-08-01 --end 2026-08-02
 scripts/aws/cost.sh --start 2026-08-01 --end 2026-08-02 --execute
+scripts/aws/cost.sh --start 2026-08-01 --end 2026-08-02 \
+  --task p125-production-shard --execute
 ```
 
-Provisioning requires both a current on-demand price ceiling and a hard
-lifetime.  Cloud-init arms a shutdown timer, instance-initiated shutdown
-terminates the instance, the root disk is encrypted and delete-on-termination,
-and the operator still terminates promptly after fetching artifacts.
+Provisioning requires both a current on-demand price ceiling and a guest-side
+lifetime backstop. Cloud-init arms a shutdown timer, instance-initiated
+shutdown terminates the instance, and the root disk is encrypted and
+delete-on-termination. The transient guest timer does not survive a reboot or
+an unresponsive guest, so it is not an AWS-side spending guarantee: keep an
+independent operator monitor, bound the worker well below the instance
+lifetime, fetch with margin, and terminate promptly.
 
 On 2026-08-01 the authenticated Ohio prices were:
 
@@ -131,14 +136,26 @@ the instance and records a cache manifest; a short thread-scaling trial should
 instead use the CAS-free SEA CLI directly so a 30-minute instance is not spent
 rebuilding the 5.4 GB cache.
 
+For the canonical p125 cache, pass
+`--expected-cache-sha256 afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551`.
+Production launch fails unless the cache manifest, deployed commit/binary, and
+that independently trusted digest all agree. Each worker copies the build
+manifest/environment/log, cache manifest/command/log, and launcher into its
+run tree so `fetch.sh` retains the provenance before termination. Give the
+worker an explicit wall-time limit that leaves ample deployment, fetch, and
+verification margin before the guest lifetime backstop.
+
 Always fetch artifacts before teardown, then terminate and confirm the final
 state:
 
 ```sh
 scripts/aws/fetch.sh --run-id RUN --execute
-scripts/aws/terminate.sh
-scripts/aws/terminate.sh --execute
+scripts/aws/terminate.sh --launch-id LAUNCH --task-tag TASK --fetched-run RUN
+scripts/aws/terminate.sh --launch-id LAUNCH --task-tag TASK --fetched-run RUN --execute
 ```
 
 The fetch record includes instance type, architecture, price, lifetime, and an
 estimated upper-bound cost.  AWS Billing/Cost Explorer remains authoritative.
+Termination rechecks the `Project`, `LaunchId`, and optional `Task` tags and
+verifies the fetched `SHA256SUMS`. Use `--allow-unfetched` only for an explicit
+emergency teardown where artifact loss is accepted.

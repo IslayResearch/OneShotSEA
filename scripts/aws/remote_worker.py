@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -39,6 +40,22 @@ def within(path: Path, root: Path, label: str) -> Path:
     except ValueError:
         fail(f"{label} escapes its required root")
     return resolved
+
+
+def copy_authenticated(source: Path, destination: Path, label: str) -> None:
+    if not source.is_file() or source.is_symlink():
+        fail(f"{label} is missing or is not a regular file")
+    source_digest = digest(source)
+    if destination.exists():
+        if destination.is_symlink() or not destination.is_file():
+            fail(f"retained {label} is not a regular file")
+        if digest(destination) != source_digest:
+            fail(f"retained {label} changed")
+        return
+    temporary = destination.with_name(f"{destination.name}.tmp.{os.getpid()}")
+    with source.open("rb") as reader, temporary.open("xb") as writer:
+        shutil.copyfileobj(reader, writer, 1024 * 1024)
+    temporary.replace(destination)
 
 
 def partition(start: int, end: int, worker: int, workers: int) -> tuple[int, int]:
@@ -138,6 +155,8 @@ def main() -> int:
         fail("invalid trusted smooth-cache digest")
     if args.run_kind == "benchmark" and not args.max_curves and not args.wall_time_limit_seconds:
         fail("benchmark runs must be bounded by max-curves or wall time")
+    if args.run_kind == "production" and not args.wall_time_limit_seconds:
+        fail("production runs require wall time for artifact-fetch margin")
 
     search_options = (
         ("curve-family", args.curve_family),
@@ -193,12 +212,39 @@ def main() -> int:
     executable = within(current / "build/oneshotsea", current, "binary")
     if not os.access(executable, os.X_OK) or digest(executable) != binary_sha:
         fail("deployed binary is missing or its digest changed")
+    environment = within(current / "environment.txt", current, "build environment")
+    environment_sha = build.get("environment_sha256", "")
+    if (
+        not environment.is_file()
+        or not HEX_64.fullmatch(environment_sha)
+        or digest(environment) != environment_sha
+    ):
+        fail("deployed environment record is missing or its digest changed")
     tables = within(current / args.table_dir, current, "table directory")
     if not tables.is_dir():
         fail("table directory does not exist")
     smooth_cache = within(args.smooth_cache, root, "smooth cache")
     if not smooth_cache.is_file() or digest(smooth_cache) != args.smooth_cache_sha256:
         fail("smooth cache is missing or its digest changed")
+    cache_manifest_path = within(
+        smooth_cache.parent / "manifest.json", root, "smooth cache manifest"
+    )
+    if not cache_manifest_path.is_file():
+        fail("smooth cache has no provenance manifest")
+    with cache_manifest_path.open(encoding="utf-8") as stream:
+        cache_manifest = json.load(stream)
+    if (
+        cache_manifest.get("schema") != "oneshotsea.aws-cache.v1"
+        or cache_manifest.get("prime") != str(args.prime)
+        or cache_manifest.get("max_level") != args.max_level
+        or cache_manifest.get("table_dir") != args.table_dir
+        or cache_manifest.get("deployment_commit") != commit
+        or cache_manifest.get("binary_sha256") != binary_sha
+        or cache_manifest.get("smooth_cache_sha256") != args.smooth_cache_sha256
+        or cache_manifest.get("expected_smooth_cache_sha256")
+        != args.smooth_cache_sha256
+    ):
+        fail("smooth cache provenance does not match the trusted worker inputs")
 
     assigned_start, assigned_end = partition(
         args.range_start, args.range_end, args.worker_id, args.worker_count
@@ -214,6 +260,51 @@ def main() -> int:
     attempts = run_dir / "attempts.jsonl"
     manifest_path = run_dir / "manifest.json"
     command_path = run_dir / "command.sh"
+    provenance_dir = run_dir / "provenance"
+    provenance_dir.mkdir(exist_ok=True)
+    if provenance_dir.is_symlink() or not provenance_dir.is_dir():
+        fail("worker provenance path is not a regular directory")
+    within(provenance_dir, run_dir, "worker provenance directory")
+    provenance_sources = {
+        "build-manifest.json": build_manifest_path,
+        "build-environment.txt": environment,
+        "build.log": within(current / "build.log", current, "build log"),
+        "cache-manifest.json": cache_manifest_path,
+        "cache-command.sh": within(
+            smooth_cache.parent / "command.sh", root, "smooth cache command"
+        ),
+        "cache-build.log": within(
+            smooth_cache.parent / "build.log", root, "smooth cache build log"
+        ),
+        "remote_worker.py": Path(__file__).resolve(),
+    }
+    for name, source in provenance_sources.items():
+        copy_authenticated(source, provenance_dir / name, name)
+    provenance_manifest_path = provenance_dir / "manifest.json"
+    provenance_manifest = {
+        "schema": "oneshotsea.aws-worker-provenance.v1",
+        "deployment_commit": commit,
+        "binary_sha256": binary_sha,
+        "smooth_cache_sha256": args.smooth_cache_sha256,
+        "files": {
+            name: digest(provenance_dir / name) for name in sorted(provenance_sources)
+        },
+    }
+    encoded_provenance = (
+        json.dumps(provenance_manifest, sort_keys=True, separators=(",", ":")) + "\n"
+    )
+    if provenance_manifest_path.exists():
+        if provenance_manifest_path.is_symlink() or provenance_manifest_path.read_text(
+            encoding="utf-8"
+        ) != encoded_provenance:
+            fail("retained worker provenance manifest changed")
+    else:
+        temporary_provenance = provenance_manifest_path.with_name(
+            f"{provenance_manifest_path.name}.tmp.{os.getpid()}"
+        )
+        with temporary_provenance.open("x", encoding="utf-8") as stream:
+            stream.write(encoded_provenance)
+        temporary_provenance.replace(provenance_manifest_path)
     session = f"sea-{args.run_id.replace('.', '_')}-{args.worker_id}"
 
     completed = subprocess.run(
@@ -237,6 +328,28 @@ def main() -> int:
         *search_argv,
         *resource_argv,
     ]
+    run_command = command
+    if args.wall_time_limit_seconds:
+        run_command = [
+            "timeout", "--signal=TERM", "--kill-after=60",
+            str(args.wall_time_limit_seconds), *command,
+        ]
+    command_text = f"""#!/usr/bin/env bash
+set -uo pipefail
+cd {shlex.quote(str(current))}
+started_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+started_epoch=$(date +%s)
+printf '{{"event":"start","utc":"%s","epoch":%s}}\\n' "$started_utc" "$started_epoch" >>{shlex.quote(str(attempts))}
+set +e
+/usr/bin/time -v -o {shlex.quote(str(resource_usage))} -- {shlex.join(run_command)} >>{shlex.quote(str(log))} 2>&1
+status=$?
+set -e
+ended_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+ended_epoch=$(date +%s)
+printf '{{"event":"end","utc":"%s","epoch":%s,"status":%s}}\\n' "$ended_utc" "$ended_epoch" "$status" >>{shlex.quote(str(attempts))}
+exit "$status"
+"""
+    command_sha256 = hashlib.sha256(command_text.encode()).hexdigest()
     manifest = {
         "schema": "oneshotsea.aws-worker.v1",
         "instance_id": args.instance_id,
@@ -258,8 +371,10 @@ def main() -> int:
         "binary_sha256": binary_sha,
         "build_id": build_id,
         "launcher_sha256": digest(Path(__file__).resolve()),
+        "provenance_manifest_sha256": digest(provenance_manifest_path),
         "wall_time_limit_seconds": args.wall_time_limit_seconds,
         "command_argv": command,
+        "command_sha256": command_sha256,
     }
 
     if manifest_path.exists():
@@ -274,8 +389,13 @@ def main() -> int:
         for key, value in manifest.items():
             if previous.get(key) != value:
                 fail(f"resume manifest mismatch for {key}")
-        if not command_path.is_file():
-            fail("resume command file is missing")
+        if (
+            command_path.is_symlink()
+            or not command_path.is_file()
+            or digest(command_path) != command_sha256
+            or command_path.read_text(encoding="utf-8") != command_text
+        ):
+            fail("resume command file is missing or changed")
     else:
         if args.resume:
             fail("--resume requested without a manifest")
@@ -288,27 +408,6 @@ def main() -> int:
             stream.write("\n")
         temporary.replace(manifest_path)
 
-        run_command = command
-        if args.wall_time_limit_seconds:
-            run_command = [
-                "timeout", "--signal=TERM", "--kill-after=60",
-                str(args.wall_time_limit_seconds), *command,
-            ]
-        command_text = f"""#!/usr/bin/env bash
-set -uo pipefail
-cd {shlex.quote(str(current))}
-started_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-started_epoch=$(date +%s)
-printf '{{"event":"start","utc":"%s","epoch":%s}}\\n' "$started_utc" "$started_epoch" >>{shlex.quote(str(attempts))}
-set +e
-/usr/bin/time -v -o {shlex.quote(str(resource_usage))} -- {shlex.join(run_command)} >>{shlex.quote(str(log))} 2>&1
-status=$?
-set -e
-ended_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-ended_epoch=$(date +%s)
-printf '{{"event":"end","utc":"%s","epoch":%s,"status":%s}}\\n' "$ended_utc" "$ended_epoch" "$status" >>{shlex.quote(str(attempts))}
-exit "$status"
-"""
         with command_path.open("x", encoding="utf-8") as stream:
             stream.write(command_text)
         command_path.chmod(0o700)

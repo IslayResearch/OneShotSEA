@@ -168,17 +168,22 @@ if [[ "$curve_family" == weber-f && "$x1_require_point4" == 1 ]]; then
   die '--x1-require-point4 requires an X1 curve family'
 fi
 require_cmd python3
-python3 - "$curve_threads" "$smooth_coordinators" <<'PY' ||
-  die '--smooth-coordinators may not exceed --curve-threads'
+if ! python3 - "$curve_threads" "$smooth_coordinators" <<'PY'
 import sys
 curve_threads, smooth_coordinators = map(int, sys.argv[1:])
 if smooth_coordinators > curve_threads:
     raise SystemExit(1)
 PY
+then
+  die '--smooth-coordinators may not exceed --curve-threads'
+fi
 validate_uint wall-time-limit-seconds "$wall_time_limit_seconds"
 if [[ "$run_kind" == benchmark && "$max_curves" == 0 &&
       "$wall_time_limit_seconds" == 0 ]]; then
   die 'benchmark runs require positive --max-curves or --wall-time-limit-seconds'
+fi
+if [[ "$run_kind" == production && "$wall_time_limit_seconds" == 0 ]]; then
+  die 'production runs require a positive --wall-time-limit-seconds for fetch margin'
 fi
 [[ "$table_dir" =~ ^[A-Za-z0-9._/+~-]+$ && "$table_dir" != /* ]] ||
   die 'table directory must be a simple relative path'

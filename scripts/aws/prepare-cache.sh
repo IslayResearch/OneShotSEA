@@ -11,11 +11,13 @@ prime=''
 max_level=''
 table_dir=''
 seed=0
+expected_cache_sha256=''
 
 usage() {
   cat <<'EOF'
 Usage: prepare-cache.sh --cache-id ID --prime P --max-level L
-       --table-dir RELPATH [--seed N] [--instance-id ID] [--execute]
+       --table-dir RELPATH [--seed N] [--expected-cache-sha256 SHA256]
+       [--instance-id ID] [--execute]
 
 Builds a smooth cache with the exact deployed production binary and writes a
 cache manifest binding its digest, commit, binary, target, and command. Dry-run
@@ -31,6 +33,7 @@ while (( $# )); do
     --max-level) max_level="${2:-}"; shift 2 ;;
     --table-dir) table_dir="${2:-}"; shift 2 ;;
     --seed) seed="${2:-}"; shift 2 ;;
+    --expected-cache-sha256) expected_cache_sha256="${2:-}"; shift 2 ;;
     --execute) EXECUTE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
@@ -44,6 +47,10 @@ validate_positive_uint prime "$prime"
 validate_positive_uint max-level "$max_level"
 (( 10#$max_level >= 5 )) || die 'max-level must be at least 5'
 validate_uint seed "$seed"
+if [[ -n "$expected_cache_sha256" ]]; then
+  [[ "$expected_cache_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+    die '--expected-cache-sha256 must be a trusted lowercase SHA-256 digest'
+fi
 [[ "$table_dir" =~ ^[A-Za-z0-9._/+~-]+$ && "$table_dir" != /* ]] ||
   die 'table directory must be a simple relative path'
 [[ "$table_dir" != ../* && "$table_dir" != */../* && "$table_dir" != */.. ]] ||
@@ -55,13 +62,16 @@ if ! require_execute; then
     "$instance_id" "$AWS_REMOTE_ROOT" "$cache_id"
   printf 'DRY-RUN: bind prime=%s seed=%s max_level=%s table_dir=%s and binary/commit SHA-256 identity\n' \
     "$prime" "$seed" "$max_level" "$table_dir"
+  if [[ -n "$expected_cache_sha256" ]]; then
+    printf 'DRY-RUN: require rebuilt smooth cache SHA-256=%s\n' "$expected_cache_sha256"
+  fi
   exit 0
 fi
 
 ssm_require_online "$instance_id"
 # shellcheck disable=SC2016
 remote_bootstrap='set -euo pipefail
-root=$1; instance_id=$2; cache_id=$3; prime=$4; seed=$5; max_level=$6; table_dir=$7
+root=$1; instance_id=$2; cache_id=$3; prime=$4; seed=$5; max_level=$6; table_dir=$7; expected_cache_sha=$8
 deploy=$(readlink -f "$root/current")
 [[ -d "$deploy" ]]
 build_manifest="$deploy/build-manifest.json"
@@ -102,22 +112,28 @@ set -e
 [[ "$status" == 1 ]]
 [[ -s "$cache" ]]
 cache_sha=$(sha256sum "$cache" | awk "{print \$1}")
+if [[ -n "$expected_cache_sha" && "$cache_sha" != "$expected_cache_sha" ]]; then
+  printf "error: rebuilt cache digest %s does not match trusted digest %s\n" \
+    "$cache_sha" "$expected_cache_sha" >&2
+  exit 2
+fi
 python3 - "$cache_id" "$prime" "$seed" "$max_level" "$table_dir" "$commit" \
-  "$binary_sha" "$cache_sha" "${cmd[@]}" <<"PY" >"$cache_dir/manifest.json"
+  "$binary_sha" "$cache_sha" "$expected_cache_sha" "${cmd[@]}" <<"PY" >"$cache_dir/manifest.json"
 import json, sys
-cache_id, prime, seed, max_level, table_dir, commit, binary_sha, cache_sha = sys.argv[1:9]
+cache_id, prime, seed, max_level, table_dir, commit, binary_sha, cache_sha, expected = sys.argv[1:10]
 json.dump({
     "schema": "oneshotsea.aws-cache.v1", "cache_id": cache_id,
     "prime": prime, "seed": seed, "max_level": int(max_level),
     "table_dir": table_dir, "deployment_commit": commit,
     "binary_sha256": binary_sha, "smooth_cache_sha256": cache_sha,
-    "command_argv": sys.argv[9:],
+    "expected_smooth_cache_sha256": expected or None,
+    "command_argv": sys.argv[10:],
 }, sys.stdout, sort_keys=True, separators=(",", ":"))
 sys.stdout.write("\n")
 PY
 printf "smooth_cache=%s\nsmooth_cache_sha256=%s\n" "$cache" "$cache_sha"
 '
-printf -v remote_command 'bash -c %q -- %q %q %q %q %q %q %q' \
+printf -v remote_command 'bash -c %q -- %q %q %q %q %q %q %q %q' \
   "$remote_bootstrap" "$AWS_REMOTE_ROOT" "$instance_id" "$cache_id" \
-  "$prime" "$seed" "$max_level" "$table_dir"
+  "$prime" "$seed" "$max_level" "$table_dir" "$expected_cache_sha256"
 ssm_run_command "$instance_id" 'OneShotSEA build smooth cache' "$remote_command" 604800

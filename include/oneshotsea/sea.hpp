@@ -93,6 +93,10 @@ std::vector<std::uint64_t> expected_information_per_cost_order(
 // classical-j Atkin constraints at checked-in levels 5 and 7 may produce the
 // complete bounded trace set used for sound early screening. trace_cap=1
 // always requires uniqueness from the exact prior and Elkies residues alone.
+// A known_source_lift is an optional generator witness: it must already be
+// normalized, nonzero, unramified/nonexceptional, and map to the curve's
+// exact j-invariant. Invalid witnesses are rejected rather than silently
+// falling back to lift discovery.
 WeberSeaResult run_weber_sea_reference(
     const Curve& curve, const std::string& table_directory,
     std::uint64_t max_level, std::size_t trace_cap,
@@ -101,6 +105,7 @@ WeberSeaResult run_weber_sea_reference(
     bool enable_root_orbit_reuse = true,
     bool enable_conjugate_eigenvalue_reuse = true,
     const std::vector<WeberSeaLevelEstimate>& level_estimates = {},
-    const std::optional<ExactTracePrior>& trace_prior = std::nullopt);
+    const std::optional<ExactTracePrior>& trace_prior = std::nullopt,
+    const std::optional<mpz_class>& known_source_lift = std::nullopt);
 
 }  // namespace oneshotsea

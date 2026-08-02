@@ -48,9 +48,10 @@ checked-in Weber manifest is itself pinned by digest, and production startup
 authenticates the complete table filename set, byte counts, and per-file
 SHA-256 values before deriving the schedule identity.  Missing, extra, or
 altered tables fail before a curve is processed.  The
-schedule identity explicitly versions the Montgomery-compatibility filter and
-the exact trace-prior policy, so checkpoints from an earlier generator or
-pre-prior schedule cannot be mistaken for the same deterministic search.  The
+schedule identity explicitly versions the Montgomery-compatibility filter,
+the exact trace-prior policy, and the generator-retained Weber source-lift
+policy, so checkpoints from an earlier generator, pre-prior schedule, or
+pre-source-lift schedule cannot be mistaken for the same deterministic search. The
 default build identity hashes the executable.  Every completed curve is
 checkpointed by default; partial SEA residues are never trusted after restart.
 The Python interpreter is resolved to an absolute executable, content-hashed,
@@ -167,6 +168,15 @@ are in [the X1(11) note](x1_11_probe.md).  The retained same-build p125 family
 A/B is in [the family comparison](x1_11_family_ab.md): ten observations per
 family, zero certificates, and different curve distributions, so it is
 throughput evidence rather than an empirical yield estimate.
+
+Both generators also retain the exact nonexceptional Weber-f value from which
+the curve pair was constructed.  Production validates that this witness is
+canonical, nonzero, unramified, and maps back to the curve's exact j-invariant,
+then starts both SEA passes from that singleton source state.  Failure is an
+error, never a silent fallback.  Library/CLI callers without a generator
+witness retain exhaustive source-lift discovery.  The policy is semantic and
+schedule-bound; its correctness audit and paired p125 timing are in
+[the known-source note](known_source_lift.md).
 
 `--curve-threads N` evaluates up to `N` consecutive curves concurrently
 against one immutable exact-smooth engine and its single authenticated cache.

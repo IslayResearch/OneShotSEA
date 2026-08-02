@@ -9,10 +9,12 @@
 #include "oneshotsea/trace.hpp"
 #include "oneshotsea/torsion.hpp"
 #include "oneshotsea/weber.hpp"
+#include "oneshotsea/weber_curve_generator.hpp"
 
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -574,6 +576,11 @@ void test_weber_sea_runner() {
         curve, "data/modpoly/weber_f", 11, 1, {}, 1);
     const auto result = oneshotsea::run_weber_sea_reference(
         curve, "data/modpoly/weber_f", 11, 1, {}, 2);
+    const mpz_class known_source_lift =
+        serial_level.compatible_source_lifts.front();
+    const auto known_lift_result = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 11, 1, {}, 2, true, true, {},
+        std::nullopt, known_source_lift);
     const auto scheduled_result = oneshotsea::run_weber_sea_reference(
         curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
         estimates);
@@ -585,6 +592,123 @@ void test_weber_sea_runner() {
               serial_result.compatible_source_lifts ==
                   result.compatible_source_lifts,
           "SEA result is independent of its modular-root thread limit");
+    check(known_lift_result.traces == result.traces &&
+              known_lift_result.constraints.modulus() ==
+                  result.constraints.modulus() &&
+              known_lift_result.levels.size() == result.levels.size() &&
+              known_lift_result.compatible_source_lifts ==
+                  std::vector<mpz_class>{known_source_lift},
+          "validated known Weber source lift preserves exact SEA output");
+    for (std::size_t index = 0; index < result.levels.size(); ++index) {
+        check(known_lift_result.levels[index].ell ==
+                      result.levels[index].ell &&
+                  known_lift_result.levels[index].exact ==
+                      result.levels[index].exact &&
+                  known_lift_result.levels[index].trace_residue ==
+                      result.levels[index].trace_residue &&
+                  known_lift_result.levels[index]
+                          .exact_trace_candidate_count ==
+                      result.levels[index].exact_trace_candidate_count,
+              "known source singleton preserves every exact residue and trace state");
+    }
+    check(std::all_of(
+              known_lift_result.levels.begin(),
+              known_lift_result.levels.end(),
+              [](const oneshotsea::WeberSeaLevelRecord& level) {
+                  return level.compatible_source_lifts == 1U;
+              }),
+          "known source singleton remains the only compatible lift");
+
+    auto rejects_known_lift = [&](const mpz_class& source_lift) {
+        try {
+            (void)oneshotsea::run_weber_sea_reference(
+                curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+                {}, std::nullopt, source_lift);
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    check(rejects_known_lift(known_source_lift + curve.field().modulus()),
+          "known source fast path rejects a noncanonical lift");
+    check(rejects_known_lift(0),
+          "known source fast path rejects the zero lift");
+    mpz_class foreign_source_lift = curve.field().add(known_source_lift, 1);
+    while (foreign_source_lift == 0 ||
+           oneshotsea::j_from_weber_f(curve.field(), foreign_source_lift) ==
+               curve.j_invariant()) {
+        foreign_source_lift = curve.field().add(foreign_source_lift, 1);
+    }
+    check(rejects_known_lift(foreign_source_lift),
+          "known source fast path rejects a lift of a foreign j-invariant");
+    check([&]() {
+              try {
+                  (void)oneshotsea::run_weber_sea_reference(
+                      oneshotsea::Curve(oneshotsea::Field(101), 0, 1),
+                      "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+                      {}, std::nullopt, mpz_class(12));
+              } catch (const std::invalid_argument&) {
+                  return true;
+              }
+              return false;
+          }(),
+          "known source fast path rejects the ramified j=0 lift");
+    check([&]() {
+              try {
+                  (void)oneshotsea::run_weber_sea_reference(
+                      oneshotsea::Curve(oneshotsea::Field(11), 1, 0),
+                      "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+                      {}, std::nullopt, mpz_class(4));
+              } catch (const std::invalid_argument&) {
+                  return true;
+              }
+              return false;
+          }(),
+          "known source fast path rejects the ramified j=1728 lift");
+
+    const oneshotsea::WeberCurvePair multi_orbit_pair =
+        oneshotsea::weber_curve_pair_from_f(oneshotsea::Field(277), 20);
+    const std::vector<mpz_class> multi_orbit_lifts =
+        oneshotsea::weber_f_lifts(multi_orbit_pair.curve.field(),
+                                  multi_orbit_pair.j_invariant);
+    std::set<mpz_class> lift_orbits;
+    for (const mpz_class& lift : multi_orbit_lifts) {
+        lift_orbits.insert(multi_orbit_pair.curve.field().pow(lift, 24));
+    }
+    check(multi_orbit_pair.j_invariant == 73 &&
+              multi_orbit_lifts.size() == 36U &&
+              lift_orbits.size() == 3U,
+          "p277 known-source regression spans three distinct Weber orbits");
+    for (const oneshotsea::Curve* source_curve :
+         {&multi_orbit_pair.curve, &multi_orbit_pair.twist}) {
+        for (const std::uint64_t ell : {5U, 17U}) {
+            const auto modular_polynomial =
+                oneshotsea::SparseModularPolynomial::load(
+                    static_cast<unsigned>(ell),
+                    "data/modpoly/weber_f/phi_" +
+                        std::to_string(ell) + ".txt");
+            const auto exhaustive =
+                oneshotsea::compute_weber_elkies_level_reference(
+                    *source_curve, modular_polynomial, &multi_orbit_lifts,
+                    1, false, false);
+            for (const mpz_class& lift : multi_orbit_lifts) {
+                const std::vector<mpz_class> singleton{lift};
+                const auto restricted =
+                    oneshotsea::compute_weber_elkies_level_reference(
+                        *source_curve, modular_polynomial, &singleton, 1,
+                        false, false);
+                check(restricted.kernels.size() ==
+                          exhaustive.kernels.size(),
+                      "every singleton lift preserves exact/empty level classification");
+                for (std::size_t kernel = 0;
+                     kernel < exhaustive.kernels.size(); ++kernel) {
+                    check(restricted.kernels[kernel].trace_residue ==
+                              exhaustive.kernels[kernel].trace_residue,
+                          "every singleton lift preserves the exact trace residue");
+                }
+            }
+        }
+    }
     check(scheduled_result.traces == result.traces &&
               scheduled_result.levels.size() == 2U &&
               scheduled_result.levels[0].ell == 11U &&

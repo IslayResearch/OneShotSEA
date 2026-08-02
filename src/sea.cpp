@@ -157,7 +157,8 @@ WeberSeaResult run_weber_sea_reference(
     std::size_t modular_root_threads, bool enable_root_orbit_reuse,
     bool enable_conjugate_eigenvalue_reuse,
     const std::vector<WeberSeaLevelEstimate>& level_estimates,
-    const std::optional<ExactTracePrior>& trace_prior) {
+    const std::optional<ExactTracePrior>& trace_prior,
+    const std::optional<mpz_class>& known_source_lift) {
     if (curve.is_singular()) {
         throw std::invalid_argument("SEA requires a nonsingular curve");
     }
@@ -184,9 +185,27 @@ WeberSeaResult run_weber_sea_reference(
         initial_constraints.refine_exact(
             trace_prior->modulus(), trace_prior->residue());
     }
+    std::vector<mpz_class> source_lifts;
+    if (known_source_lift.has_value()) {
+        const mpz_class normalized =
+            curve.field().normalize(*known_source_lift);
+        const mpz_class curve_j = curve.j_invariant();
+        if (*known_source_lift != normalized || normalized == 0 ||
+            curve_j == 0 ||
+            curve_j == curve.field().normalize(1728) ||
+            j_from_weber_f(curve.field(), normalized) != curve_j ||
+            j_derivative_from_weber_f(curve.field(), normalized) == 0) {
+            throw std::invalid_argument(
+                "known Weber source lift is not a normalized nonzero unramified lift of the curve j-invariant");
+        }
+        source_lifts.push_back(normalized);
+    } else {
+        source_lifts =
+            weber_f_lifts(curve.field(), curve.j_invariant());
+    }
     WeberSeaResult result{
         initial_constraints, initial_constraints, {}, {},
-        weber_f_lifts(curve.field(), curve.j_invariant()), std::nullopt};
+        std::move(source_lifts), std::nullopt};
     if (result.compatible_source_lifts.empty()) {
         return result;
     }

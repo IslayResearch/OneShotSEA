@@ -72,6 +72,18 @@ authority where that tree was subsequently extended.
   `2cdad57b734cfcbaebbb32aea3c0004ef4a8e760e8f57c024a6e05c522109ba4`,
   and `537100931d6b8aaac9fdcba3ae8ca49f3e078bfb570a597c5b0c9ab30f742682`.
   The next changed executable must start a fresh range at 12.
+- The trace-prior/cap-16 X1(11) production identity was commit
+  `1e84475a7c5440df8b3446a8f7c4362344d28b62`, executable SHA-256
+  `feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa`,
+  and range `[12,1000000)`.  It durably processed indices 12--59 as 48
+  sound early rejections, including 26 full point counts, before a clean
+  pause.  Its checkpoint is `next_index=60`; checkpoint, progress, and log
+  SHA-256 values are
+  `064b12c392db7ae41019e5b843bd7a10d768b7b0d55cab8916694dde9ca17c45`,
+  `ee7496e34c619ad23ba9910c8eaabeea9956c26442cfe2a37d0e28e20b99d032`,
+  and `2ad8d832d849348bcfda9313da026c8ee3256b08f078281343775e2ec91a0d55`.
+  The retained-source policy changes the schedule digest, so the new committed
+  identity must start a fresh range at 60 rather than load this checkpoint.
 
 The filtered artifacts were extended after `docs/benchmark_20260731.md` was
 written.  Their current authoritative digests are:
@@ -237,13 +249,10 @@ reduction and no pre-policy checkpoint can be resumed under it.
 ## Next local action
 
 Commit `8c1605f` passed the complete test and clean-build gate for the exact
-trace-prior policy.  The cap ablation selected 16.  Start a fresh X1(11)
-point-four identity at global index 12.  The `c5de573` production checkpoint
-and both family-benchmark checkpoints have different build/schedule identities
-and cannot be reused.
-Beginning at 12 preserves the authenticated cursor even though the first ten
-curves repeat benchmark observations; do not count those indices twice in
-future yield summaries.  The held-out scheduling A/B found the measured
+trace-prior policy.  The cap ablation selected 16.  The authenticated
+`1e84475` production run advanced through index 59.  Start the retained-source
+X1(11) point-four identity at global index 60; its semantic schedule change
+means the old checkpoint is evidence, not resumable state.  The held-out scheduling A/B found the measured
 alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
 Replace the build id and `search-NEXT` directory below with the exact committed
 production identity.
@@ -255,7 +264,7 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 12 --range-end 1000000 \
+  --range-start 60 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --curve-family x1-11 --x1-require-point4 1 \
   --max-level 401 --trace-cap 16 --curve-threads 10 --sea-threads 1 \

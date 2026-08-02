@@ -72,14 +72,30 @@ walking a component.
 
 Both primary targets are `1 (mod 12)`, not `11 (mod 12)`. Therefore the
 two-root lemma does not apply to the production search. The safe 1202.3985
-fallback is to enumerate every root of `Psi^f(F,j(E))`, instantiate for each,
-and validate the resulting isogeny using its dual. Silently choosing one root
-would make this path incorrect.
+fallback for an unknown source is to enumerate every root of
+`Psi^f(F,j(E))`, instantiate each one, and validate the resulting isogeny
+using its dual. Silently choosing an arbitrary root would make that generic
+path incorrect.
 
 `weber_f_lifts` and `elkies_kernels_weber_bmss_reference` implement this
 exhaustive policy. Incompatible lifts are rejected by normalized BMSS
 reconstruction; duplicate sign lifts are coalesced only after their kernels,
 neighbors, eigenvalues, and residues agree.
+
+The production generators are a narrower case: `WeberCurvePair` retains the
+exact Weber moduli point used to construct the curve. For prime levels coprime
+to 48, that retained point is a sufficient source coordinate; it is not an
+arbitrary root selected after seeing only `j`. The singleton fast path first
+requires the retained value to be canonical, nonzero, unramified, outside
+`j=0,1728`, and to map back to the curve's exact `j`-invariant. A failed check
+is an error, while callers without this witness preserve exhaustive discovery.
+The BMSS rational-map, isogeny, and Frobenius proof checks remain unchanged.
+
+The regression audit exhaustively compared all 36 lifts in a three-`f^24`-
+orbit fixture over `F_277`: empty level 5 and exact level 17 agreed for every
+singleton, on both the generated curve and its twist. An independent broader
+sweep found the same classification, residues, and deduplicated kernel counts
+through level 43, including 72-lift fixtures.
 
 ## Kernel and codomain handoff
 

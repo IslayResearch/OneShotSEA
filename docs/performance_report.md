@@ -15,7 +15,7 @@ appropriate comparison exist.
 | Batching | Batched polynomial reduction, batched remainder-tree smooth extraction, and a rolling shared-cache curve window | Reducer A/B: 2.07x synthetic median and 2.59x complete curve work; same-binary curve window: 1.46x full invocation and 1.73x warm-window throughput | Measured at kernel, smooth-batch, and complete-curve levels; level-major table reuse remains unimplemented |
 | Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first twelve retained curves produced 136 trace candidates and 272 order screens from twelve SEA executions | Exact work-count reduction; no wall-time ablation |
 | Prime scheduling | Available Weber levels are processed in increasing prime order | Held-out two-pair A/B: trained information/cost order 58.36 s median versus increasing 57.945 s, with identical final constraints and intrinsic evidence | Measured alternate was 0.7% slower; retain increasing order |
-| Specialized modular-polynomial path | Authenticated Weber-f tables, BMSS kernel recovery, and verified 24th-root orbit transport | Controlled orbit off/on A/B: 2.366x median wall and 3.445x modular-root speedup through level 193; at common levels 5/7, classical-j is honestly 12.449x/10.982x faster because Weber source-lift discovery dominates | Specialized hot-path ablation and tractable classical boundary measured; production-scale classical-j is unavailable |
+| Specialized modular-polynomial path | Authenticated Weber-f tables, BMSS kernel recovery, verified 24th-root orbit transport, and a validated generator-retained source coordinate | Controlled orbit off/on A/B: 2.366x median wall and 3.445x modular-root speedup through level 193; retained-source p125 index 17: 2.159x SEA and 2.995x modular roots with exact projections unchanged | Specialized hot-path ablations measured; production-scale classical-j is unavailable |
 | Yield-biased family | Opt-in X1(11) point-four generator with the same SEA/smooth/certificate path | Same-build n=10 A/B: 294.57 s X1 versus 306.19 s Weber invocation wall; both produced ten sound rejections and zero certificates | 1.039x observed wall throughput; any yield uplift remains modeled, not observed |
 
 Every requested dimension now has either a controlled wall-time A/B or an
@@ -164,9 +164,10 @@ evidence.  Ten slots are the measured local choice: about 10x the former
 K=10 window; it is not process-attributed, but the pressure is included in the
 measured wall time.  Concurrency is not raised beyond the ten physical cores,
 and long-run workers retain memory telemetry.  This is not yet level-major
-cross-curve table batching.  The pre-commit observations at indices 12--17 are
-benchmark-only and do not advance the authenticated production cursor or the
-retained yield sample.
+cross-curve table batching.  The original pre-commit observations at indices
+12--17 were benchmark-only.  A later authenticated production identity
+durably processed unique indices 12--59; those records, rather than the
+benchmark observations, advance the retained yield sample and cursor to 60.
 
 Source: [2026-08-01 reducer benchmark](benchmark_20260801.md) and [CPU benchmark](benchmark_20260730.md).
 
@@ -258,6 +259,27 @@ canonical level records matched.  On production index 4, eigenvalue time fell
 from 148.418 to 70.196 seconds and wall from 377.42 to 291.43 seconds, while all
 64 canonical records again matched.  The compact evidence is in
 `artifacts/local/p125-conjugate-eigenvalue-20260801/result.json`.
+
+The production generators also retain their exact Weber source coordinate.
+After strict canonical, nonzero, nonexceptional, unramified, and exact-j
+validation, SEA may begin with this singleton instead of rediscovering every
+rational source lift.  The generic unknown-source API remains exhaustive.  On
+the one-orbit p125 index 12 control, SEA changed only from 65.383 to 64.764
+seconds (1.010x noise); existing orbit reuse had already collapsed all twelve
+lifts.  The three-orbit index 17 case fell from 129.163 to 59.823 seconds
+(2.159x), with modular roots falling from 100.457 to 33.537 seconds (2.995x)
+and stable BMSS/eigenvalue work.  All exact per-level projections and final
+traces matched.  This is a paired mechanism benchmark, not an estimate of the
+frequency of 36-lift curves.  Evidence is in
+`artifacts/local/p125-known-source-lift-20260801/result.json`.
+
+A reusable reciprocal-reduction context was also tested behind a complete
+exactness gate and rejected.  It slowed a degree-194 Frobenius pair from a
+1.95062-second median to 2.22974 seconds (14.31%), and deterministic p125 Weber
+level 277 from 3.79822 to 4.06195 seconds (6.94%); its eigenvalue stage alone
+was 21.20% slower.  All mathematical outputs matched, and the prototype was
+fully reverted.  The measured negative is retained in
+`artifacts/local/p125-reciprocal-reduction-20260801/result.json`.
 
 ### Classical-j comparison boundary
 
@@ -463,6 +485,11 @@ yield.
   [the trace-prior artifact](../artifacts/local/p125-x1-11-trace-prior-ab-20260801/result.json),
   and the same-build 64/32/16/1 cap selection is in
   [the trace-cap artifact](../artifacts/local/p125-x1-11-trace-cap-20260801/result.json).
+- The generator-retained Weber-source validation, multi-orbit audit, exact
+  projections, and paired one-/three-orbit timings are in
+  [the known-source artifact](../artifacts/local/p125-known-source-lift-20260801/result.json).
+- The exact but slower reciprocal-reduction prototype is recorded in
+  [the negative A/B artifact](../artifacts/local/p125-reciprocal-reduction-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

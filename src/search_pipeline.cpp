@@ -45,6 +45,8 @@ using Clock = std::chrono::steady_clock;
 constexpr std::chrono::seconds kSubprocessTimeout{30};
 constexpr std::string_view kTracePriorPolicy =
     "weber-full-e2-mod4-if-validated-x1-selected-group-divisor-v1";
+constexpr std::string_view kWeberSourceLiftPolicy =
+    "generator-retained-unramified-singleton-v1";
 
 std::uint64_t elapsed_us(Clock::time_point start) {
     const auto elapsed =
@@ -995,7 +997,7 @@ SearchCurveReport process_search_curve(
         WeberSeaResult result = run_weber_sea_reference(
             pair.curve, config.table_directory.string(), config.max_level,
             trace_cap, progress, config.sea_threads, true, true, {},
-            trace_prior);
+            trace_prior, pair.weber_f);
         report.timings.sea_us += elapsed_us(stage_start);
         ++report.sea_passes;
         report.sea_levels += result.levels.size();
@@ -1693,6 +1695,8 @@ std::string search_schedule_sha256(
                   << '\n';
     }
     canonical << "trace_prior_policy=" << kTracePriorPolicy << '\n'
+              << "weber_source_lift_policy=" << kWeberSourceLiftPolicy
+              << '\n'
               << "sea=weber-reference-two-pass-classical-atkin-v2\n"
               << "heuristic_rejection=disabled\n"
               << "prime=" << config.prime << '\n'

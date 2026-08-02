@@ -618,8 +618,39 @@ void test_worker_partition_is_identity_bound() {
     check(differently_threaded == identity,
           "SEA thread limit is a resumable resource setting, not an identity");
 
-    const std::filesystem::path legacy_schedule =
-        temporary.path() / "legacy-default-schedule.txt";
+    const std::filesystem::path canonical_schedule =
+        temporary.path() / "canonical-default-schedule.txt";
+    {
+        std::ostringstream canonical;
+        canonical << "oneshotsea.search-schedule.v1\n"
+                  << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "trace_prior_policy="
+                  << "weber-full-e2-mod4-if-validated-"
+                     "x1-selected-group-divisor-v1\n"
+                  << "weber_source_lift_policy="
+                     "generator-retained-unramified-singleton-v1\n"
+                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "heuristic_rejection=disabled\n"
+                  << "prime=" << config.prime << '\n'
+                  << "max_level=" << config.max_level << '\n'
+                  << "early_trace_cap=" << config.early_trace_cap << '\n'
+                  << "assembly_attempts=" << config.assembly_attempts << '\n'
+                  << "certificate_seed=" << config.certificate_seed << '\n'
+                  << "python_executable_path=" << config.python_executable
+                  << '\n'
+                  << "python_executable_sha256="
+                  << oneshotsea::sha256_file(config.python_executable) << '\n'
+                  << "smooth_cache_sha256=" << digest << '\n'
+                  << "canonical_verifier_sha256=" << digest << '\n';
+        std::ofstream output(canonical_schedule, std::ios::binary);
+        output << canonical.str();
+    }
+    check(identity.schedule_sha256 ==
+              oneshotsea::sha256_file(canonical_schedule),
+          "search schedule identity binds trace-prior and known-lift policy versions");
+
+    const std::filesystem::path pre_source_lift_schedule =
+        temporary.path() / "pre-source-lift-schedule.txt";
     {
         std::ostringstream canonical;
         canonical << "oneshotsea.search-schedule.v1\n"
@@ -640,11 +671,28 @@ void test_worker_partition_is_identity_bound() {
                   << oneshotsea::sha256_file(config.python_executable) << '\n'
                   << "smooth_cache_sha256=" << digest << '\n'
                   << "canonical_verifier_sha256=" << digest << '\n';
-        std::ofstream output(legacy_schedule, std::ios::binary);
+        std::ofstream output(pre_source_lift_schedule, std::ios::binary);
         output << canonical.str();
     }
-    check(identity.schedule_sha256 == oneshotsea::sha256_file(legacy_schedule),
-          "search schedule identity binds the trace-prior policy version");
+    oneshotsea::SearchIdentity pre_source_lift_identity = identity;
+    pre_source_lift_identity.schedule_sha256 =
+        oneshotsea::sha256_file(pre_source_lift_schedule);
+    check(pre_source_lift_identity.schedule_sha256 != identity.schedule_sha256,
+          "known-source policy changes the production schedule hash");
+    const std::filesystem::path pre_source_lift_checkpoint =
+        temporary.path() / "pre-source-lift.json";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(pre_source_lift_identity),
+        pre_source_lift_checkpoint);
+    bool pre_source_lift_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(
+            pre_source_lift_checkpoint, identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        pre_source_lift_rejected = true;
+    }
+    check(pre_source_lift_rejected,
+          "checkpoint rejects the pre-known-source schedule identity");
 
     const std::filesystem::path pre_policy_schedule =
         temporary.path() / "pre-trace-prior-schedule.txt";
@@ -799,6 +847,44 @@ void test_x1_curve_family_enters_search_pipeline() {
           "X1 group-divisor prior skips SEA level eleven");
 }
 
+void test_known_weber_source_lift_pipeline_determinism() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.early_trace_cap = 1;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto first = oneshotsea::process_search_curve(
+        config, smooth, 1,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto repeat = oneshotsea::process_search_curve(
+        config, smooth, 1,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(first.status == repeat.status &&
+              first.sea_passes == repeat.sea_passes &&
+              first.sea_levels == repeat.sea_levels &&
+              first.exact_sea_levels == repeat.exact_sea_levels &&
+              first.initial_trace_count == repeat.initial_trace_count &&
+              first.exact_trace == repeat.exact_trace &&
+              first.sea_level_timings.size() ==
+                  repeat.sea_level_timings.size(),
+          "known Weber source production path is deterministic");
+    check(!first.sea_level_timings.empty(),
+          "known Weber source pipeline fixture exercises SEA levels");
+    for (std::size_t index = 0; index < first.sea_level_timings.size();
+         ++index) {
+        const auto& left = first.sea_level_timings[index];
+        const auto& right = repeat.sea_level_timings[index];
+        check(left.pass == right.pass && left.ell == right.ell &&
+                  left.exact == right.exact &&
+                  left.trace_residue == right.trace_residue &&
+                  left.exact_modulus == right.exact_modulus &&
+                  left.constraint_modulus == right.constraint_modulus &&
+                  left.compatible_source_lifts == 1U &&
+                  right.compatible_source_lifts == 1U,
+              "known Weber singleton preserves deterministic per-level state");
+    }
+}
+
 void test_bounded_early_screen_default() {
     const oneshotsea::SearchPipelineConfig defaults;
     check(defaults.early_trace_cap == 64U,
@@ -848,6 +934,7 @@ int main() {
         test_bounded_early_screen_default();
         test_worker_partition_is_identity_bound();
         test_x1_curve_family_enters_search_pipeline();
+        test_known_weber_source_lift_pipeline_determinism();
         test_sea_level_limit_does_not_advance_cursor();
         test_parallel_stop_discards_later_reports();
         test_parallel_curve_ordering_and_shared_checkpoint();

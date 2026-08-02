@@ -143,6 +143,14 @@ same-input p125 level-193 pairs improved external SEA wall from 15.275 to
 bounded SEA result rather than a full-search throughput claim; see
 [the addmul artifact](../artifacts/local/p125-polynomial-square-addmul-20260801/result.json).
 
+An exact odd-degree norm prototype then avoided the full y-coordinate
+Frobenius exponent at `ell = 3 mod 4`. It improved the targeted eigenvalue
+subtotal by 1.52646x and all eigen recovery by 1.25055x, but its reverse-order
+p125 level-193 wall result was only 14.325 to 13.655 seconds, or 1.04907x.
+That does not strictly exceed the predefined 1.05x gate, so the prototype was
+rejected despite identical 42-level projections. See
+[the negative norm artifact](../artifacts/local/p125-odd-degree-norm-sign-20260801/result.json).
+
 A follow-up exact cleanup retained the modulus and denominator coefficient
 vectors by const reference in the two quadratic elimination loops, removing an
 `mpz_class` copy from every inner product.  Five strictly interleaved
@@ -607,6 +615,9 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
 - The in-place square cross-term identity, same-input reverse-order p125 pairs,
   exact projection hashes, and full validation boundary are in
   [the square-addmul artifact](../artifacts/local/p125-polynomial-square-addmul-20260801/result.json).
+- The exact odd-degree norm proof, independent full-y differential oracle,
+  reverse-order p125 gate, and strict 1.05x rejection are in
+  [the norm-sign artifact](../artifacts/local/p125-odd-degree-norm-sign-20260801/result.json).
 - The prototype and final committed index-206 retained-state Schoof commands,
   exact CRT replays, fallback residues, raw hashes, and release gate are in
   [the fallback artifact](../artifacts/local/p125-index206-schoof-fallback-20260801/result.json).

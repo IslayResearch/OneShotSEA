@@ -30,7 +30,7 @@ build_variant() {
     }
     make -j"$jobs" \
         CC=gcc-11 CXX=g++-11 BUILD_DIR="$build_dir" \
-        CPPFLAGS='-Iinclude' LDFLAGS= \
+        CPPFLAGS='-Iinclude' LDFLAGS=-pthread \
         CFLAGS="$common_cflags" CXXFLAGS="$cxxflags" \
         "$build_dir/benchmark_p125_poly_trusted" \
         "$build_dir/test_core" "$build_dir/test_poly_square"

@@ -165,8 +165,11 @@ Frobenius discriminant was mathematically unclassifiable.  In particular, a
 trace-zero supersingular specialization at trusted level 5 or 7 may be
 non-square-free and therefore fail closed as unconstrained; when the classical
 factor pattern is usable, its certified Atkin order and full residue set are
-still replayed.  Ordinary nonsquare downgrades at those trusted levels are
-rejected.
+still replayed.  A square-discriminant Weber specialization may likewise fail
+to produce a usable normalized codomain/eigenvalue pair and remain
+unconstrained; its CRT state must be unchanged, while every claimed exact
+Elkies residue is still checked against Magma.  Ordinary nonsquare downgrades at
+trusted levels 5 and 7 are rejected.
 
 The table source is copied into the create-only artifact before execution.  The
 native emitter authenticates that copied table set, while the driver binds and

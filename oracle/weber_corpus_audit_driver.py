@@ -696,8 +696,14 @@ def validate_state(
         supersingular_atkin_exception = (
             oracle_trace == 0 and not discriminant_square and ell in {5, 7}
         )
+        # A square Frobenius discriminant says that exact Elkies evidence may
+        # exist, but it does not guarantee that this Weber source lift yields
+        # a usable normalized codomain/eigenvalue pair.  Production records
+        # that failure as unconstrained and leaves both CRT states unchanged.
+        # This is fail-closed evidence, so accept it while still replaying any
+        # exact-Elkies claim all the way to the Magma trace below.
         allowed_classifications = (
-            {"exact_elkies"}
+            {"exact_elkies", "unconstrained"}
             if discriminant_square
             else (
                 {"certified_atkin", "unconstrained"}

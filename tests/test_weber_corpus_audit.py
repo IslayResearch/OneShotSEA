@@ -245,6 +245,38 @@ class WeberCorpusAuditTests(unittest.TestCase):
         if completed.returncode != 0:
             raise AssertionError(completed.stderr)
         cls.supersingular_atkin_row = json.loads(completed.stdout)
+        completed = subprocess.run(
+            [
+                str(NATIVE),
+                "--p",
+                "55313",
+                "--seed",
+                "202608020005",
+                "--range-start",
+                "462",
+                "--count",
+                "1",
+                "--max-level",
+                "193",
+                "--trace-cap",
+                "16",
+                "--sea-threads",
+                "1",
+                "--table-dir",
+                str(TABLES),
+                "--schoof-fallback",
+                "0",
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=30,
+        )
+        if completed.returncode != 0:
+            raise AssertionError(completed.stderr)
+        cls.square_unconstrained_row = json.loads(completed.stdout)
 
     def validated(self, row: dict[str, object] | None = None) -> dict[str, object]:
         return driver.validate_native_record(
@@ -391,6 +423,27 @@ class WeberCorpusAuditTests(unittest.TestCase):
             normalized["early"]["atkin_constraints"][0]["projective_order"],
             2,
         )
+
+    def test_accepts_fail_closed_square_discriminant_without_kernel(self) -> None:
+        normalized = driver.validate_native_record(
+            self.square_unconstrained_row,
+            prime=55313,
+            seed=202608020005,
+            index=462,
+            max_level=193,
+            trace_cap=16,
+            sea_threads=1,
+            available_levels={5, 7, 11, 13, 17, 19},
+            curve_oracle={"order": 55236, "trace": 78},
+            twist_oracle={"order": 55392, "trace": -78},
+            expected_fallback=False,
+            require_complete=False,
+        )
+        levels = {level["ell"]: level for level in normalized["final"]["levels"]}
+        self.assertEqual(levels[17]["classification"], "unconstrained")
+        self.assertEqual(levels[17]["exact_modulus"], "44")
+        self.assertEqual(levels[19]["classification"], "exact_elkies")
+        self.assertEqual(normalized["final_exact_trace"], "78")
 
     def test_independent_projective_order_and_full_atkin_set(self) -> None:
         self.assertEqual(driver.projective_order(5, 101, -6), 3)

@@ -145,6 +145,68 @@ void test_class_numbers_and_orders() {
           }),
           "suitable-prime search fails closed at its candidate cap");
 
+    const auto discovered =
+        oneshotsea::discover_sutherland_suitable_order(5);
+    check(discovered.order.fundamental_discriminant() == -71 &&
+              discovered.order.conductor() == 1 &&
+              discovered.order.class_number() == 7U &&
+              discovered.order.weber_f_order_congruences_hold() &&
+              discovered.fundamental_discriminants_tested > 0U &&
+              discovered.conductor_candidates_tested > 0U,
+          "bounded discovery finds and validates the deterministic ell=5 Weber order");
+    const auto discovered_again =
+        oneshotsea::discover_sutherland_suitable_order(5);
+    check(discovered_again.order.discriminant() ==
+                  discovered.order.discriminant() &&
+              discovered_again.fundamental_discriminants_tested ==
+                  discovered.fundamental_discriminants_tested &&
+              discovered_again.conductor_candidates_tested ==
+                  discovered.conductor_candidates_tested,
+          "suitable-order discovery is deterministic with stable evidence counts");
+    const auto medium_discovered =
+        oneshotsea::discover_sutherland_suitable_order(401);
+    check(medium_discovered.order.level() == 401U &&
+              medium_discovered.order.discriminant() <= -mpz_class(401 * 401) &&
+              medium_discovered.order.class_number() >= 403U &&
+              medium_discovered.order.class_number() <= 601U &&
+              medium_discovered.order.weber_f_order_congruences_hold() &&
+              medium_discovered.conductor_candidates_tested < 1000000U,
+          "bounded discovery reaches the current 400-level SEA range");
+    std::size_t catalog_order_count = 0U;
+    for (unsigned current_level = 5U; current_level <= 997U;
+         current_level += 2U) {
+        const mpz_class encoded_level(std::to_string(current_level));
+        if (mpz_probab_prime_p(encoded_level.get_mpz_t(), 25) == 0) {
+            continue;
+        }
+        const auto current =
+            oneshotsea::discover_sutherland_suitable_order(current_level);
+        check(current.order.level() == current_level &&
+                  current.order.class_number() >= current_level + 2U &&
+                  2U * current.order.class_number() <= 3U * current_level &&
+                  current.order.weber_f_order_congruences_hold(),
+              "suitable-order discovery covers authenticated Weber level " +
+                  std::to_string(current_level));
+        ++catalog_order_count;
+    }
+    check(catalog_order_count == 166U,
+          "suitable-order discovery covers all 166 catalog levels through 997");
+    check(rejects([] {
+              oneshotsea::SutherlandOrderSearchOptions options;
+              options.maximum_conductor_candidates = 1U;
+              (void)oneshotsea::discover_sutherland_suitable_order(5, options);
+          }) &&
+              rejects([] {
+                  oneshotsea::SutherlandOrderSearchOptions options;
+                  options.maximum_fundamental_abs = 70U;
+                  (void)oneshotsea::discover_sutherland_suitable_order(
+                      5, options);
+              }) &&
+              rejects([] {
+                  (void)oneshotsea::discover_sutherland_suitable_order(3);
+              }),
+          "suitable-order discovery fails closed on caps, search bounds, and empty intervals");
+
     const auto odd_trace_order =
         oneshotsea::validate_sutherland_suitable_order(5, -251, 1);
     const auto odd_trace_selected =
@@ -318,6 +380,27 @@ void test_algorithm1_table_differential() {
                          coefficient < 0 ? -coefficient : coefficient);
     }
     check(bound == 360, "fixture derives its exact integer height bound");
+    const auto coefficient_bound =
+        oneshotsea::derive_exact_crt_coefficient_bound_from_table_reference(
+            modular_polynomial, powers);
+    check(coefficient_bound.absolute_bound() == bound &&
+              coefficient_bound.evidence() ==
+                  oneshotsea::CrtCoefficientBoundEvidence::
+                      exact_table_reference,
+          "opaque CRT height evidence agrees with independent coefficient accumulation");
+    check(rejects([&] {
+              (void)oneshotsea::
+                  derive_exact_crt_coefficient_bound_from_table_reference(
+                      modular_polynomial, {1, 2});
+          }) &&
+              rejects([&] {
+                  std::vector<mpz_class> invalid_powers = powers;
+                  invalid_powers[2] = -1;
+                  (void)oneshotsea::
+                      derive_exact_crt_coefficient_bound_from_table_reference(
+                          modular_polynomial, invalid_powers);
+              }),
+          "exact height derivation rejects missing and negative lifts");
 
     const std::vector<mpz_class> primes = {11, 31, 41};
     std::size_t provider_calls = 0U;
@@ -348,7 +431,7 @@ void test_algorithm1_table_differential() {
     std::size_t volcano_calls = 0U;
     const auto orchestrated =
         oneshotsea::reconstruct_weber_specialization_algorithm1(
-            order, target_field, source, bound, 10000,
+            order, target_field, source, coefficient_bound, 10000,
             [&modular_polynomial, &powers, &volcano_calls, &order](
                 const oneshotsea::SutherlandCrtPrime& record,
                 const std::vector<mpz_class>& supplied_powers) {
@@ -382,7 +465,8 @@ void test_algorithm1_table_differential() {
               rejects([&] {
                   (void)oneshotsea::
                       reconstruct_weber_specialization_algorithm1(
-                          incompatible_order, target_field, source, bound,
+                          incompatible_order, target_field, source,
+                          coefficient_bound,
                           10000,
                           [&modular_polynomial](
                               const oneshotsea::SutherlandCrtPrime& record,

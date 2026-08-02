@@ -38,9 +38,14 @@ seam.
 - `gcd(u,2 ell |D0|)=1`; and
 - every prime divisor of `u` is at most `min(c2,ell)`.
 
-The defaults are `c1=3/2` and `c2=256`.  The class-number implementation is a
-small, correctness-first enumerator; it validates an already chosen order and
-is not a fast order-discovery engine.
+The defaults are `c1=3/2` and `c2=256`.  The bounded
+`discover_sutherland_suitable_order` search enumerates fundamental
+discriminants and conductors deterministically.  It uses the exact ring-class
+number formula as a cheap filter, but constructs an order only after the
+independent reduced-form enumerator agrees with the formula.  Explicit
+fundamental-discriminant and conductor-candidate caps fail closed.  This is a
+practical discovery engine for current SEA levels, not an optimized
+class-group selector used to justify the asymptotic theorem.
 
 The Weber-f wrapper additionally requires `D=1 mod 8` and `3` not dividing
 `D`.  These guarantee the class-polynomial splitting condition in the cited
@@ -104,6 +109,14 @@ symbolic table differentiation.
 
 ### 4. Exact CRT and height check
 
+The high-level Weber wrapper accepts a `CrtCoefficientBound`, not a raw
+integer.  Its constructor is private.  At present, the only available evidence
+is `exact_table_reference`, obtained by evaluating every table term after
+target-power lifting and bounding both the value and X-derivative channels.
+This makes table differential tests exact while making it impossible to pass a
+guessed empirical maximum through the production-facing API.  A future proved
+Weber height formula must add a distinct evidence kind and checked constructor.
+
 Let `M` be the product of the distinct primes `p_i`, `M_i=M/p_i`, and
 `a_i=M_i^-1 mod p_i`.  For one residue coefficient `c_i`, the implementation
 forms
@@ -133,6 +146,10 @@ value and X-derivative channels.
 - published small discriminant/class-number fixtures;
 - valid and invalid suitable orders, including a Weber-incompatible but
   otherwise suitable order;
+- deterministic suitable-order discovery at every odd prime level from 5
+  through 997 (all 166 catalog levels), agreement between the ring-class
+  formula and reduced-form enumeration, stable evidence counts, and
+  bounded-search failures;
 - even- and odd-trace prime-selection parity;
 - exact prime equations, deterministic selection, product coverage, and
   candidate-cap failure;
@@ -170,15 +187,14 @@ and error-bound proof.
 That does not yet establish the repository's end-to-end asymptotic claim.  In
 particular:
 
-- suitable orders are validated but not discovered;
-- the class-number counter is a quadratic-form reference implementation, not
-  an optimized class-group routine;
+- suitable orders are discovered only by a bounded practical search, and the
+  class-number validator is not an optimized class-group routine;
 - the fixed-`v` practical prime search is not the randomized selector used by
   the asymptotic theorem;
 - no Hilbert class polynomial state is generated;
 - the surface/floor of the `ell`-isogeny volcano is not enumerated; and
-- a proved, normalization-specific Weber coefficient bound `H` is not yet
-  computed by production code.
+- the high-level API rejects untyped/empirical bounds, but a proved,
+  normalization-specific Weber coefficient bound `H` is not yet implemented.
 
 These missing operations are the ones that must satisfy Sutherland's
 polynomial-in-`log q` bounds.  Until they do, production still depends on the
@@ -190,7 +206,8 @@ implementation theorem.
 
 Implement the callback for one small level first:
 
-1. derive or load independently authenticated Hilbert-class-polynomial state
+1. implement a proved Weber-specific height derivation, then derive or load
+   independently authenticated Hilbert-class-polynomial state
    for the validated order;
 2. find a surface curve with endomorphism ring `O` modulo the supplied `p`;
 3. enumerate the required surface and floor vertices of the Weber
@@ -200,8 +217,8 @@ Implement the callback for one small level first:
 5. compare every per-prime residue and final target specialization with the
    authenticated table oracle before permitting any no-root result.
 
-The first production connection must also compute a proved Weber-specific
-height bound rather than accepting a caller-chosen empirical maximum.
+The first production connection must use the future proved-Weber evidence kind;
+the existing exact-table evidence remains a bounded differential oracle.
 
 ## Focused review checklist
 

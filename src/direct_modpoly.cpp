@@ -170,6 +170,84 @@ bool conductor_prime_factors_are_bounded(std::uint64_t conductor,
     return remaining == 1U || remaining <= bound;
 }
 
+std::vector<std::uint64_t> distinct_prime_factors(std::uint64_t value) {
+    std::vector<std::uint64_t> output;
+    std::uint64_t remaining = value;
+    for (std::uint64_t candidate = 2U;
+         candidate <= remaining / candidate; ++candidate) {
+        if (remaining % candidate != 0U) {
+            continue;
+        }
+        output.push_back(candidate);
+        do {
+            remaining /= candidate;
+        } while (remaining % candidate == 0U);
+    }
+    if (remaining > 1U) {
+        output.push_back(remaining);
+    }
+    return output;
+}
+
+std::uint64_t order_class_number_from_conductor_formula(
+    const mpz_class& fundamental_discriminant,
+    std::uint64_t fundamental_class_number, std::uint64_t conductor) {
+    mpz_class result =
+        encode_u64(fundamental_class_number) * encode_u64(conductor);
+    for (const std::uint64_t prime : distinct_prime_factors(conductor)) {
+        const mpz_class encoded_prime = encode_u64(prime);
+        const int symbol = mpz_kronecker(
+            fundamental_discriminant.get_mpz_t(),
+            encoded_prime.get_mpz_t());
+        result *= encoded_prime - symbol;
+        if (!mpz_divisible_p(result.get_mpz_t(),
+                             encoded_prime.get_mpz_t())) {
+            throw std::logic_error(
+                "ring-class number formula produced a noninteger");
+        }
+        result /= encoded_prime;
+    }
+    std::uint64_t encoded_result = 0U;
+    if (!export_u64(result, encoded_result)) {
+        throw std::overflow_error(
+            "ring-class number exceeds the discovery reference range");
+    }
+    return encoded_result;
+}
+
+std::uint64_t ceil_sqrt_quotient(const mpz_class& numerator,
+                                 std::uint64_t denominator) {
+    const mpz_class encoded_denominator = encode_u64(denominator);
+    mpz_class quotient = numerator / encoded_denominator;
+    if (numerator % encoded_denominator != 0) {
+        ++quotient;
+    }
+    mpz_class root;
+    mpz_sqrt(root.get_mpz_t(), quotient.get_mpz_t());
+    if (root * root < quotient) {
+        ++root;
+    }
+    std::uint64_t output = 0U;
+    if (!export_u64(root, output)) {
+        throw std::overflow_error(
+            "minimum suitable-order conductor exceeds 64 bits");
+    }
+    return output;
+}
+
+std::uint64_t floor_sqrt_quotient(const mpz_class& numerator,
+                                  std::uint64_t denominator) {
+    const mpz_class quotient = numerator / encode_u64(denominator);
+    mpz_class root;
+    mpz_sqrt(root.get_mpz_t(), quotient.get_mpz_t());
+    std::uint64_t output = 0U;
+    if (!export_u64(root, output)) {
+        throw std::overflow_error(
+            "maximum suitable-order conductor exceeds 64 bits");
+    }
+    return output;
+}
+
 std::uint64_t class_number_with_limit(const mpz_class& discriminant,
                                       std::uint64_t maximum) {
     if (discriminant >= 0 ||
@@ -341,6 +419,138 @@ SutherlandSuitableOrder validate_sutherland_suitable_order(
         class_number);
 }
 
+SutherlandOrderSearchResult discover_sutherland_suitable_order(
+    unsigned level, const SutherlandOrderSearchOptions& options) {
+    validate_odd_prime_level(level);
+    if (options.c1_denominator == 0U ||
+        options.c1_numerator <= options.c1_denominator ||
+        options.c2 <= 1U || options.maximum_fundamental_abs < 5U ||
+        options.maximum_conductor_candidates == 0U) {
+        throw std::invalid_argument(
+            "invalid suitable-order discovery options");
+    }
+    const unsigned __int128 maximum_class_wide =
+        static_cast<unsigned __int128>(options.c1_numerator) * level /
+        options.c1_denominator;
+    if (maximum_class_wide <
+        static_cast<unsigned __int128>(level) + 2U) {
+        throw std::invalid_argument(
+            "suitable-order class-number interval is empty");
+    }
+    if (maximum_class_wide >=
+        std::numeric_limits<std::uint64_t>::max()) {
+        throw std::overflow_error(
+            "suitable-order discovery class bound overflows");
+    }
+    const std::uint64_t maximum_class_number =
+        static_cast<std::uint64_t>(maximum_class_wide);
+    const mpz_class ell = encode_u64(level);
+    const mpz_class ell_squared = ell * ell;
+    const mpz_class c2 = encode_u64(options.c2);
+    const mpz_class c2_squared = c2 * c2;
+    const mpz_class maximum_discriminant = c2_squared * ell_squared;
+    const mpz_class requested_maximum_fundamental =
+        encode_u64(options.maximum_fundamental_abs);
+    const mpz_class maximum_fundamental =
+        requested_maximum_fundamental < c2_squared
+            ? requested_maximum_fundamental
+            : c2_squared;
+    if (maximum_fundamental ==
+        encode_u64(std::numeric_limits<std::uint64_t>::max())) {
+        throw std::overflow_error(
+            "fundamental-discriminant search bound cannot be UINT64_MAX");
+    }
+    std::uint64_t maximum_fundamental_u64 = 0U;
+    if (!export_u64(maximum_fundamental, maximum_fundamental_u64)) {
+        throw std::overflow_error(
+            "fundamental-discriminant search bound exceeds 64 bits");
+    }
+
+    std::uint64_t fundamental_tested = 0U;
+    std::uint64_t conductor_tested = 0U;
+    for (std::uint64_t absolute_fundamental = 5U;
+         absolute_fundamental <= maximum_fundamental_u64;
+         ++absolute_fundamental) {
+        const mpz_class fundamental_discriminant =
+            -encode_u64(absolute_fundamental);
+        if (!is_fundamental_discriminant(fundamental_discriminant)) {
+            continue;
+        }
+        if (fundamental_tested == std::numeric_limits<std::uint64_t>::max()) {
+            throw std::overflow_error(
+                "fundamental-discriminant counter overflow");
+        }
+        ++fundamental_tested;
+        if (options.require_weber_f_order_congruences &&
+            (mpz_fdiv_ui(fundamental_discriminant.get_mpz_t(), 8U) != 1U ||
+             mpz_divisible_ui_p(
+                 fundamental_discriminant.get_mpz_t(), 3U) != 0)) {
+            continue;
+        }
+        const std::uint64_t fundamental_class_number =
+            negative_order_class_number(fundamental_discriminant);
+        const std::uint64_t minimum_conductor =
+            std::max<std::uint64_t>(
+                1U,
+                ceil_sqrt_quotient(ell_squared, absolute_fundamental));
+        const std::uint64_t maximum_conductor =
+            floor_sqrt_quotient(maximum_discriminant,
+                                absolute_fundamental);
+        if (minimum_conductor > maximum_conductor) {
+            continue;
+        }
+        const std::uint64_t conductor_factor_bound =
+            std::min(options.c2, static_cast<std::uint64_t>(level));
+        for (std::uint64_t conductor = minimum_conductor;; ++conductor) {
+            if (conductor_tested ==
+                options.maximum_conductor_candidates) {
+                throw std::runtime_error(
+                    "suitable-order discovery exhausted its conductor cap");
+            }
+            ++conductor_tested;
+            const bool structurally_admissible =
+                std::gcd(conductor, static_cast<std::uint64_t>(2U)) == 1U &&
+                std::gcd(conductor, static_cast<std::uint64_t>(level)) == 1U &&
+                std::gcd(conductor, absolute_fundamental) == 1U &&
+                (!options.require_weber_f_order_congruences ||
+                 conductor % 3U != 0U) &&
+                conductor_prime_factors_are_bounded(
+                    conductor, conductor_factor_bound);
+            if (structurally_admissible) {
+                const std::uint64_t class_number =
+                    order_class_number_from_conductor_formula(
+                        fundamental_discriminant,
+                        fundamental_class_number, conductor);
+                if (class_number >=
+                        static_cast<std::uint64_t>(level) + 2U &&
+                    class_number <= maximum_class_number) {
+                    SutherlandSuitableOrder order =
+                        validate_sutherland_suitable_order(
+                            level, fundamental_discriminant,
+                            encode_u64(conductor), options.c1_numerator,
+                            options.c1_denominator, options.c2);
+                    if (order.class_number() != class_number) {
+                        throw std::logic_error(
+                            "ring-class formula and form enumeration disagree");
+                    }
+                    if (options.require_weber_f_order_congruences &&
+                        !order.weber_f_order_congruences_hold()) {
+                        throw std::logic_error(
+                            "discovered order lost the Weber-f congruences");
+                    }
+                    return {std::move(order), fundamental_tested,
+                            conductor_tested};
+                }
+            }
+            if (conductor == maximum_conductor) {
+                break;
+            }
+        }
+    }
+    throw std::runtime_error(
+        "no suitable order found inside the explicit discovery bounds");
+}
+
 std::vector<SutherlandCrtPrime> select_sutherland_crt_primes(
     const SutherlandSuitableOrder& order, const mpz_class& target_modulus,
     const mpz_class& coefficient_abs_bound,
@@ -409,6 +619,63 @@ std::vector<mpz_class> lifted_target_powers(
                                          normalized_source);
     }
     return powers;
+}
+
+CrtCoefficientBound::CrtCoefficientBound(
+    mpz_class absolute_bound, CrtCoefficientBoundEvidence evidence)
+    : absolute_bound_(std::move(absolute_bound)), evidence_(evidence) {
+    if (absolute_bound_ < 1) {
+        throw std::invalid_argument(
+            "CRT coefficient bound must be positive");
+    }
+}
+
+CrtCoefficientBound
+derive_exact_crt_coefficient_bound_from_table_reference(
+    const SparseModularPolynomial& modular_polynomial,
+    const std::vector<mpz_class>& target_power_lifts) {
+    unsigned maximum_x_degree = 0U;
+    for (const BivariateTerm& term : modular_polynomial.terms()) {
+        maximum_x_degree = std::max(maximum_x_degree, term.x_degree);
+    }
+    if (target_power_lifts.size() <= maximum_x_degree) {
+        throw std::invalid_argument(
+            "height derivation is missing target power lifts");
+    }
+    for (const mpz_class& power : target_power_lifts) {
+        if (power < 0) {
+            throw std::invalid_argument(
+                "height derivation requires nonnegative target power lifts");
+        }
+    }
+    const std::size_t coefficient_count =
+        static_cast<std::size_t>(modular_polynomial.level()) + 2U;
+    std::vector<mpz_class> value(coefficient_count, 0);
+    std::vector<mpz_class> x_derivative(coefficient_count, 0);
+    for (const BivariateTerm& term : modular_polynomial.terms()) {
+        if (term.y_degree >= coefficient_count) {
+            throw std::invalid_argument(
+                "height derivation saw an excessive Y degree");
+        }
+        value[term.y_degree] +=
+            term.coefficient * target_power_lifts[term.x_degree];
+        if (term.x_degree != 0U) {
+            x_derivative[term.y_degree] +=
+                term.coefficient * term.x_degree *
+                target_power_lifts[term.x_degree - 1U];
+        }
+    }
+    mpz_class maximum = 1;
+    for (const mpz_class& coefficient : value) {
+        maximum = std::max(
+            maximum, coefficient < 0 ? -coefficient : coefficient);
+    }
+    for (const mpz_class& coefficient : x_derivative) {
+        maximum = std::max(
+            maximum, coefficient < 0 ? -coefficient : coefficient);
+    }
+    return CrtCoefficientBound(
+        maximum, CrtCoefficientBoundEvidence::exact_table_reference);
 }
 
 CrtSpecializationResult reconstruct_specialization_explicit_crt(
@@ -529,7 +796,8 @@ CrtSpecializationResult reconstruct_specialization_explicit_crt(
 
 CrtSpecializationResult reconstruct_weber_specialization_algorithm1(
     const SutherlandSuitableOrder& order, const Field& target_field,
-    const mpz_class& source_x, const mpz_class& coefficient_abs_bound,
+    const mpz_class& source_x,
+    const CrtCoefficientBound& coefficient_bound,
     std::uint64_t maximum_candidates,
     const SutherlandSpecializationResidueProvider& provider) {
     if (!order.weber_f_order_congruences_hold()) {
@@ -548,7 +816,8 @@ CrtSpecializationResult reconstruct_weber_specialization_algorithm1(
         lifted_target_powers(target_field, source_x, order.level() + 1U);
     const std::vector<SutherlandCrtPrime> selected =
         select_sutherland_crt_primes(
-            order, target_field.modulus(), coefficient_abs_bound,
+            order, target_field.modulus(),
+            coefficient_bound.absolute_bound(),
             maximum_candidates);
     std::vector<mpz_class> primes;
     primes.reserve(selected.size());
@@ -559,7 +828,8 @@ CrtSpecializationResult reconstruct_weber_specialization_algorithm1(
     std::size_t next = 0U;
     CrtSpecializationResult result =
         reconstruct_specialization_explicit_crt(
-            order.level(), target_field, source_x, coefficient_abs_bound,
+            order.level(), target_field, source_x,
+            coefficient_bound.absolute_bound(),
             primes,
             [&selected, &provider, &target_power_lifts, &next](
                 const mpz_class& prime) {

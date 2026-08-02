@@ -30,15 +30,17 @@ table catalog remains the actual specialization source.
 [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp) implements the checkable
 orchestration around Sutherland's direct-evaluation algorithm:
 
-1. count primitive reduced quadratic forms and validate every suitable-order
-   condition, including the exact class-number interval;
+1. deterministically discover candidate orders, filter them with the
+   ring-class number formula, and independently validate every suitable-order
+   condition by reduced-form enumeration;
 2. enforce the necessary order congruences for the Weber-f class polynomial;
 3. deterministically select primes satisfying
    `4p = t^2 - ell^2 v^2 D`, retaining `(p,t,v)` for the residue producer;
 4. compute powers in the target field and then lift their canonical
    representatives, rather than incorrectly exponentiating modulo each CRT
    prime;
-5. consume `Phi_ell^f(f,Y)` and its X derivative from a streamed per-prime
+5. require an opaque coefficient-bound object with recorded derivation, then
+   consume `Phi_ell^f(f,Y)` and its X derivative from a streamed per-prime
    provider; and
 6. reconstruct every coefficient with exact CRT rounding, require the CRT
    product to exceed four times a declared coefficient bound, and reject any
@@ -91,13 +93,18 @@ make test test-poly-square test-atkin test-factor test-certificate \
 `test-direct-modpoly` independently checks:
 
 - known quadratic-order class numbers and rejected invalid orders;
+- deterministic suitable-order discovery for every one of the 166 admissible
+  catalog levels through 997, with independent formula/enumeration agreement
+  and explicit cap failures;
 - suitable-order bounds and both trace-parity branches;
 - the exact `(p,t,v,D)` prime equation and deterministic prime selection;
 - deterministic rejection of composites, a strong pseudoprime, duplicate
   primes, and auxiliary inputs outside the proven 64-bit range;
 - signed explicit-CRT reconstruction over `F_1009` and the 416-bit `p125`
   field, including corruption and insufficient-height failures;
-- the target-power lift subtlety in Algorithm 1; and
+- the target-power lift subtlety in Algorithm 1;
+- a table-reference height derivation whose result is independently recomputed
+  coefficient by coefficient; and
 - coefficient-for-coefficient agreement of the complete validated-order,
   selected-prime, streamed-provider, CRT path with a Weber `Phi_5` table oracle.
 
@@ -139,11 +146,12 @@ search term `p^(1/4+o(1))`.
 The new suitable-order selection and exact CRT layers are polynomial-size
 operations and do not introduce a new power of `p`.  But the repository does
 **not yet demonstrate the full asymptotic claim**: production still reads a
-finite modular-polynomial catalog, suitable-order discovery is not implemented,
-the class-number routine is a correctness-first enumerator, and the
-Hilbert-class-polynomial/volcano residue producer is missing.  The claim becomes
-an implementation property only after those gaps close while keeping the
-per-curve cost polynomial in `n`.
+finite modular-polynomial catalog, the bounded order search and class-number
+validator are correctness-first
+routines rather than an asymptotically optimized class-group implementation,
+and the Hilbert-class-polynomial/volcano residue producer is missing.  The
+claim becomes an implementation property only after those gaps close while
+keeping the per-curve cost polynomial in `n`.
 
 The current fixed-`v`, increasing-`t` prime selector is specifically the
 paper's practical heuristic.  Its explicit cap makes failure safe, but it is

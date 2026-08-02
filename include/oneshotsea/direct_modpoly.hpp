@@ -61,6 +61,30 @@ SutherlandSuitableOrder validate_sutherland_suitable_order(
     const mpz_class& conductor, std::uint64_t c1_numerator = 3U,
     std::uint64_t c1_denominator = 2U, std::uint64_t c2 = 256U);
 
+struct SutherlandOrderSearchOptions {
+    std::uint64_t c1_numerator = 3U;
+    std::uint64_t c1_denominator = 2U;
+    std::uint64_t c2 = 256U;
+    std::uint64_t maximum_fundamental_abs = 65536U;
+    std::uint64_t maximum_conductor_candidates = 1000000U;
+    bool require_weber_f_order_congruences = true;
+};
+
+struct SutherlandOrderSearchResult {
+    SutherlandSuitableOrder order;
+    std::uint64_t fundamental_discriminants_tested;
+    std::uint64_t conductor_candidates_tested;
+};
+
+// Deterministically discover and then independently validate a suitable
+// order.  This bounded practical search enumerates fundamental D0 by
+// increasing |D0| and conductors by increasing value, using the ring-class
+// number formula as a cheap filter before the quadratic-form validator.  It
+// fails closed at the explicit conductor-candidate cap and is not presented as
+// the asymptotically optimized class-group order selector.
+SutherlandOrderSearchResult discover_sutherland_suitable_order(
+    unsigned level, const SutherlandOrderSearchOptions& options = {});
+
 struct SutherlandCrtPrime {
     mpz_class prime;
     mpz_class trace;
@@ -69,8 +93,8 @@ struct SutherlandCrtPrime {
 
 // Deterministic version of the paper's practical prime search: fix v=2 when
 // D=1 mod 8 (otherwise v=1), enumerate positive t=2 mod ell with the required
-// parity, and retain probable primes p=(t^2-ell^2*v^2*D)/4.  Exhausting the
-// explicit candidate cap fails closed.
+// parity, and retain deterministically proven 64-bit primes
+// p=(t^2-ell^2*v^2*D)/4.  Exhausting the explicit candidate cap fails closed.
 std::vector<SutherlandCrtPrime> select_sutherland_crt_primes(
     const SutherlandSuitableOrder& order, const mpz_class& target_modulus,
     const mpz_class& coefficient_abs_bound,
@@ -97,6 +121,40 @@ using SutherlandSpecializationResidueProvider =
     std::function<CrtSpecializationResidue(
         const SutherlandCrtPrime& prime,
         const std::vector<mpz_class>& target_power_lifts)>;
+
+enum class CrtCoefficientBoundEvidence {
+    exact_table_reference,
+};
+
+// An absolute coefficient bound with an explicit derivation.  Construction is
+// restricted so the high-level Algorithm 1 wrapper cannot accept a guessed or
+// empirically sampled height.  The only current derivation is exact evaluation
+// from a full table for differential tests; the production Weber-height
+// theorem must add a separate evidence case and checked constructor.
+class CrtCoefficientBound {
+public:
+    const mpz_class& absolute_bound() const { return absolute_bound_; }
+    CrtCoefficientBoundEvidence evidence() const { return evidence_; }
+
+private:
+    CrtCoefficientBound(mpz_class absolute_bound,
+                        CrtCoefficientBoundEvidence evidence);
+
+    friend CrtCoefficientBound
+    derive_exact_crt_coefficient_bound_from_table_reference(
+        const SparseModularPolynomial&, const std::vector<mpz_class>&);
+
+    mpz_class absolute_bound_;
+    CrtCoefficientBoundEvidence evidence_;
+};
+
+// Exact table-dependent derivation used only for differential validation.  It
+// bounds both Phi_ell(x,Y) and its algebraic X derivative after substitution
+// of the already lifted target-field powers.
+CrtCoefficientBound
+derive_exact_crt_coefficient_bound_from_table_reference(
+    const SparseModularPolynomial& modular_polynomial,
+    const std::vector<mpz_class>& target_power_lifts);
 
 struct CrtSpecializationResult {
     ModularPolynomialSpecialization specialization;
@@ -126,7 +184,8 @@ CrtSpecializationResult reconstruct_specialization_explicit_crt(
 // values belong to the corresponding class invariant set.
 CrtSpecializationResult reconstruct_weber_specialization_algorithm1(
     const SutherlandSuitableOrder& order, const Field& target_field,
-    const mpz_class& source_x, const mpz_class& coefficient_abs_bound,
+    const mpz_class& source_x,
+    const CrtCoefficientBound& coefficient_bound,
     std::uint64_t maximum_candidates,
     const SutherlandSpecializationResidueProvider& provider);
 

@@ -70,6 +70,13 @@ remaining volcano seam.  The target source is a separate input and need not
 belong to the auxiliary order.  See
 [`explicit_crt_producer.md`](explicit_crt_producer.md).
 
+`discover_sutherland_suitable_order` now provides a bounded deterministic
+producer for the validated order, with the ring-class number formula checked
+against independent reduced-form enumeration.  The high-level wrapper also
+accepts only an opaque, provenance-bearing coefficient bound; its sole current
+derivation is exact table evaluation for differential tests.  A proved
+Weber-specific height derivation is still required for the unbounded path.
+
 `SparseModularPolynomial::specialize_x_with_derivative` is the table-backed
 reference producer.  It evaluates `Phi(f,Y)` and `Phi_X(f,Y)` together in one
 pass and exists for differential validation, not as evidence that direct
@@ -126,8 +133,9 @@ The branch does not yet meet that premise for unbounded inputs.  Steps 1 and 5
 below now have checked scaffolding; order discovery, the proof of the
 normalization-specific bound, and steps 2--4 remain substantial:
 
-1. discover suitable quadratic orders and compute a proved Weber coefficient
-   bound (validation and CRT-prime selection are implemented);
+1. replace the bounded practical order discovery where necessary with an
+   asymptotically justified selector and compute a proved Weber coefficient
+   bound (bounded discovery, validation, and CRT-prime selection are implemented);
 2. compute and authenticate the required Hilbert class polynomial state;
 3. enumerate the surface and floor of each `ell`-isogeny volcano modulo every
    CRT prime;

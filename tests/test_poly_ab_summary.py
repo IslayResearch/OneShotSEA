@@ -59,7 +59,7 @@ class PolyAbSummaryTests(unittest.TestCase):
                     )
                 (directory / f"{stem}.timing.stderr").write_text(timing)
                 (directory / f"{stem}.resource.txt").write_text(
-                    f"Maximum resident set size (kbytes): {rss[phase]}\n"
+                    f"\tMaximum resident set size (kbytes): {rss[phase]}\n"
                 )
         (directory / "PROJECTION_SHA256.txt").write_text("".join(projections))
         checksum_lines = []

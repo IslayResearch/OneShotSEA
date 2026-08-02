@@ -91,9 +91,9 @@ def _timing_us(path: Path, mode: str) -> tuple[int, dict[str, int]]:
 def _maximum_rss_kib(path: Path) -> int:
     prefix = "Maximum resident set size (kbytes):"
     matches = [
-        line[len(prefix):].strip()
+        line.lstrip()[len(prefix):].strip()
         for line in path.read_text().splitlines()
-        if line.startswith(prefix)
+        if line.lstrip().startswith(prefix)
     ]
     if len(matches) != 1 or int(matches[0]) <= 0:
         raise ValueError(f"missing or invalid maximum RSS: {path}")

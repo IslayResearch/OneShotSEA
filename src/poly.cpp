@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <span>
 #include <stdexcept>
 
 namespace oneshotsea {
@@ -17,6 +18,90 @@ void require_probable_prime_field(const Poly& polynomial) {
     if (mpz_probab_prime_p(polynomial.field().modulus().get_mpz_t(), 25) == 0) {
         throw std::invalid_argument("polynomial root extraction requires probable-prime p");
     }
+}
+
+constexpr std::size_t kKaratsubaCoefficientThreshold = 32U;
+
+std::vector<mpz_class> schoolbook_product(
+    std::span<const mpz_class> lhs, std::span<const mpz_class> rhs) {
+    if (lhs.empty() || rhs.empty()) {
+        return {};
+    }
+    std::vector<mpz_class> output(lhs.size() + rhs.size() - 1U, 0);
+    for (std::size_t lhs_index = 0; lhs_index < lhs.size(); ++lhs_index) {
+        for (std::size_t rhs_index = 0; rhs_index < rhs.size(); ++rhs_index) {
+            mpz_addmul(output[lhs_index + rhs_index].get_mpz_t(),
+                       lhs[lhs_index].get_mpz_t(),
+                       rhs[rhs_index].get_mpz_t());
+        }
+    }
+    return output;
+}
+
+std::vector<mpz_class> add_coefficient_slices(
+    std::span<const mpz_class> low, std::span<const mpz_class> high) {
+    std::vector<mpz_class> sum(std::max(low.size(), high.size()), 0);
+    for (std::size_t index = 0; index < low.size(); ++index) {
+        sum[index] += low[index];
+    }
+    for (std::size_t index = 0; index < high.size(); ++index) {
+        sum[index] += high[index];
+    }
+    return sum;
+}
+
+void add_shifted_coefficients(std::vector<mpz_class>& output,
+                              std::span<const mpz_class> value,
+                              std::size_t shift, int sign) {
+    if (shift > output.size() || value.size() > output.size() - shift) {
+        throw std::logic_error("Karatsuba coefficient range overflow");
+    }
+    for (std::size_t index = 0; index < value.size(); ++index) {
+        if (sign > 0) {
+            output[shift + index] += value[index];
+        } else {
+            output[shift + index] -= value[index];
+        }
+    }
+}
+
+std::vector<mpz_class> karatsuba_product(
+    std::span<const mpz_class> lhs, std::span<const mpz_class> rhs) {
+    if (lhs.empty() || rhs.empty()) {
+        return {};
+    }
+    const std::size_t smaller = std::min(lhs.size(), rhs.size());
+    const std::size_t larger = std::max(lhs.size(), rhs.size());
+    // Very unbalanced products do not benefit from zero-padded Karatsuba.
+    // Retaining schoolbook here also bounds recursive temporary storage.
+    if (smaller <= kKaratsubaCoefficientThreshold ||
+        larger / smaller >= 2U) {
+        return schoolbook_product(lhs, rhs);
+    }
+
+    const std::size_t split = larger / 2U;
+    const std::size_t lhs_split = std::min(split, lhs.size());
+    const std::size_t rhs_split = std::min(split, rhs.size());
+    const std::span<const mpz_class> lhs_low = lhs.first(lhs_split);
+    const std::span<const mpz_class> lhs_high = lhs.subspan(lhs_split);
+    const std::span<const mpz_class> rhs_low = rhs.first(rhs_split);
+    const std::span<const mpz_class> rhs_high = rhs.subspan(rhs_split);
+
+    std::vector<mpz_class> low = karatsuba_product(lhs_low, rhs_low);
+    std::vector<mpz_class> high = karatsuba_product(lhs_high, rhs_high);
+    const std::vector<mpz_class> lhs_sum =
+        add_coefficient_slices(lhs_low, lhs_high);
+    const std::vector<mpz_class> rhs_sum =
+        add_coefficient_slices(rhs_low, rhs_high);
+    std::vector<mpz_class> middle = karatsuba_product(lhs_sum, rhs_sum);
+
+    std::vector<mpz_class> output(lhs.size() + rhs.size() - 1U, 0);
+    add_shifted_coefficients(output, low, 0U, 1);
+    add_shifted_coefficients(output, middle, split, 1);
+    add_shifted_coefficients(output, low, split, -1);
+    add_shifted_coefficients(output, high, split, -1);
+    add_shifted_coefficients(output, high, 2U * split, 1);
+    return output;
 }
 
 void split_linear_factors(const Poly& polynomial, std::vector<mpz_class>& roots) {
@@ -168,15 +253,8 @@ Poly mul(const Poly& lhs, const Poly& rhs) {
     if (lhs.is_zero() || rhs.is_zero()) {
         return Poly(lhs.field());
     }
-    const std::size_t size = lhs.coefficients().size() + rhs.coefficients().size() - 1U;
-    std::vector<mpz_class> output(size, 0);
-    for (std::size_t i = 0; i < lhs.coefficients().size(); ++i) {
-        for (std::size_t j = 0; j < rhs.coefficients().size(); ++j) {
-            mpz_addmul(output[i + j].get_mpz_t(),
-                       lhs.coefficient(i).get_mpz_t(),
-                       rhs.coefficient(j).get_mpz_t());
-        }
-    }
+    std::vector<mpz_class> output = karatsuba_product(
+        lhs.coefficients(), rhs.coefficients());
     return Poly(lhs.field(), std::move(output));
 }
 
@@ -198,6 +276,8 @@ std::pair<Poly, Poly> divmod(const Poly& numerator, const Poly& denominator) {
     }
     const Field& field = numerator.field();
     std::vector<mpz_class> remainder = numerator.coefficients();
+    const std::vector<mpz_class>& denominator_coefficients =
+        denominator.coefficients();
     std::vector<mpz_class> quotient(
         static_cast<std::size_t>(numerator.degree() - denominator.degree() + 1), 0);
     const std::size_t denominator_degree =
@@ -211,7 +291,7 @@ std::pair<Poly, Poly> divmod(const Poly& numerator, const Poly& denominator) {
         for (std::size_t index = 0; index <= denominator_degree; ++index) {
             remainder[shift + index] = field.sub(
                 remainder[shift + index],
-                field.mul(factor, denominator.coefficient(index)));
+                field.mul(factor, denominator_coefficients[index]));
         }
         while (!remainder.empty() && remainder.back() == 0) {
             remainder.pop_back();
@@ -230,6 +310,8 @@ namespace {
 void reduce_product_coefficients(std::vector<mpz_class>& coefficients,
                                  const Poly& modulus) {
     const Field& field = modulus.field();
+    const std::vector<mpz_class>& modulus_coefficients =
+        modulus.coefficients();
     const std::size_t modulus_degree =
         static_cast<std::size_t>(modulus.degree());
     const mpz_class inverse_lead =
@@ -251,7 +333,7 @@ void reduce_product_coefficients(std::vector<mpz_class>& coefficients,
         for (std::size_t index = 0; index < modulus_degree; ++index) {
             mpz_submul(coefficients[shift + index].get_mpz_t(),
                        factor.get_mpz_t(),
-                       modulus.coefficient(index).get_mpz_t());
+                       modulus_coefficients[index].get_mpz_t());
         }
         coefficients[degree] = 0;
     }
@@ -288,19 +370,8 @@ Poly mulmod(const Poly& lhs, const Poly& rhs, const Poly& modulus) {
     if (reduced_lhs.is_zero() || reduced_rhs.is_zero()) {
         return Poly(lhs.field());
     }
-    std::vector<mpz_class> output(
-        reduced_lhs.coefficients().size() +
-            reduced_rhs.coefficients().size() - 1U,
-        0);
-    for (std::size_t lhs_index = 0;
-         lhs_index < reduced_lhs.coefficients().size(); ++lhs_index) {
-        for (std::size_t rhs_index = 0;
-             rhs_index < reduced_rhs.coefficients().size(); ++rhs_index) {
-            mpz_addmul(output[lhs_index + rhs_index].get_mpz_t(),
-                       reduced_lhs.coefficient(lhs_index).get_mpz_t(),
-                       reduced_rhs.coefficient(rhs_index).get_mpz_t());
-        }
-    }
+    std::vector<mpz_class> output = karatsuba_product(
+        reduced_lhs.coefficients(), reduced_rhs.coefficients());
     for (mpz_class& coefficient : output) {
         coefficient = lhs.field().normalize(coefficient);
     }
@@ -321,23 +392,8 @@ Poly squaremod(const Poly& value, const Poly& modulus) {
     if (reduced.is_zero()) {
         return Poly(value.field());
     }
-    std::vector<mpz_class> output(
-        2U * reduced.coefficients().size() - 1U, 0);
-    for (std::size_t lhs_index = 0;
-         lhs_index < reduced.coefficients().size(); ++lhs_index) {
-        mpz_addmul(output[2U * lhs_index].get_mpz_t(),
-                   reduced.coefficient(lhs_index).get_mpz_t(),
-                   reduced.coefficient(lhs_index).get_mpz_t());
-        for (std::size_t rhs_index = lhs_index + 1U;
-             rhs_index < reduced.coefficients().size(); ++rhs_index) {
-            mpz_addmul(output[lhs_index + rhs_index].get_mpz_t(),
-                       reduced.coefficient(lhs_index).get_mpz_t(),
-                       reduced.coefficient(rhs_index).get_mpz_t());
-            mpz_addmul(output[lhs_index + rhs_index].get_mpz_t(),
-                       reduced.coefficient(lhs_index).get_mpz_t(),
-                       reduced.coefficient(rhs_index).get_mpz_t());
-        }
-    }
+    std::vector<mpz_class> output = karatsuba_product(
+        reduced.coefficients(), reduced.coefficients());
     for (mpz_class& coefficient : output) {
         coefficient = value.field().normalize(coefficient);
     }

@@ -64,6 +64,57 @@ class CliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["ell"], 3)
 
+    def test_x1_11_probe_is_bounded_and_emits_pinned_telemetry(self) -> None:
+        result = self.run_cli(
+            "x1-11-probe",
+            "--p", 101,
+            "--seed", 8675309,
+            "--range-start", 4,
+            "--count", 2,
+            "--max-x-samples", 3,
+            "--require-point4", 0,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        records = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(len(records), 3)
+        self.assertEqual(
+            [record["schema"] for record in records[:-1]],
+            ["oneshotsea.x1-11-probe-index.v1"] * 2,
+        )
+        self.assertEqual(
+            [record["index"] for record in records[:-1]], ["4", "5"]
+        )
+        self.assertTrue(
+            all(1 <= int(record["counters"]["x_samples"]) <= 3
+                for record in records[:-1])
+        )
+        summary = records[-1]
+        self.assertEqual(summary["schema"], "oneshotsea.x1-11-probe.v1")
+        self.assertEqual(
+            summary["generator_version"],
+            "x1-11-tate-weber-montgomery-v1",
+        )
+        self.assertEqual(
+            summary["formula_source_sha256"],
+            "19f76aef352cea9a6e1d3347977eb9286b03e70fa6b4afb8daea013ebbd6bd4c",
+        )
+        self.assertEqual(summary["count"], "2")
+        self.assertEqual(summary["max_x_samples_per_index"], "3")
+        self.assertEqual(
+            int(summary["counters"]["x_samples"]),
+            sum(int(record["counters"]["x_samples"])
+                for record in records[:-1]),
+        )
+
+        self.assert_rejected(
+            "x1-11-probe", "--p", 101, "--seed", 1,
+            "--range-start", 0, "--count", 0,
+        )
+        self.assert_rejected(
+            "x1-11-probe", "--p", 103, "--seed", 1,
+            "--range-start", 0,
+        )
+
     def test_bmss_cli_matches_division_reference(self) -> None:
         common = ("--p", 101, "--a", 39, "--b", 44, "--ell", 5)
         bmss = self.run_cli(
@@ -256,12 +307,16 @@ class CliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             records = [json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual(records[0]["schema"], "oneshotsea.search-start.v1")
+            self.assertEqual(records[0]["curve_family"], "weber-f")
             self.assertEqual(len(records[0]["smooth_cache_sha256"]), 64)
             self.assertEqual(len(records[0]["table_manifest_sha256"]), 64)
             self.assertEqual(len(records[0]["verifier_sha256"]), 64)
             self.assertFalse(records[0]["heuristic_rejection"])
             self.assertEqual(records[0]["resources"]["curve_threads"], "2")
             self.assertEqual(records[0]["resources"]["sea_threads"], "2")
+            self.assertFalse(
+                records[0]["resources"]["x1_require_point_four"]
+            )
             self.assertEqual(
                 records[0]["resources"]["smooth_root_auxiliary_bytes"],
                 str(128 * 1024 * 1024),
@@ -337,6 +392,42 @@ class CliTests(unittest.TestCase):
             self.assertEqual(
                 len((root / "progress.ndjson").read_text().splitlines()), 1
             )
+
+    def test_x1_search_family_is_explicit_and_identity_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 17,
+                "--range-start", 0,
+                "--range-end", 1,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 11,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--checkpoint", root / "checkpoint.json",
+                "--curve-family", "x1-11",
+                "--x1-require-point4", 1,
+                "--max-curves", 0,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            records = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(records[0]["curve_family"], "x1-11")
+            self.assertTrue(
+                records[0]["resources"]["x1_require_point_four"]
+            )
+            self.assertEqual(records[-1]["processed"], "0")
+
+        self.assert_rejected(
+            "search", "--p", 101, "--seed", 1,
+            "--curve-family", "unknown",
+        )
+        self.assert_rejected(
+            "search", "--p", 101, "--seed", 1,
+            "--x1-require-point4", 1,
+        )
 
     def test_search_rejects_non_python_success_executable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

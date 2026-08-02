@@ -15,6 +15,13 @@
 
 namespace oneshotsea {
 
+enum class SearchCurveFamily : std::uint8_t {
+    weber_f,
+    x1_11,
+};
+
+const char* search_curve_family_name(SearchCurveFamily family);
+
 // Semantic configuration of the deterministic production search.  The
 // production path deliberately has no heuristic-rejection switch: every
 // early rejection is justified by a complete trace set and exact n^4-smooth
@@ -22,6 +29,10 @@ namespace oneshotsea {
 struct SearchPipelineConfig {
     mpz_class prime;
     std::uint64_t seed = 0;
+    SearchCurveFamily curve_family = SearchCurveFamily::weber_f;
+    // Semantic only for x1_11. Requiring point four additionally guarantees
+    // the validated order-divisor metadata recorded by that generator.
+    bool x1_require_point_four = false;
     std::filesystem::path table_directory;
     std::uint64_t max_level = 0;
     // One default bounded-smoothness batch: every trace produces a curve and

@@ -23,13 +23,13 @@ BUILD_DIR := build
 LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/trace.cpp src/atkin.cpp src/weber_table_trust.cpp \
 	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/isogeny.cpp src/weber.cpp src/sea.cpp \
 	src/smooth_cache.cpp src/smooth_bounded.cpp src/integrity.cpp src/exact_smooth.cpp src/factor.cpp src/search_checkpoint.cpp src/certificate.cpp \
-	src/weber_curve_generator.cpp src/search_pipeline.cpp
+	src/weber_curve_generator.cpp src/x1_11_probe.cpp src/search_pipeline.cpp
 LIB_OBJECTS := $(LIB_SOURCES:src/%.cpp=$(BUILD_DIR)/%.o)
 LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-atkin test-progress-audit test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-x1-11-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -107,6 +107,11 @@ $(BUILD_DIR)/test_weber_curve_generator: \
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
 		$(LDFLAGS) $(LDLIBS) -o $@
 
+$(BUILD_DIR)/test_x1_11_probe: \
+		tests/test_x1_11_probe.cpp $(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
 test: $(BUILD_DIR)/test_core
 	./$(BUILD_DIR)/test_core
 
@@ -115,6 +120,9 @@ test-atkin: $(BUILD_DIR)/test_atkin
 
 test-progress-audit:
 	python3 tests/test_progress_audit.py -v
+
+test-yield-model:
+	python3 tests/test_yield_model.py -v
 
 test-cli: all
 	python3 tests/test_cli.py -v
@@ -140,6 +148,9 @@ test-weber-modpoly:
 
 test-weber-curve-generator: $(BUILD_DIR)/test_weber_curve_generator
 	./$(BUILD_DIR)/test_weber_curve_generator
+
+test-x1-11-probe: $(BUILD_DIR)/test_x1_11_probe
+	./$(BUILD_DIR)/test_x1_11_probe
 
 test-verifier:
 	python3 third_party/oneshot_primality_proofs/verify_vendor.py
@@ -175,7 +186,7 @@ test-runpod: all
 test-aws:
 	scripts/aws/test.sh
 
-test-all: test test-atkin test-progress-audit test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws
+test-all: test test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-x1-11-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

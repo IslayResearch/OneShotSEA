@@ -1,9 +1,9 @@
 # Local p125 search readiness audit, 2026-08-01
 
 This audit identifies the next non-overlapping production action on the Apple
-M4 after the retained searches through global index 8 and the complete clean
+M4 after the retained searches through global index 11 and the complete clean
 gate for measured scheduling commit
-`b6844613d6065a65dd2e72b1661b7b121b513af7`.  The clean release executable
+`c5de5735e722baf79592da96e8b07c1dd8a6aee5`.  The clean release executable
 hashes to `e05a393ff57ba9d0948fc8e91d1f2f91e0af427f73c27a7c699168f03ea0aeea`.
 It treats the ignored
 `work/p125` tree as live evidence.  Older benchmark prose is not used as
@@ -62,6 +62,16 @@ authority where that tree was subsequently extended.
   `8930229042226cb5d5a973b835b17ebda57e9178f1a026575c8313923f0266f7`,
   and `46d5de047baceaadef9100b73a652d91e82245b12dbbbe13868707ab74a5024b`.
   The next changed executable must start a fresh range at 9.
+- The measured-scheduling production identity was commit
+  `c5de5735e722baf79592da96e8b07c1dd8a6aee5`, executable SHA-256
+  `e05a393ff57ba9d0948fc8e91d1f2f91e0af427f73c27a7c699168f03ea0aeea`,
+  and range `[9,1000000)`.  It soundly rejected indices 9--11 and was stopped
+  during the replayable prefix of index 12.  Its durable checkpoint is
+  `next_index=12`; checkpoint, progress, and log SHA-256 values are
+  `2b584f325040b111b1464b3464fce3083b29e36a0ecb4757c23f9e67f95841e0`,
+  `2cdad57b734cfcbaebbb32aea3c0004ef4a8e760e8f57c024a6e05c522109ba4`,
+  and `537100931d6b8aaac9fdcba3ae8ca49f3e078bfb570a597c5b0c9ab30f742682`.
+  The next changed executable must start a fresh range at 12.
 
 The filtered artifacts were extended after `docs/benchmark_20260731.md` was
 written.  Their current authoritative digests are:
@@ -106,7 +116,7 @@ committed result is under `artifacts/local/p125-index2-20260801`.
 
 ## Unique yield evidence
 
-Global indices 0--8 are the nine independent production samples.  The old
+Global indices 0--11 are the twelve independent production samples.  The old
 singleton point count, cap-4096 experiment, baseline index-1 record, optimized
 index-1 replay, and optimized index-4 replays duplicate those indices and must
 not inflate yield.
@@ -122,13 +132,19 @@ not inflate yield.
 | 6 | 0 | 50 / 32 | 10 (20 curve/twist orders) | sound smoothness rejection |
 | 7 | 0 | 67 / 29, plus 1 Atkin | 22 (44 curve/twist orders) | sound smoothness rejection |
 | 8 | 0 | 65 / 31, plus 1 Atkin | 2 (4 curve/twist orders) | sound smoothness rejection |
+| 9 | 7 | 57 / 31, plus 1 Atkin | 21 (42 curve/twist order screens) | sound smoothness rejection |
+| 10 | 1 | 63 / 30, plus 1 Atkin | 3 (6 curve/twist order screens) | sound smoothness rejection |
+| 11 | 3 | 59 / 31, plus 1 Atkin | 8 (16 curve/twist order screens) | sound smoothness rejection |
 
-Thus the unique retained yield is zero smooth-enough orders out of 208 screened
-orders, zero assembly calls, and zero certificates from nine curves.  This is
-too little evidence for a defensible certificate waiting-time estimate.  Even
-an independence-assuming binomial calculation is misleading because the
-orders within a curve and nearby smoothness events are not independent.  It
-must not be presented as a certificate probability.
+Thus 272 trace-candidate order values were exactly and soundly screened, with
+zero assembly calls and zero certificates from twelve curves.  These are not
+272 independent certificate opportunities: each curve has one actual trace
+and therefore only two actual group orders, so the twelve curves contribute
+24 actual curve/twist orders.  The other trace candidates provide sound early
+rejection evidence but cannot increase hit probability.  A model-based search
+forecast must preserve that distinction and account for the correlation
+between `p+1-t` and `p+1+t`; the small observed sample cannot estimate the rare
+tail directly.
 
 The larger generator probe admitted 32 curves after 41 incompatible images,
 or about 43.8% admission.  Generation takes milliseconds and is immaterial
@@ -149,9 +165,15 @@ Conjugate eigenvalue reuse then replayed index 4 in 291.43 seconds, with all 64
 canonical level records identical.  It reduced the orbit-only eigenvalue
 subtotal from 148.418 to 70.196 seconds by replacing 30 of 61 full recoveries
 with exact determinant-derived conjugates.  This is a controlled replay, not
-and index 8 supplied the first complete search-curve observation: 318.729
+a new search sample.  Index 8 supplied the first complete search-curve
+observation: 318.729
 seconds of SEA, 10.518 seconds of exact smoothness, and 329.264 seconds of
 warm curve work for two final traces.  Peak RSS was 5,441,470,464 bytes.
+The same clean scheduling binary then processed indices 9--11 in 254.163,
+325.570, and 214.242 seconds of warm curve work.  Their SEA subtotals were
+224.190, 313.713, and 204.736 seconds, and their exact-smooth subtotals were
+29.936, 11.850, and 9.485 seconds.  The largest reported resident set was
+5,578,883,072 bytes.
 
 On index 2, modular roots consumed 87.6% and eigenvalues 10.8% of SEA time.
 The ten-thread run accumulated 6,795.35 user-seconds during 1,436.58 wall
@@ -165,13 +187,16 @@ for the optimized cap-64 replay.  No retained evidence supports a larger cap.
 
 ## Next local action
 
-Publish the cleanly tested scheduling milestone, then start a clean identity
-at global index 9.  A changed executable cannot reuse the `9fd6fa3` checkpoint
-because build identity is deliberately authenticated; the new half-open range
-must therefore begin at 9 to avoid overlap.  The held-out scheduling A/B found
-the measured alternate 0.7% slower, so production remains increasing-order.
-The command shape below is the audited template, but its build id and directory
-must be replaced with the new committed build before launch.
+First run a bounded, same-build K=10 comparison of the default Weber family and
+the opt-in X1(11) point-four family.  Those observations are benchmark-only and
+must not advance the authenticated cursor.  Then start the selected clean
+identity at global index 12.  A changed executable cannot reuse the `c5de573`
+checkpoint because build identity is deliberately authenticated; the new
+half-open range must therefore begin at 12 to avoid overlap.  The held-out
+scheduling A/B found the measured alternate 0.7% slower, so SEA levels remain
+in increasing order.  The command shape below is the audited template, but its
+build id, directory, and chosen family must be replaced with the committed
+benchmark winner before launch.
 
 ```sh
 set -o pipefail
@@ -180,13 +205,14 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 9 --range-end 1000000 \
+  --range-start 12 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
-  --max-level 401 --trace-cap 64 --sea-threads 10 \
+  --curve-family FAMILY \
+  --max-level 401 --trace-cap 64 --curve-threads 10 --sea-threads 1 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache work/p125/smooth.cache \
   --smooth-cache-sha256 afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551 \
-  --smooth-threads 8 --smooth-max-batch 128 \
+  --smooth-threads 1 --smooth-max-batch 128 \
   --smooth-root-auxiliary-bytes 134217728 \
   --checkpoint work/p125/search-NEXT/checkpoint.json \
   --checkpoint-every 1 \
@@ -199,8 +225,11 @@ mkdir work/p125/search-NEXT
 Before the continuation, confirm the emitted search-start record has
 the expected cache, table, range, seed, build, and schedule identities; confirm
 the curve record is non-heuristic and either advances soundly or produces a
-locally verified certificate.  Keep one ten-thread worker initially: the
-5.5 GB resident cache makes multi-process throughput a separate memory and
-scaling experiment on the 16 GB M4.  Each completed SEA level now emits and
-flushes `oneshotsea.search-sea-level.v1`, while only complete curve records
-and checkpoints advance durable state.
+locally verified certificate.  Use one process with ten rolling curve slots,
+one SEA thread and one smooth thread per curve.  The same-binary K=10 replay
+measured 27.071 warm seconds per curve and 6.19 GB peak RSS, with 68.9 MiB of
+system-wide swapouts already included in its wall time; retain `vm_stat`
+monitoring and do not raise concurrency beyond the ten physical cores without
+a new bounded A/B.  Each completed SEA level emits and flushes
+`oneshotsea.search-sea-level.v1`, while only complete curve records and
+checkpoints advance durable state.

@@ -52,6 +52,80 @@ mpz_class target_prime() {
         "0000000000000000000000000000000000000000000237");
 }
 
+oneshotsea::Poly reference_schoolbook_product(
+    const oneshotsea::Poly& lhs, const oneshotsea::Poly& rhs) {
+    check(lhs.field().modulus() == rhs.field().modulus(),
+          "reference product field match");
+    if (lhs.is_zero() || rhs.is_zero()) {
+        return oneshotsea::Poly(lhs.field());
+    }
+    const oneshotsea::Field& field = lhs.field();
+    std::vector<mpz_class> output(
+        lhs.coefficients().size() + rhs.coefficients().size() - 1U, 0);
+    for (std::size_t left = 0; left < lhs.coefficients().size(); ++left) {
+        for (std::size_t right = 0; right < rhs.coefficients().size(); ++right) {
+            output[left + right] = field.add(
+                output[left + right],
+                field.mul(lhs.coefficients()[left],
+                          rhs.coefficients()[right]));
+        }
+    }
+    return oneshotsea::Poly(field, std::move(output));
+}
+
+oneshotsea::Poly dense_polynomial(const oneshotsea::Field& field,
+                                  std::size_t size,
+                                  std::uint64_t domain) {
+    std::vector<mpz_class> coefficients(size);
+    for (std::size_t index = 0; index < size; ++index) {
+        mpz_class value = oneshotsea::deterministic_residue(
+            field, UINT64_C(0x6b61726174737562), index, domain);
+        coefficients[index] = index % 3U == 0U ? -value : value;
+    }
+    if (!coefficients.empty()) {
+        coefficients.back() = field.modulus() - 1;
+    }
+    return oneshotsea::Poly(field, std::move(coefficients));
+}
+
+void check_thresholded_products(const oneshotsea::Field& field,
+                                std::size_t size) {
+    const oneshotsea::Poly lhs = dense_polynomial(field, size, size);
+    const std::size_t rhs_size = size <= 2U ? size : size - 1U;
+    const oneshotsea::Poly rhs =
+        dense_polynomial(field, rhs_size, size + 1U);
+    std::vector<mpz_class> modulus_coefficients =
+        dense_polynomial(field, size + 1U, size + 2U).coefficients();
+    modulus_coefficients.back() = size % 2U == 0U
+                                      ? mpz_class(1)
+                                      : field.modulus() - 2;
+    const oneshotsea::Poly modulus(field, std::move(modulus_coefficients));
+
+    const oneshotsea::Poly product = reference_schoolbook_product(lhs, rhs);
+    const oneshotsea::Poly square = reference_schoolbook_product(lhs, lhs);
+    check(oneshotsea::equal(oneshotsea::mul(lhs, rhs), product),
+          "thresholded exact convolution matches independent schoolbook");
+    check(oneshotsea::equal(oneshotsea::mulmod(lhs, rhs, modulus),
+                           oneshotsea::mod(product, modulus)),
+          "thresholded quotient-ring multiply matches independent schoolbook");
+    check(oneshotsea::equal(oneshotsea::squaremod(lhs, modulus),
+                           oneshotsea::mod(square, modulus)),
+          "thresholded quotient-ring square matches independent schoolbook");
+}
+
+void test_thresholded_polynomial_products() {
+    const oneshotsea::Field small_field(1009);
+    for (const std::size_t size :
+         {1U, 2U, 17U, 31U, 32U, 33U, 47U, 64U, 65U, 97U}) {
+        check_thresholded_products(small_field, size);
+    }
+    const oneshotsea::Field large_field(target_prime());
+    for (const std::size_t size : {31U, 32U, 33U, 47U, 64U, 97U, 129U,
+                                   194U}) {
+        check_thresholded_products(large_field, size);
+    }
+}
+
 void test_field() {
     const oneshotsea::Field field(101);
     check(field.normalize(-1) == 100, "normalization");
@@ -141,6 +215,7 @@ void test_polynomial() {
     }
     check(rejected_composite_root_field,
           "polynomial root extraction rejects composite moduli");
+    test_thresholded_polynomial_products();
 }
 
 void test_curves() {

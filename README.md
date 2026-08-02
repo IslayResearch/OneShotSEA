@@ -18,8 +18,8 @@ Implementation and the real `p125` search are in progress; no certificate is
 claimed until the unmodified pinned verifier accepts it. The repository
 currently includes:
 
-- a portable GMP-backed finite-field and polynomial layer, native Schoof
-  reference, and independent Python/Magma oracle paths;
+- a portable GMP-backed finite-field and thresholded Karatsuba polynomial
+  layer, native Schoof reference, and independent Python/Magma oracle paths;
 - an authenticated 77-level Weber-f schedule through level 401, normalized
   BMSS isogeny recovery, exact Frobenius residues, verified 24th-root
   source-lift orbit reuse, and exact conjugate-eigenvalue reuse;
@@ -28,6 +28,10 @@ currently includes:
   sharing;
 - conservative full-bound smoothness early abort using the pinned MIT engine
   and a content-authenticated portable 5.4 GB `p125` cache;
+- rolling multi-curve execution against one shared immutable smooth cache,
+  with deterministic in-order checkpoint and certificate publication;
+- an opt-in, schedule-bound X1(11) curve family with independently checked
+  11-torsion, full rational `E[2]`, and an optional point-order-four filter;
 - exhaustive certificate-divisor search, exact Montgomery point-order checks,
   crash-safe checkpoints, identity-bound artifacts, and the pinned canonical
   verifier; and

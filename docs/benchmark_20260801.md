@@ -234,3 +234,60 @@ performance result rather than a correctness difference.  The increasing
 production default remains justified.  The profile, exact order, curve,
 binary identity, equality projections, and raw hashes are in
 `artifacts/local/p125-prime-schedule-20260801/result.json`.
+
+## Thresholded Karatsuba and rolling curve scaling
+
+The next frozen evaluation combined commit `f8347c6`'s shared-cache rolling
+curve coordinator with a threshold-32 exact Karatsuba convolution backend.
+The evaluated executable SHA-256 was
+`01d9cabac89660094545c7cd42b83b1c6d06d74b5c979aec3d52ea14a01eee0e`.
+
+The isolated degree-194 kernel result was 2.70x for raw multiplication, 1.53x
+for `mulmod` and `squaremod`, and 1.554x for quotient Frobenius.  Current-path
+serial replays reduced warm work on indices 8 and 9 from 329.264/254.163 to
+110.340/90.010 seconds, while their complete canonical mathematical hashes
+remained identical to retained production.
+
+The same frozen executable then scaled one initial window across the ten-core
+M4:
+
+| Curve slots | SEA threads/curve | Smooth threads/curve | Warm seconds/curve | Peak RSS |
+|---:|---:|---:|---:|---:|
+| 1 | 10 | 8 | 100.175 | 6.02 GB |
+| 2 | 5 | 4 | 57.800 | 6.29 GB |
+| 3 | 3 | 2 | 40.501 | 5.79 GB |
+| 5 | 2 | 1 | 34.185 | 6.39 GB |
+| 10 | 1 | 1 | 27.071 | 6.19 GB |
+
+All overlapping curve projections match across modes.  The K=10 window
+recorded 68.9 MiB of system-wide swapouts, already reflected in its wall time.
+Concurrency therefore stops at the ten physical cores and remains subject to
+long-run memory telemetry.  Commands, source and executable identities,
+per-curve timings, canonical hashes, raw hashes, and `vm_stat` deltas are in
+`artifacts/local/p125-curve-parallel-20260801/result.json`.
+This was a pre-commit scaling evaluation, not a production identity: its
+observations at indices 12--17 do not advance the authenticated production
+cursor and the final committed worker must begin again at 12.
+
+A subsequent two-line exact cleanup removed repeated `mpz_class` coefficient
+copies from the quadratic quotient/reduction loops.  Five interleaved
+degree-194 quotient-Frobenius pairs improved from 1.183812 to 0.964617 seconds
+median (1.227x) with identical outputs.  It postdates the frozen scaling
+binary, so the table above does not project or multiply that gain.
+
+## Bounded X1(11) family probe
+
+The pinned MIT X1(11) equation was exercised on `p125`, seed
+`202607300000`, indices `[0,16)`, with a 64-x-coordinate bound per index.
+The full-`E[2]` mode admitted 13 indices from 411 x samples in 5.296 seconds.
+Requiring a point of order four admitted 7 indices from 817 x samples in
+11.176 seconds.  No sample failed the nonsingularity, exact-order-11, or full-
+`E[2]` validation gates.  Magma 2.29-1 independently confirmed the retained
+order divisibility by 44/88 and the Tate-point and Montgomery identities.
+
+This measurement is generation-only and did not advance the production
+cursor.  The construction is now available as an explicit schedule-bound
+search family, but an end-to-end same-build K=10 comparison remains the gate
+before selecting it for the long run.  Exact commands, counters, formula and
+binary identities, Magma orders, and raw hashes are in
+`artifacts/local/p125-x1-11-probe-20260801/result.json`.

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -599,6 +600,7 @@ void test_sea_level_limit_does_not_advance_cursor() {
 }
 
 void test_worker_partition_is_identity_bound() {
+    TemporaryDirectory temporary;
     oneshotsea::SearchPipelineConfig config = small_config();
     config.sea_threads = 1;
     const std::string digest(64U, 'a');
@@ -614,6 +616,83 @@ void test_worker_partition_is_identity_bound() {
           "pipeline identity binds schedule and table content");
     check(differently_threaded == identity,
           "SEA thread limit is a resumable resource setting, not an identity");
+
+    const std::filesystem::path legacy_schedule =
+        temporary.path() / "legacy-default-schedule.txt";
+    {
+        std::ostringstream canonical;
+        canonical << "oneshotsea.search-schedule.v1\n"
+                  << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "heuristic_rejection=disabled\n"
+                  << "prime=" << config.prime << '\n'
+                  << "max_level=" << config.max_level << '\n'
+                  << "early_trace_cap=" << config.early_trace_cap << '\n'
+                  << "assembly_attempts=" << config.assembly_attempts << '\n'
+                  << "certificate_seed=" << config.certificate_seed << '\n'
+                  << "python_executable_path=" << config.python_executable
+                  << '\n'
+                  << "python_executable_sha256="
+                  << oneshotsea::sha256_file(config.python_executable) << '\n'
+                  << "smooth_cache_sha256=" << digest << '\n'
+                  << "canonical_verifier_sha256=" << digest << '\n';
+        std::ofstream output(legacy_schedule, std::ios::binary);
+        output << canonical.str();
+    }
+    check(identity.schedule_sha256 == oneshotsea::sha256_file(legacy_schedule),
+          "default Weber schedule identity remains byte-for-byte compatible");
+
+    oneshotsea::SearchPipelineConfig x1_config = small_config();
+    x1_config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+    const auto x1_identity = oneshotsea::make_search_identity(
+        x1_config, {10, 21}, 2, 3, digest, digest, "pipeline-test-v1");
+    check(x1_identity.range == identity.range &&
+              x1_identity.schedule_sha256 != identity.schedule_sha256,
+          "curve family changes schedule identity without changing partition");
+
+    x1_config.x1_require_point_four = true;
+    const auto x1_point_four_identity = oneshotsea::make_search_identity(
+        x1_config, {10, 21}, 2, 3, digest, digest, "pipeline-test-v1");
+    check(x1_point_four_identity.range == identity.range &&
+              x1_point_four_identity.schedule_sha256 !=
+                  x1_identity.schedule_sha256,
+          "X1 point-four requirement changes schedule identity only");
+
+    const std::filesystem::path checkpoint = temporary.path() / "weber.json";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(identity), checkpoint);
+    bool mismatch_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(checkpoint, x1_identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        mismatch_rejected = true;
+    }
+    check(mismatch_rejected,
+          "checkpoint rejects a mismatched curve-family schedule");
+}
+
+void test_x1_curve_family_enters_search_pipeline() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.prime = 157;
+    config.seed = UINT64_C(0x7821058d55e0f265);
+    config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+    config.x1_require_point_four = true;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto first = oneshotsea::process_search_curve(
+        config, smooth, 7,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto repeat = oneshotsea::process_search_curve(
+        config, smooth, 7,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(first.global_index == 7U &&
+              first.rejected_generator_samples ==
+                  repeat.rejected_generator_samples &&
+              first.status == repeat.status &&
+              first.sea_levels == repeat.sea_levels &&
+              first.initial_trace_count == repeat.initial_trace_count,
+          "X1 family feeds the common pipeline deterministically");
 }
 
 void test_bounded_early_screen_default() {
@@ -664,6 +743,7 @@ int main() {
         test_verifier_runtime_failure_is_not_a_rejection();
         test_bounded_early_screen_default();
         test_worker_partition_is_identity_bound();
+        test_x1_curve_family_enters_search_pipeline();
         test_sea_level_limit_does_not_advance_cursor();
         test_parallel_stop_discards_later_reports();
         test_parallel_curve_ordering_and_shared_checkpoint();

@@ -11,9 +11,9 @@ appropriate comparison exist.
 
 | Required dimension | Implemented path | Best retained evidence | Status |
 |---|---|---|---|
-| Early abort | Complete bounded trace enumeration followed by exact full-`n^4` smooth screening of both signs | Raising the screen from the default path to 195 traces would have made the measured index-0 run 27.8 s slower; nine retained production curves were soundly rejected from 104 trace candidates (208 curve/twist orders) without completing a point count | Implemented and policy-calibrated; no same-build off/on wall-time speedup yet |
-| Batching | Batched exact accumulation in polynomial reduction and batched remainder-tree smooth extraction | Controlled reducer A/B: 2.07x synthetic median, 2.32x invocation wall and 2.59x complete curve work on a deterministic `p125` replay | Measured for two hot-path batching mechanisms; no cross-curve SEA batch A/B |
-| Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first nine retained curves produced 104 trace candidates and 208 order screens from nine SEA executions | Exact work-count reduction; no wall-time ablation |
+| Early abort | Complete bounded trace enumeration followed by exact full-`n^4` smooth screening of both signs | Raising the screen from the default path to 195 traces would have made the measured index-0 run 27.8 s slower; twelve retained production curves were soundly rejected from 136 trace candidates (272 curve/twist order screens) without completing a point count | Implemented and policy-calibrated; no same-build off/on wall-time speedup yet |
+| Batching | Batched polynomial reduction, batched remainder-tree smooth extraction, and a rolling shared-cache curve window | Reducer A/B: 2.07x synthetic median and 2.59x complete curve work; same-binary curve window: 1.46x full invocation and 1.73x warm-window throughput | Measured at kernel, smooth-batch, and complete-curve levels; level-major table reuse remains unimplemented |
+| Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first twelve retained curves produced 136 trace candidates and 272 order screens from twelve SEA executions | Exact work-count reduction; no wall-time ablation |
 | Prime scheduling | Available Weber levels are processed in increasing prime order | Held-out two-pair A/B: trained information/cost order 58.36 s median versus increasing 57.945 s, with identical final constraints and intrinsic evidence | Measured alternate was 0.7% slower; retain increasing order |
 | Specialized modular-polynomial path | Authenticated Weber-f tables, BMSS kernel recovery, and verified 24th-root orbit transport | Controlled orbit off/on A/B: 2.366x median wall and 3.445x modular-root speedup through level 193; at common levels 5/7, classical-j is honestly 12.449x/10.982x faster because Weber source-lift discovery dominates | Specialized hot-path ablation and tractable classical boundary measured; production-scale classical-j is unavailable |
 
@@ -46,12 +46,17 @@ spent 465.623 s screening 2,376 orders and 1,097.637 s total.  It was a sound
 rejection, but it is not a valid speedup comparison with the later optimized
 index-1 run because the binaries differ.
 
-The retained production history through global index 8 contains nine sound
-smoothness rejections.  In total, 104 complete trace candidates generated 208
+The retained production history through global index 11 contains twelve sound
+smoothness rejections.  In total, 136 complete trace candidates generated 272
 exact curve/twist order screens, and no exact point count was completed.  This
 quantifies useful early-exit incidence, but the missing same-build `cap=64`
 versus `cap=1` replay means there is not yet an attributable early-abort wall
 speedup.
+
+The 272 values are trace-candidate screens, not independent yield trials.  A
+curve has one actual trace and therefore only two actual group orders; twelve
+curves represent 24 actual curve/twist orders.  False trace candidates make
+the rejection proof sound but cannot produce a certificate.
 
 Source: [CPU benchmark](benchmark_20260730.md), [filtered-search benchmark](benchmark_20260731.md), and [bottleneck registry](bottleneck_registry.md).
 
@@ -77,6 +82,39 @@ traces, and the `sound_smoothness_reject` result.  This is the strongest
 retained batching ablation because the source difference and both result
 identities are recorded.
 
+### Thresholded exact Karatsuba convolution
+
+The dense multiplication backend now switches from exact schoolbook
+convolution to recursive Karatsuba at 32 coefficients, while retaining
+schoolbook multiplication for small or highly unbalanced operands.  An
+independent field-reducing schoolbook oracle covers degrees straddling the
+threshold, odd and non-power-of-two sizes, the 416-bit target field, and monic
+and nonmonic quotient moduli.
+
+An isolated degree-194 p125 benchmark measured raw multiplication at 1.896 ms
+before and 0.703 ms after (2.70x), `mulmod` at 3.345 versus 2.183 ms (1.53x),
+and `squaremod` at 3.333 versus 2.183 ms (1.53x).  Five interleaved quotient-
+Frobenius pairs improved from 1.883760 to 1.212438 seconds median (1.554x), with
+identical degree and evaluation checksums in every pair.
+
+A follow-up exact cleanup retained the modulus and denominator coefficient
+vectors by const reference in the two quadratic elimination loops, removing an
+`mpz_class` copy from every inner product.  Five strictly interleaved
+degree-194 quotient-Frobenius pairs improved from 1.183812 to 0.964617 seconds
+median (1.227x, or 18.52% less time), with the same degree-193 checksum in all
+ten runs.  This second measurement postdates the frozen curve-scaling binary,
+so its benefit is not folded into the K=1--10 curve timings below.
+
+The current frozen binary also replayed production indices 8 and 9 serially.
+Warm curve work fell from 329.264 to 110.340 seconds (2.984x) and from 254.163
+to 90.010 seconds (2.824x), respectively.  SEA alone fell from 318.729 to
+106.529 seconds and from 224.190 to 75.932 seconds.  The complete canonical
+mathematical projections match both the retained pre-change records and the
+parallel replay.  Because the full replay also includes the subsequently
+committed curve-window coordinator, the isolated kernel pairs are the direct
+Karatsuba attribution; the curve comparison is labeled as a cross-commit
+current-path result.
+
 ### Exact-smooth order batching
 
 The full-cache fixture extracted 128 orders in one bounded remainder-tree
@@ -87,9 +125,37 @@ throughput ratio.  The 128-order fixture deliberately repeats two orders and
 the observations are from separate invocations, so this is **not** presented
 as a controlled 9.5x search speedup.
 
-Current production processes one curve at a time.  It does not yet share one
-reduced Weber table or polynomial setup across a batch of curves, so the
-requested cross-curve SEA batching benefit remains unmeasured.
+### Rolling shared-cache curve window
+
+Production can now keep a rolling, ordered window of complete curves in flight
+against one immutable exact-smooth cache.  This is curve-level concurrency,
+not level-major table reuse: each curve still performs its own Weber work.
+Reports and durable artifacts commit in index order.
+
+The same frozen Karatsuba binary was then scaled from one to ten curve slots.
+The per-curve SEA split was `10,5,3,2,1` and the smooth split was `8,4,2,1,1`
+for `K=1,2,3,5,10`, respectively.  Each parallel run launched one full initial
+window; warm seconds per curve is the maximum reported curve total divided by
+the window size.
+
+| Curve slots | Range | Invocation wall/curve | Fixed warm seconds/curve | Peak RSS |
+|---:|---:|---:|---:|---:|
+| 1 | `[8,10)` | 133.095 s | 100.175 s | 6,020,055,040 B |
+| 2 | `[8,10)` | 90.970 s | 57.800 s | 6,288,162,816 B |
+| 3 | `[8,11)` | 62.677 s | 40.501 s | 5,786,042,368 B |
+| 5 | `[8,13)` | 47.396 s | 34.185 s | 6,387,302,400 B |
+| 10 | `[8,18)` | 33.651 s | 27.071 s | 6,188,974,080 B |
+
+Every overlapping canonical record matches the serial and retained production
+evidence.  Ten slots are the measured local choice: about 10x the former
+270-second warm baseline and only 1.258x above the model's 21.51-second
+30-day target.  System-wide `vm_stat` observed 68.9 MiB of swapouts during the
+K=10 window; it is not process-attributed, but the pressure is included in the
+measured wall time.  Concurrency is not raised beyond the ten physical cores,
+and long-run workers retain memory telemetry.  This is not yet level-major
+cross-curve table batching.  The pre-commit observations at indices 12--17 are
+benchmark-only and do not advance the authenticated production cursor or the
+retained yield sample.
 
 Source: [2026-08-01 reducer benchmark](benchmark_20260801.md) and [CPU benchmark](benchmark_20260730.md).
 
@@ -101,8 +167,8 @@ passes the entire interleaved list to the exact-smooth engine.  No second SEA
 run is needed for the twist.
 
 The exact operation count is therefore two order candidates per SEA trace.
-For the first nine retained `p125` curves, nine SEA executions produced 104
-bounded trace candidates and 208 exact order screens.  Relative to separately
+For the first twelve retained `p125` curves, twelve SEA executions produced
+136 bounded trace candidates and 272 exact order screens.  Relative to separately
 point-counting both members of each curve/twist pair, this removes one of two
 SEA invocations per generated pair (**50% of SEA invocation count**).  That is
 an algebraic work-count result, not a measured 2x wall speedup: smoothness and
@@ -228,8 +294,9 @@ The matched local M4 ten-thread slice took 87.813 s, so the four-core AWS
 instance was 2.04x slower per curve.  It could add about 0.49 local-machine
 equivalents of throughput, but does not reduce single-curve latency.  The trial
 cost about $0.07460 of instance time and the instance was terminated.  The
-current decision is one ten-thread local worker; AWS remains off unless a
-different instance wins a bounded benchmark.
+current decision is one local process with ten rolling curves and one SEA
+thread per curve; AWS remains off unless a different instance wins a bounded
+benchmark.
 
 After Weber orbit reuse, the level-193 modular-root work fell from 504 jobs to
 42.  Exact conjugate reuse then reduced the 42 quotient-ring eigenvalue
@@ -239,7 +306,9 @@ curves, complete curve work was 180.496 seconds for index 6 and 525.564 seconds
 for the higher-lift index 7; these are outcome runs, not a controlled ablation.
 
 Peak resident memory in production is dominated by the authenticated 5.4 GB
-exact-smooth cache: retained runs report roughly 5.5 GB RSS with zero swaps.
+exact-smooth cache.  The current ten-curve replay reported 6.19 GB RSS versus
+6.02 GB serial and modest system-wide swap activity; older retained
+single-curve runs reported roughly 5.5 GB RSS with zero swaps.
 The CAS-free AWS SEA-only thread benchmark excluded that cache and therefore
 is not a full production-memory result.
 
@@ -251,10 +320,73 @@ curve throughput against this CPU baseline.
 
 Source: [AWS benchmark](aws_benchmark_20260801.md), [AWS operations](aws.md), and [RunPod operations](runpod.md).
 
-## 7. Reproduction and interpretation rules
+## 7. Certificate-yield feasibility
+
+A checked-in standard-library model solves the Dickman delay equation and
+applies the Dickman--Mertens approximation to the exact `n^4`-smooth-part
+threshold.  For a random integer near `p125`, it estimates
+`3.478e-6` smooth-factor opportunities per order.  Conditioning only on the
+even orders forced by Montgomery compatibility raises the marginal estimate
+to `3.799e-6`.  The production Weber prefilter is stronger: its admitted
+`p125` curves and twists have full rational `E[2]`, so both actual orders are
+divisible by four and the modeled marginal is `4.150e-6`.  Treating the curve
+and twist marginals as independent gives an explicitly optimistic union
+estimate of `8.300e-6` per curve: about 120,489 curves in expectation, 83,516
+at the median, and 360,951 at the 95th percentile.
+
+The fixed-grid solver reports five significant digits.  A second grid at
+twice the step changes the production-order probability by less than
+`1e-5` relative; finer offline spot checks put the remaining discretization
+error at a few parts per million.  Extra decimal places would therefore be
+spurious precision for an already heuristic marginal model.
+
+This is not a certificate-success probability.  The two orders are correlated
+by `#E + #E_twist = 2p+2`; a large smooth divisor of the order can fail to
+divide the group exponent; and exact-order point assembly can still fail.  All
+three effects can only worsen the optimistic estimate.  The 272 values in the
+retained progress history are trace-candidate order screens, whereas twelve
+curves provide only 24 actual curve/twist order opportunities.
+
+At 240--300 seconds per curve, the optimistic expected time is 335--418 days.
+An expected 30-day result requires aggregate throughput near 21.51 seconds per
+curve, about 12.6x the 270-second midpoint; a one-week target requires
+5.02 seconds per curve, about 53.8x.  The Karatsuba plus ten-curve local window
+now measures 27.07 warm seconds per curve, reducing the optimistic mean to
+about 37.8 days and the remaining 30-day throughput gap to 1.258x.  A one-week
+mean still needs another 5.39x.  This makes the next polynomial ceiling and a
+sound yield-biased family higher priorities than simply renting the measured
+AWS worker.
+
+The same model shifts the selected-side threshold for the torsion families
+under evaluation.  It also uses the exact relation
+`#E + #E_twist = 2p+2`: for `p125`, selected-side divisibility by 44, 88, 100,
+or 200 forces the paired order to be divisible by four.  At the measured K=10
+warm rate:
+
+| Optimistic selected-side guarantee | Paired-yield multiplier | Expected days |
+|---|---:|---:|
+| Current full-E[2] divisor 4 | 1.000x | 37.75 |
+| X1(11), cyclic divisor 44 | 1.177x | 32.06 |
+| X1(11), group divisor 88 | 1.239x | 30.46 |
+| X1(25), cyclic divisor 100 | 1.251x | 30.17 |
+| X1(25), group divisor 200 | 1.320x | 28.60 |
+
+These are smooth-factor opportunity models, not certificate rates: a group
+divisor need not divide the group exponent, and exact point assembly remains a
+separate gate.  The X1(11) construction has a bounded oracle-backed probe and
+an opt-in, schedule-bound production path, but it is not selected for the next
+long run until a same-build end-to-end throughput comparison measures its
+generation overhead and SEA distribution.
+
+Source: [reproducible yield artifact](../artifacts/local/p125-yield-model-20260801/result.json).
+
+## 8. Reproduction and interpretation rules
 
 - The controlled polynomial-reducer commands, hashes, and environment are in
   [the 2026-08-01 benchmark](benchmark_20260801.md).
+- The frozen-binary curve-window resources, canonical hashes, raw hashes,
+  memory counters, and current Karatsuba curve replays are in
+  [the curve-parallel artifact](../artifacts/local/p125-curve-parallel-20260801/result.json).
 - The orbit ablation's exact command options, commit, binary digest, canonical
   hashes, and raw-output hashes are in
   [the compact artifact](../artifacts/local/p125-weber-root-orbits-20260801/result.json).
@@ -267,6 +399,9 @@ Source: [AWS benchmark](aws_benchmark_20260801.md), [AWS operations](aws.md), an
 - The trained profile, held-out two-pair scheduling A/B, equality hashes, and
   negative result are in
   [the prime-scheduling artifact](../artifacts/local/p125-prime-schedule-20260801/result.json).
+- The standard-library Dickman solver, observed-opportunity distinction, and
+  throughput projections are in
+  [the p125 yield artifact](../artifacts/local/p125-yield-model-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

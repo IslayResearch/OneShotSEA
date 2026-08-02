@@ -164,6 +164,21 @@ void test_certificate_model_prefilter() {
     }
 }
 
+void test_p125_generator_has_full_rational_two_torsion() {
+    const mpz_class prime(
+        "100000000000000000000000000000000000000000000000000000000000"
+        "000000000000000000000000000000000000000000000000000000000000"
+        "000237");
+    for (std::uint64_t index = 0; index < 16; ++index) {
+        const auto pair = oneshotsea::deterministic_weber_curve_pair(
+            prime, UINT64_C(202607300000), index);
+        const oneshotsea::Poly two_torsion(
+            pair.curve.field(), {pair.curve.b(), pair.curve.a(), 0, 1});
+        check(oneshotsea::linear_roots(two_torsion).size() == 3U,
+              "every sampled p125 production curve has full rational E[2]");
+    }
+}
+
 void test_curve_twist_coverage_relation() {
     for (std::uint64_t index = 0; index < 12; ++index) {
         const auto pair =
@@ -187,6 +202,7 @@ int main() {
         test_exceptional_handling();
         test_deterministic_replay_and_retry();
         test_certificate_model_prefilter();
+        test_p125_generator_has_full_rational_two_torsion();
         test_curve_twist_coverage_relation();
         std::cout << "all Weber curve-generator tests passed\n";
         return 0;

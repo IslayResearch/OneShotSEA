@@ -4,6 +4,7 @@
 #include "oneshotsea/sea.hpp"
 #include "oneshotsea/weber_table_trust.hpp"
 #include "oneshotsea/weber_curve_generator.hpp"
+#include "oneshotsea/x1_11_probe.hpp"
 
 #include <algorithm>
 #include <array>
@@ -238,6 +239,23 @@ void validate_config(const SearchPipelineConfig& config,
         config.max_certificate_candidates == 0U ||
         config.max_candidate_search_nodes == 0U) {
         throw std::invalid_argument("invalid SEA/search resource limit");
+    }
+    switch (config.curve_family) {
+        case SearchCurveFamily::weber_f:
+            if (config.x1_require_point_four) {
+                throw std::invalid_argument(
+                    "point-four filtering requires the X1(11) curve family");
+            }
+            break;
+        case SearchCurveFamily::x1_11:
+            if (config.prime == 11 ||
+                mpz_fdiv_ui(config.prime.get_mpz_t(), 4U) != 1U) {
+                throw std::invalid_argument(
+                    "X1(11) search requires characteristic not eleven and p=1 mod 4");
+            }
+            break;
+        default:
+            throw std::invalid_argument("unknown search curve family");
     }
     if (!std::filesystem::is_directory(config.table_directory)) {
         throw std::invalid_argument("Weber table directory does not exist");
@@ -759,6 +777,16 @@ const char* search_curve_status_name(SearchCurveStatus status) {
     return "unknown";
 }
 
+const char* search_curve_family_name(SearchCurveFamily family) {
+    switch (family) {
+        case SearchCurveFamily::weber_f:
+            return "weber-f";
+        case SearchCurveFamily::x1_11:
+            return "x1-11";
+    }
+    throw std::logic_error("unknown search curve family");
+}
+
 bool verify_with_canonical_voneshot(
     const MontgomeryCertificate& certificate,
     const std::filesystem::path& verifier,
@@ -892,8 +920,16 @@ SearchCurveReport process_search_curve(
     report.global_index = global_index;
 
     Clock::time_point stage_start = Clock::now();
-    const WeberCurvePair pair = deterministic_weber_curve_pair(
-        config.prime, config.seed, global_index);
+    WeberCurvePair pair = [&] {
+        if (config.curve_family == SearchCurveFamily::weber_f) {
+            return deterministic_weber_curve_pair(
+                config.prime, config.seed, global_index);
+        }
+        X111ProbeResult generated = deterministic_x1_11_search_curve(
+            config.prime, config.seed, global_index,
+            config.x1_require_point_four);
+        return std::move(generated.sample->pair);
+    }();
     report.rejected_generator_samples = pair.rejected_samples;
     report.timings.generation_us = elapsed_us(stage_start);
 
@@ -1602,9 +1638,19 @@ std::string search_schedule_sha256(
     validate_digest(canonical_verifier_sha256, "canonical-verifier digest");
     Sha256 schedule;
     std::ostringstream canonical;
-    canonical << "oneshotsea.search-schedule.v1\n"
-              << "curve_generator=weber-f-montgomery-filtered-v2\n"
-              << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+    canonical << "oneshotsea.search-schedule.v1\n";
+    if (config.curve_family == SearchCurveFamily::weber_f) {
+        // Preserve the exact published default schedule identity.
+        canonical << "curve_generator=weber-f-montgomery-filtered-v2\n";
+    } else {
+        canonical << "curve_generator=" << kX111ProbeGeneratorVersion << '\n'
+                  << "curve_generator_formula_sha256="
+                  << kX111FormulaSourceSha256 << '\n'
+                  << "x1_require_point_four="
+                  << (config.x1_require_point_four ? "true" : "false")
+                  << '\n';
+    }
+    canonical << "sea=weber-reference-two-pass-classical-atkin-v2\n"
               << "heuristic_rejection=disabled\n"
               << "prime=" << config.prime << '\n'
               << "max_level=" << config.max_level << '\n'

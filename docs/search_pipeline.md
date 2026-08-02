@@ -30,6 +30,7 @@ An example local run is:
   --range-start 0 --range-end 100 \
   --worker-id 0 --worker-count 1 \
   --max-level 31 --trace-cap 16 \
+  --curve-threads 1 --sea-threads 4 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache runs/p101/smooth.cache \
   --checkpoint runs/p101/worker-0.json \
@@ -105,7 +106,7 @@ curve/twist orders and their `2p+2` sum. Retained pre-Atkin v1 records remain
 auditable with their original exact-count semantics.
 
 Useful resource caps include `--max-curves`, `--checkpoint-every`,
-`--sea-threads`, `--smooth-threads`, `--smooth-max-batch`,
+`--curve-threads`, `--sea-threads`, `--smooth-threads`, `--smooth-max-batch`,
 `--smooth-root-auxiliary-bytes`, `--smooth-build-segment-span`,
 `--assembly-attempts`,
 `--max-certificate-candidates`, and `--max-candidate-search-nodes`.  Reaching
@@ -119,6 +120,46 @@ memory used while constructing a new full smooth cache; it does not change the
 prime product.  A capped run can be resumed with the identical command.
 Resource settings that cannot change mathematical output are logged but are
 not part of the semantic schedule identity.
+
+The semantic curve family defaults to `--curve-family weber-f`.  The opt-in
+`--curve-family x1-11` deterministically samples the pinned X1(11) model until
+it obtains a rational Weber/Montgomery image, then passes the resulting curve
+pair through the same SEA, exact-smooth, assembly, and canonical-verifier
+pipeline.  `--x1-require-point4 1` additionally filters for the validated
+point-order-four branch.  The family, formula digest, generator version, and
+point-four choice are included in the schedule digest, so a checkpoint cannot
+silently switch distributions.  The default Weber schedule bytes remain
+unchanged.  Construction details and the bounded p125 oracle evidence are in
+[the X1(11) note](x1_11_probe.md).
+
+`--curve-threads N` evaluates up to `N` consecutive curves concurrently
+against one immutable exact-smooth engine and its single authenticated cache.
+The default is one.  The coordinator uses a rolling window: it launches a new
+index as soon as the lowest pending index has been durably retired, without a
+fixed-wave barrier.  Reports, progress records, checkpoints, counters, and a
+winning certificate are nevertheless committed strictly in increasing global
+index order.  An earlier implementation limit or verified certificate causes
+all later speculative reports to be discarded; their futures are joined
+before the command exits, so stopping can wait for already-running curve work.
+Live per-level JSON can interleave curve indices, but each callback emission is
+serialized and partial telemetry never changes durable state.
+
+Curve concurrency is a resource setting rather than a schedule identity: a
+checkpoint can safely resume with a different value.  It does not silently
+divide per-curve limits, so the caller must budget approximately
+`curve_threads * sea_threads` modular-root workers and
+`curve_threads * smooth_threads` smooth workers.  Memory retains one shared
+5.4 GB p125 cache, plus concurrent per-curve polynomial state and GMP scratch;
+use a measured same-binary A/B before raising the default on a constrained
+host.
+
+On the 10-core, 16 GiB Apple M4 p125 host, the retained same-binary scaling
+series selected `--curve-threads 10 --sea-threads 1 --smooth-threads 1`:
+the fixed warm window reached 27.071 seconds per curve at 6.19 GB reported
+peak RSS.  This is a host-specific resource choice, not a universal default.
+System-wide swapouts were nonzero during the window, so production operations
+retain memory telemetry and do not exceed the physical core count without a
+new bounded comparison.
 
 `--sea-threads N` bounds the number of concurrent modular-root jobs within
 each Weber SEA level.  Zero selects the host's reported hardware concurrency

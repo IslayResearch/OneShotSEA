@@ -4,9 +4,11 @@
 #include "oneshotsea/search_pipeline.hpp"
 #include "oneshotsea/schoof.hpp"
 #include "oneshotsea/sea.hpp"
+#include "oneshotsea/x1_11_probe.hpp"
 
 #include <algorithm>
 #include <charconv>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -152,11 +154,37 @@ void require_distinct_output_paths(
     }
 }
 
+void write_x1_11_counters(
+    std::ostream& output,
+    const oneshotsea::X111ProbeRejections& counters) {
+    output << "{\"x_samples\":\"" << counters.x_samples
+           << "\",\"x_polynomials_without_roots\":\""
+           << counters.x_polynomials_without_roots
+           << "\",\"x1_points\":\"" << counters.x1_points
+           << "\",\"singular_curves\":\"" << counters.singular_curves
+           << "\",\"exceptional_j\":\"" << counters.exceptional_j
+           << "\",\"exact_order_11_failures\":\""
+           << counters.exact_order_11_failures
+           << "\",\"points_without_weber_lifts\":\""
+           << counters.points_without_weber_lifts
+           << "\",\"weber_lifts\":\"" << counters.weber_lifts
+           << "\",\"nonsquare_explicit_montgomery_u\":\""
+           << counters.nonsquare_explicit_montgomery_u
+           << "\",\"points_without_explicit_montgomery_model\":\""
+           << counters.points_without_explicit_montgomery_model
+           << "\",\"full_two_torsion_failures\":\""
+           << counters.full_two_torsion_failures
+           << "\",\"point_four_rejections\":\""
+           << counters.point_four_rejections << "\",\"accepted\":\""
+           << counters.accepted << "\"}";
+}
+
 void usage() {
     std::cerr
         << "usage:\n"
         << "  oneshotsea curve --p P --seed S --index I\n"
         << "  oneshotsea montgomery-curve --p P --seed S --index I\n"
+        << "  oneshotsea x1-11-probe --p P --seed S --range-start I [--count N] [--max-x-samples N] [--require-point4 0|1]\n"
         << "  oneshotsea point-count --p P --a A --b B\n"
         << "  oneshotsea schoof-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea schoof-count --p P --a A --b B --max-ell L\n"
@@ -165,7 +193,7 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-threads N] [--sea-threads N] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11] [--x1-require-point4 0|1] [--curve-threads N] [--sea-threads N] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -179,10 +207,129 @@ int main(int argc, char** argv) {
         }
         const std::string command = argv[1];
         const auto options = parse_options(argc, argv, 2);
+        if (command == "x1-11-probe") {
+            const mpz_class p =
+                oneshotsea::parse_integer(required(options, "p"));
+            const std::uint64_t seed = required_u64(options, "seed");
+            const std::uint64_t range_start =
+                required_u64(options, "range-start");
+            const std::uint64_t count = optional_u64(options, "count", 1U);
+            const std::uint64_t max_x_samples =
+                optional_u64(options, "max-x-samples", 64U);
+            const std::uint64_t require_point_four_value =
+                optional_u64(options, "require-point4", 0U);
+            if (count == 0U || max_x_samples == 0U ||
+                require_point_four_value > 1U ||
+                count > std::numeric_limits<std::uint64_t>::max() -
+                            range_start) {
+                throw std::invalid_argument(
+                    "invalid bounded X1(11) probe range or option");
+            }
+            const bool require_point_four = require_point_four_value == 1U;
+            oneshotsea::X111ProbeRejections aggregate;
+            const auto start = std::chrono::steady_clock::now();
+            for (std::uint64_t offset = 0; offset < count; ++offset) {
+                const std::uint64_t index = range_start + offset;
+                oneshotsea::X111ProbeResult result =
+                    oneshotsea::deterministic_x1_11_probe(
+                        p, seed, index,
+                        {max_x_samples, require_point_four});
+                aggregate += result.counters;
+                std::cout << "{\"schema\":\"oneshotsea.x1-11-probe-index.v1\""
+                          << ",\"index\":\"" << index
+                          << "\",\"accepted\":"
+                          << (result.sample.has_value() ? "true" : "false")
+                          << ",\"counters\":";
+                write_x1_11_counters(std::cout, result.counters);
+                if (result.sample.has_value()) {
+                    const oneshotsea::X111ProbeSample& sample = *result.sample;
+                    std::cout << ",\"sample\":{\"x1_x\":\""
+                              << sample.x1_x << "\",\"x1_y\":\""
+                              << sample.x1_y << "\",\"tate_r\":\""
+                              << sample.tate_r << "\",\"tate_s\":\""
+                              << sample.tate_s << "\",\"tate_b\":\""
+                              << sample.tate_b << "\",\"tate_c\":\""
+                              << sample.tate_c << "\",\"tate_short_a\":\""
+                              << sample.tate_curve.a()
+                              << "\",\"tate_short_b\":\""
+                              << sample.tate_curve.b()
+                              << "\",\"tate_point_x\":\""
+                              << sample.tate_point_x
+                              << "\",\"tate_point_y\":\""
+                              << sample.tate_point_y << "\",\"j\":\""
+                              << sample.pair.j_invariant
+                              << "\",\"weber_f\":\""
+                              << sample.pair.weber_f
+                              << "\",\"explicit_montgomery_a\":\""
+                              << sample.explicit_montgomery_coefficient
+                              << "\",\"selected_side\":\""
+                              << oneshotsea::x1_11_canonical_side_name(
+                                     sample.selected_side)
+                              << "\",\"full_rational_two_torsion\":"
+                              << (sample.has_full_rational_two_torsion
+                                      ? "true"
+                                      : "false")
+                              << ",\"point_order_four\":"
+                              << (sample.has_point_order_four ? "true"
+                                                              : "false")
+                              << ",\"cyclic_divisor\":\""
+                              << sample.cyclic_divisor
+                              << "\",\"group_divisor\":\""
+                              << sample.group_divisor
+                              << "\",\"opposite_order_residue\":\""
+                              << sample.opposite_order_residue << "\"}";
+                }
+                std::cout << "}\n" << std::flush;
+            }
+            const auto elapsed = std::chrono::duration_cast<
+                std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - start);
+            std::cout << "{\"schema\":\"" << oneshotsea::kX111ProbeSchema
+                      << "\",\"generator_version\":\""
+                      << oneshotsea::kX111ProbeGeneratorVersion
+                      << "\",\"formula_source_url\":\""
+                      << oneshotsea::kX111FormulaSourceUrl
+                      << "\",\"formula_source_sha256\":\""
+                      << oneshotsea::kX111FormulaSourceSha256
+                      << "\",\"prime\":\"" << p << "\",\"seed\":\""
+                      << seed << "\",\"range_start\":\"" << range_start
+                      << "\",\"count\":\"" << count
+                      << "\",\"max_x_samples_per_index\":\""
+                      << max_x_samples << "\",\"require_point_four\":"
+                      << (require_point_four ? "true" : "false")
+                      << ",\"elapsed_us\":\"" << elapsed.count()
+                      << "\",\"counters\":";
+            write_x1_11_counters(std::cout, aggregate);
+            std::cout << "}\n";
+            return 0;
+        }
         if (command == "search") {
             oneshotsea::SearchPipelineConfig config;
             config.prime = oneshotsea::parse_integer(required(options, "p"));
             config.seed = required_u64(options, "seed");
+            const std::string curve_family = optional_string(
+                options, "curve-family", "weber-f");
+            if (curve_family == "weber-f") {
+                config.curve_family = oneshotsea::SearchCurveFamily::weber_f;
+            } else if (curve_family == "x1-11") {
+                config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+            } else {
+                throw std::invalid_argument(
+                    "--curve-family must be weber-f or x1-11");
+            }
+            const std::uint64_t x1_require_point_four = optional_u64(
+                options, "x1-require-point4", 0U);
+            if (x1_require_point_four > 1U) {
+                throw std::invalid_argument(
+                    "--x1-require-point4 must be zero or one");
+            }
+            config.x1_require_point_four = x1_require_point_four != 0U;
+            if (config.curve_family ==
+                    oneshotsea::SearchCurveFamily::weber_f &&
+                config.x1_require_point_four) {
+                throw std::invalid_argument(
+                    "--x1-require-point4 requires --curve-family x1-11");
+            }
             config.table_directory = required(options, "table-dir");
             config.max_level = required_u64(options, "max-level");
             const std::uint64_t trace_cap = optional_u64(
@@ -368,6 +515,9 @@ int main(int argc, char** argv) {
             std::cout << "{\"schema\":\"oneshotsea.search-start.v1\""
                       << ",\"prime\":\"" << config.prime
                       << "\",\"seed\":\"" << config.seed
+                      << "\",\"curve_family\":\""
+                      << oneshotsea::search_curve_family_name(
+                             config.curve_family)
                       << "\",\"worker_id\":\"" << worker_id
                       << "\",\"worker_count\":\"" << worker_count
                       << "\",\"range_start\":\"" << identity.range.first
@@ -393,7 +543,9 @@ int main(int argc, char** argv) {
                       << smooth_build_segment_span
                       << "\",\"curve_threads\":\""
                       << run_options.curve_threads
-                      << "\",\"sea_threads\":\"" << config.sea_threads
+                      << "\",\"x1_require_point_four\":"
+                      << (config.x1_require_point_four ? "true" : "false")
+                      << ",\"sea_threads\":\"" << config.sea_threads
                       << "\",\"assembly_attempts\":\""
                       << config.assembly_attempts << "\",\"trace_cap\":\""
                       << config.early_trace_cap

@@ -294,6 +294,27 @@ prior and skips redundant `ell=11` for X1.  The policy version changes the
 schedule digest, so the family A/B timings do not measure its additional SEA
 reduction and no pre-policy checkpoint can be resumed under it.
 
+## X1(27) family promotion gate
+
+The current frozen binary at commit `07bbda3` completed a reverse-order
+X1(11)/X1(27) point-four comparison on deterministic indices `[0,10)`. The
+execution order was X1(11), X1(27), X1(27), X1(11), with the same cache, table
+set, verifier, Python runtime, cap 16, and ten-curve scheduler throughout.
+
+| Family | Two-run mean wall | Seconds/curve | Curves/second | Sound rejects/run | Certificates/run |
+|---|---:|---:|---:|---:|---:|
+| X1(11), point-four | 215.10 s | 21.510 | 0.0464900 | 10/10 | 0 |
+| X1(27), point-four | 197.93 s | 19.793 | 0.0505229 | 10/10 | 0 |
+
+X1(27) measured 1.08675x the wall throughput and is selected for the next
+production identity. The separate conservative divisor model adds a
+1.068973x smooth-order opportunity multiplier, for 1.16170x modeled
+opportunities per wall time. That model is not observed yield: all runs found
+zero certificates, equal indices are different family-specific curve streams,
+and each repeat times the same ten curves. Full hashes, calculations, and
+limitations are in [the X1(27) family A/B note](x1_27_family_ab.md) and
+[artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json).
+
 ## Next local action
 
 Authenticated production identities have advanced through index 176. The

@@ -16,7 +16,7 @@ appropriate comparison exist.
 | Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first twelve retained curves produced 136 trace candidates and 272 order screens from twelve SEA executions | Exact work-count reduction; no wall-time ablation |
 | Prime scheduling | Available Weber levels are processed in increasing prime order | Held-out two-pair A/B: trained information/cost order 58.36 s median versus increasing 57.945 s, with identical final constraints and intrinsic evidence | Measured alternate was 0.7% slower; retain increasing order |
 | Specialized modular-polynomial path | Authenticated Weber-f tables, BMSS kernel recovery, verified 24th-root orbit transport, and a validated generator-retained source coordinate | Controlled orbit off/on A/B: 2.366x median wall and 3.445x modular-root speedup through level 193; retained-source p125 index 17: 2.159x SEA and 2.995x modular roots with exact projections unchanged | Specialized hot-path ablations measured; production-scale classical-j is unavailable |
-| Yield-biased family | Opt-in X1(11) point-four generator with the same SEA/smooth/certificate path | Same-build n=10 A/B: 294.57 s X1 versus 306.19 s Weber invocation wall; both produced ten sound rejections and zero certificates | 1.039x observed wall throughput; any yield uplift remains modeled, not observed |
+| Yield-biased family | Opt-in X1(11) and X1(27) point-four generators with the same SEA/smooth/certificate path | Same-binary reverse-order n=10 A/B: X1(27) averaged 197.93 s versus 215.10 s for X1(11); every run produced ten sound rejections and zero certificates | Promote X1(27): 1.08675x observed wall throughput; any yield uplift remains modeled, not observed |
 
 Every requested dimension now has either a controlled wall-time A/B or an
 exact algebraic work-count comparison.  Limitations remain explicit: the
@@ -495,6 +495,28 @@ crosses different binaries and curve distributions and still has only ten
 curves per window; it is a planning projection, not measured certificate
 yield.
 
+The subsequent same-binary X1(11)-versus-X1(27) gate used the current
+point-four, cap-16 path on indices `[0,10)` in reverse order: X1(11), two
+X1(27) repetitions, then X1(11). Mean invocation wall was 215.10 seconds for
+X1(11) and 197.93 seconds for X1(27), giving **1.08675x observed X1(27) wall
+throughput**. Mean summed concurrent curve work improved by 1.19214x even
+though X1(27) generation was 3.55259x slower; SEA work improved by 1.29711x.
+Every run contained ten sound smoothness rejections, six full point counts,
+zero heuristic skips, and zero certificates.
+
+The repeated runs reproduce the same ten deterministic curves within each
+family, while equal cross-family indices denote different curve streams.
+Consequently this is an `n=10` throughput gate, not 20 independent samples
+and not a paired-curve experiment. Separately, the Dickman--Mertens cyclic
+divisor comparison, 108 versus 44, models a 1.068973x X1(27) smooth-order
+opportunity multiplier. Combined with measured wall throughput that is
+1.16170x modeled opportunity per wall time; the group-divisor 432-versus-176
+sensitivity is 1.16684x. Neither is observed yield or a certificate-rate
+claim. The gate therefore promotes X1(27) for the next production identity,
+subject to continued long-run monitoring. Source: [X1(27) family A/B
+artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
+[audit note](x1_27_family_ab.md).
+
 ## 8. Reproduction and interpretation rules
 
 - The controlled polynomial-reducer commands, hashes, and environment are in
@@ -521,6 +543,9 @@ yield.
   per-curve timing records, zero-certificate outcome, and modeled-versus-
   observed distinction are in
   [the family A/B artifact](../artifacts/local/p125-x1-11-family-ab-20260801/result.json).
+- The same-binary reverse-order X1(11)/X1(27) command identity, repeat checks,
+  raw hashes, zero-certificate outcome, and measured-versus-modeled distinction
+  are in [the X1(27) family A/B artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json).
 - The paired before/after exact-prior records are in
   [the trace-prior artifact](../artifacts/local/p125-x1-11-trace-prior-ab-20260801/result.json),
   and the same-build 64/32/16/1 cap selection is in

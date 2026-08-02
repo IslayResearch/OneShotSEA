@@ -120,6 +120,8 @@ void test_weber_table_authentication() {
     std::filesystem::create_directory(copy);
     std::filesystem::copy_file(source / "MANIFEST.json",
                                copy / "MANIFEST.json");
+    std::filesystem::copy_file(source / "SOURCE_CATALOG.txt",
+                               copy / "SOURCE_CATALOG.txt");
     for (const auto& entry : std::filesystem::directory_iterator(source)) {
         if (entry.path().filename().string().starts_with("phi_") &&
             entry.path().extension() == ".txt") {
@@ -129,6 +131,23 @@ void test_weber_table_authentication() {
         }
     }
     oneshotsea::authenticate_trusted_weber_table_set(copy);
+
+    {
+        std::ofstream altered_catalog(copy / "SOURCE_CATALOG.txt",
+                                      std::ios::app);
+        altered_catalog << '\n';
+    }
+    bool rejected_altered_catalog = false;
+    try {
+        oneshotsea::authenticate_trusted_weber_table_set(copy);
+    } catch (const std::runtime_error&) {
+        rejected_altered_catalog = true;
+    }
+    check(rejected_altered_catalog,
+          "trusted Weber authentication rejects an altered source catalog");
+    std::filesystem::remove(copy / "SOURCE_CATALOG.txt");
+    std::filesystem::copy_file(source / "SOURCE_CATALOG.txt",
+                               copy / "SOURCE_CATALOG.txt");
 
     std::filesystem::remove(copy / "phi_5.txt");
     bool rejected_missing = false;
@@ -170,6 +189,61 @@ void test_weber_table_authentication() {
     }
     check(rejected_altered,
           "trusted Weber authentication rejects altered files");
+
+    const std::filesystem::path subset = temporary.path() / "subset";
+    std::filesystem::create_directory(subset);
+    std::filesystem::copy_file(source / "SOURCE_CATALOG.txt",
+                               subset / "SOURCE_CATALOG.txt");
+    std::filesystem::create_symlink(
+        std::filesystem::absolute(source / "phi_5.txt"),
+        subset / "phi_5.txt");
+    {
+        std::ofstream manifest(subset / "MANIFEST.json");
+        manifest
+            << "{\n  \"files\": {\n    \"phi_5.txt\": {\n"
+            << "      \"bytes\": 80,\n      \"level\": 5,\n"
+            << "      \"sha256\": "
+               "\"d41cf91849e40aa1a76a8145af66500fa4e925477413eab12ea89f4dba0783fc\"\n"
+            << "    }\n  },\n"
+            << "  \"source_archive_sha256\": "
+               "\"4ecc78a3163ba7232d67e3b2f5e678a2dbc038c7ee4a9d2e8c00c9e0b5a58176\",\n"
+            << "  \"source_catalog_sha256\": "
+               "\"031c35989f12d8f93c3a992014d6275edb93a21a3a9c70b4b78ce317e7db5dd5\"\n"
+            << "}\n";
+    }
+    oneshotsea::authenticate_trusted_weber_table_set(subset);
+
+    const std::filesystem::path forged = temporary.path() / "forged";
+    std::filesystem::create_directory(forged);
+    std::filesystem::copy_file(source / "SOURCE_CATALOG.txt",
+                               forged / "SOURCE_CATALOG.txt");
+    {
+        std::ofstream table(forged / "phi_409.txt");
+        table << "410 0 1\n";
+    }
+    const std::string forged_digest =
+        oneshotsea::sha256_file(forged / "phi_409.txt");
+    {
+        std::ofstream manifest(forged / "MANIFEST.json");
+        manifest
+            << "{\n  \"files\": {\n    \"phi_409.txt\": {\n"
+            << "      \"bytes\": 8,\n      \"level\": 409,\n"
+            << "      \"sha256\": \"" << forged_digest << "\"\n"
+            << "    }\n  },\n"
+            << "  \"source_archive_sha256\": "
+               "\"4ecc78a3163ba7232d67e3b2f5e678a2dbc038c7ee4a9d2e8c00c9e0b5a58176\",\n"
+            << "  \"source_catalog_sha256\": "
+               "\"031c35989f12d8f93c3a992014d6275edb93a21a3a9c70b4b78ce317e7db5dd5\"\n"
+            << "}\n";
+    }
+    bool rejected_forged_manifest = false;
+    try {
+        oneshotsea::authenticate_trusted_weber_table_set(forged);
+    } catch (const std::runtime_error&) {
+        rejected_forged_manifest = true;
+    }
+    check(rejected_forged_manifest,
+          "trusted Weber authentication rejects a self-consistent table absent from the source catalog");
 }
 
 oneshotsea::SearchPipelineConfig small_config() {

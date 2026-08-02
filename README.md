@@ -30,19 +30,20 @@ are not called by the search path.
 
 This is a working search implementation, not a certificate announcement.  No
 new `p125` certificate has been found yet, and the `p130` continuation has not
-started.  The checked-in production schedule stops at 77 authenticated Weber-f
-levels through level 401; it has completed representative 416-bit point counts
-but is not by itself an unbounded-input asymptotic implementation.  Direct,
-on-demand modular-polynomial specialization is the intended extension beyond
-this schedule.
+started.  The checked-in production schedule contains 77 Weber-f levels
+through 401.  A pinned normalized source catalog now permits selective,
+authenticated materialization of all 166 admissible archive levels through
+997 without checking their roughly quadratic payload growth into Git.  This is
+still bounded source data, not an unbounded-input asymptotic implementation;
+direct isogeny-volcano/explicit-CRT evaluation remains the intended extension.
 
 ## SEA path implemented here
 
-- **Specialized modular polynomials.**  The checked-in Weber-f table set is
-  authenticated by filename, size, and SHA-256 before any curve work.  The
-  implementation specializes the tables over the target field, extracts
-  rational neighbors, reconstructs BMSS isogenies, and recovers Frobenius
-  eigenvalues in the kernel quotient algebra.
+- **Specialized modular polynomials.**  Checked-in and selectively
+  materialized Weber-f tables are authenticated against a catalog derived from
+  one content-addressed source archive.  The implementation specializes them
+  over the target field, extracts rational neighbors, reconstructs BMSS
+  isogenies, and recovers Frobenius eigenvalues in the kernel quotient algebra.
 - **Exact reuse.**  A table-verified 24th-root covariance shares modular roots
   across compatible Weber lifts.  A fully validated first isogeny kernel may
   derive the characteristic-polynomial conjugate eigenvalue; the independent
@@ -126,6 +127,19 @@ Its construction, trust boundary, checkpoint identity, and complete `search`
 invocation are documented in
 [`docs/search_pipeline.md`](docs/search_pipeline.md).
 
+Additional cataloged Weber levels can be materialized into a separate compact
+directory from the pinned archive:
+
+```sh
+python3 tools/fetch_weber_tables.py \
+  --archive /path/to/phi1.tar.gz \
+  --output /tmp/weber-extra --levels 409,419,421
+```
+
+The archive, source catalog, selected table bytes, and emitted manifest are all
+checked before the C++ production path accepts the directory.  See
+[`docs/weber_on_demand_catalog.md`](docs/weber_on_demand_catalog.md).
+
 ## Validation boundary
 
 The retained validation for this branch includes:
@@ -142,7 +156,9 @@ The retained validation for this branch includes:
   checkpoint, certificate, and canonical-verifier tests;
 - independent Magma point counts and native/Magma trace-residue differentials;
 - a 10,000-curve Weber/Magma corpus with sound early-abort replay; and
-- deterministic full-SEA A/B projection equality at `p125`.
+- deterministic full-SEA A/B projection equality at `p125`; and
+- catalog-authenticated level-409 and level-997 runs on the 416-bit target,
+  including a fresh Magma full-count match for the exact level-409 residue.
 
 These gates test the implementation independently in several directions, but
 they do not turn the smooth-order yield model into a theorem or prove that a
@@ -167,8 +183,9 @@ asymptotic separation from the CM search term `p^(1/4+o(1))`.
 Both exponents are heuristic.  Curve/twist dependence, torsion conditioning,
 group-exponent restrictions, and exact-order representability affect the
 constant and may affect lower-order terms.  Moreover, a literal asymptotic
-implementation must grow its modular-polynomial levels with `log p`; the fixed
-level-401 corpus does not satisfy that requirement on its own.  The detailed
+implementation must grow its modular-polynomial levels with `log p`; even the
+selectively materialized level-997 source catalog remains finite and does not
+satisfy that requirement on its own.  The detailed
 derivation and measured boundary are in
 [`docs/sea_design.md`](docs/sea_design.md#05-asymptotic-expectation-and-measured-boundary).
 

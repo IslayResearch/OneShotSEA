@@ -306,14 +306,19 @@ void print_constraints(const char* label,
                  constraints.residues());
 }
 
-int run_sea(const std::string& table_directory) {
+int run_sea(const std::string& table_directory, std::uint64_t max_level) {
+    if (max_level < 5U ||
+        max_level > static_cast<std::uint64_t>(
+                        std::numeric_limits<unsigned>::max())) {
+        throw std::invalid_argument("MAX_LEVEL is out of range");
+    }
     const mpz_class prime = target_prime();
     // Authenticate and bind the full production table corpus before starting
     // either the generation or SEA timer.  This keeps the measured interval
     // focused on the candidate hot path while making projection equality
     // meaningful only for the exact same trusted inputs.
     const std::string table_manifest_sha256 =
-        oneshotsea::weber_table_manifest_sha256(table_directory, kMaxLevel);
+        oneshotsea::weber_table_manifest_sha256(table_directory, max_level);
     const Clock::time_point total_started = Clock::now();
     const Clock::time_point generation_started = Clock::now();
     const oneshotsea::X127ProbeResult generated =
@@ -329,7 +334,7 @@ int run_sea(const std::string& table_directory) {
     const Clock::time_point sea_started = Clock::now();
     const oneshotsea::WeberSeaResult result =
         oneshotsea::run_weber_sea_reference(
-            sample.pair.curve, table_directory, kMaxLevel, kTraceCap, {},
+            sample.pair.curve, table_directory, max_level, kTraceCap, {},
             kSeaThreads, true, true, {}, prior, sample.pair.weber_f);
     const std::uint64_t sea_us = elapsed_us(sea_started);
     const std::uint64_t total_us = elapsed_us(total_started);
@@ -353,7 +358,7 @@ int run_sea(const std::string& table_directory) {
               << "seed=" << kSeed << '\n'
               << "global_index=" << kGlobalIndex << '\n'
               << "point_four_required=true\n"
-              << "sea.max_level=" << kMaxLevel << '\n'
+              << "sea.max_level=" << max_level << '\n'
               << "sea.trace_cap=" << kTraceCap << '\n'
               << "sea.threads=" << kSeaThreads << '\n'
               << "sea.schedule=increasing\n"
@@ -427,7 +432,8 @@ int run_sea(const std::string& table_directory) {
 void usage(const char* executable) {
     std::cerr << "usage: " << executable
               << " frobenius DEGREE REPETITIONS\n"
-              << "       " << executable << " sea TABLE_DIRECTORY\n";
+              << "       " << executable
+              << " sea TABLE_DIRECTORY [MAX_LEVEL]\n";
 }
 
 }  // namespace
@@ -443,11 +449,13 @@ int main(int argc, char** argv) {
                                   parse_u64(argv[3], "REPETITIONS"));
         }
         if (argc >= 2 && std::string_view(argv[1]) == "sea") {
-            if (argc != 3) {
+            if (argc != 3 && argc != 4) {
                 usage(argv[0]);
                 return 2;
             }
-            return run_sea(argv[2]);
+            const std::uint64_t max_level =
+                argc == 4 ? parse_u64(argv[3], "MAX_LEVEL") : kMaxLevel;
+            return run_sea(argv[2], max_level);
         }
         usage(argv[0]);
         return 2;

@@ -44,10 +44,11 @@ The global half-open range is split into deterministic, contiguous, disjoint
 worker shards.  A pre-existing checkpoint is resumed automatically and is
 accepted only when the prime, seed, worker, shard, schedule, table-content
 manifest, cache content, verifier content, and build identity agree.  The
-checked-in Weber manifest is itself pinned by digest, and production startup
-authenticates the complete table filename set, byte counts, and per-file
-SHA-256 values before deriving the schedule identity.  Missing, extra, or
-altered tables fail before a curve is processed.  The
+normalized Weber source catalog is pinned by digest, and production startup
+requires every record in the selected subset manifest to match that catalog
+before authenticating the complete table filename set, byte counts, and
+per-file SHA-256 values.  Missing, extra, unknown, forged, or altered tables
+fail before a curve is processed.  The
 schedule identity explicitly versions the Montgomery-compatibility filter,
 the exact trace-prior policy, and the generator-retained Weber source-lift
 policy, so checkpoints from an earlier generator, pre-prior schedule, or

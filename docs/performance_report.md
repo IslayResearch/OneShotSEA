@@ -508,6 +508,19 @@ projections unchanged.  Threshold 48 was neutral end to end versus threshold
 96 and regressed at degree 48, so production activates conservatively at
 degree 96.  See [the post-Kronecker reciprocal audit](reciprocal_reduction_ab.md).
 
+The modular-polynomial trust boundary no longer pins only the checked-in
+level-401 manifest.  A 12,727-byte normalized source catalog binds all 166
+admissible levels through 997 in the same content-addressed upstream archive,
+and the converter can materialize any compact subset.  On the fixed 416-bit
+p125 curve, newly admitted level 409 produced two validated isogenies and exact
+trace residue 19 in 7.767 seconds, matching a fresh independent Magma full
+point count; the top catalog level 997 completed its
+no-rational-neighbor path in 3.354 seconds.  The ordinary level-401 projection
+remained SHA-256
+`8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6`.
+This is a bounded range/trust extension, not a direct-evaluation performance
+claim.  See [the catalog audit](weber_on_demand_catalog.md).
+
 Source: [AWS benchmark](aws_benchmark_20260801.md), [AWS operations](aws.md), and [RunPod operations](runpod.md).
 
 ## 7. Certificate-yield feasibility
@@ -690,6 +703,9 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
 - The accepted post-Kronecker reciprocal reducer, independent differentials,
   threshold ablation, and B/S/S/B p125 timing are in
   [the reciprocal/Kronecker artifact](../artifacts/local/p125-reciprocal-kronecker-20260802/result.json).
+- The archive digest, 166-level normalized source catalog, trust adversaries,
+  and isolated p125 levels 409/997 are in
+  [the Weber catalog artifact](../artifacts/local/p125-weber-catalog-20260802/result.json).
 - The accepted redundant-normalization removal and exact paired p125 timing
   are in [the deferred-normalization artifact](../artifacts/local/p125-deferred-product-normalization-20260801/result.json).
 - The exact-cost polynomial window, quotient-ring differential boundary,

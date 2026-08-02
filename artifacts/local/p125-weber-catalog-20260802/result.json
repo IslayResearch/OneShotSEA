@@ -1,0 +1,90 @@
+{
+  "schema": "oneshotsea.p125-weber-source-catalog.v1",
+  "date": "2026-08-02",
+  "base_commit": "8cf4e86a2d64df0c597f2f08cbed75d73984dd85",
+  "classification": "accepted bounded modular-polynomial trust and materialization extension",
+  "host": "Apple M4, macOS 26.5.1 (25F80), arm64",
+  "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101)",
+  "benchmark_binary_sha256": "be038149085f15fb3e4e9ce4debbecc323b7a47c27a625d6cc91c52e23936d1d",
+  "target": "nextprime(10^125), 416 bits",
+  "seed": "202607300000",
+  "global_index": "1000030",
+  "point_four_required": true,
+  "source_archive": {
+    "url": "https://math.mit.edu/~drew/webermodpoly/phi1.tar.gz",
+    "bytes": 95033052,
+    "sha256": "4ecc78a3163ba7232d67e3b2f5e678a2dbc038c7ee4a9d2e8c00c9e0b5a58176",
+    "maximum_level": 997
+  },
+  "source_catalog": {
+    "path": "data/modpoly/weber_f/SOURCE_CATALOG.txt",
+    "bytes": 12727,
+    "sha256": "031c35989f12d8f93c3a992014d6275edb93a21a3a9c70b4b78ce317e7db5dd5",
+    "admissible_level_count": 166,
+    "minimum_level": 5,
+    "maximum_level": 997,
+    "current_77_table_subset_matches": true
+  },
+  "selected_level_409": {
+    "normalized_table_bytes": 746444,
+    "normalized_table_sha256": "082eebe403e15cbcb4adda546bcef5d1b8cc0cd08f69ea23d7391477c18b4852",
+    "table_manifest_sha256": "12b441664f87301255969e352c03dea4b9bf6d627d18105969d7488cb5b88616",
+    "result": "exact",
+    "trace_residue": 19,
+    "compatible_source_lifts": 1,
+    "lift_pairs": 2,
+    "distinct_codomains": 2,
+    "independent_eigenvalue_recoveries": 1,
+    "conjugate_eigenvalues_derived": 1,
+    "independent_magma_point_count": {
+      "order": "100000000000000000000000000000000000000000000000000000000534284869337319737295513917655253909609824180266230842767531100",
+      "trace": "-534284869337319737295513917655253909609824180266230842767530862",
+      "trace_mod_409": 19,
+      "trace_mod_432": 418,
+      "matches_native_residue_and_prior": true
+    },
+    "timings_us": {
+      "modular_roots": 900375,
+      "normalized_codomain": 25309,
+      "bmss": 2296897,
+      "eigenvalue": 4534091,
+      "sea": 7766621
+    }
+  },
+  "selected_level_997": {
+    "normalized_table_bytes": 10834957,
+    "normalized_table_sha256": "8c94ea70bdfa1b05b6e35f0acc4c11a6a45e85cfa1dc025a59f6e6d1a8c42a7f",
+    "table_manifest_sha256": "10a14c2ce2a2e96bbfa9659735793d2530dfb76bf92e132ecfaf0319834b757b",
+    "result": "no_rational_neighbor",
+    "lift_pairs": 0,
+    "timings_us": {
+      "modular_roots": 3255724,
+      "sea": 3353853
+    }
+  },
+  "current_schedule_continuity": {
+    "maximum_level": 401,
+    "projection_sha256": "8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6",
+    "matches_pre_catalog_projection": true
+  },
+  "validation": {
+    "python_catalog_and_materialization_tests": "pass",
+    "cpp_search_pipeline_and_trust_tests": "pass",
+    "asan_ubsan_search_pipeline_and_trust_tests": "pass",
+    "current_manifest_verify_only": "pass",
+    "full_archive_catalog_regeneration": "byte-identical SHA-256 match",
+    "complete_schedule_through_409_materialization": "pass",
+    "catalog_tamper_rejected": true,
+    "missing_extra_and_altered_tables_rejected": true,
+    "self_consistent_forged_manifest_rejected": true,
+    "catalog_subset_accepted": true,
+    "fresh_magma_full_point_count": "pass: native residue 19 mod 409 and exact prior 418 mod 432 both match"
+  },
+  "limitations": [
+    "This is selective materialization from a finite content-addressed archive, not direct finite-field modular-polynomial evaluation.",
+    "The catalog stops at level 997 and therefore does not by itself prove an unbounded asymptotic SEA implementation.",
+    "The positive level-409 result has one fresh independent Magma full-count comparison; it is not a multi-curve large-level corpus.",
+    "The level-997 run is top-of-catalog no-root/fail-closed evidence, not an exact trace-residue comparison.",
+    "No p125 certificate was found by these isolated level runs."
+  ]
+}

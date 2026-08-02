@@ -1,7 +1,7 @@
 {
-  "schema": "oneshotsea.p125-index246-schoof-fallback-v2.v1",
+  "schema": "oneshotsea.p125-index246-schoof-fallback-v2.v2",
   "date": "2026-08-01",
-  "classification": "v1 production attempt failed closed without cursor advancement; v2 prototype recovered index 246 soundly; final committed frozen-v2 replay still required",
+  "classification": "v1 production attempt retained unchanged; v2 prototype recovery retained; final committed frozen-v2 replay satisfied the index-246 release gate",
   "target": {
     "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
     "bit_length": 416,
@@ -355,12 +355,178 @@
       "evidence_boundary": "The parent execution reported this gate passing on the v2 working tree; no separate transcript hash is added to this run artifact. Committed identity and frozen-binary replay remain independent open gates."
     },
     "deployment_boundary": {
-      "gate_status": "open",
+      "gate_status_at_prototype_capture": "open",
       "prototype_result": "The v2 prototype soundly recovers deterministic index 246 under its own authenticated schedule and isolated checkpoint.",
-      "required_next_gate": "The combined native/Magma working-tree test gate passed. Commit the v2 policy and ell=37 reference limit, freeze and hash that committed binary, then rerun index 246 with skip disabled. Only an agreeing final-build replay may close index 246 before production relaunches at 247.",
+      "required_next_gate_at_prototype_capture": "The combined native/Magma working-tree test gate passed. Commit the v2 policy and ell=37 reference limit, freeze and hash that committed binary, then rerun index 246 with skip disabled. Only an agreeing final-build replay may close index 246 before production relaunches at 247.",
       "historical_v1_state": "The v1 production checkpoint remains at 246 and must not be edited, relabeled, or resumed under the v2 schedule."
     }
   },
-  "timing_comparison_boundary": "The v1 production attempt used ten rolling curve slots with one SEA thread each, while the v2 prototype used one curve with ten SEA threads and verbose level telemetry. Their 234.54-second and 259.23-second walls are not an A/B speed comparison.",
-  "timing_wrapper_note": "The v2 /usr/bin/time -l wrapper emitted usable real/user/sys values and then reported 'sysctl kern.clockrate: Operation not permitted'. The search summary and checkpoint were complete; unavailable extended counters are not inferred."
+  "final_committed_frozen_replay": {
+    "classification": "authenticated final committed-build sound recovery; index-246 release gate satisfied",
+    "identity": {
+      "source_commit": "43ca2d7468a5f1e28be0370deb4351b1c3f04d77",
+      "source_subject": "Extend exact fallback and optimize square leaves",
+      "source_commit_pushed_at_capture": true,
+      "commit_hook_status": "passed",
+      "precommit_validation": "full native and Magma test-all passed",
+      "binary_path": "work/oneshotsea-43ca2d7",
+      "binary_sha256_emitted_and_independently_checked": "10eda65b36535811a43bb632dc4f95c541be2f6ab1a01ce653080447573f9a1b",
+      "build_id_emitted": "git:43ca2d7468a5f1e28be0370deb4351b1c3f04d77+binary-sha256:10eda65b36535811a43bb632dc4f95c541be2f6ab1a01ce653080447573f9a1b",
+      "fallback_policy": "retained-state-exact-schoof-3,5,7,11,13,17,19,23,29,31,37-v2",
+      "reference_schoof_max_ell": 37,
+      "schedule_sha256": "b3fe5d37b2537aa93d68c1367327bae5cb694cfdca2c8b4a5713d5ef2244d198",
+      "table_manifest_file_sha256": "e5b84a87335523f79d47f140d70ceddee9e1c6891a7fae8aaadcae5c080de3ab",
+      "authenticated_table_set_sha256_emitted": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+      "smooth_cache_sha256_emitted": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+      "canonical_verifier_sha256_emitted": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+      "python_executable_emitted": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+      "python_sha256_emitted": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf"
+    },
+    "command": {
+      "launcher_retained": false,
+      "retention_note": "The search-start record authoritatively pins all semantic/resource fields. The frozen executable, --max-curves 1, raw paths, and shell token ordering are reconstructed from the execution transcript.",
+      "timing_wrapper": "/usr/bin/time -l",
+      "executable": "./work/oneshotsea-43ca2d7",
+      "semantic_and_resource_options_match_v2_prototype": true,
+      "range": "[246,247)",
+      "worker": "0/1",
+      "curve_family": "x1-27",
+      "x1_require_point_four": true,
+      "max_level": 401,
+      "trace_cap": 16,
+      "schoof_fallback": true,
+      "skip_incomplete_curves": false,
+      "curve_threads": 1,
+      "sea_threads": 10,
+      "sea_level_telemetry": true,
+      "smooth_threads": 10,
+      "smooth_max_batch": 128,
+      "smooth_root_auxiliary_bytes": 134217728,
+      "smooth_build_segment_span": 500000000,
+      "assembly_attempts": 400,
+      "max_certificate_candidates": 100000,
+      "max_candidate_search_nodes": 1000000,
+      "max_curves_reconstructed_from_execution_transcript": 1,
+      "checkpoint": "/private/tmp/oneshotsea-index246-final-43ca2d7.YSdsYv/checkpoint.json",
+      "progress": "/private/tmp/oneshotsea-index246-final-43ca2d7.YSdsYv/progress.ndjson",
+      "certificate_out": "/private/tmp/oneshotsea-index246-final-43ca2d7.YSdsYv/certificate.txt",
+      "capture": "stderr merged into stdout and retained in run.log"
+    },
+    "raw_outputs": {
+      "directory": "/private/tmp/oneshotsea-index246-final-43ca2d7.YSdsYv",
+      "run_log": {
+        "lines": 82,
+        "sha256": "2ef746439c46fcde8a840a0c5b8c0e1860f9cca626dbac555e56d08c4ea8b0fc"
+      },
+      "progress": {
+        "lines": 1,
+        "sha256": "82951556cde5112a93a0baf834946c0fbaca7bfe3c3e85056c61d141b6324eb5"
+      },
+      "checkpoint": {
+        "lines": 1,
+        "sha256": "9e066d92a2293581ec38ecbfe9df7ac5a668f23e2f88e4b6ada0d081596aabc2",
+        "crc64_ecma": "f40183fcd99cb970"
+      },
+      "certificate": null,
+      "certificate_interpretation": "No certificate file was published because the curve was soundly rejected at exact smoothness screening."
+    },
+    "ordinary_weber_endpoint": {
+      "matches_prototype": true,
+      "sea_levels": 77,
+      "exact_sea_levels": 26,
+      "atkin_sea_levels": 1,
+      "last_level": 401,
+      "last_level_trace_residue": 323,
+      "exact_combined_residue": "258582884372474940200711908241647064130050487254404526818",
+      "exact_modulus": "1032705306478722782771190253098230849792050225862863894320",
+      "exact_trace_candidate_count": 1224852,
+      "singleton_atkin_constraint": "t=0 mod 7",
+      "constraint_modulus": "7228937145351059479398331771687615948544351581040047260240",
+      "effective_trace_candidate_count": 174979
+    },
+    "fallback_transitions": [
+      {"ell": 7, "trace_residue": 0, "exact_trace_candidate_count": 174979, "effective_trace_candidate_count": 174979, "elapsed_us": 85862},
+      {"ell": 11, "trace_residue": 9, "exact_trace_candidate_count": 15908, "effective_trace_candidate_count": 15908, "elapsed_us": 496930},
+      {"ell": 13, "trace_residue": 6, "exact_trace_candidate_count": 1224, "effective_trace_candidate_count": 1224, "elapsed_us": 964273},
+      {"ell": 17, "trace_residue": 0, "exact_trace_candidate_count": 72, "effective_trace_candidate_count": 72, "elapsed_us": 2738023},
+      {"ell": 37, "trace_residue": 26, "exact_trace_candidate_count": 2, "effective_trace_candidate_count": 2, "elapsed_us": 75507637}
+    ],
+    "fallback_elapsed_us_sum": 79792725,
+    "final_exact_combined_residue": "453608835516518003747706121053534454802273647409169179937326578",
+    "final_exact_modulus": "650221209412891746993441747867985991723718791659809130916807280",
+    "outcome": {
+      "index": 246,
+      "status": "sound_smoothness_reject",
+      "heuristic": false,
+      "outcome_class": "sound_rejection",
+      "sound_early_abort": true,
+      "full_point_count": false,
+      "reached_smoothness": true,
+      "generator_rejections": 205,
+      "trace_prior": {"modulus": 432, "residue": 418},
+      "sea_passes": 1,
+      "sea_levels": 77,
+      "exact_sea_levels": 26,
+      "atkin_sea_levels": 1,
+      "schoof_fallback_level_count": 5,
+      "initial_trace_count": 2,
+      "final_exact_trace_candidates": 2,
+      "final_effective_trace_candidates": 2,
+      "complete_traces_screened": 2,
+      "curve_and_twist_orders_screened": 4,
+      "candidate_attempts": 0,
+      "candidate_search_nodes": 0,
+      "assembly_calls": 0,
+      "canonical_rejections": 0,
+      "certificates_found": 0,
+      "timings_us": {
+        "generation": 3918003,
+        "sea": 208269571,
+        "smoothness": 3979793,
+        "candidate": 0,
+        "assembly": 0,
+        "verifier": 0,
+        "total": 216167380
+      },
+      "invocation_time_seconds": {"real": 340.87, "user": 309.59, "sys": 9.69},
+      "peak_rss_bytes": {
+        "run_log_curve_record": 5445091328,
+        "progress_file_curve_record": 5444894720,
+        "difference_bytes": 196608,
+        "interpretation": "The two serializations differ only in the process RSS sample. RSS is excluded from semantic projection and release-gate equality."
+      },
+      "checkpoint_next_index": 247,
+      "checkpoint_complete": true,
+      "checkpoint_curves_attempted": 1,
+      "checkpoint_sound_early_abort_rejections": 1,
+      "processed_summary": 1,
+      "range_exhausted": true,
+      "verified_summary": false,
+      "verified_summary_interpretation": "No certificate existed to verify; verified=false is not a verifier failure."
+    },
+    "prototype_comparison": {
+      "canonical_non_timing_projection_sha256": "7003231a8cecde8c3fbdd9e3788801b21cfa314d257ebd466d7bd6ae8aa44aa5",
+      "prototype_final_projection_equal": true,
+      "fieldwise_audit": "After excluding identities, timings, elapsed_us fields, and RSS samples, the complete prototype and final curve records agree, including all SEA/fallback residues, moduli, counts, terminal status, and checkpoint semantics."
+    },
+    "timing_boundary": {
+      "use": "release evidence only; no timing A/B",
+      "contamination": "The final replay overlapped during its early phase with a concurrent X1(25) benchmark.",
+      "interpretation": "The 340.87-second wall, component timings, fallback timings, and RSS samples are retained as raw run facts but must not be compared with the uncontaminated prototype or used as performance evidence."
+    },
+    "wrapper_exit_boundary": {
+      "external_exit_status": 1,
+      "cause": "After the search emitted its complete curve record, summary, and checkpoint, /usr/bin/time -l failed only while querying sysctl kern.clockrate, which was denied.",
+      "search_completion_unaffected": true
+    },
+    "release_gate": {
+      "status": "satisfied",
+      "evidence": "The pushed commit and frozen binary reproduced the authenticated prototype's canonical non-timing projection, soundly rejected index 246 with heuristic skipping disabled, and advanced the isolated checkpoint to 247 complete.",
+      "production_frontier": 247,
+      "next_action": "Launch the new sound-only X1(27) point-four production identity at global index 247 with v2 fallback enabled and incomplete skip disabled.",
+      "historical_v1_state": "The v1 production checkpoint remains unchanged at 246 as fail-closed historical evidence and must not be resumed under the v2 schedule."
+    }
+  },
+  "timing_comparison_boundary": "The v1 production attempt, v2 prototype, and final v2 replay used different concurrency/telemetry conditions; the final replay was additionally contaminated by concurrent work. None of their wall or component timings form an A/B speed comparison.",
+  "timing_wrapper_note": "Both v2 searches completed their curve record, summary, and checkpoint before /usr/bin/time -l reported 'sysctl kern.clockrate: Operation not permitted'. For the final run this made the wrapper exit 1 after successful search completion; unavailable extended counters are not inferred."
 }

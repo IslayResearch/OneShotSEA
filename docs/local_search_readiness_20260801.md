@@ -360,33 +360,36 @@ recovery only. The full identities, raw hashes, CRCs, reconstructed command
 boundary, residues, and independent CRT audit are in
 [the v2 fallback artifact](../artifacts/local/p125-index246-schoof-fallback-v2-20260801/result.json).
 
-The combined native/Magma working-tree test-all passed. Commit the v2 policy
-and level-37 limit, freeze and hash the committed binary, then replay index 246
-with incomplete skip disabled. Only an agreeing final-build replay may close
-the gate. Do not modify or resume the v1 checkpoint under the new schedule.
+The final replay used pushed commit
+`43ca2d7468a5f1e28be0370deb4351b1c3f04d77` and frozen binary SHA-256
+`10eda65b36535811a43bb632dc4f95c541be2f6ab1a01ce653080447573f9a1b`.
+It reproduced the prototype's canonical non-timing projection SHA-256
+`7003231a8cecde8c3fbdd9e3788801b21cfa314d257ebd466d7bd6ae8aa44aa5`,
+returned the same sound 2/2 rejection, and advanced its isolated checkpoint to
+247 complete. Full native/Magma test-all and the commit hook passed before the
+push. Raw hashes and CRC are pinned in the artifact. The final wall timing is
+release evidence only because its early phase overlapped a concurrent X1(25)
+benchmark. The final committed/frozen-v2 gate is satisfied. Do not modify or
+resume the v1 checkpoint under the new schedule.
 
 ## Next local action
 
-The authenticated production frontier remains 246. Indices 0--205 and
-207--245 have sound production outcomes; index 206 has a separate final
-committed-build sound replay. Index 246's v1 attempt failed closed without
-advancing, and its v2 recovery is still prototype evidence. The working-tree
-test gate passed; commit v2, freeze its binary, and complete the final
-index-246 replay.
-After it agrees, start a new X1(27) point-four production identity at global
-index 247 with exact fallback enabled and incomplete skip disabled. Every
-older checkpoint remains evidence rather than resumable state under the new
-schedule.
+The authenticated production frontier is 247. Indices 0--205 and 207--245
+have sound production outcomes; indices 206 and 246 have separate final
+committed-build sound replays. Start a new X1(27) point-four production
+identity at global index 247 with v2 exact fallback enabled and incomplete
+skip disabled. Every older checkpoint remains evidence rather than resumable
+state under the new schedule.
 The held-out scheduling A/B found the measured
 alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
-build id and `search-NEXT` directory below with the exact committed
-production identity.
+production directory only if another mutually exclusive launch already owns
+it; the frozen build and build id below are the committed production identity.
 
 ```sh
 set -o pipefail
-test ! -e work/p125/search-NEXT
-mkdir work/p125/search-NEXT
-/usr/bin/time -l ./build/oneshotsea search \
+test ! -e work/p125/search-43ca2d7-x127p4-cap16-schoof-v2-sound
+mkdir work/p125/search-43ca2d7-x127p4-cap16-schoof-v2-sound
+/usr/bin/time -l ./work/oneshotsea-43ca2d7 search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
   --range-start 247 --range-end 1000000 \
@@ -400,16 +403,15 @@ mkdir work/p125/search-NEXT
   --smooth-cache-sha256 afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551 \
   --smooth-threads 1 --smooth-max-batch 128 \
   --smooth-root-auxiliary-bytes 134217728 \
-  --checkpoint work/p125/search-NEXT/checkpoint.json \
+  --checkpoint work/p125/search-43ca2d7-x127p4-cap16-schoof-v2-sound/checkpoint.json \
   --checkpoint-every 1 \
-  --progress work/p125/search-NEXT/progress.jsonl \
-  --certificate-out work/p125/search-NEXT/certificate.txt \
-  --build-id git:COMMIT+binary-sha256:BINARY_SHA256 \
-  --max-curves 1000 2>&1 | tee work/p125/search-NEXT/search.log
+  --progress work/p125/search-43ca2d7-x127p4-cap16-schoof-v2-sound/progress.ndjson \
+  --certificate-out work/p125/search-43ca2d7-x127p4-cap16-schoof-v2-sound/certificate.txt \
+  --build-id git:43ca2d7468a5f1e28be0370deb4351b1c3f04d77+binary-sha256:10eda65b36535811a43bb632dc4f95c541be2f6ab1a01ce653080447573f9a1b \
+  --max-curves 1000 2>&1 | tee work/p125/search-43ca2d7-x127p4-cap16-schoof-v2-sound/search.log
 ```
 
-Run this continuation only after the final committed/frozen-v2 index-246 replay
-agrees. Before the continuation, confirm the emitted search-start record has
+Before the continuation, confirm the emitted search-start record has
 the expected X1(27) family, point-four flag, exact-fallback policy, disabled
 incomplete skip, cache, table, range, seed, build, and new schedule identities.
 Confirm each curve record is non-heuristic and reports the expected mod-432

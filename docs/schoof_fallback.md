@@ -130,7 +130,7 @@ the separate authenticated replay supplies the sound index-206 outcome. That
 cleared the way for the subsequent X1(27) production attempt at index 246,
 described below.
 
-## Index-246 v1 stop and v2 prototype recovery
+## Index-246 v1 stop and v2 recovery
 
 The first X1(27) production attempt at index 246 used final commit `976924b`,
 its frozen binary, the v1 fallback policy, cap 16, and incomplete skip off. It
@@ -172,9 +172,31 @@ hashes, checkpoint CRCs, exact CRT replay, policy source delta, and outcome
 boundaries:
 [`artifacts/local/p125-index246-schoof-fallback-v2-20260801/result.json`](../artifacts/local/p125-index246-schoof-fallback-v2-20260801/result.json).
 
-This prototype closes the mathematical path, not the deployment gate. The
-combined native/Magma working-tree test-all passed. Commit v2, freeze and hash
-the committed binary, and replay index 246 with incomplete skip off. Only an
-agreeing final-build replay may close 246; the unchanged v1 production
-checkpoint must not be relabeled or resumed under the v2 schedule. Production
-relaunch begins at 247 only after that gate.
+The final replay used pushed commit
+`43ca2d7468a5f1e28be0370deb4351b1c3f04d77` and frozen binary SHA-256
+`10eda65b36535811a43bb632dc4f95c541be2f6ab1a01ce653080447573f9a1b`.
+Full native/Magma test-all and the commit hook had passed. The committed binary
+reproduced the prototype's canonical non-timing projection SHA-256
+`7003231a8cecde8c3fbdd9e3788801b21cfa314d257ebd466d7bd6ae8aa44aa5`,
+including every ordinary/fallback residue, modulus, count, terminal field, and
+checkpoint transition. It again reached 2/2 traces, soundly rejected all four
+orders, and advanced its isolated checkpoint to 247 complete.
+
+The authoritative final raw directory is
+`/private/tmp/oneshotsea-index246-final-43ca2d7.YSdsYv`. Log, progress, and
+checkpoint SHA-256 values are respectively
+`2ef746439c46fcde8a840a0c5b8c0e1860f9cca626dbac555e56d08c4ea8b0fc`,
+`82951556cde5112a93a0baf834946c0fbaca7bfe3c3e85056c61d141b6324eb5`,
+and `9e066d92a2293581ec38ecbfe9df7ac5a668f23e2f88e4b6ada0d081596aabc2`;
+checkpoint CRC64-ECMA is `f40183fcd99cb970`. No certificate was emitted.
+
+The final run's 340.87-second wall and 79.792725-second fallback are release
+facts only: its early phase overlapped a concurrent X1(25) benchmark, so no
+prototype/final timing A/B is valid. The log and progress serializations also
+sampled peak RSS 196,608 bytes apart; this nonsemantic metric is pinned both
+ways in the artifact. `/usr/bin/time -l` exited 1 only after the completed
+search because its final `sysctl kern.clockrate` query was denied.
+
+The final committed/frozen-v2 release gate is satisfied. The unchanged v1
+production checkpoint remains fail-closed historical evidence and must not be
+resumed under the v2 schedule. The sound production frontier is now 247.

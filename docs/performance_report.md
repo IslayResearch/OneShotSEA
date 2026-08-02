@@ -77,9 +77,11 @@ and did not claim a rejection. A v2 prototype added missing exact levels 7,
 work; exact screening of four curve/twist orders produced a sound smoothness
 rejection. The 78.273594-second level-37 residue dominated that tail. The v1
 and v2 walls are not a speed comparison because their curve/SEA thread layouts
-and telemetry differ. The combined native/Magma working-tree test-all passed,
-but a final committed frozen-v2 replay remains required before production
-relaunches. See [the fallback audit](schoof_fallback.md).
+and telemetry differ. The final committed/frozen-v2 replay reproduced the
+prototype's complete non-timing projection and sound rejection, satisfying the
+release gate. Its 340.87-second wall and component timings are excluded from
+performance comparison because the early run overlapped a concurrent X1(25)
+benchmark. See [the fallback audit](schoof_fallback.md).
 
 The retained production history through global index 11 contains twelve sound
 smoothness rejections.  In total, 136 complete trace candidates generated 272
@@ -608,9 +610,9 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
 - The prototype and final committed index-206 retained-state Schoof commands,
   exact CRT replays, fallback residues, raw hashes, and release gate are in
   [the fallback artifact](../artifacts/local/p125-index206-schoof-fallback-20260801/result.json).
-- The fail-closed index-246 v1 production attempt and v2 prototype recovery,
-  including both raw identities, CRT transitions, and the open final-build
-  gate, are in
+- The fail-closed index-246 v1 attempt, v2 prototype, and final committed
+  frozen-binary recovery, including raw identities, CRT transitions, and the
+  closed release gate, are in
   [the v2 fallback artifact](../artifacts/local/p125-index246-schoof-fallback-v2-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).

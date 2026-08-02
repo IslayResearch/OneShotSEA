@@ -37,24 +37,43 @@ benchmark="$(AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/benchmark-sea.sh" \
 
 provision="$("${SCRIPT_DIR}/provision.sh" \
   --launch-id test-20260801 --instance-type m8g.xlarge \
+  --task-tag p125-coordinator-ab \
   --ami-id ami-0263206814db4826a --subnet-id subnet-0800205b8fbcd6777 \
   --security-group-id sg-00000000000000000 \
   --iam-instance-profile "$profile" --associate-public-ip \
   --max-price-per-hour 0.20 --max-lifetime-minutes 30 2>&1)"
 [[ "$provision" == *hard-stop*timer* && "$provision" == *'ingress=[]'* &&
+   "$provision" == *'instance+root-volume'*'Task=p125-coordinator-ab'* &&
    "$provision" != *key-name* ]] || fail 'provision dry-run violates keyless bounded contract'
 
 launch="$(AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
   --run-id p125-test --run-kind benchmark \
   --prime 101 --worker-id 2 --worker-count 3 \
   --range-start 10 --range-end 21 --seed 7 --max-level 401 \
+  --curve-family x1-27 --x1-require-point4 1 --curve-threads 10 \
+  --sea-level-telemetry 0 --schoof-fallback 1 --skip-incomplete-curves 0 \
+  --smooth-coordinators 1 \
   --sea-threads 4 --table-dir data/modpoly/weber_f \
   --smooth-cache /opt/oneshotsea/caches/p125/smooth.cache \
   --smooth-cache-sha256 "$digest" --max-curves 1 2>&1)"
 [[ "$launch" == *'assigned_range=[18,21)'* &&
    "$launch" == *'--range-start 10 --range-end 21'* &&
-   "$launch" == *'--worker-id 2 --worker-count 3'* ]] ||
+   "$launch" == *'--worker-id 2 --worker-count 3'* &&
+   "$launch" == *'--curve-family x1-27 --x1-require-point4 1'* &&
+   "$launch" == *'--curve-threads 10 --sea-level-telemetry 0'* &&
+   "$launch" == *'--schoof-fallback 1 --skip-incomplete-curves 0'* &&
+   "$launch" == *'--smooth-coordinators 1'* ]] ||
   fail 'launch dry-run changed the exactly-once partition contract'
+
+if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
+  --run-id invalid-options --run-kind benchmark --prime 101 \
+  --worker-id 0 --worker-count 1 --range-start 0 --range-end 1 \
+  --seed 1 --max-level 11 --sea-threads 1 --curve-family weber-f \
+  --x1-require-point4 1 --table-dir data/modpoly/weber_f \
+  --smooth-cache /opt/oneshotsea/caches/test/smooth.cache \
+  --smooth-cache-sha256 "$digest" --max-curves 1 >/dev/null 2>&1; then
+  fail 'incompatible curve-family options were accepted'
+fi
 
   if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
     --run-id unbounded --run-kind benchmark --prime 101 \
@@ -140,6 +159,9 @@ PATH="${tmp_dir}/bin:${PATH}" python3 "${SCRIPT_DIR}/remote_worker.py" \
   --root "$fake_root" --instance-id "$instance" --run-id integration \
   --run-kind benchmark --prime 101 --worker-id 2 --worker-count 3 \
   --range-start 10 --range-end 21 --seed 7 --max-level 11 --sea-threads 4 \
+  --curve-family x1-27 --x1-require-point4 1 --curve-threads 10 \
+  --sea-level-telemetry 0 --schoof-fallback 1 --skip-incomplete-curves 0 \
+  --smooth-coordinators 1 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache "${fake_root}/caches/test/smooth.cache" \
   --smooth-cache-sha256 "$cache_sha" --max-curves 1 >"${tmp_dir}/remote.out"
@@ -147,10 +169,49 @@ jq -e '
   .schema == "oneshotsea.aws-worker.v1" and
   .global_range == {start:"10",end:"21",count:"11"} and
   .assigned_range == {start:"18",end:"21",count:"3"} and
-  (.command_argv | index("--range-start") != null)
+  (.command_argv | index("--range-start") != null) and
+  (.command_argv | index("--curve-family")) as $family |
+  .command_argv[$family + 1] == "x1-27" and
+  (.command_argv | index("--x1-require-point4")) as $point4 |
+  .command_argv[$point4 + 1] == "1" and
+  (.command_argv | index("--curve-threads")) as $curves |
+  .command_argv[$curves + 1] == "10" and
+  (.command_argv | index("--sea-level-telemetry")) as $telemetry |
+  .command_argv[$telemetry + 1] == "0" and
+  (.command_argv | index("--schoof-fallback")) as $schoof |
+  .command_argv[$schoof + 1] == "1" and
+  (.command_argv | index("--skip-incomplete-curves")) as $skip |
+  .command_argv[$skip + 1] == "0" and
+  (.command_argv | index("--smooth-coordinators")) as $coordinators |
+  .command_argv[$coordinators + 1] == "1"
 ' "${fake_root}/runs/integration/worker-2/manifest.json" >/dev/null ||
   fail 'remote worker manifest does not bind the exact partition'
 
+printf '{"checkpoint":"nonempty"}\n' >"${fake_root}/runs/integration/worker-2/checkpoint.json"
+PATH="${tmp_dir}/bin:${PATH}" python3 "${SCRIPT_DIR}/remote_worker.py" \
+  --root "$fake_root" --instance-id "$instance" --run-id integration \
+  --run-kind benchmark --prime 101 --worker-id 2 --worker-count 3 \
+  --range-start 10 --range-end 21 --seed 7 --max-level 11 --sea-threads 4 \
+  --curve-family x1-27 --x1-require-point4 1 --curve-threads 10 \
+  --sea-level-telemetry 0 --schoof-fallback 1 --skip-incomplete-curves 0 \
+  --smooth-coordinators 1 --table-dir data/modpoly/weber_f \
+  --smooth-cache "${fake_root}/caches/test/smooth.cache" \
+  --smooth-cache-sha256 "$cache_sha" --max-curves 1 --resume \
+  >"${tmp_dir}/resume.out" || fail 'identical semantic options did not resume'
+
+if PATH="${tmp_dir}/bin:${PATH}" python3 "${SCRIPT_DIR}/remote_worker.py" \
+  --root "$fake_root" --instance-id "$instance" --run-id integration \
+  --run-kind benchmark --prime 101 --worker-id 2 --worker-count 3 \
+  --range-start 10 --range-end 21 --seed 7 --max-level 11 --sea-threads 4 \
+  --curve-family x1-27 --x1-require-point4 1 --curve-threads 9 \
+  --sea-level-telemetry 0 --schoof-fallback 1 --skip-incomplete-curves 0 \
+  --smooth-coordinators 1 --table-dir data/modpoly/weber_f \
+  --smooth-cache "${fake_root}/caches/test/smooth.cache" \
+  --smooth-cache-sha256 "$cache_sha" --max-curves 1 --resume \
+  >/dev/null 2>&1; then
+  fail 'resume accepted changed semantic options'
+fi
+
 bash -n "${SCRIPT_DIR}"/*.sh
 python3 -m py_compile "${SCRIPT_DIR}"/*.py
-printf 'ok: AWS dry-run, bounded launch, exact sharding, SSM polling, and immutable worker tests passed\n'
+printf 'ok: AWS dry-run, cost tags, bounded launch, exact sharding, semantic argv, SSM polling, and immutable worker tests passed\n'

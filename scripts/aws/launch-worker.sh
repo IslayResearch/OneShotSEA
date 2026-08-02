@@ -16,12 +16,20 @@ range_end=''
 seed=''
 max_level=''
 sea_threads=''
+curve_family='weber-f'
+x1_require_point4=0
+curve_threads=1
+sea_level_telemetry=1
+schoof_fallback=0
+skip_incomplete_curves=0
+smooth_coordinators=0
 table_dir=''
 smooth_cache=''
 smooth_cache_sha256=''
 wall_time_limit_seconds=0
 resume=0
 resource_args=()
+search_args=()
 
 usage() {
   cat <<'EOF'
@@ -35,8 +43,15 @@ Options:
   --instance-id ID                    EC2 instance (or AWS_INSTANCE_ID)
   --max-curves N                      Search at most N curves (0 means none)
   --checkpoint-every N                Checkpoint interval
+  --curve-family FAMILY               weber-f, x1-11, or x1-27
+  --x1-require-point4 0|1             Require validated X1 point of order four
+  --curve-threads N                   Concurrent curve workers
+  --sea-level-telemetry 0|1           Emit per-level SEA telemetry
+  --schoof-fallback 0|1               Complete exhausted SEA states exactly
+  --skip-incomplete-curves 0|1        Skip incomplete SEA states
   --trace-cap N                       Early complete-trace-set cap
   --smooth-threads N                  Exact-smooth workers (0 is automatic)
+  --smooth-coordinators N             Exact-smooth coordinator cohorts
   --smooth-max-batch N                Exact-smooth batch cap
   --smooth-root-auxiliary-bytes N     Root-reduction memory cap
   --smooth-build-segment-span N       Smooth-cache build segment span
@@ -65,6 +80,13 @@ append_positive_uint_option() {
   resource_args+=("--${option}" "$value")
 }
 
+append_boolean_option() {
+  local option="$1" value="${2:-}"
+  validate_uint "$option" "$value"
+  [[ "$value" == 0 || "$value" == 1 ]] || die "$option must be zero or one"
+  search_args+=("--${option}" "$value")
+}
+
 max_curves=0
 while (( $# )); do
   case "$1" in
@@ -82,6 +104,33 @@ while (( $# )); do
     --table-dir) table_dir="${2:-}"; shift 2 ;;
     --smooth-cache) smooth_cache="${2:-}"; shift 2 ;;
     --smooth-cache-sha256) smooth_cache_sha256="${2:-}"; shift 2 ;;
+    --curve-family)
+      curve_family="${2:-}"
+      case "$curve_family" in
+        weber-f|x1-11|x1-27) ;;
+        *) die 'curve-family must be weber-f, x1-11, or x1-27' ;;
+      esac
+      search_args+=(--curve-family "$curve_family"); shift 2 ;;
+    --x1-require-point4)
+      x1_require_point4="${2:-}"
+      append_boolean_option x1-require-point4 "$x1_require_point4"; shift 2 ;;
+    --curve-threads)
+      curve_threads="${2:-}"
+      validate_positive_uint curve-threads "$curve_threads"
+      search_args+=(--curve-threads "$curve_threads"); shift 2 ;;
+    --sea-level-telemetry)
+      sea_level_telemetry="${2:-}"
+      append_boolean_option sea-level-telemetry "$sea_level_telemetry"; shift 2 ;;
+    --schoof-fallback)
+      schoof_fallback="${2:-}"
+      append_boolean_option schoof-fallback "$schoof_fallback"; shift 2 ;;
+    --skip-incomplete-curves)
+      skip_incomplete_curves="${2:-}"
+      append_boolean_option skip-incomplete-curves "$skip_incomplete_curves"; shift 2 ;;
+    --smooth-coordinators)
+      smooth_coordinators="${2:-}"
+      validate_uint smooth-coordinators "$smooth_coordinators"
+      search_args+=(--smooth-coordinators "$smooth_coordinators"); shift 2 ;;
     --max-curves)
       max_curves="${2:-}"; append_uint_option max-curves "$max_curves"; shift 2 ;;
     --checkpoint-every) append_positive_uint_option checkpoint-every "${2:-}"; shift 2 ;;
@@ -115,6 +164,17 @@ validate_uint seed "$seed"
 validate_positive_uint max-level "$max_level"
 (( 10#$max_level >= 5 )) || die 'max-level must be at least 5'
 validate_positive_uint sea-threads "$sea_threads"
+if [[ "$curve_family" == weber-f && "$x1_require_point4" == 1 ]]; then
+  die '--x1-require-point4 requires an X1 curve family'
+fi
+require_cmd python3
+python3 - "$curve_threads" "$smooth_coordinators" <<'PY' ||
+  die '--smooth-coordinators may not exceed --curve-threads'
+import sys
+curve_threads, smooth_coordinators = map(int, sys.argv[1:])
+if smooth_coordinators > curve_threads:
+    raise SystemExit(1)
+PY
 validate_uint wall-time-limit-seconds "$wall_time_limit_seconds"
 if [[ "$run_kind" == benchmark && "$max_curves" == 0 &&
       "$wall_time_limit_seconds" == 0 ]]; then
@@ -132,7 +192,6 @@ validate_remote_root
   die 'smooth cache must be a simple absolute path below the remote root'
 [[ "$smooth_cache" != *'/../'* && "$smooth_cache" != */.. ]] ||
   die 'smooth cache path may not traverse parents'
-require_cmd python3
 require_cmd jq
 
 range_count="$(python3 - "$range_start" "$range_end" <<'PY'
@@ -160,6 +219,7 @@ remote_args=(
   --table-dir "$table_dir" --smooth-cache "$smooth_cache"
   --smooth-cache-sha256 "$smooth_cache_sha256"
   --wall-time-limit-seconds "$wall_time_limit_seconds"
+  "${search_args[@]}"
   "${resource_args[@]}"
 )
 if (( resume == 1 )); then

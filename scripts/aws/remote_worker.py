@@ -65,6 +65,13 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--table-dir", required=True)
     result.add_argument("--smooth-cache", type=Path, required=True)
     result.add_argument("--smooth-cache-sha256", required=True)
+    result.add_argument("--curve-family", choices=("weber-f", "x1-11", "x1-27"))
+    result.add_argument("--x1-require-point4", type=int)
+    result.add_argument("--curve-threads", type=int)
+    result.add_argument("--sea-level-telemetry", type=int)
+    result.add_argument("--schoof-fallback", type=int)
+    result.add_argument("--skip-incomplete-curves", type=int)
+    result.add_argument("--smooth-coordinators", type=int)
     result.add_argument("--max-curves", type=int)
     result.add_argument("--checkpoint-every", type=int)
     result.add_argument("--trace-cap", type=int)
@@ -105,10 +112,46 @@ def main() -> int:
         fail("invalid global range")
     if args.max_level < 5 or args.sea_threads <= 0:
         fail("max-level must be at least 5 and sea-threads must be positive")
+    curve_threads = args.curve_threads if args.curve_threads is not None else 1
+    smooth_coordinators = (
+        args.smooth_coordinators if args.smooth_coordinators is not None else 0
+    )
+    if curve_threads <= 0 or curve_threads > MAX_U64:
+        fail("invalid --curve-threads")
+    if not 0 <= smooth_coordinators <= min(curve_threads, MAX_U64):
+        fail("invalid --smooth-coordinators")
+    boolean_options = (
+        ("x1-require-point4", args.x1_require_point4),
+        ("sea-level-telemetry", args.sea_level_telemetry),
+        ("schoof-fallback", args.schoof_fallback),
+        ("skip-incomplete-curves", args.skip_incomplete_curves),
+    )
+    for name, value in boolean_options:
+        if value is not None and value not in (0, 1):
+            fail(f"invalid --{name}")
+    if (
+        args.x1_require_point4 == 1
+        and (args.curve_family is None or args.curve_family == "weber-f")
+    ):
+        fail("--x1-require-point4 requires an X1 curve family")
     if not HEX_64.fullmatch(args.smooth_cache_sha256):
         fail("invalid trusted smooth-cache digest")
     if args.run_kind == "benchmark" and not args.max_curves and not args.wall_time_limit_seconds:
         fail("benchmark runs must be bounded by max-curves or wall time")
+
+    search_options = (
+        ("curve-family", args.curve_family),
+        ("x1-require-point4", args.x1_require_point4),
+        ("curve-threads", args.curve_threads),
+        ("sea-level-telemetry", args.sea_level_telemetry),
+        ("schoof-fallback", args.schoof_fallback),
+        ("skip-incomplete-curves", args.skip_incomplete_curves),
+        ("smooth-coordinators", args.smooth_coordinators),
+    )
+    search_argv: list[str] = []
+    for name, value in search_options:
+        if value is not None:
+            search_argv.extend((f"--{name}", str(value)))
 
     resource_options = (
         ("max-curves", args.max_curves, False),
@@ -191,6 +234,7 @@ def main() -> int:
         "--smooth-cache-sha256", args.smooth_cache_sha256,
         "--checkpoint", str(checkpoint), "--progress", str(progress),
         "--certificate-out", str(result), "--build-id", build_id,
+        *search_argv,
         *resource_argv,
     ]
     manifest = {

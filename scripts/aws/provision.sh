@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 launch_id=''
+task_tag=''
+task_tag_set=0
 name='oneshotsea-cpu'
 instance_type=''
 ami_id=''
@@ -26,6 +28,7 @@ Usage: provision.sh --launch-id ID --instance-type TYPE --ami-id AMI
 
 Options:
   --name NAME                   Name tag (default: oneshotsea-cpu)
+  --task-tag VALUE              Optional Task cost-allocation tag
   --instance-type TYPE          c8g.4xlarge or c8i.4xlarge; m8g.xlarge quota fallback
   --ami-id AMI                  Pinned us-east-2 Amazon Linux 2023 AMI
   --subnet-id SUBNET            Existing private subnet with SSM connectivity
@@ -49,6 +52,7 @@ EOF
 while (( $# )); do
   case "$1" in
     --launch-id) launch_id="${2:-}"; shift 2 ;;
+    --task-tag) task_tag="${2:-}"; task_tag_set=1; shift 2 ;;
     --name) name="${2:-}"; shift 2 ;;
     --instance-type) instance_type="${2:-}"; shift 2 ;;
     --ami-id) ami_id="${2:-}"; shift 2 ;;
@@ -67,6 +71,10 @@ done
 
 [[ -n "$launch_id" ]] || die '--launch-id is required'
 validate_launch_id "$launch_id"
+if (( task_tag_set == 1 )); then
+  [[ "$task_tag" =~ ^[A-Za-z0-9][A-Za-z0-9._:/+=@-]{0,63}$ ]] ||
+    die 'invalid task tag'
+fi
 [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$ ]] || die 'invalid instance name'
 validate_instance_type "$instance_type"
 [[ "$ami_id" =~ ^ami-[0-9a-f]{8,17}$ ]] || die 'invalid AMI id'
@@ -104,6 +112,13 @@ if ! require_execute; then
     --client-token "oneshotsea-${launch_id}" --user-data '[hard-stop timer; no secrets]'
   printf 'DRY-RUN: encrypted gp3 root volume=%s GiB, delete-on-termination=true, expected architecture=%s\n' \
     "$volume_gb" "$expected_arch"
+  if [[ -n "$task_tag" ]]; then
+    printf 'DRY-RUN: tag instance+root-volume Project=OneShotSEA LaunchId=%s Task=%s\n' \
+      "$launch_id" "$task_tag"
+  else
+    printf 'DRY-RUN: tag instance+root-volume Project=OneShotSEA LaunchId=%s\n' \
+      "$launch_id"
+  fi
   if (( associate_public_ip == 1 )); then
     printf 'DRY-RUN: associate public IP for outbound-only access; require security group ingress=[]\n'
   else
@@ -154,17 +169,18 @@ block_devices="$(jq -cn --arg device "$root_device" --argjson size "$volume_gb" 
   }}]
 ')"
 tags="$(jq -cn \
-  --arg name "$name" --arg launch "$launch_id" \
+  --arg name "$name" --arg launch "$launch_id" --arg task "$task_tag" \
   --arg lifetime "$max_lifetime_minutes" '
-  [{ResourceType: "instance", Tags: [
+  def task_tag: if $task == "" then [] else [{Key: "Task", Value: $task}] end;
+  [{ResourceType: "instance", Tags: ([
     {Key: "Name", Value: $name},
     {Key: "Project", Value: "OneShotSEA"},
     {Key: "LaunchId", Value: $launch},
     {Key: "MaxLifetimeMinutes", Value: $lifetime}
-  ]}, {ResourceType: "volume", Tags: [
+  ] + task_tag)}, {ResourceType: "volume", Tags: ([
     {Key: "Project", Value: "OneShotSEA"},
     {Key: "LaunchId", Value: $launch}
-  ]}]
+  ] + task_tag)}]
 ')"
 
 public_ip_flag=--no-associate-public-ip-address

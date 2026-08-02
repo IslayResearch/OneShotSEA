@@ -14,6 +14,13 @@ activated on 2026-08-01.  Cost Explorer can lag live usage, so the retained
 instance/fetch metadata also estimates a conservative launch-to-fetch cost
 from the price authenticated immediately before launch.
 
+Use `provision.sh --task-tag p125-coordinator-ab` to add the narrower
+`Task=p125-coordinator-ab` tag to both the instance and root volume while
+retaining `Project` and `LaunchId`. AWS Billing must separately activate the
+`Task` user-defined cost-allocation tag before Cost Explorer can group or
+filter charges by it; activation is not retroactive. `Project` remains the
+already-activated fallback for total OneShotSEA spend.
+
 Query tagged charges for an exclusive date range with:
 
 ```sh
@@ -75,6 +82,7 @@ scripts/aws/provision.sh \
   --subnet-id subnet-0800205b8fbcd6777 \
   --security-group-id sg-0852d5dccfde431c2 \
   --iam-instance-profile expMath-ResearchInstanceProfile-JpspoidArRiA \
+  --task-tag p125-coordinator-ab \
   --associate-public-ip \
   --volume-gb 100 --max-price-per-hour 0.20 \
   --max-lifetime-minutes 30
@@ -93,6 +101,24 @@ scripts/aws/deploy.sh --jobs 4 --execute
 `deploy.sh` fetches the exact local `HEAD` from the public canonical GitHub
 remote, so deployment deliberately fails when the worktree is dirty or the
 commit has not been pushed.
+
+The production wrapper forwards the search semantics and resource topology
+needed by the p125 X1(27) coordinator comparison. For example, add these flags
+to an otherwise complete, bounded `launch-worker.sh` invocation:
+
+```sh
+  --curve-family x1-27 --x1-require-point4 1 \
+  --trace-cap 16 --schoof-fallback 1 --skip-incomplete-curves 0 \
+  --curve-threads 10 --sea-threads 1 --sea-level-telemetry 0 \
+  --smooth-coordinators 1 --smooth-threads 8
+```
+
+`curve-family` is restricted to the CLI's `weber-f`, `x1-11`, and `x1-27`
+allowlist. Boolean flags accept only `0` or `1`; curve threads must be positive;
+smooth coordinators must be nonnegative and cannot exceed curve threads. The
+remote worker writes every explicit value into `command_argv` in its immutable
+manifest. A resume must repeat the same values: changing a semantic or resource
+option fails closed with a manifest mismatch.
 
 Run a CAS-free thread-scaling benchmark against one explicitly recorded target
 curve with `benchmark-sea.sh`.  The fetched run contains the exact curve and

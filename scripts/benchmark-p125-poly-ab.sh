@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 --label LABEL --baseline BINARY --candidate BINARY --build-commands FILE --table-dir DIRECTORY --output DIRECTORY [--repetitions N]" >&2
+    echo "usage: $0 --label LABEL --baseline BINARY --candidate BINARY --build-commands FILE --build-log FILE --table-dir DIRECTORY --output DIRECTORY [--repetitions N]" >&2
     exit 2
 }
 
@@ -10,6 +10,7 @@ label=
 baseline=
 candidate=
 build_commands=
+build_log=
 table_dir=
 output=
 repetitions=5
@@ -19,6 +20,7 @@ while (($#)); do
         --baseline) baseline=${2-}; shift 2 ;;
         --candidate) candidate=${2-}; shift 2 ;;
         --build-commands) build_commands=${2-}; shift 2 ;;
+        --build-log) build_log=${2-}; shift 2 ;;
         --table-dir) table_dir=${2-}; shift 2 ;;
         --output) output=${2-}; shift 2 ;;
         --repetitions) repetitions=${2-}; shift 2 ;;
@@ -29,6 +31,7 @@ done
 [[ -n "$label" && -x "$baseline" && -x "$candidate" ]] || usage
 [[ -d "$table_dir" && -n "$output" ]] || usage
 [[ -f "$build_commands" && ! -L "$build_commands" ]] || usage
+[[ -f "$build_log" && ! -L "$build_log" ]] || usage
 [[ "$repetitions" =~ ^[1-9][0-9]*$ ]] || usage
 [[ ! -e "$output" ]] || {
     echo "refusing to overwrite benchmark output: $output" >&2
@@ -47,6 +50,7 @@ mkdir -p "$output"
 cp -- "$baseline" "$output/baseline.bin"
 cp -- "$candidate" "$output/candidate.bin"
 cp -- "$build_commands" "$output/BUILD_COMMANDS.sh"
+cp -- "$build_log" "$output/BUILD.log"
 source_commit=$(git rev-parse --verify HEAD)
 [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]] || {
     echo "cannot identify source commit" >&2
@@ -95,6 +99,7 @@ run_one() {
     echo "retained_baseline_sha256=$(sha256sum "$output/baseline.bin" | awk '{print $1}')"
     echo "retained_candidate_sha256=$(sha256sum "$output/candidate.bin" | awk '{print $1}')"
     echo "build_commands_sha256=$(sha256sum "$output/BUILD_COMMANDS.sh" | awk '{print $1}')"
+    echo "build_log_sha256=$(sha256sum "$output/BUILD.log" | awk '{print $1}')"
     echo "table_manifest_sha256=$(sha256sum "$table_dir/MANIFEST.json" | awk '{print $1}')"
     echo "uname=$(uname -a)"
     echo "nproc=$(nproc)"

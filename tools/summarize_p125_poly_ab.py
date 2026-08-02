@@ -109,6 +109,7 @@ def summarize(directory: Path) -> dict[str, object]:
         ("baseline.bin", "retained_baseline_sha256"),
         ("candidate.bin", "retained_candidate_sha256"),
         ("BUILD_COMMANDS.sh", "build_commands_sha256"),
+        ("BUILD.log", "build_log_sha256"),
     ):
         if environment.get(key) != _sha256(directory / filename):
             raise ValueError(f"retained identity mismatch: {filename}")

@@ -22,9 +22,11 @@ class PolyAbSummaryTests(unittest.TestCase):
             f"retained_baseline_sha256={hashlib.sha256(b'baseline').hexdigest()}\n"
             f"retained_candidate_sha256={hashlib.sha256(b'candidate').hexdigest()}\n"
             f"build_commands_sha256={hashlib.sha256(b'true\n').hexdigest()}\n"
+            f"build_log_sha256={hashlib.sha256(b'build ok\n').hexdigest()}\n"
         )
         (directory / "COMMANDS.sh").write_text("true\n")
         (directory / "BUILD_COMMANDS.sh").write_bytes(b"true\n")
+        (directory / "BUILD.log").write_bytes(b"build ok\n")
         (directory / "baseline.bin").write_bytes(b"baseline")
         (directory / "candidate.bin").write_bytes(b"candidate")
         projections = []

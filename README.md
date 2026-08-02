@@ -1,212 +1,181 @@
-# OneShotSEA
+# OneShotSEA: direct specialization milestone
 
-OneShotSEA is a custom C++20/GMP implementation of the SEA route to one-shot
-elliptic-curve primality proofs.  The immediate targets are
-`nextprime(10^125)` (`p125`, 416 bits) and then `nextprime(10^130)` (`p130`,
-432 bits).  The production point-count and search path does not call PARI/GP,
-Sage, Magma, or another SEA implementation.
+This branch is a correctness-first implementation milestone toward a custom,
+unbounded SEA point counter for one-shot primality proofs.  Its new work is the
+front half and back half of Sutherland's direct modular-polynomial evaluation
+path: it discovers and validates suitable quadratic orders, selects witnessed
+auxiliary primes, and reconstructs a Weber-f specialization with exact CRT.
 
-## Current status
+It does **not** yet implement the Hilbert-class-polynomial/Weber-volcano
+callback that produces the residue at each auxiliary prime.  Consequently the
+production search still obtains modular-polynomial data from an authenticated,
+finite table catalog.  No new `nextprime(10^125)` (`p125`, 416-bit) certificate
+is claimed here.
 
-This is a working, sound search implementation over an authenticated finite
-catalog of Weber-f modular polynomials.  It is not yet a completed unbounded
-direct-evaluation implementation, and no new `p125` certificate has been found.
+## Branch status
 
-The branch now contains both sides of the direct-specialization seam:
+| Component | Status on this branch | Production consequence |
+|---|---|---|
+| Specialized SEA consumer for `Phi_ell^f(f,Y)` and `Phi_X^f(f,Y)` | Implemented and differentially tested | SEA no longer requires a bivariate table at its consumer boundary |
+| Suitable-order discovery and validation | Implemented as a bounded deterministic search | Correct for accepted results; not the theorem-oriented asymptotic selector |
+| Auxiliary CRT-prime selection | Implemented with exact `(p,t,v,D)` witnesses and proved 64-bit primes | Safe bounded practical heuristic; fixed `v` has no GRH existence guarantee |
+| Target-field power lifting | Implemented | Preserves the ordering required by Algorithm 1 |
+| Explicit CRT reconstruction | Implemented with strict product and coefficient-bound checks | Reconstructs both required specialization channels and fails closed |
+| Weber coefficient-height bound | Exact table-derived test evidence only | A proved normalization-specific bound is still required |
+| Per-prime HCP/Weber-volcano residue producer | Not implemented | Direct specialization cannot yet replace tables in production |
+| Unbounded SEA search or `p125` certificate | Not demonstrated | The intended asymptotic path remains incomplete |
 
-- the SEA consumer accepts only `Phi_ell^f(f,Y)` and
-  `partial Phi_ell^f/partial X (f,Y)`, without needing a bivariate table; and
-- the new Algorithm 1 scaffold validates suitable quadratic orders, selects
-  witnessed auxiliary CRT primes, streams per-prime specializations, and
-  performs bounded explicit CRT reconstruction into that consumer object.
+## What this branch adds
 
-The remaining major subsystem is the callback that computes each auxiliary-
-prime specialization from Hilbert-class-polynomial and Weber isogeny-volcano
-state.  Until it exists and is connected to production, the authenticated
-table catalog remains the actual specialization source.
+The branch-specific implementation is concentrated in
+[`include/oneshotsea/direct_modpoly.hpp`](include/oneshotsea/direct_modpoly.hpp)
+and [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp).  It provides:
 
-## Direct specialization implemented on this branch
+1. `discover_sutherland_suitable_order`, a capped deterministic search over
+   fundamental discriminants and conductors.  A ring-class-number formula is
+   used as a filter, then independently checked by primitive reduced-form
+   enumeration before an order is accepted.
+2. `validate_sutherland_suitable_order`, the only construction path for the
+   checked order object.  It enforces Sutherland's size, class-number,
+   conductor, and prime-level conditions, plus the necessary Weber-f order
+   congruences where the Weber wrapper is used.
+3. `select_sutherland_crt_primes`, which retains every equation witness
+   satisfying
 
-[`src/direct_modpoly.cpp`](src/direct_modpoly.cpp) implements the checkable
-orchestration around Sutherland's direct-evaluation algorithm:
+   ```text
+   4p = t^2 - ell^2 v^2 D
+   ```
 
-1. deterministically discover candidate orders, filter them with the
-   ring-class number formula, and independently validate every suitable-order
-   condition by reduced-form enumeration;
-2. enforce the necessary order congruences for the Weber-f class polynomial;
-3. deterministically select primes satisfying
-   `4p = t^2 - ell^2 v^2 D`, retaining `(p,t,v)` for the residue producer;
-4. compute powers in the target field and then lift their canonical
-   representatives, rather than incorrectly exponentiating modulo each CRT
-   prime;
-5. require an opaque coefficient-bound object with recorded derivation, then
-   consume `Phi_ell^f(f,Y)` and its X derivative from a streamed per-prime
-   provider; and
-6. reconstruct every coefficient with exact CRT rounding, require the CRT
-   product to exceed four times a declared coefficient bound, and reject any
-   centered lift outside that bound.
+   and stops only when the product of distinct auxiliary primes is strictly
+   greater than four times the declared coefficient bound.
+4. `reconstruct_weber_specialization_algorithm1`, which computes powers in
+   the target field before lifting them, streams one residue at a time, and
+   uses exact integer CRT rounding to reconstruct `Phi_ell^f(f,Y)` and its X
+   derivative.  Each centered coefficient is checked against the same bound
+   and cross-checked modulo the target.
 
-Auxiliary primes are currently restricted to 64 bits and proven prime by a
-deterministic Miller--Rabin basis.  The large target modulus is only subjected
-to a probable-prime precondition because proving it is the purpose of the
-overall program.
+The residue provider is an explicit callback.  The table-backed implementation
+used by the tests is an oracle for differential validation, not the missing
+production evaluator.
 
-The table-backed residue adapter is a test oracle, not the production direct
-evaluator.  The exact contract, equations, validation evidence, and remaining
-work are in [`docs/explicit_crt_producer.md`](docs/explicit_crt_producer.md)
-and [`docs/direct_specialization_boundary.md`](docs/direct_specialization_boundary.md).
+## What is inherited
 
-## Existing SEA and certificate path
+The repository already contains the table-backed Weber SEA and one-shot
+certificate search path: curve generation, modular-polynomial authentication,
+BMSS isogeny recovery, Frobenius trace residues, certified Atkin constraints,
+complete-trace early abort, exact smoothness checks, certificate assembly, and
+the pinned upstream verifier.
 
-For the authenticated level schedule, the repository can:
+Those components are important integration context, but they are not the new
+claim of this branch.  They supply the independently exercised consumer against
+which the direct-specialization boundary is tested.  Production continues to
+use them with the finite authenticated table schedule until the missing
+per-prime producer and proved height bound are complete.
 
-- generate certificate-compatible curves from optimized X1(27), X1(11), or
-  Weber families while retaining the exact Weber source coordinate;
-- specialize authenticated Weber tables, reconstruct normalized isogenies
-  with BMSS, and prove Frobenius trace residues in kernel quotient algebras;
-- combine exact Elkies residues with separately certified Atkin constraints;
-- enumerate the complete Hasse-compatible trace set and apply a sound early
-  abort only when every curve/twist order candidate fails the exact smoothness
-  threshold;
-- construct an exact-order Montgomery point and emit the canonical one-line
-  proof; and
-- accept a result only after the pinned, unmodified upstream verifier returns
-  true.
+## Build and validate this milestone
 
-The checked-in schedule has 77 Weber-f levels through 401.  An authenticated
-source catalog can selectively materialize 166 levels through 997.  This
-extends the practical range but is still finite source data, not the intended
-asymptotic direct evaluator.
-
-## Build and focused validation
-
-The native build requires a C++20 compiler and GMP.  Smooth-engine tests also
-require OpenMP (`libomp` with Apple Clang or the GCC runtime on Linux).
+The native build requires a C++20 compiler and GMP.  Run the focused test with:
 
 ```sh
-make all
 make test-direct-modpoly
-make test test-poly-square test-atkin test-factor test-certificate \
-  test-search-pipeline test-cli test-verifier test-performance-artifacts
 ```
 
-`test-direct-modpoly` independently checks:
+That test independently checks:
 
-- known quadratic-order class numbers and rejected invalid orders;
-- deterministic suitable-order discovery for every one of the 166 admissible
-  catalog levels through 997, with independent formula/enumeration agreement
-  and explicit cap failures;
-- suitable-order bounds and both trace-parity branches;
-- the exact `(p,t,v,D)` prime equation and deterministic prime selection;
-- deterministic rejection of composites, a strong pseudoprime, duplicate
-  primes, and auxiliary inputs outside the proven 64-bit range;
-- signed explicit-CRT reconstruction over `F_1009` and the 416-bit `p125`
-  field, including corruption and insufficient-height failures;
-- the target-power lift subtlety in Algorithm 1;
-- a table-reference height derivation whose result is independently recomputed
-  coefficient by coefficient; and
-- coefficient-for-coefficient agreement of the complete validated-order,
-  selected-prime, streamed-provider, CRT path with a Weber `Phi_5` table oracle.
+- known class numbers and invalid-order rejection;
+- deterministic suitable-order discovery for all 166 admissible catalog
+  levels through 997, including formula/enumeration agreement and cap failure;
+- both trace-parity branches and every retained CRT-prime equation;
+- deterministic rejection of composites, a strong pseudoprime, duplicates,
+  and auxiliary inputs outside the proved 64-bit range;
+- signed exact-CRT reconstruction over `F_1009` and the 416-bit `p125` field;
+- insufficient coverage, malformed or corrupted provider output, and the
+  target-power lift subtlety; and
+- coefficient-for-coefficient agreement of the complete level-5 path with an
+  authenticated Weber table oracle.
 
-The broader suite includes native arithmetic and certificate tests plus
-independent Magma point-count differentials when a Magma executable is
-provided:
+The inherited core, Atkin, eigenvalue, search, and certificate suites remain
+available through the Makefile.  The full suite can additionally use Magma as
+an independent point-count oracle:
 
 ```sh
 MAGMA=/path/to/magma make test-all
 ```
 
-The production search requires a separately built authenticated smooth cache.
-See [`docs/search_pipeline.md`](docs/search_pipeline.md) for the exact command,
-trust boundary, and checkpoint semantics.
+Magma is optional test infrastructure; the production point counter does not
+call Magma, Sage, PARI/GP, or another SEA implementation.
 
 ## Soundness boundary
 
-Positive Elkies results are checked by normalized-codomain, BMSS-isogeny, and
-Frobenius identities.  A no-root classification cannot receive the same local
-witness, so it depends on authentic modular-polynomial coefficients.  For this
-reason the direct path must not influence production Atkin/no-root conclusions
-until its per-prime volcano producer and a proved Weber coefficient-height
-bound have passed differential tests.
+A positive Elkies result is protected downstream by normalized-codomain,
+BMSS-isogeny, and Frobenius identities.  A no-root/Atkin result cannot carry
+the same local witness and therefore depends on the authenticity of the
+specialization coefficients.  The new CRT path must not influence production
+no-root conclusions until its volcano producer and proved Weber height bound
+pass the differential gates.
 
-Likewise, early smoothness rejection is permitted only from a complete trace
-set and exact smooth parts for both signs.  Heuristic scheduling and learned
-scores may prioritize work, but cannot reject a candidate or produce a proof.
+Likewise, search heuristics may schedule work but may not reject a curve.
+Early smoothness rejection is sound only after enumerating the complete
+Hasse-compatible trace set and computing exact smooth parts for both the curve
+and its twist.
 
-## Asymptotic claim—precisely scoped
+## Asymptotic scope
 
-Let `n = ceil(log2 p)`, let the verifier smoothness bound be `B=n^4`, and let a
-certificate require a divisor of size `p^(1/2+o(1))`.  The usual
-Dickman--Mertens model predicts success probability `p^(-1/8+o(1))` per random
-order, so the expected number of curves is `p^(1/8+o(1))`.  If each curve is
-point-counted in time polynomial in `n`, that polynomial is absorbed by the
-`o(1)` exponent.  This is the heuristic asymptotic advantage over the CM
-search term `p^(1/4+o(1))`.
+Let `n = ceil(log2 p)`, use the verifier's smoothness bound `B=n^4`, and require
+a certified divisor of size `p^(1/2+o(1))`.  Under the usual
+Dickman--Mertens model, a random order succeeds with probability
+`p^(-1/8+o(1))`, giving an expected `p^(1/8+o(1))` curves.  A custom SEA point
+count whose cost is polynomial in `n` is absorbed into the `o(1)` exponent;
+this is the intended heuristic advantage over the CM search term
+`p^(1/4+o(1))`.
 
-The new suitable-order selection and exact CRT layers are polynomial-size
-operations and do not introduce a new power of `p`.  But the repository does
-**not yet demonstrate the full asymptotic claim**: production still reads a
-finite modular-polynomial catalog, the bounded order search and class-number
-validator are correctness-first
-routines rather than an asymptotically optimized class-group implementation,
-and the Hilbert-class-polynomial/volcano residue producer is missing.  The
-claim becomes an implementation property only after those gaps close while
-keeping the per-curve cost polynomial in `n`.
+This branch does not yet establish that end-to-end property.  Its order search
+is bounded and correctness-oriented, its practical fixed-`v` prime selector is
+not the randomized selector used in Sutherland's GRH analysis, and the
+HCP/volcano producer plus a proved Weber height bound are absent.  Until those
+pieces are implemented with polynomial-in-`n` cost, the exponent is a design
+target supported by the smoothness heuristic—not a measured or proved scaling
+property of the current production program.
 
-The current fixed-`v`, increasing-`t` prime selector is specifically the
-paper's practical heuristic.  Its explicit cap makes failure safe, but it is
-not the randomized prime-selection algorithm used for the paper's GRH
-complexity theorem.  A theorem-aligned selector or a justified hybrid is still
-needed before attaching that bound to this implementation.
+## Why review is useful now
 
-The exponents themselves remain heuristic even then.  Curve/twist dependence,
-torsion conditioning, group-exponent restrictions, and exact-order
-representability affect constants and potentially lower-order terms.  See
-[`docs/sea_design.md`](docs/sea_design.md#05-asymptotic-expectation-and-measured-boundary)
-for the derivation.
+This is a useful point for Drew to review because the branch isolates a small
+mathematical trust boundary before the much larger volcano evaluator is built.
+The review can answer five concrete questions:
 
-## Why focused mathematical review is worthwhile now
-
-The current milestone isolates a small, consequential trust boundary before
-the much larger volcano implementation is written.  A reviewer can now check
-five concrete questions without reviewing the entire search engine:
-
-1. Are the suitable-order and necessary Weber order-congruence predicates
+1. Are the suitable-order predicates and independent class-number checks
    faithful to the cited algorithm?
-2. Does prime selection cover the required parity cases and preserve valid
-   `(p,t,v)` witnesses?
-3. Is target-field powering followed by integer lifting implemented in the
-   correct order?
-4. Is the strict `product > 4H` termination condition sufficient and is every
-   centered coefficient checked against the same declared bound?
-5. Does the callback return precisely the value and X-derivative polynomials
-   needed by the already validated BMSS/Frobenius consumer?
+2. Are the parity cases and `(p,t,v,D)` prime witnesses correct?
+3. Are target powers computed in the target field and only then lifted, as
+   Algorithm 1 requires?
+4. Do the strict CRT coverage, centered rounding, and common coefficient bound
+   justify every reconstructed coefficient?
+5. Does the callback return exactly the value and X-derivative polynomials
+   required by the already validated BMSS/Frobenius consumer?
 
-Confirming these now is valuable: the answers determine the API and invariants
-for the remaining volcano producer, and an error here could otherwise create
-plausible but unsound no-root evidence.  Review is not being requested as a
-claim that the direct evaluator or a `p125` proof is finished.
+Agreement on these invariants now fixes the producer API and prevents the
+remaining implementation from being built against a wrong normalization.  It
+is not a request to endorse a completed direct evaluator, an unbounded
+complexity claim, or a `p125` proof.
 
-## Repository map
+## Review map
 
-- [`docs/explicit_crt_producer.md`](docs/explicit_crt_producer.md): new
-  Algorithm 1 scaffold, proof obligations, tests, and open producer work.
+- [`include/oneshotsea/direct_modpoly.hpp`](include/oneshotsea/direct_modpoly.hpp):
+  public checked types and the residue-provider contract.
+- [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp): order discovery,
+  validation, prime selection, power lifts, and exact CRT.
+- [`tests/test_direct_modpoly.cpp`](tests/test_direct_modpoly.cpp): focused
+  positive, negative, corruption, and table-differential evidence.
+- [`docs/explicit_crt_producer.md`](docs/explicit_crt_producer.md): equations,
+  proof obligations, limitations, and the next implementation gate.
 - [`docs/direct_specialization_boundary.md`](docs/direct_specialization_boundary.md):
-  exact handoff into Weber/BMSS/Frobenius SEA.
-- [`docs/sea_design.md`](docs/sea_design.md): authoritative as-built design and
-  asymptotic analysis.
-- [`docs/search_pipeline.md`](docs/search_pipeline.md): production search,
-  checkpoint, cache, and verifier boundaries.
-- [`docs/bottleneck_registry.md`](docs/bottleneck_registry.md): current outcome
-  gates and measured bottlenecks.
-- [`docs/weber_implementation.md`](docs/weber_implementation.md): Weber
-  normalization and point-count details.
+  exact handoff to Weber/BMSS/Frobenius SEA.
+- [`docs/sea_design.md`](docs/sea_design.md): inherited as-built SEA/search
+  design and the detailed asymptotic model.
 
-## References and upstream context
+## Primary references
 
-- Bröker, Lauter, and Sutherland,
+- R. Bröker, K. Lauter, and A. Sutherland,
   [*Modular polynomials via isogeny volcanoes*](https://arxiv.org/abs/1001.0402).
-- Sutherland,
+- A. Sutherland,
   [*On the evaluation of modular polynomials*](https://arxiv.org/abs/1202.3985).
-- [AndrewVSutherland/OneShotPrimalityProofs](https://github.com/AndrewVSutherland/OneShotPrimalityProofs)
-- [AndrewVSutherland2/OneShotFastECPP](https://github.com/AndrewVSutherland2/OneShotFastECPP)

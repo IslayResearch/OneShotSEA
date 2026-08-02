@@ -180,10 +180,19 @@ The ten-thread run accumulated 6,795.35 user-seconds during 1,436.58 wall
 seconds, so serial phases and uneven per-level jobs leave substantial cores
 idle even though the modular-root portions can saturate all ten.
 
-Keep `--trace-cap 64`.  On index 0, screening 195 traces at level 283 cost more
-than finishing SEA to the singleton.  On index 1, cap 4096 took 1,097.637
+Keep the general default at `--trace-cap 64`.  On index 0, screening 195 traces
+at level 283 cost more than finishing SEA to the singleton.  On index 1, cap
+4096 took 1,097.637
 seconds versus 777.153 seconds for the old cap-64 baseline and 299.917 seconds
 for the optimized cap-64 replay.  No retained evidence supports a larger cap.
+
+The X1 point-four trace-prior path has a separate same-build result on indices
+`[12,22)`: caps 64, 32, 16, and 1 took 272.19, 271.95, 260.34, and 260.30
+seconds.  Cap 16 reduced bounded trace screens from 97 to 24 and summed curve
+work from 1678.006 to 1435.541 seconds.  Cap 1's 0.04-second wall advantage is
+measurement noise at this scale, while its summed curve work was 1.08% higher.
+Select `--trace-cap 16` for the new X1 production identity.  The full audit is
+in [the trace-cap note](x1_11_trace_cap.md).
 
 ## Completed family gate and exact trace prior
 
@@ -227,15 +236,17 @@ reduction and no pre-policy checkpoint can be resumed under it.
 
 ## Next local action
 
-First pass the complete test and clean committed-build gate for the exact
-trace-prior policy.  Then start a fresh X1(11) point-four identity at global
-index 12.  The `c5de573` production checkpoint and both family-benchmark
-checkpoints have different build/schedule identities and cannot be reused.
+Commit `8c1605f` passed the complete test and clean-build gate for the exact
+trace-prior policy.  The cap ablation selected 16.  Start a fresh X1(11)
+point-four identity at global index 12.  The `c5de573` production checkpoint
+and both family-benchmark checkpoints have different build/schedule identities
+and cannot be reused.
 Beginning at 12 preserves the authenticated cursor even though the first ten
 curves repeat benchmark observations; do not count those indices twice in
 future yield summaries.  The held-out scheduling A/B found the measured
 alternate 0.7% slower, so SEA levels remain in increasing order.  Replace the
-build id and `search-NEXT` directory below only after the clean gate.
+Replace the build id and `search-NEXT` directory below with the exact committed
+production identity.
 
 ```sh
 set -o pipefail
@@ -247,7 +258,7 @@ mkdir work/p125/search-NEXT
   --range-start 12 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --curve-family x1-11 --x1-require-point4 1 \
-  --max-level 401 --trace-cap 64 --curve-threads 10 --sea-threads 1 \
+  --max-level 401 --trace-cap 16 --curve-threads 10 --sea-threads 1 \
   --sea-level-telemetry 0 \
   --table-dir data/modpoly/weber_f \
   --smooth-cache work/p125/smooth.cache \

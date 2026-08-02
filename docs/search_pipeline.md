@@ -222,3 +222,11 @@ index-0 profile the candidate count jumped from 55,089 at level 281 to 195 at
 283 and then directly to one at 307. Screening those 195 traces cost more
 than the two remaining SEA levels, so a larger or multi-rung default would
 have been slower.
+
+The default remains conservative across curve families, but the p125 X1(11)
+point-four production command explicitly uses `--trace-cap 16`.  A same-build
+ten-curve ablation measured caps 64, 32, 16, and 1 at 272.19, 271.95, 260.34,
+and 260.30 seconds.  Cap 16 reduced complete trace screens from 97 to 24 and
+summed concurrent curve work from 1678.006 to 1435.541 seconds.  Cap 1's
+0.04-second wall edge is below useful resolution, while its summed work was
+1.08% higher than cap 16.  See [the trace-cap note](x1_11_trace_cap.md).

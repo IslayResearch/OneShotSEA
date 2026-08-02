@@ -11,7 +11,7 @@ appropriate comparison exist.
 
 | Required dimension | Implemented path | Best retained evidence | Status |
 |---|---|---|---|
-| Early abort | Complete bounded trace enumeration followed by exact full-`n^4` smooth screening of both signs | Raising the screen from the default path to 195 traces would have made the measured index-0 run 27.8 s slower; twelve retained production curves were soundly rejected from 136 trace candidates (272 curve/twist order screens) without completing a point count | Implemented and policy-calibrated; no same-build off/on wall-time speedup yet |
+| Early abort | Complete bounded trace enumeration followed by exact full-`n^4` smooth screening of both signs | Same-build X1 caps 16/1 took 260.34/260.30 s wall (indistinguishable), while cap 16 reduced summed concurrent curve work 1.08% and avoided two full point counts; the larger cap-64 screen was 4.55% slower | Implemented and policy-calibrated; fixed-wave wall benefit over completing every point count was not observed |
 | Batching | Batched polynomial reduction, batched remainder-tree smooth extraction, and a rolling shared-cache curve window | Reducer A/B: 2.07x synthetic median and 2.59x complete curve work; same-binary curve window: 1.46x full invocation and 1.73x warm-window throughput | Measured at kernel, smooth-batch, and complete-curve levels; level-major table reuse remains unimplemented |
 | Curve/twist sharing | Derive `p+1-t` and `p+1+t` from one SEA trace state and submit both to one smooth batch | Every trace supplies two order candidates; the first twelve retained curves produced 136 trace candidates and 272 order screens from twelve SEA executions | Exact work-count reduction; no wall-time ablation |
 | Prime scheduling | Available Weber levels are processed in increasing prime order | Held-out two-pair A/B: trained information/cost order 58.36 s median versus increasing 57.945 s, with identical final constraints and intrinsic evidence | Measured alternate was 0.7% slower; retain increasing order |
@@ -19,9 +19,9 @@ appropriate comparison exist.
 | Yield-biased family | Opt-in X1(11) point-four generator with the same SEA/smooth/certificate path | Same-build n=10 A/B: 294.57 s X1 versus 306.19 s Weber invocation wall; both produced ten sound rejections and zero certificates | 1.039x observed wall throughput; any yield uplift remains modeled, not observed |
 
 Every requested dimension now has either a controlled wall-time A/B or an
-exact algebraic work-count comparison.  Limitations remain explicit: early
-abort and curve/twist sharing do not have artificial same-binary duplicated-
-work baselines, and the direct classical comparison is bounded to the only two
+exact algebraic work-count comparison.  Limitations remain explicit: the
+same-build early-abort cap-16/cap-1 fixed wave was wall-neutral, curve/twist
+sharing has no artificial duplicated-work baseline, and the direct classical comparison is bounded to the only two
 common checked-in levels because no classical schedule comparable to the 77
 Weber levels exists in this repository.
 
@@ -50,7 +50,7 @@ of 55,089 at level 281, 195 at level 283, and one at level 307.  Screening the
 remaining SEA levels took 68.115 s, and extracting the final curve/twist pair
 took 3.769 s.  Thus stopping at 195 would predict 781.2 s versus the observed
 753.4 s completion path: **27.8 s slower**, or about **3.7% more wall time**.
-This negative result is why the default cap remains 64.
+This negative result is why the family-agnostic default cap remains 64.
 
 An end-to-end run with `trace-cap=4096` stopped index 1 at 1,188 traces, then
 spent 465.623 s screening 2,376 orders and 1,097.637 s total.  It was a sound
@@ -412,6 +412,27 @@ Source: [reproducible yield artifact](../artifacts/local/p125-yield-model-202608
 [same-build family A/B artifact](../artifacts/local/p125-x1-11-family-ab-20260801/result.json),
 and [family A/B note](x1_11_family_ab.md).
 
+After the exact X1 trace prior landed, a same-build trace-cap ablation on the
+same ten X1 curves measured caps 64/32/16/1 at
+272.19/271.95/260.34/260.30 seconds.  Caps 64 and 32 stopped identically at 97
+complete trace candidates.  Cap 16 processed three additional SEA levels,
+cut the retained complete set to 24 traces, and reduced summed smoothness from
+469.073 to 221.979 seconds and summed concurrent curve work from 1678.006 to
+1435.541 seconds.  Cap 1 finished every point count but used 1451.021 summed
+curve-seconds, 1.08% more than cap 16; its 0.04-second fixed-wave wall edge is
+not meaningful.  Production therefore overrides the default with cap 16.
+All four runs ended in ten sound rejections and zero certificates.  Source:
+[trace-prior A/B](x1_11_trace_prior_ab.md) and
+[trace-cap ablation](x1_11_trace_cap.md).
+
+Relative to the earlier 306.19-second Weber family window, the selected
+260.34-second X1/prior/cap-16 window is 1.17612x observed fixed-wave
+throughput.  Combining that observation with the conservative 1.1775 cyclic-
+44 model gives 1.38488x modeled opportunity rate.  This layered estimate
+crosses different binaries and curve distributions and still has only ten
+curves per window; it is a planning projection, not measured certificate
+yield.
+
 ## 8. Reproduction and interpretation rules
 
 - The controlled polynomial-reducer commands, hashes, and environment are in
@@ -438,6 +459,10 @@ and [family A/B note](x1_11_family_ab.md).
   per-curve timing records, zero-certificate outcome, and modeled-versus-
   observed distinction are in
   [the family A/B artifact](../artifacts/local/p125-x1-11-family-ab-20260801/result.json).
+- The paired before/after exact-prior records are in
+  [the trace-prior artifact](../artifacts/local/p125-x1-11-trace-prior-ab-20260801/result.json),
+  and the same-build 64/32/16/1 cap selection is in
+  [the trace-cap artifact](../artifacts/local/p125-x1-11-trace-cap-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

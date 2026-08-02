@@ -378,12 +378,12 @@ traces matched.  This is a paired mechanism benchmark, not an estimate of the
 frequency of 36-lift curves.  Evidence is in
 `artifacts/local/p125-known-source-lift-20260801/result.json`.
 
-A reusable reciprocal-reduction context was also tested behind a complete
-exactness gate and rejected.  It slowed a degree-194 Frobenius pair from a
-1.95062-second median to 2.22974 seconds (14.31%), and deterministic p125 Weber
-level 277 from 3.79822 to 4.06195 seconds (6.94%); its eigenvalue stage alone
-was 21.20% slower.  All mathematical outputs matched, and the prototype was
-fully reverted.  The measured negative is retained in
+A pre-Kronecker reusable reciprocal-reduction context was tested behind a
+complete exactness gate and rejected.  It slowed a degree-194 Frobenius pair
+from a 1.95062-second median to 2.22974 seconds (14.31%), and deterministic
+p125 Weber level 277 from 3.79822 to 4.06195 seconds (6.94%); its eigenvalue
+stage alone was 21.20% slower.  All mathematical outputs matched, and the
+prototype was fully reverted.  The measured historical negative is retained in
 `artifacts/local/p125-reciprocal-reduction-20260801/result.json`.
 
 The accepted follow-up removes a redundant normalization pass over each raw
@@ -495,6 +495,18 @@ The full bracket experienced host-load drift and therefore uses paired means;
 the isolated Frobenius brackets are cleaner kernel evidence.  This is an SEA
 throughput result, not yet a new multi-curve search-throughput or yield result.
 See [the packed-convolution audit](kronecker_convolution.md).
+
+With that packed-convolution foundation in place, reciprocal reduction was
+reimplemented and re-measured.  One reversed-modulus inverse is now amortized
+across each polynomial exponentiation, and its quotient products use packed
+convolution.  Against the same source compiled with reciprocal reduction
+disabled, reverse-order p125 brackets improved degree-194 and degree-401
+Frobenius from 2.114704 to 1.191504 seconds (1.77482x) and 7.948951 to
+2.473199 seconds (3.21404x).  Full SEA improved from 56.073711 to 42.228734
+seconds (1.32786x), with modular roots improving 1.88712x and all four exact
+projections unchanged.  Threshold 48 was neutral end to end versus threshold
+96 and regressed at degree 48, so production activates conservatively at
+degree 96.  See [the post-Kronecker reciprocal audit](reciprocal_reduction_ab.md).
 
 Source: [AWS benchmark](aws_benchmark_20260801.md), [AWS operations](aws.md), and [RunPod operations](runpod.md).
 
@@ -675,6 +687,9 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
   [the known-source artifact](../artifacts/local/p125-known-source-lift-20260801/result.json).
 - The exact but slower reciprocal-reduction prototype is recorded in
   [the negative A/B artifact](../artifacts/local/p125-reciprocal-reduction-20260801/result.json).
+- The accepted post-Kronecker reciprocal reducer, independent differentials,
+  threshold ablation, and B/S/S/B p125 timing are in
+  [the reciprocal/Kronecker artifact](../artifacts/local/p125-reciprocal-kronecker-20260802/result.json).
 - The accepted redundant-normalization removal and exact paired p125 timing
   are in [the deferred-normalization artifact](../artifacts/local/p125-deferred-product-normalization-20260801/result.json).
 - The exact-cost polynomial window, quotient-ring differential boundary,

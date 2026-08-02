@@ -7,6 +7,8 @@
 
 namespace oneshotsea {
 
+class PolyModContext;
+
 class Poly {
 public:
     explicit Poly(const Field& field);
@@ -46,6 +48,7 @@ private:
     friend Poly scalar_mul(const Poly& value, const mpz_class& scalar);
     friend std::pair<Poly, Poly> divmod(const Poly& numerator,
                                        const Poly& denominator);
+    friend class PolyModContext;
 
     // Own the immutable field context so a polynomial cannot outlive it.
     Field field_;

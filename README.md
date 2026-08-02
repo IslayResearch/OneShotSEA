@@ -67,25 +67,28 @@ specialized point-counting details are in
 
 ## Latest arithmetic improvement
 
-Balanced polynomial products and squares with at least 48 coefficients now use
-exact limb-aligned Kronecker substitution.  The radix is large enough that no
-integer-convolution carry can cross a polynomial-coefficient boundary;
-schoolbook and Karatsuba remain exact fallbacks below the measured crossover.
+Large polynomial exponentiations now combine exact limb-aligned Kronecker
+convolution with one reusable reverse-polynomial reduction context.  The
+packed products made reciprocal quotient reduction profitable: for monic
+moduli of degree at least 96, an inverse of the reversed modulus is prepared
+once and reused throughout `powmod`.  Smaller and nonmonic quotient rings keep
+the former long reducer.
 
 On one deterministic `p125` curve, reverse-order baseline/candidate brackets
 measured:
 
 | workload | baseline mean | branch mean | speedup |
 |---|---:|---:|---:|
-| degree-194 quotient Frobenius | 2.100 s | 1.795 s | 1.170x |
-| degree-401 quotient Frobenius | 7.687 s | 6.543 s | 1.175x |
-| complete 55-level SEA stage | 54.405 s | 46.688 s | 1.165x |
+| degree-194 quotient Frobenius | 2.115 s | 1.192 s | 1.775x |
+| degree-401 quotient Frobenius | 7.949 s | 2.473 s | 3.214x |
+| complete 55-level SEA stage | 56.074 s | 42.229 s | 1.328x |
 
 All four full-SEA baseline/candidate projections were identical, with SHA-256
 `8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6`.
-The proof, raw timing values, benchmark identity, and limitations are in
-[`docs/kronecker_convolution.md`](docs/kronecker_convolution.md) and
-[`artifacts/local/p125-kronecker-20260802/result.json`](artifacts/local/p125-kronecker-20260802/result.json).
+The proof, historical negative comparison, threshold ablation, raw timing
+values, benchmark identities, and limitations are in
+[`docs/reciprocal_reduction_ab.md`](docs/reciprocal_reduction_ab.md) and
+[`artifacts/local/p125-reciprocal-kronecker-20260802/result.json`](artifacts/local/p125-reciprocal-kronecker-20260802/result.json).
 
 This result establishes arithmetic throughput on one fixed curve.  It is not a
 certificate-yield measurement.
@@ -130,6 +133,9 @@ The retained validation for this branch includes:
 - independent schoolbook differentials for products and squares across the
   Kronecker dispatch boundary and through degree 401 over both small fields and
   the 416-bit target field;
+- independent long-reducer differentials for reciprocal reduction across its
+  degree-96 dispatch boundary, through degree 401, and on nonmonic, sparse,
+  repeated-factor, and high-degree-input cases;
 - AddressSanitizer and UndefinedBehaviorSanitizer runs of the core and
   polynomial differential suites;
 - native Schoof, classical-j Elkies, Weber/BMSS, Atkin, trace/CRT, smoothness,

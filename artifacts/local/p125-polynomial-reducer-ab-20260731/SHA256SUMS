@@ -1,0 +1,5 @@
+0df1f681abf12e41998b3d4aefaae525eb5d70d4bbb448a3b239efb94263f719  ./raw/baseline/progress.jsonl
+5489f4d4bd0f8fb6498be63165faaed5abd72b5a15a8360a6c94130dcb9e7777  ./raw/optimized/checkpoint.json
+fb5d8c867626c9732bc21b711ee63035bac6277d464a4f5248b658823025f289  ./raw/optimized/progress.jsonl
+3e4db1fabfd713b0de1cfe44eb928722ea158c82df1eead202c3da26139d88b6  ./raw/optimized/run.log
+c035fe8c6e787520786a99f666cb581f04a77326d6c3bc5639c6943dd0e29f18  ./result.json

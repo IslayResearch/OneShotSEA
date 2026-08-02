@@ -9,10 +9,12 @@
 #include "oneshotsea/trace.hpp"
 #include "oneshotsea/torsion.hpp"
 #include "oneshotsea/weber.hpp"
+#include "oneshotsea/weber_curve_generator.hpp"
 
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -46,10 +48,173 @@ std::uint64_t small_pow_mod(std::uint64_t base, std::uint64_t exponent,
     return result;
 }
 
+oneshotsea::Poly binary_powmod_reference(
+    oneshotsea::Poly base, mpz_class exponent,
+    const oneshotsea::Poly& modulus) {
+    if (exponent < 0) {
+        throw std::invalid_argument("negative reference exponent");
+    }
+    oneshotsea::Poly result =
+        oneshotsea::Poly::constant(base.field(), 1);
+    base = oneshotsea::mod(base, modulus);
+    while (exponent > 0) {
+        if (mpz_odd_p(exponent.get_mpz_t()) != 0) {
+            result = oneshotsea::mulmod(result, base, modulus);
+        }
+        exponent >>= 1;
+        if (exponent > 0) {
+            base = oneshotsea::squaremod(base, modulus);
+        }
+    }
+    return result;
+}
+
 mpz_class target_prime() {
     return oneshotsea::parse_integer(
         "10000000000000000000000000000000000000000000000000000000000000000000000000000000"
         "0000000000000000000000000000000000000000000237");
+}
+
+oneshotsea::Poly reference_schoolbook_product(
+    const oneshotsea::Poly& lhs, const oneshotsea::Poly& rhs) {
+    check(lhs.field().modulus() == rhs.field().modulus(),
+          "reference product field match");
+    if (lhs.is_zero() || rhs.is_zero()) {
+        return oneshotsea::Poly(lhs.field());
+    }
+    const oneshotsea::Field& field = lhs.field();
+    std::vector<mpz_class> output(
+        lhs.coefficients().size() + rhs.coefficients().size() - 1U, 0);
+    for (std::size_t left = 0; left < lhs.coefficients().size(); ++left) {
+        for (std::size_t right = 0; right < rhs.coefficients().size(); ++right) {
+            output[left + right] = field.add(
+                output[left + right],
+                field.mul(lhs.coefficients()[left],
+                          rhs.coefficients()[right]));
+        }
+    }
+    return oneshotsea::Poly(field, std::move(output));
+}
+
+oneshotsea::Poly dense_polynomial(const oneshotsea::Field& field,
+                                  std::size_t size,
+                                  std::uint64_t domain) {
+    std::vector<mpz_class> coefficients(size);
+    for (std::size_t index = 0; index < size; ++index) {
+        mpz_class value = oneshotsea::deterministic_residue(
+            field, UINT64_C(0x6b61726174737562), index, domain);
+        coefficients[index] = index % 3U == 0U ? -value : value;
+    }
+    if (!coefficients.empty()) {
+        coefficients.back() = field.modulus() - 1;
+    }
+    return oneshotsea::Poly(field, std::move(coefficients));
+}
+
+void check_thresholded_products(const oneshotsea::Field& field,
+                                std::size_t size) {
+    const oneshotsea::Poly lhs = dense_polynomial(field, size, size);
+    const std::size_t rhs_size = size <= 2U ? size : size - 1U;
+    const oneshotsea::Poly rhs =
+        dense_polynomial(field, rhs_size, size + 1U);
+    std::vector<mpz_class> modulus_coefficients =
+        dense_polynomial(field, size + 1U, size + 2U).coefficients();
+    modulus_coefficients.back() = size % 2U == 0U
+                                      ? mpz_class(1)
+                                      : field.modulus() - 2;
+    const oneshotsea::Poly modulus(field, std::move(modulus_coefficients));
+
+    const oneshotsea::Poly product = reference_schoolbook_product(lhs, rhs);
+    const oneshotsea::Poly square = reference_schoolbook_product(lhs, lhs);
+    check(oneshotsea::equal(oneshotsea::mul(lhs, rhs), product),
+          "thresholded exact convolution matches independent schoolbook");
+    check(oneshotsea::equal(oneshotsea::mulmod(lhs, rhs, modulus),
+                           oneshotsea::mod(product, modulus)),
+          "thresholded quotient-ring multiply matches independent schoolbook");
+    check(oneshotsea::equal(oneshotsea::squaremod(lhs, modulus),
+                           oneshotsea::mod(square, modulus)),
+          "thresholded quotient-ring square matches independent schoolbook");
+}
+
+void test_thresholded_polynomial_products() {
+    const oneshotsea::Field small_field(1009);
+    for (const std::size_t size :
+         {1U, 2U, 17U, 31U, 32U, 33U, 47U, 64U, 65U, 97U}) {
+        check_thresholded_products(small_field, size);
+    }
+    const oneshotsea::Field large_field(target_prime());
+    for (const std::size_t size : {31U, 32U, 33U, 47U, 64U, 97U, 129U,
+                                   194U}) {
+        check_thresholded_products(large_field, size);
+    }
+
+    const auto check_modular_product = [](const oneshotsea::Poly& lhs,
+                                          const oneshotsea::Poly& rhs,
+                                          const oneshotsea::Poly& modulus,
+                                          const std::string& label) {
+        const oneshotsea::Poly product = reference_schoolbook_product(lhs, rhs);
+        check(oneshotsea::equal(oneshotsea::mulmod(lhs, rhs, modulus),
+                               oneshotsea::mod(product, modulus)),
+              label + " multiply");
+        const oneshotsea::Poly square = reference_schoolbook_product(lhs, lhs);
+        check(oneshotsea::equal(oneshotsea::squaremod(lhs, modulus),
+                               oneshotsea::mod(square, modulus)),
+              label + " square");
+    };
+
+    // No high coefficient reaches the elimination loop here.  This isolates
+    // final normalization of the raw, approximately p^2 convolution values.
+    check_modular_product(
+        oneshotsea::Poly(small_field, {1008, 1007, 1006}),
+        oneshotsea::Poly(small_field, {1005, 1004, 1003, 1002}),
+        oneshotsea::Poly(small_field,
+                         {7, 11, 13, 17, 19, 23, 29, 31, 37, 1007}),
+        "deferred normalization below modulus degree");
+
+    // Exercise generic operand pre-reduction followed by a non-monic dense
+    // modular product, including a strongly unbalanced convolution shape.
+    check_modular_product(
+        oneshotsea::Poly(small_field, {1008, 1007}),
+        dense_polynomial(small_field, 47, 7001),
+        oneshotsea::Poly(small_field,
+                         {1008, 1007, 1006, 1005, 1004, 1003, 1002,
+                          1001, 1000, 999, 998, 997, 996, 995, 994,
+                          993, 992, 1007}),
+        "deferred normalization after operand pre-reduction");
+
+    check_modular_product(
+        oneshotsea::Poly(small_field, {1008, 1007}),
+        oneshotsea::Poly(small_field, {1006, 1005}),
+        oneshotsea::Poly(small_field, {1004, 1003, 1007}),
+        "deferred normalization degree-two non-monic dense case");
+
+    const oneshotsea::Poly alias_value(small_field,
+                                       {1008, 1006, 1004, 1002});
+    const oneshotsea::Poly alias_modulus(small_field,
+                                         {1007, 1005, 1003});
+    check(oneshotsea::equal(
+              oneshotsea::mulmod(alias_value, alias_value, alias_modulus),
+              oneshotsea::squaremod(alias_value, alias_modulus)),
+          "modular multiply safely aliases both source operands");
+    check(oneshotsea::mulmod(alias_modulus, alias_value, alias_modulus)
+                  .is_zero() &&
+              oneshotsea::squaremod(alias_modulus, alias_modulus).is_zero(),
+          "modular products safely reduce a modulus-alias operand to zero");
+    const oneshotsea::Poly constant_modulus =
+        oneshotsea::Poly::constant(small_field, 7);
+    check(oneshotsea::mulmod(alias_value, alias_value, constant_modulus)
+                  .is_zero() &&
+              oneshotsea::squaremod(alias_value, constant_modulus).is_zero(),
+          "nonzero constant polynomial modulus returns zero");
+    bool zero_modulus_rejected = false;
+    try {
+        (void)oneshotsea::mulmod(alias_value, alias_value,
+                                oneshotsea::Poly(small_field));
+    } catch (const std::domain_error&) {
+        zero_modulus_rejected = true;
+    }
+    check(zero_modulus_rejected,
+          "zero polynomial modulus remains a hard error");
 }
 
 void test_field() {
@@ -93,6 +258,134 @@ void test_polynomial() {
               oneshotsea::mod(oneshotsea::mul(left, left), modulus)),
           "direct modular polynomial squaring");
 
+    // Differentially cover every short exponent shape, plus the fixed large
+    // exponents used by p125 Frobenius and Schoof. The reference deliberately
+    // retains the former right-to-left binary algorithm.
+    const oneshotsea::Poly pow_base(field,
+                                    {13, 97, 5, 81, 44, 3, 72, 19, 8});
+    const oneshotsea::Poly pow_modulus(
+        field, {91, 4, 82, 17, 63, 25, 7, 9, 3});
+    for (unsigned long exponent = 0U; exponent <= 1024U; ++exponent) {
+        check(oneshotsea::equal(
+                  oneshotsea::powmod(pow_base, exponent, pow_modulus),
+                  binary_powmod_reference(pow_base, exponent, pow_modulus)),
+              "sliding-window powmod matches binary for short exponents");
+    }
+    const mpz_class p125 = target_prime();
+    for (const mpz_class& exponent :
+         std::vector<mpz_class>{p125, (p125 - 1) / 2, p125 * p125,
+                                (p125 * p125 - 1) / 2}) {
+        check(oneshotsea::equal(
+                  oneshotsea::powmod(pow_base, exponent, pow_modulus),
+                  binary_powmod_reference(pow_base, exponent, pow_modulus)),
+              "sliding-window powmod matches binary for target exponents");
+    }
+    const oneshotsea::Poly repeated_factor_modulus =
+        oneshotsea::scalar_mul(oneshotsea::mul(f, f), 3);
+    for (const mpz_class& exponent :
+         std::vector<mpz_class>{p125, (p125 - 1) / 2, p125 * p125,
+                                (p125 * p125 - 1) / 2}) {
+        check(oneshotsea::equal(
+                  oneshotsea::powmod(pow_base, exponent,
+                                     repeated_factor_modulus),
+                  binary_powmod_reference(pow_base, exponent,
+                                          repeated_factor_modulus)),
+              "sliding-window powmod is exact in a nonmonic repeated-factor quotient");
+    }
+
+    const oneshotsea::Poly constant_modulus =
+        oneshotsea::Poly::constant(field, 7);
+    check(oneshotsea::powmod(pow_base, 0, constant_modulus).is_one() &&
+              oneshotsea::powmod(pow_base, p125, constant_modulus).is_zero(),
+          "sliding-window powmod preserves constant-modulus edge behavior");
+    bool negative_pow_rejected = false;
+    try {
+        static_cast<void>(oneshotsea::powmod(pow_base, -1, pow_modulus));
+    } catch (const std::invalid_argument&) {
+        negative_pow_rejected = true;
+    }
+    check(negative_pow_rejected,
+          "sliding-window powmod rejects negative exponents");
+    bool zero_pow_modulus_rejected = false;
+    try {
+        static_cast<void>(oneshotsea::powmod(
+            pow_base, 0, oneshotsea::Poly(field)));
+    } catch (const std::domain_error&) {
+        zero_pow_modulus_rejected = true;
+    }
+    check(zero_pow_modulus_rejected,
+          "sliding-window powmod preserves zero-modulus rejection at exponent zero");
+
+    // The production Frobenius bases x and f have v=0 in
+    // F_p[x]/(h)[y]/(y^2-curve_rhs). Verify that routing this closed subring
+    // through Poly::powmod matches the retained binary Element loop even when
+    // h is reducible and non-square-free. A nonzero-v base covers the
+    // untouched general-Element fallback.
+    const oneshotsea::Poly quotient_curve_rhs(field, {3, 2, 0, 1});
+    const oneshotsea::Poly quotient_u(field, {77, 4, 93, 6, 81});
+    const oneshotsea::Poly quotient_zero_v(field);
+    const oneshotsea::Poly quotient_nonzero_v(field, {5, 72, 11, 9});
+    for (unsigned long exponent = 0U; exponent <= 256U; ++exponent) {
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_zero_v, exponent),
+              "v-zero Element window matches binary on short exponents");
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_nonzero_v, exponent),
+              "general Element fallback matches binary on short exponents");
+    }
+    for (const mpz_class& exponent :
+         std::vector<mpz_class>{p125, (p125 - 1) / 2, p125 * p125,
+                                (p125 * p125 - 1) / 2}) {
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_zero_v, exponent),
+              "v-zero Element window matches binary on target exponents");
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_nonzero_v, exponent),
+              "general Element fallback matches binary on target exponents");
+    }
+    const mpz_class sparse_exponent =
+        (mpz_class(1) << 257) + (mpz_class(1) << 129);
+    check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+              repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+              quotient_zero_v, sparse_exponent),
+          "v-zero Element window handles long internal and trailing zero runs");
+    const oneshotsea::Field target_exponent_field(p125);
+    for (std::uint64_t sample = 0U; sample < 32U; ++sample) {
+        const mpz_class exponent = oneshotsea::deterministic_residue(
+            target_exponent_field, UINT64_C(0x656c656d706f7772), sample,
+            UINT64_C(0x703132356578706f));
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_zero_v, exponent),
+              "v-zero Element window matches binary on random target exponent");
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_nonzero_v, exponent),
+              "general Element fallback matches binary on random target exponent");
+    }
+    check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+              constant_modulus, quotient_curve_rhs, quotient_u,
+              quotient_zero_v, 0) &&
+              oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  constant_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_zero_v, p125),
+          "Element subring delegation preserves zero-ring behavior");
+    bool negative_element_pow_rejected = false;
+    try {
+        static_cast<void>(
+            oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                quotient_zero_v, -1));
+    } catch (const std::invalid_argument&) {
+        negative_element_pow_rejected = true;
+    }
+    check(negative_element_pow_rejected,
+          "Element subring delegation rejects a negative exponent");
+
     const oneshotsea::Poly temporary_field_poly(oneshotsea::Field(101), {1, 2});
     check(temporary_field_poly.evaluate(3) == 7,
           "polynomial owns a temporary field context");
@@ -109,6 +402,29 @@ void test_polynomial() {
               std::vector<mpz_class>({2, 3, 5, 7}),
           "linear root extraction over the 416-bit target field");
 
+    // Exercise the batched modular-product reducer with a non-monic modulus
+    // and dense coefficients near p.  Its exact mpz_submul intermediates are
+    // deliberately much larger (and negative) before final normalization.
+    std::vector<mpz_class> target_modulus_coefficients(18, target_prime() - 1);
+    target_modulus_coefficients.back() = target_prime() - 2;
+    const oneshotsea::Poly target_modulus(
+        target_field, std::move(target_modulus_coefficients));
+    std::vector<mpz_class> target_left_coefficients(17);
+    std::vector<mpz_class> target_right_coefficients(17);
+    for (std::size_t index = 0; index < 17; ++index) {
+        target_left_coefficients[index] = target_prime() - 3 - index;
+        target_right_coefficients[index] = target_prime() - 41 - 2 * index;
+    }
+    const oneshotsea::Poly target_left(
+        target_field, std::move(target_left_coefficients));
+    const oneshotsea::Poly target_right(
+        target_field, std::move(target_right_coefficients));
+    check(oneshotsea::equal(
+              oneshotsea::mulmod(target_left, target_right, target_modulus),
+              oneshotsea::mod(oneshotsea::mul(target_left, target_right),
+                              target_modulus)),
+          "batched modular reduction matches generic non-monic division");
+
     bool rejected_composite_root_field = false;
     try {
         static_cast<void>(oneshotsea::linear_roots(
@@ -118,6 +434,7 @@ void test_polynomial() {
     }
     check(rejected_composite_root_field,
           "polynomial root extraction rejects composite moduli");
+    test_thresholded_polynomial_products();
 }
 
 void test_curves() {
@@ -161,6 +478,37 @@ void test_curves() {
     const auto m0 = oneshotsea::deterministic_montgomery_curve(101, 19, 23);
     const auto m1 = oneshotsea::deterministic_montgomery_curve(101, 19, 23);
     check(m0.coefficient() == m1.coefficient(), "deterministic Montgomery mapping");
+
+    const oneshotsea::Curve singular(oneshotsea::Field(7), 0, 0);
+    check(singular.is_singular(), "singular short-Weierstrass fixture");
+    bool rejected_singular_j = false;
+    bool rejected_singular_bruteforce = false;
+    bool rejected_singular_schoof = false;
+    bool rejected_singular_sea = false;
+    try {
+        static_cast<void>(singular.j_invariant());
+    } catch (const std::domain_error&) {
+        rejected_singular_j = true;
+    }
+    try {
+        static_cast<void>(oneshotsea::count_points_bruteforce(singular));
+    } catch (const std::invalid_argument&) {
+        rejected_singular_bruteforce = true;
+    }
+    try {
+        static_cast<void>(oneshotsea::schoof_count_reference(singular, 7));
+    } catch (const std::invalid_argument&) {
+        rejected_singular_schoof = true;
+    }
+    try {
+        static_cast<void>(oneshotsea::run_weber_sea_reference(
+            singular, "data/modpoly/weber_f", 7, 1));
+    } catch (const std::invalid_argument&) {
+        rejected_singular_sea = true;
+    }
+    check(rejected_singular_j && rejected_singular_bruteforce &&
+              rejected_singular_schoof && rejected_singular_sea,
+          "all native point-count entry points reject singular curves");
 }
 
 void test_modular_polynomials() {
@@ -215,6 +563,36 @@ void test_modular_polynomials() {
 }
 
 void test_trace_constraints() {
+    const oneshotsea::ExactTracePrior composite_prior(101, 20, 0);
+    check(composite_prior.prime() == 101 &&
+              composite_prior.modulus() == 20U &&
+              composite_prior.residue() == 0U,
+          "validated exact trace prior accepts a composite modulus");
+    const auto invalid_prior_rejected = [](const auto& factory) {
+        try {
+            (void)factory();
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    check(invalid_prior_rejected(
+              []() { return oneshotsea::ExactTracePrior(101, 1, 0); }) &&
+              invalid_prior_rejected(
+                  []() { return oneshotsea::ExactTracePrior(101, 4, 4); }) &&
+              invalid_prior_rejected([]() {
+                  return oneshotsea::ExactTracePrior(101, 101, 0);
+              }),
+          "invalid or characteristic-sharing trace prior is rejected");
+    bool rejected_hasse_inconsistent_prior = false;
+    try {
+        (void)oneshotsea::ExactTracePrior(101, 1000, 500);
+    } catch (const std::runtime_error&) {
+        rejected_hasse_inconsistent_prior = true;
+    }
+    check(rejected_hasse_inconsistent_prior,
+          "Hasse-inconsistent exact trace prior is rejected");
+
     oneshotsea::TraceConstraints constraints(101);
     check(constraints.hasse_radius() == 20, "Hasse radius");
     const mpz_class initial_count = constraints.candidate_count();
@@ -256,6 +634,25 @@ void test_trace_constraints() {
               *exact_traces == std::vector<mpz_class>{mpz_class(0)},
           "exact CRT candidate enumeration");
 
+    // The Hasse interval for p=89 is [-18,18].  A modulus one below its
+    // width admits the endpoint pair -18 and 17 in the same residue class;
+    // one more coprime exact residue must cross the uniqueness threshold.
+    oneshotsea::TraceConstraints boundary(89);
+    boundary.refine_exact(5, 2);
+    boundary.refine_exact(7, 3);
+    check(boundary.modulus() == 35 && boundary.candidate_count() == 2,
+          "CRT immediately below the Hasse-width threshold has two traces");
+    const auto boundary_pair = boundary.enumerate(2);
+    check(boundary_pair.has_value() &&
+              *boundary_pair == std::vector<mpz_class>({-18, 17}),
+          "CRT retains both Hasse endpoint-collision traces");
+    boundary.refine_exact(3, 2);
+    const auto boundary_unique = boundary.enumerate(1);
+    check(boundary.modulus() == 105 && boundary.candidate_count() == 1 &&
+              boundary_unique.has_value() &&
+              *boundary_unique == std::vector<mpz_class>{17},
+          "CRT immediately above the threshold isolates the exact trace");
+
     const mpz_class prior_modulus = exact.modulus();
     const auto prior_residues = exact.residues();
     bool rejected_corrupt_exact_residue = false;
@@ -270,6 +667,40 @@ void test_trace_constraints() {
 }
 
 void test_weber_sea_runner() {
+    const std::vector<std::uint64_t> increasing_levels = {5, 7, 11};
+    const std::vector<oneshotsea::WeberSeaLevelEstimate> estimates = {
+        {5, 4, 10}, {7, 7, 28}, {11, 6, 10}};
+    check(oneshotsea::expected_information_per_cost_order(
+              increasing_levels, estimates) ==
+              std::vector<std::uint64_t>({11, 5, 7}),
+          "measured information-per-cost schedule uses exact ratio ordering");
+    check(oneshotsea::expected_information_per_cost_order(
+              {5, 7}, {{5, 2, 4}, {7, 3, 6}}) ==
+              std::vector<std::uint64_t>({5, 7}),
+          "equal scheduling scores retain increasing-prime order");
+    for (const std::vector<oneshotsea::WeberSeaLevelEstimate>& invalid : {
+             std::vector<oneshotsea::WeberSeaLevelEstimate>{{5, 1, 1},
+                                                            {5, 2, 1},
+                                                            {11, 1, 1}},
+             std::vector<oneshotsea::WeberSeaLevelEstimate>{{5, 1, 1},
+                                                            {7, 1, 1}},
+             std::vector<oneshotsea::WeberSeaLevelEstimate>{{5, 1, 1},
+                                                            {7, 1, 1},
+                                                            {13, 1, 1}},
+             std::vector<oneshotsea::WeberSeaLevelEstimate>{{5, 1, 1},
+                                                            {7, 1, 0},
+                                                            {11, 1, 1}},
+         }) {
+        bool rejected = false;
+        try {
+            (void)oneshotsea::expected_information_per_cost_order(
+                increasing_levels, invalid);
+        } catch (const std::invalid_argument&) {
+            rejected = true;
+        }
+        check(rejected, "invalid scheduling profile is rejected");
+    }
+
     const auto phi5 = oneshotsea::SparseModularPolynomial::load(
         5, "data/modpoly/weber_f/phi_5.txt");
     const oneshotsea::Curve curve(oneshotsea::Field(193), 148, 168);
@@ -284,8 +715,14 @@ void test_weber_sea_runner() {
     check(!serial_level.compatible_source_lifts.empty(),
           "positive Weber level identifies compatible source lifts");
     check(serial_level.timings.modular_root_workers == 1U &&
-              parallel_level.timings.modular_root_workers == 2U,
-          "Weber modular-root concurrency obeys its configured ceiling");
+              parallel_level.timings.modular_root_workers == 1U &&
+              serial_level.timings.modular_root_orbits == 1U &&
+              parallel_level.timings.modular_root_orbits == 1U &&
+              serial_level.timings.modular_root_reused_lifts == 23U &&
+              parallel_level.timings.modular_root_reused_lifts == 23U &&
+              serial_level.timings.modular_root_orbit_reuse &&
+              parallel_level.timings.modular_root_orbit_reuse,
+          "Weber modular roots reuse a verified 24th-root source orbit");
     check(parallel_level.compatible_source_lifts ==
                   serial_level.compatible_source_lifts &&
               parallel_level.kernels.size() == serial_level.kernels.size(),
@@ -299,6 +736,48 @@ void test_weber_sea_runner() {
                                     serial_level.kernels[index].kernel),
               "bounded parallel root extraction preserves kernel order");
     }
+
+    // Add a term whose coefficient vanishes in F_193 but whose exponent does
+    // not have the verified Weber weight.  This represents the same polynomial
+    // over the fixture field while forcing the exact per-lift fallback.
+    std::vector<oneshotsea::BivariateTerm> fallback_terms = phi5.terms();
+    fallback_terms.push_back({0, 0, 193});
+    const oneshotsea::SparseModularPolynomial fallback_phi5(
+        5, std::move(fallback_terms));
+    const auto fallback_level =
+        oneshotsea::compute_weber_elkies_level_reference(
+            curve, fallback_phi5, nullptr, 2);
+    check(!fallback_level.timings.modular_root_orbit_reuse &&
+              fallback_level.timings.modular_root_orbits == 24U &&
+              fallback_level.timings.modular_root_reused_lifts == 0U &&
+              fallback_level.timings.modular_root_workers == 2U,
+          "unverified Weber covariance preserves the per-lift root fallback");
+    check(fallback_level.compatible_source_lifts ==
+                  serial_level.compatible_source_lifts &&
+              fallback_level.kernels.size() == serial_level.kernels.size(),
+          "orbit reuse and the exact per-lift fallback agree");
+    for (std::size_t index = 0; index < serial_level.kernels.size(); ++index) {
+        check(fallback_level.kernels[index].trace_residue ==
+                      serial_level.kernels[index].trace_residue &&
+                  fallback_level.kernels[index].neighbor_j ==
+                      serial_level.kernels[index].neighbor_j &&
+                  oneshotsea::equal(fallback_level.kernels[index].kernel,
+                                    serial_level.kernels[index].kernel),
+              "orbit reuse preserves the per-lift kernel and residue");
+    }
+
+    const auto disabled_level =
+        oneshotsea::compute_weber_elkies_level_reference(
+            curve, phi5, nullptr, 2, false);
+    check(!disabled_level.timings.modular_root_orbit_reuse &&
+              disabled_level.timings.modular_root_orbits == 24U &&
+              disabled_level.timings.modular_root_reused_lifts == 0U &&
+              disabled_level.timings.modular_root_workers == 2U,
+          "the explicit orbit-reuse ablation selects the per-lift path");
+    check(disabled_level.compatible_source_lifts ==
+                  serial_level.compatible_source_lifts &&
+              disabled_level.kernels.size() == serial_level.kernels.size(),
+          "the explicit orbit-reuse ablation preserves Weber level results");
 
     const std::vector<mpz_class> mixed_lifts = {
         serial_level.compatible_source_lifts.front(), 0};
@@ -314,6 +793,14 @@ void test_weber_sea_runner() {
         curve, "data/modpoly/weber_f", 11, 1, {}, 1);
     const auto result = oneshotsea::run_weber_sea_reference(
         curve, "data/modpoly/weber_f", 11, 1, {}, 2);
+    const mpz_class known_source_lift =
+        serial_level.compatible_source_lifts.front();
+    const auto known_lift_result = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 11, 1, {}, 2, true, true, {},
+        std::nullopt, known_source_lift);
+    const auto scheduled_result = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+        estimates);
     check(result.traces.has_value() &&
               *result.traces ==
                   std::vector<mpz_class>{oneshotsea::parse_integer("-6")},
@@ -322,6 +809,170 @@ void test_weber_sea_runner() {
               serial_result.compatible_source_lifts ==
                   result.compatible_source_lifts,
           "SEA result is independent of its modular-root thread limit");
+    check(known_lift_result.traces == result.traces &&
+              known_lift_result.constraints.modulus() ==
+                  result.constraints.modulus() &&
+              known_lift_result.levels.size() == result.levels.size() &&
+              known_lift_result.compatible_source_lifts ==
+                  std::vector<mpz_class>{known_source_lift},
+          "validated known Weber source lift preserves exact SEA output");
+    for (std::size_t index = 0; index < result.levels.size(); ++index) {
+        check(known_lift_result.levels[index].ell ==
+                      result.levels[index].ell &&
+                  known_lift_result.levels[index].exact ==
+                      result.levels[index].exact &&
+                  known_lift_result.levels[index].trace_residue ==
+                      result.levels[index].trace_residue &&
+                  known_lift_result.levels[index]
+                          .exact_trace_candidate_count ==
+                      result.levels[index].exact_trace_candidate_count,
+              "known source singleton preserves every exact residue and trace state");
+    }
+    check(std::all_of(
+              known_lift_result.levels.begin(),
+              known_lift_result.levels.end(),
+              [](const oneshotsea::WeberSeaLevelRecord& level) {
+                  return level.compatible_source_lifts == 1U;
+              }),
+          "known source singleton remains the only compatible lift");
+
+    auto rejects_known_lift = [&](const mpz_class& source_lift) {
+        try {
+            (void)oneshotsea::run_weber_sea_reference(
+                curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+                {}, std::nullopt, source_lift);
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    check(rejects_known_lift(known_source_lift + curve.field().modulus()),
+          "known source fast path rejects a noncanonical lift");
+    check(rejects_known_lift(0),
+          "known source fast path rejects the zero lift");
+    mpz_class foreign_source_lift = curve.field().add(known_source_lift, 1);
+    while (foreign_source_lift == 0 ||
+           oneshotsea::j_from_weber_f(curve.field(), foreign_source_lift) ==
+               curve.j_invariant()) {
+        foreign_source_lift = curve.field().add(foreign_source_lift, 1);
+    }
+    check(rejects_known_lift(foreign_source_lift),
+          "known source fast path rejects a lift of a foreign j-invariant");
+    check([&]() {
+              try {
+                  (void)oneshotsea::run_weber_sea_reference(
+                      oneshotsea::Curve(oneshotsea::Field(101), 0, 1),
+                      "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+                      {}, std::nullopt, mpz_class(12));
+              } catch (const std::invalid_argument&) {
+                  return true;
+              }
+              return false;
+          }(),
+          "known source fast path rejects the ramified j=0 lift");
+    check([&]() {
+              try {
+                  (void)oneshotsea::run_weber_sea_reference(
+                      oneshotsea::Curve(oneshotsea::Field(11), 1, 0),
+                      "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+                      {}, std::nullopt, mpz_class(4));
+              } catch (const std::invalid_argument&) {
+                  return true;
+              }
+              return false;
+          }(),
+          "known source fast path rejects the ramified j=1728 lift");
+
+    const oneshotsea::WeberCurvePair multi_orbit_pair =
+        oneshotsea::weber_curve_pair_from_f(oneshotsea::Field(277), 20);
+    const std::vector<mpz_class> multi_orbit_lifts =
+        oneshotsea::weber_f_lifts(multi_orbit_pair.curve.field(),
+                                  multi_orbit_pair.j_invariant);
+    std::set<mpz_class> lift_orbits;
+    for (const mpz_class& lift : multi_orbit_lifts) {
+        lift_orbits.insert(multi_orbit_pair.curve.field().pow(lift, 24));
+    }
+    check(multi_orbit_pair.j_invariant == 73 &&
+              multi_orbit_lifts.size() == 36U &&
+              lift_orbits.size() == 3U,
+          "p277 known-source regression spans three distinct Weber orbits");
+    for (const oneshotsea::Curve* source_curve :
+         {&multi_orbit_pair.curve, &multi_orbit_pair.twist}) {
+        for (const std::uint64_t ell : {5U, 17U}) {
+            const auto modular_polynomial =
+                oneshotsea::SparseModularPolynomial::load(
+                    static_cast<unsigned>(ell),
+                    "data/modpoly/weber_f/phi_" +
+                        std::to_string(ell) + ".txt");
+            const auto exhaustive =
+                oneshotsea::compute_weber_elkies_level_reference(
+                    *source_curve, modular_polynomial, &multi_orbit_lifts,
+                    1, false, false);
+            for (const mpz_class& lift : multi_orbit_lifts) {
+                const std::vector<mpz_class> singleton{lift};
+                const auto restricted =
+                    oneshotsea::compute_weber_elkies_level_reference(
+                        *source_curve, modular_polynomial, &singleton, 1,
+                        false, false);
+                check(restricted.kernels.size() ==
+                          exhaustive.kernels.size(),
+                      "every singleton lift preserves exact/empty level classification");
+                for (std::size_t kernel = 0;
+                     kernel < exhaustive.kernels.size(); ++kernel) {
+                    check(restricted.kernels[kernel].trace_residue ==
+                              exhaustive.kernels[kernel].trace_residue,
+                          "every singleton lift preserves the exact trace residue");
+                }
+            }
+        }
+    }
+    check(scheduled_result.traces == result.traces &&
+              scheduled_result.levels.size() == 2U &&
+              scheduled_result.levels[0].ell == 11U &&
+              scheduled_result.levels[1].ell == 5U,
+          "alternate prime schedule preserves the exact trace and can stop earlier");
+
+    const mpz_class brute_force_trace =
+        curve.field().modulus() + 1 -
+        oneshotsea::count_points_bruteforce(curve);
+    check(brute_force_trace == -6,
+          "SEA fixture trace agrees with exhaustive point counting");
+    const oneshotsea::ExactTracePrior exact_prior(193, 22, 16);
+    const std::vector<oneshotsea::WeberSeaLevelEstimate> prior_estimates = {
+        {5, 1, 10}, {7, 10, 1}, {11, 9, 1}};
+    const auto prior_result = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true,
+        prior_estimates, exact_prior);
+    check(prior_result.traces == result.traces &&
+              prior_result.traces ==
+                  std::optional<std::vector<mpz_class>>(
+                      std::vector<mpz_class>{brute_force_trace}),
+          "prior-constrained SEA matches unprioritized SEA and brute force");
+    check(prior_result.levels.size() == 2U &&
+              prior_result.levels[0].ell == 7U &&
+              prior_result.levels[1].ell == 5U &&
+              std::none_of(
+                  prior_result.levels.begin(), prior_result.levels.end(),
+                  [](const oneshotsea::WeberSeaLevelRecord& level) {
+                      return level.ell == 11U;
+                  }),
+          "composite exact prior skips every table prime sharing its modulus");
+    check(prior_result.levels[0].exact_modulus == 22 &&
+              prior_result.levels[0].constraint_modulus == 154 &&
+              prior_result.levels[1].exact_modulus == 110 &&
+              prior_result.levels[1].constraint_modulus == 770,
+          "SEA level telemetry composes from identical prior constraints");
+
+    bool rejected_foreign_prior = false;
+    try {
+        (void)oneshotsea::run_weber_sea_reference(
+            curve, "data/modpoly/weber_f", 11, 1, {}, 1, true, true, {},
+            oneshotsea::ExactTracePrior(197, 22, 0));
+    } catch (const std::invalid_argument&) {
+        rejected_foreign_prior = true;
+    }
+    check(rejected_foreign_prior,
+          "SEA runner rejects an exact prior from a different field");
     check(std::all_of(
               result.levels.begin(), result.levels.end(),
               [](const oneshotsea::WeberSeaLevelRecord& record) {
@@ -331,8 +982,46 @@ void test_weber_sea_runner() {
           "every SEA level reports bounded modular-root workers");
     check(result.constraints.modulus() == 55 && result.levels.size() == 3,
           "stateful Weber SEA runner accumulates exact levels only");
-    check(result.levels[1].ell == 7 && !result.levels[1].exact,
-          "empty Weber level preserves the accumulated exact state");
+    check(result.levels[1].ell == 7 && !result.levels[1].exact &&
+              result.levels[1].atkin_projective_order == 4U &&
+              result.levels[1].exact_trace_candidate_count == 11 &&
+              result.levels[1].trace_candidate_count == 2 &&
+              result.effective_constraints.modulus() == 385,
+          "trusted classical factor degree safely constrains an empty Weber level");
+    check(result.atkin_constraints.size() == 1U &&
+              result.atkin_constraints.front().trace_residues ==
+                  std::vector<std::uint64_t>({1U, 6U}),
+          "SEA result retains auditable Atkin evidence");
+    const mpz_class final_trace = -6;
+    for (const auto& level : result.levels) {
+        if (level.exact) {
+            check(level.trace_residue.has_value() &&
+                      mpz_fdiv_ui(final_trace.get_mpz_t(), level.ell) ==
+                          *level.trace_residue,
+                  "every stateful Weber exact residue matches the final trace");
+        }
+    }
+    for (const auto& constraint : result.atkin_constraints) {
+        const std::uint64_t final_residue =
+            mpz_fdiv_ui(final_trace.get_mpz_t(), constraint.ell);
+        check(std::binary_search(constraint.trace_residues.begin(),
+                                 constraint.trace_residues.end(),
+                                 final_residue),
+              "every stateful Atkin residue set retains the final trace");
+    }
+
+    const auto atkin_screen = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 7, 2, {}, 1);
+    check(atkin_screen.traces ==
+              std::optional<std::vector<mpz_class>>(
+                  std::vector<mpz_class>{-6, -1}) &&
+              atkin_screen.constraints.candidate_count() == 11,
+          "Atkin evidence supplies a complete bounded early-screen set");
+    const auto exact_gate = oneshotsea::run_weber_sea_reference(
+        curve, "data/modpoly/weber_f", 7, 1, {}, 1);
+    check(!exact_gate.traces.has_value() &&
+              exact_gate.effective_constraints.candidate_count() == 2,
+          "Atkin evidence cannot satisfy the exact unique-trace gate");
 }
 
 void test_early_abort() {
@@ -432,13 +1121,216 @@ void test_schoof_residues() {
     }
 
     const auto curve = oneshotsea::deterministic_curve(101, 0xc0ffee, 0);
+    const mpz_class curve_trace =
+        102 - oneshotsea::count_points_bruteforce(curve);
+    check(oneshotsea::schoof_trace_mod_ell(curve, 37) ==
+              mpz_fdiv_ui(curve_trace.get_mpz_t(), 37U),
+          "native Schoof supports the rare-tail level 37");
     bool rejected_large_ell = false;
     try {
-        static_cast<void>(oneshotsea::schoof_trace_mod_ell(curve, 37));
+        static_cast<void>(oneshotsea::schoof_trace_mod_ell(curve, 41));
     } catch (const std::invalid_argument&) {
         rejected_large_ell = true;
     }
     check(rejected_large_ell, "reference Schoof rejects impractical ell");
+}
+
+void test_retained_state_schoof_fallback() {
+    const mpz_class prime = 101;
+    const oneshotsea::Curve curve =
+        oneshotsea::deterministic_curve(prime, 0xc0ffee, 0);
+    const mpz_class trace =
+        prime + 1 - oneshotsea::count_points_bruteforce(curve);
+
+    oneshotsea::TraceConstraints exact(prime);
+    exact.refine_exact(4U, mpz_fdiv_ui(trace.get_mpz_t(), 4U));
+    oneshotsea::TraceConstraints effective = exact;
+    const std::uint64_t residue5 = mpz_fdiv_ui(trace.get_mpz_t(), 5U);
+    const oneshotsea::AtkinConstraint atkin{
+        5U, 2U, {residue5, (residue5 + 1U) % 5U}};
+    effective.refine(atkin.ell, atkin.trace_residues);
+    oneshotsea::WeberSeaResult retained{
+        exact, effective, {atkin}, {}, {}, {}, std::nullopt};
+
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, retained, 1U);
+    check(retained.traces.has_value() && retained.traces->size() == 1U &&
+              retained.traces->front() == trace,
+          "retained-state Schoof fallback completes the exact p101 trace");
+    check(retained.schoof_fallback_levels.size() == 2U &&
+              retained.schoof_fallback_levels[0].ell == 3U &&
+              retained.schoof_fallback_levels[1].ell == 5U,
+          "fallback uses only the fixed missing exact levels");
+    for (const auto& level : retained.schoof_fallback_levels) {
+        check(level.trace_residue ==
+                  mpz_fdiv_ui(trace.get_mpz_t(), level.ell) &&
+                  level.trace_residue ==
+                      oneshotsea::schoof_trace_mod_ell(curve, level.ell),
+              "fallback residue agrees with brute force and direct Schoof");
+    }
+    check(retained.constraints.modulus() % 5 == 0 &&
+              retained.effective_constraints.modulus() ==
+                  retained.constraints.modulus(),
+          "exact level upgrades and removes redundant Atkin state");
+
+    const std::size_t retained_count =
+        retained.schoof_fallback_levels.size();
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, retained, 1U);
+    check(retained.schoof_fallback_levels.size() == retained_count,
+          "completed fallback does not recompute prior exact moduli");
+
+    oneshotsea::TraceConstraints exact_three(prime);
+    exact_three.refine_exact(3U, mpz_fdiv_ui(trace.get_mpz_t(), 3U));
+    oneshotsea::WeberSeaResult skip_existing{
+        exact_three, exact_three, {}, {}, {}, {}, std::nullopt};
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, skip_existing, 1U);
+    check(!skip_existing.schoof_fallback_levels.empty() &&
+              skip_existing.schoof_fallback_levels.front().ell == 5U &&
+              std::none_of(
+                  skip_existing.schoof_fallback_levels.begin(),
+                  skip_existing.schoof_fallback_levels.end(),
+                  [](const auto& level) { return level.ell == 3U; }),
+          "fallback skips exact moduli already supplied by a prior or table");
+
+    oneshotsea::TraceConstraints two_stage_initial(prime);
+    oneshotsea::WeberSeaResult two_stage{
+        two_stage_initial, two_stage_initial, {}, {}, {}, {}, std::nullopt};
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, two_stage, 16U);
+    check(two_stage.traces.has_value() &&
+              two_stage.traces->size() <= 16U &&
+              two_stage.schoof_fallback_levels.size() == 1U &&
+              two_stage.schoof_fallback_levels.front().ell == 3U,
+          "bounded fallback stops as soon as the early trace cap fits");
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, two_stage, 1U);
+    check(two_stage.traces.has_value() && two_stage.traces->size() == 1U &&
+              two_stage.traces->front() == trace &&
+              two_stage.schoof_fallback_levels.size() == 3U &&
+              two_stage.schoof_fallback_levels[1].ell == 5U &&
+              two_stage.schoof_fallback_levels[2].ell == 7U,
+          "unique-trace extension carries state and computes only new levels");
+
+    for (std::uint64_t index = 0U; index < 4U; ++index) {
+        const oneshotsea::Curve sample =
+            oneshotsea::deterministic_curve(prime, 0x51a11U, index);
+        if (sample.is_singular()) {
+            continue;
+        }
+        const mpz_class expected =
+            prime + 1 - oneshotsea::count_points_bruteforce(sample);
+        oneshotsea::TraceConstraints initial(prime);
+        oneshotsea::WeberSeaResult result{
+            initial, initial, {}, {}, {}, {}, std::nullopt};
+        oneshotsea::extend_weber_sea_with_schoof_fallback(
+            sample, result, 1U);
+        check(result.traces.has_value() && result.traces->size() == 1U &&
+                  result.traces->front() == expected,
+              "small-field fallback differential recovers the exact trace");
+    }
+
+    // For p = 3 (mod 4), y^2 = x^3 + x is supersingular with trace zero.
+    // Seed the exact state with every earlier fixed prime. This field leaves
+    // {-M,0,M} in the Hasse interval for their product M, forcing ell=37;
+    // multiplying M by 37 makes the known trace unique.
+    const mpz_class tail_prime("10000000000000000000139");
+    const oneshotsea::Curve tail_curve(
+        oneshotsea::Field(tail_prime), 1, 0);
+    oneshotsea::TraceConstraints tail_initial(tail_prime);
+    for (const std::uint64_t ell :
+         {3U, 5U, 7U, 11U, 13U, 17U, 19U, 23U, 29U, 31U}) {
+        tail_initial.refine_exact(ell, 0U);
+    }
+    oneshotsea::WeberSeaResult full_tail{
+        tail_initial, tail_initial, {}, {}, {}, {}, std::nullopt};
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        tail_curve, full_tail, 1U);
+    check(full_tail.traces.has_value() &&
+              full_tail.traces->size() == 1U &&
+              full_tail.traces->front() == 0 &&
+              full_tail.schoof_fallback_levels.size() == 1U &&
+              full_tail.schoof_fallback_levels.back().ell == 37U &&
+              full_tail.schoof_fallback_levels.back().trace_residue == 0U,
+          "fixed fallback tail reaches ell=37 and recovers a known supersingular trace");
+
+    oneshotsea::TraceConstraints conflict_exact(prime);
+    conflict_exact.refine_exact(4U, mpz_fdiv_ui(trace.get_mpz_t(), 4U));
+    conflict_exact.refine_exact(3U, mpz_fdiv_ui(trace.get_mpz_t(), 3U));
+    oneshotsea::TraceConstraints conflict_effective = conflict_exact;
+    const oneshotsea::AtkinConstraint conflicting{
+        5U, 2U, {(residue5 + 2U) % 5U}};
+    conflict_effective.refine(
+        conflicting.ell, conflicting.trace_residues);
+    oneshotsea::WeberSeaResult conflict{
+        conflict_exact, conflict_effective, {conflicting}, {}, {}, {},
+        std::nullopt};
+    const mpz_class conflict_exact_modulus =
+        conflict.constraints.modulus();
+    const mpz_class conflict_effective_modulus =
+        conflict.effective_constraints.modulus();
+    const mpz_class conflict_exact_count =
+        conflict.constraints.candidate_count();
+    const mpz_class conflict_effective_count =
+        conflict.effective_constraints.candidate_count();
+    bool rejected_conflict = false;
+    try {
+        oneshotsea::extend_weber_sea_with_schoof_fallback(
+            curve, conflict, 1U);
+    } catch (const std::runtime_error&) {
+        rejected_conflict = true;
+    }
+    check(rejected_conflict &&
+              conflict.constraints.modulus() == conflict_exact_modulus &&
+              conflict.effective_constraints.modulus() ==
+                  conflict_effective_modulus &&
+              conflict.constraints.candidate_count() ==
+                  conflict_exact_count &&
+              conflict.effective_constraints.candidate_count() ==
+                  conflict_effective_count &&
+              conflict.schoof_fallback_levels.empty(),
+          "fallback fails closed transactionally on contradictory Atkin evidence");
+
+    oneshotsea::TraceConstraints callback_initial(prime);
+    oneshotsea::WeberSeaResult callback_failure{
+        callback_initial, callback_initial, {}, {}, {}, {}, std::nullopt};
+    oneshotsea::extend_weber_sea_with_schoof_fallback(
+        curve, callback_failure, 16U);
+    const mpz_class callback_exact_modulus =
+        callback_failure.constraints.modulus();
+    const mpz_class callback_effective_modulus =
+        callback_failure.effective_constraints.modulus();
+    const mpz_class callback_exact_count =
+        callback_failure.constraints.candidate_count();
+    const mpz_class callback_effective_count =
+        callback_failure.effective_constraints.candidate_count();
+    const auto callback_traces = callback_failure.traces;
+    const std::size_t callback_level_count =
+        callback_failure.schoof_fallback_levels.size();
+    bool callback_rejected = false;
+    try {
+        oneshotsea::extend_weber_sea_with_schoof_fallback(
+            curve, callback_failure, 1U,
+            [](const oneshotsea::SchoofFallbackLevelRecord&) {
+                throw std::runtime_error("forced progress callback failure");
+            });
+    } catch (const std::runtime_error&) {
+        callback_rejected = true;
+    }
+    check(callback_rejected &&
+              callback_failure.constraints.modulus() ==
+                  callback_exact_modulus &&
+              callback_failure.effective_constraints.modulus() ==
+                  callback_effective_modulus &&
+              callback_failure.constraints.candidate_count() ==
+                  callback_exact_count &&
+              callback_failure.effective_constraints.candidate_count() ==
+                  callback_effective_count &&
+              callback_failure.traces == callback_traces &&
+              callback_failure.schoof_fallback_levels.size() ==
+                  callback_level_count,
+          "second-pass callback failure leaves retained state and traces unchanged");
 }
 
 void test_elkies_residues() {
@@ -471,6 +1363,13 @@ void test_elkies_residues() {
     // supersingular/collision cases.  This curve has two rational modular
     // neighbors but no rational degree-one factor of psi_3.
     const oneshotsea::Curve collision(oneshotsea::Field(19), 8, 14);
+    const mpz_class collision_order =
+        oneshotsea::count_points_bruteforce(collision);
+    check(collision_order == 20, "supersingular collision fixture point count");
+    check(mpz_class(20) - collision_order == 0,
+          "collision fixture has trace zero");
+    check(oneshotsea::schoof_trace_mod_ell(collision, 3) == 0,
+          "native Schoof recovers the supersingular trace residue");
     check(!oneshotsea::linear_roots(
                phi3.evaluate_x(collision.field(), collision.j_invariant()))
                .empty(),
@@ -816,6 +1715,7 @@ int main() {
         test_weber_sea_runner();
         test_early_abort();
         test_schoof_residues();
+        test_retained_state_schoof_fallback();
         test_elkies_residues();
         std::cout << "core tests: ok\n";
         return EXIT_SUCCESS;

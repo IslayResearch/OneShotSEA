@@ -8,9 +8,27 @@
 namespace oneshotsea {
 namespace {
 
+struct Matrix2 {
+    std::uint64_t a;
+    std::uint64_t b;
+    std::uint64_t c;
+    std::uint64_t d;
+};
+
 std::uint64_t mul_mod(std::uint64_t lhs, std::uint64_t rhs, std::uint64_t modulus) {
     return static_cast<std::uint64_t>(
         (static_cast<unsigned __int128>(lhs) * static_cast<unsigned __int128>(rhs)) % modulus);
+}
+
+std::uint64_t add_mod(std::uint64_t lhs, std::uint64_t rhs,
+                      std::uint64_t modulus) {
+    return static_cast<std::uint64_t>(
+        (static_cast<unsigned __int128>(lhs) + rhs) % modulus);
+}
+
+std::uint64_t sub_mod(std::uint64_t lhs, std::uint64_t rhs,
+                      std::uint64_t modulus) {
+    return lhs >= rhs ? lhs - rhs : modulus - (rhs - lhs);
 }
 
 std::uint64_t pow_mod(std::uint64_t base, std::uint64_t exponent, std::uint64_t modulus) {
@@ -40,6 +58,80 @@ int legendre_small(std::uint64_t value, std::uint64_t prime) {
         return -1;
     }
     throw std::invalid_argument("ell must be prime");
+}
+
+bool is_prime_small(std::uint64_t value) {
+    if (value < 2U) {
+        return false;
+    }
+    for (std::uint64_t divisor = 2U;
+         divisor <= value / divisor; ++divisor) {
+        if (value % divisor == 0U) {
+            return false;
+        }
+    }
+    return true;
+}
+
+Matrix2 matrix_mul(const Matrix2& lhs, const Matrix2& rhs,
+                   std::uint64_t modulus) {
+    return {
+        add_mod(mul_mod(lhs.a, rhs.a, modulus),
+                mul_mod(lhs.b, rhs.c, modulus), modulus),
+        add_mod(mul_mod(lhs.a, rhs.b, modulus),
+                mul_mod(lhs.b, rhs.d, modulus), modulus),
+        add_mod(mul_mod(lhs.c, rhs.a, modulus),
+                mul_mod(lhs.d, rhs.c, modulus), modulus),
+        add_mod(mul_mod(lhs.c, rhs.b, modulus),
+                mul_mod(lhs.d, rhs.d, modulus), modulus),
+    };
+}
+
+Matrix2 matrix_pow(Matrix2 base, std::uint64_t exponent,
+                   std::uint64_t modulus) {
+    Matrix2 result{1U, 0U, 0U, 1U};
+    while (exponent != 0U) {
+        if ((exponent & 1U) != 0U) {
+            result = matrix_mul(result, base, modulus);
+        }
+        exponent >>= 1U;
+        if (exponent != 0U) {
+            base = matrix_mul(base, base, modulus);
+        }
+    }
+    return result;
+}
+
+bool is_scalar(const Matrix2& matrix) {
+    return matrix.b == 0U && matrix.c == 0U && matrix.a == matrix.d;
+}
+
+std::vector<std::uint64_t> distinct_prime_divisors(std::uint64_t value) {
+    std::vector<std::uint64_t> divisors;
+    for (std::uint64_t divisor = 2U;
+         divisor <= value / divisor; ++divisor) {
+        if (value % divisor != 0U) {
+            continue;
+        }
+        divisors.push_back(divisor);
+        do {
+            value /= divisor;
+        } while (value % divisor == 0U);
+    }
+    if (value > 1U) {
+        divisors.push_back(value);
+    }
+    return divisors;
+}
+
+void require_projective_input(std::uint64_t ell, const mpz_class& prime) {
+    if (ell < 3U || (ell & 1U) == 0U || !is_prime_small(ell)) {
+        throw std::invalid_argument("projective Frobenius requires an odd prime ell");
+    }
+    if (prime < 2 || mpz_fdiv_ui(prime.get_mpz_t(), ell) == 0U) {
+        throw std::invalid_argument(
+            "projective Frobenius requires nonzero characteristic modulo ell");
+    }
 }
 
 mpz_class first_congruent_at_least(const mpz_class& lower, const mpz_class& residue,
@@ -169,6 +261,59 @@ std::vector<std::uint64_t> trace_residues_from_classification(
         const int symbol = legendre_small(discriminant, ell);
         if ((has_rational_isogeny && symbol >= 0) ||
             (!has_rational_isogeny && symbol < 0)) {
+            residues.push_back(trace);
+        }
+    }
+    return residues;
+}
+
+std::uint64_t projective_frobenius_order(
+    std::uint64_t ell, const mpz_class& prime,
+    std::uint64_t trace_residue) {
+    require_projective_input(ell, prime);
+    trace_residue %= ell;
+    const std::uint64_t p_mod_ell = mpz_fdiv_ui(prime.get_mpz_t(), ell);
+    const std::uint64_t discriminant = sub_mod(
+        mul_mod(trace_residue, trace_residue, ell),
+        mul_mod(4U % ell, p_mod_ell, ell), ell);
+    const int character = legendre_small(discriminant, ell);
+
+    // A semisimple nonsplit/split element has projective order dividing
+    // ell+1/ell-1 respectively.  A non-scalar repeated-root companion matrix
+    // is unipotent in PGL and has order ell.
+    std::uint64_t order =
+        character < 0 ? ell + 1U : (character > 0 ? ell - 1U : ell);
+    const Matrix2 frobenius{
+        0U, (ell - p_mod_ell) % ell, 1U, trace_residue};
+    if (!is_scalar(matrix_pow(frobenius, order, ell))) {
+        throw std::logic_error("projective Frobenius order bound failed");
+    }
+    for (const std::uint64_t divisor : distinct_prime_divisors(order)) {
+        while (order % divisor == 0U &&
+               is_scalar(matrix_pow(frobenius, order / divisor, ell))) {
+            order /= divisor;
+        }
+    }
+    return order;
+}
+
+std::vector<std::uint64_t> atkin_trace_residues_from_projective_order(
+    std::uint64_t ell, const mpz_class& prime,
+    std::uint64_t projective_order) {
+    require_projective_input(ell, prime);
+    if (projective_order < 2U || (ell + 1U) % projective_order != 0U) {
+        throw std::invalid_argument(
+            "Atkin projective order must divide ell+1 and be at least two");
+    }
+    const std::uint64_t p_mod_ell = mpz_fdiv_ui(prime.get_mpz_t(), ell);
+    std::vector<std::uint64_t> residues;
+    for (std::uint64_t trace = 0U; trace < ell; ++trace) {
+        const std::uint64_t discriminant = sub_mod(
+            mul_mod(trace, trace, ell),
+            mul_mod(4U % ell, p_mod_ell, ell), ell);
+        if (legendre_small(discriminant, ell) < 0 &&
+            projective_frobenius_order(ell, prime, trace) ==
+                projective_order) {
             residues.push_back(trace);
         }
     }

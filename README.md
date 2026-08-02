@@ -14,24 +14,49 @@ See [revised_prompt.md](revised_prompt.md) for the full task specification, vali
 
 ## Status
 
-Implementation is in progress. The repository currently includes:
+Implementation and the real `p125` search are in progress; no certificate is
+claimed until the unmodified pinned verifier accepts it. The repository
+currently includes:
 
-- a portable GMP-backed finite-field and polynomial reference layer;
-- a native Schoof residue/counting oracle and independent Python oracle;
-- level-3 exact Elkies kernel, Vélu codomain, eigenvalue, and trace recovery;
-- deterministic curve generation and curve/twist checks;
-- exhaustive CRT trace constraints and sound early-abort screening;
-- the pinned MIT smooth-part engine with a portable cross-architecture cache;
-- a pinned canonical certificate verifier and isolated local Magma oracle; and
-- dry-run-safe deterministic RunPod operations.
+- a portable GMP-backed finite-field layer with thresholded Karatsuba product
+  and specialized square recurrences, exact-cost windowed quotient
+  exponentiation, native Schoof reference, and independent Python/Magma
+  oracle paths;
+- polynomial-subring Frobenius eigenvalue powers with a retained general
+  quotient-Element reference path and exact differential coverage;
+- an authenticated 77-level Weber-f schedule through level 401, normalized
+  BMSS isogeny recovery, exact Frobenius residues, verified 24th-root
+  source-lift orbit reuse, and exact conjugate-eigenvalue reuse;
+- certified low-level Atkin constraints, exact CRT/Hasse trace enumeration,
+  deterministic Montgomery-compatible curve generation, and curve/twist
+  sharing;
+- conservative full-bound smoothness early abort using the pinned MIT engine
+  and a content-authenticated portable 5.4 GB `p125` cache;
+- rolling multi-curve execution against one shared immutable smooth cache,
+  with deterministic in-order checkpoint and certificate publication;
+- opt-in, schedule-bound X1(11) and X1(27) curve families with independently
+  checked torsion, full rational `E[2]`, and optional point-order-four filters;
+- exhaustive certificate-divisor search, exact Montgomery point-order checks,
+  crash-safe checkpoints, identity-bound artifacts, and the pinned canonical
+  verifier; and
+- deterministic local, RunPod, and tagged/bounded AWS worker operations with
+  non-overlapping range sharding and artifact retrieval.
+
+Current algorithms and open outcome gates are documented in
+[the search pipeline](docs/search_pipeline.md),
+[the Weber implementation](docs/weber_implementation.md), and
+[the bottleneck registry](docs/bottleneck_registry.md).  Reproducible measured
+ablations, including limitations and still-missing comparisons, are collected
+in [the performance report](docs/performance_report.md).
 
 The native build needs GMP. Smooth-engine tests additionally need OpenMP
 (`libomp` with Apple Clang; GCC's OpenMP runtime on Linux). Build and run the
 local, CAS-free tests with:
 
 ```sh
-make
+make all
 make test test-cli test-reference test-verifier test-vendor \
+  test-performance-artifacts \
   test-smooth test-smooth-cache test-runpod
 ```
 

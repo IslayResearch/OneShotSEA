@@ -1,0 +1,9 @@
+FIRST_TATE_NOT176 congruence=5 p=101 x=21 y=61 j=54 N=88 Nmod176=88 branch=-1
+FIRST_ADMITTED congruence=5 p=157 x=10 y=88 j=2 f=2 side=curve N=176 Nmod176=0 branch=-1
+EXCEPTION_J0 congruence=5 p=197 x=32 y=143
+FIRST_TATE_NOT176 congruence=1 p=73 x=4 y=14 j=26 N=88 Nmod176=88 branch=1
+FIRST_ADMITTED congruence=1 p=89 x=8 y=86 j=29 f=3 side=twist N=88 Nmod176=88 branch=1
+FIRST_ADMITTED_NOT176 congruence=1 p=89 x=8 y=86 j=29 f=3 side=twist N=88 Nmod176=88 branch=1
+EXCEPTION_J0 congruence=1 p=593 x=85 y=330
+EXHAUSTIVE_P5MOD8 primes=42 x1_points=18866 singular=156 exceptional0=40 exceptional1728=0 full_e2=3070 point4=1490 branch_plus=714 branch_minus=776 n_not_176=560 weber_admitted=550 admitted_not_176=0 admitted_side_curve=240 admitted_side_twist=310 admitted_branch_plus=329 admitted_branch_minus=221
+EXHAUSTIVE_P1MOD8 primes=38 x1_points=18569 singular=154 exceptional0=20 exceptional1728=0 full_e2=2815 point4=1315 branch_plus=569 branch_minus=746 n_not_176=790 weber_admitted=525 admitted_not_176=390 admitted_side_curve=300 admitted_side_twist=225 admitted_branch_plus=253 admitted_branch_minus=272

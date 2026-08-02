@@ -1,0 +1,437 @@
+{
+  "schema": "oneshotsea.p125-index206-schoof-fallback.v2",
+  "date": "2026-08-01",
+  "classification": "prototype recovery retained; final committed/frozen-binary index-206 release gate satisfied",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bit_length": 416,
+    "seed": "202607300000",
+    "curve_family": "x1-11",
+    "global_index": 206,
+    "half_open_range": "[206,207)"
+  },
+  "prototype_identity": {
+    "source_base_commit": "07bbda3333ed88297d8a5a3a15650584e8956070",
+    "source_base_subject": "Add audited X1(27) search family",
+    "rebased_prototype_commit_in_isolated_clone": "39e2af446dde4cb48820be76871c5acb020d826a",
+    "prototype_mailbox_patch_path_at_capture": "/private/tmp/oneshotsea-schoof-rebase.m81BtQ/patches/0001-Finish-rare-SEA-states-with-exact-Schoof-residues.patch",
+    "prototype_mailbox_patch_sha256": "763a2745e180d52542889823e9adca725cf371d8d03c0a27d83d8d911ae7beb8",
+    "binary_path_at_capture": "/Users/agent/Documents/ecpp reach/build/oneshotsea",
+    "binary_sha256_emitted_and_checked_at_capture": "6fbeef06f2980389244081666eb55d3d98d63965c3722bdccc1aeff26b517ee4",
+    "build_id_emitted": "prototype:07bbda3+schoof-fallback-763a2745+binary-sha256:6fbeef06f2980389244081666eb55d3d98d63965c3722bdccc1aeff26b517ee4",
+    "fallback_policy": "retained-state-exact-schoof-3,5,13,17,19-v1",
+    "schedule_sha256": "77250522b1f6e50edccf4352889413476a0cd502a94c3f5f36f822476ef448a5",
+    "table_directory": "data/modpoly/weber_f",
+    "table_manifest_file_sha256": "e5b84a87335523f79d47f140d70ceddee9e1c6891a7fae8aaadcae5c080de3ab",
+    "authenticated_table_set_sha256_emitted": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "smooth_cache_path": "/Users/agent/Documents/ecpp reach/work/p125/smooth.cache",
+    "smooth_cache_sha256_emitted": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "canonical_verifier_path": "third_party/oneshot_primality_proofs/voneshot.py",
+    "canonical_verifier_sha256_emitted": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+    "python_executable_emitted": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "python_sha256_emitted": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf",
+    "disclosure": "The replay binary was built from a prototype patch on the committed X1(27) base. Its build id, patch digest, schedule, and binary digest are authenticated, but this is not the final committed production build. The binary path was later rebuilt and must not be used to re-derive the historical digest."
+  },
+  "command": {
+    "retention_note": "No launcher script was retained for this 172.17-second run. The exact search argv below is reconstructed from the authoritative search-start record, the raw paths, and the parent execution transcript; it must not be confused with the older retained one-thread 7d475fe harness.",
+    "timing_wrapper": "/usr/bin/time -l",
+    "executable": "./build/oneshotsea",
+    "argv": [
+      "search",
+      "--p", "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+      "--seed", "202607300000",
+      "--range-start", "206",
+      "--range-end", "207",
+      "--worker-id", "0",
+      "--worker-count", "1",
+      "--curve-family", "x1-11",
+      "--x1-require-point4", "1",
+      "--max-level", "401",
+      "--trace-cap", "16",
+      "--schoof-fallback", "1",
+      "--skip-incomplete-curves", "0",
+      "--curve-threads", "1",
+      "--sea-threads", "10",
+      "--sea-level-telemetry", "1",
+      "--table-dir", "data/modpoly/weber_f",
+      "--smooth-cache", "/Users/agent/Documents/ecpp reach/work/p125/smooth.cache",
+      "--smooth-cache-sha256", "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+      "--smooth-threads", "10",
+      "--smooth-max-batch", "128",
+      "--smooth-root-auxiliary-bytes", "134217728",
+      "--smooth-build-segment-span", "500000000",
+      "--checkpoint", "/private/tmp/oneshotsea-index206-fallback-07bb.kTF5wJ/checkpoint.json",
+      "--checkpoint-every", "1",
+      "--progress", "/private/tmp/oneshotsea-index206-fallback-07bb.kTF5wJ/progress.ndjson",
+      "--certificate-out", "/private/tmp/oneshotsea-index206-fallback-07bb.kTF5wJ/certificate.txt",
+      "--assembly-attempts", "400",
+      "--max-certificate-candidates", "100000",
+      "--max-candidate-search-nodes", "1000000",
+      "--max-curves", "1",
+      "--build-id", "prototype:07bbda3+schoof-fallback-763a2745+binary-sha256:6fbeef06f2980389244081666eb55d3d98d63965c3722bdccc1aeff26b517ee4"
+    ],
+    "output_capture": "stderr was merged into stdout and retained in /private/tmp/oneshotsea-index206-fallback-07bb.kTF5wJ/run.log",
+    "authenticated_effective_resources": {
+      "curve_threads": 1,
+      "sea_threads": 10,
+      "smooth_threads": 10,
+      "x1_require_point_four": true,
+      "trace_cap": 16,
+      "schoof_fallback": true,
+      "skip_incomplete_curves": false,
+      "sea_level_telemetry": true
+    }
+  },
+  "raw_outputs": {
+    "directory_at_capture": "/private/tmp/oneshotsea-index206-fallback-07bb.kTF5wJ",
+    "run_log": {
+      "lines": 81,
+      "sha256": "ed6cd76ff031a0f198f1983cb33d1c3327b7baa1594495aeca661ee79e056ce2"
+    },
+    "progress": {
+      "lines": 1,
+      "sha256": "e9b406886399f018ff2762d0748df65c97f9f7ca36870db9a67b4306ddf5ae8a"
+    },
+    "checkpoint": {
+      "lines": 1,
+      "sha256": "0304be4f0ce80a46d2069cbd7276bb3e671c98a657f6b756f02c07fcd240fa22",
+      "crc64_ecma": "f0c8dd3096cb8657"
+    },
+    "certificate": null,
+    "certificate_interpretation": "No certificate file was published because the curve was soundly rejected at exact smoothness screening."
+  },
+  "ordinary_weber_endpoint": {
+    "sea_levels": 76,
+    "exact_sea_levels": 27,
+    "atkin_sea_levels": 1,
+    "last_level": 401,
+    "last_level_trace_residue": 374,
+    "exact_combined_residue": "15029014590967038616617506331193089845876979116643132846050",
+    "exact_modulus": "27528898210289577711473710614634102322436780284511434699152",
+    "exact_trace_candidate_count": 45948,
+    "effective_combined_residue": "15029014590967038616617506331193089845876979116643132846050",
+    "constraint_modulus_with_singleton_atkin_5": "137644491051447888557368553073170511612183901422557173495760",
+    "effective_trace_candidate_count": 9189,
+    "interpretation": "Every authenticated Weber level was exhausted. Raising trace-cap alone cannot turn this retained state into a complete cap-16 enumeration."
+  },
+  "schoof_fallback": {
+    "retained_state": true,
+    "full_weber_rerun": false,
+    "levels_computed": 4,
+    "configured_level_order": [3, 5, 13, 17, 19],
+    "stopped_before_level": 19,
+    "stop_reason": "Both exact and effective Hasse candidate counts fit trace cap 16 after level 17.",
+    "levels": [
+      {
+        "ell": 3,
+        "trace_residue": 0,
+        "exact_modulus": "82586694630868733134421131843902306967310340853534304097456",
+        "constraint_modulus": "412933473154343665672105659219511534836551704267671520487280",
+        "exact_trace_candidate_count": 15316,
+        "effective_trace_candidate_count": 3063,
+        "elapsed_us": 5173
+      },
+      {
+        "ell": 5,
+        "trace_residue": 0,
+        "exact_modulus": "412933473154343665672105659219511534836551704267671520487280",
+        "constraint_modulus": "412933473154343665672105659219511534836551704267671520487280",
+        "exact_trace_candidate_count": 3063,
+        "effective_trace_candidate_count": 3063,
+        "elapsed_us": 28213,
+        "interpretation": "The exact residue agrees with and replaces the earlier singleton Atkin-5 constraint."
+      },
+      {
+        "ell": 13,
+        "trace_residue": 2,
+        "exact_modulus": "5368135151006467653737373569853649952875172155479729766334640",
+        "constraint_modulus": "5368135151006467653737373569853649952875172155479729766334640",
+        "exact_trace_candidate_count": 235,
+        "effective_trace_candidate_count": 235,
+        "elapsed_us": 1039312
+      },
+      {
+        "ell": 17,
+        "trace_residue": 0,
+        "exact_modulus": "91258297567109950113535350687512049198877926643155406027688880",
+        "constraint_modulus": "91258297567109950113535350687512049198877926643155406027688880",
+        "exact_trace_candidate_count": 14,
+        "effective_trace_candidate_count": 14,
+        "elapsed_us": 2925228
+      }
+    ],
+    "elapsed_us_sum": 3997926,
+    "final_exact_combined_residue": "53558736033604195687432984651794522106985414632491383622696690",
+    "final_exact_modulus": "91258297567109950113535350687512049198877926643155406027688880",
+    "final_exact_trace_candidate_count": 14,
+    "final_effective_trace_candidate_count": 14
+  },
+  "outcome": {
+    "status": "sound_smoothness_reject",
+    "heuristic": false,
+    "outcome_class": "sound_rejection",
+    "sound_early_abort": true,
+    "full_point_count": false,
+    "reached_smoothness": true,
+    "generator_rejections": 7,
+    "trace_prior": {"modulus": 176, "residue": 82},
+    "complete_traces_screened": 14,
+    "curve_and_twist_orders_screened": 28,
+    "candidate_attempts": 0,
+    "assembly_calls": 0,
+    "canonical_rejections": 0,
+    "certificates_found": 0,
+    "checkpoint_next_index": 207,
+    "checkpoint_complete": true,
+    "timings_us": {
+      "generation": 61204,
+      "sea": 96703303,
+      "smoothness": 10197681,
+      "candidate": 0,
+      "assembly": 0,
+      "verifier": 0,
+      "curve_total": 106962195
+    },
+    "invocation_time_seconds": {
+      "real": 172.17,
+      "user": 243.10,
+      "sys": 3.75
+    },
+    "reported_peak_rss_bytes": 6090375168,
+    "verified_summary": false,
+    "verified_summary_interpretation": "No certificate existed to verify; verified=false is not a verifier failure."
+  },
+  "independent_audit": {
+    "method": "Rebuild the exact CRT from trace prior 82 mod 176 and every logged exact Weber residue; independently count representatives in the Hasse interval. Apply the singleton t=0 mod 5 constraint, then replay exact fallback residues 0 mod 3, 0 mod 5, 2 mod 13, and 0 mod 17 while checking every emitted exact/effective modulus and count.",
+    "ordinary_exact_count_reproduced": 45948,
+    "ordinary_effective_count_reproduced": 9189,
+    "fallback_transitions_reproduced": [
+      {"ell": 3, "exact": 15316, "effective": 3063},
+      {"ell": 5, "exact": 3063, "effective": 3063},
+      {"ell": 13, "exact": 235, "effective": 235},
+      {"ell": 17, "exact": 14, "effective": 14}
+    ],
+    "result": "all CRT residues, moduli, and Hasse candidate counts agree"
+  },
+  "final_release_gate": {
+    "status": "satisfied",
+    "identity": {
+      "source_commit": "976924b3aa2148f62ceae11948824d8aed5a41bb",
+      "source_subject": "Finish rare SEA states with exact Schoof fallback",
+      "source_commit_was_pushed_to_origin_at_capture": true,
+      "binary_path_at_capture": "/Users/agent/Documents/ecpp reach/work/oneshotsea-976924b",
+      "binary_sha256_emitted_and_checked_at_capture": "67a85ad69d176f8602af5e177819709f86893a32939691b2b4ca43fc8d7c7a70",
+      "build_id_emitted": "git:976924b3aa2148f62ceae11948824d8aed5a41bb+binary-sha256:67a85ad69d176f8602af5e177819709f86893a32939691b2b4ca43fc8d7c7a70",
+      "fallback_policy": "retained-state-exact-schoof-3,5,13,17,19-v1",
+      "schedule_sha256": "77250522b1f6e50edccf4352889413476a0cd502a94c3f5f36f822476ef448a5",
+      "table_directory": "data/modpoly/weber_f",
+      "table_manifest_file_sha256": "e5b84a87335523f79d47f140d70ceddee9e1c6891a7fae8aaadcae5c080de3ab",
+      "authenticated_table_set_sha256_emitted": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+      "smooth_cache_path": "/Users/agent/Documents/ecpp reach/work/p125/smooth.cache",
+      "smooth_cache_sha256_emitted": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+      "canonical_verifier_path": "third_party/oneshot_primality_proofs/voneshot.py",
+      "canonical_verifier_sha256_emitted": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+      "python_executable_emitted": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+      "python_sha256_emitted": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf",
+      "identity_check": "The full build-id commit equals the checked-out and pushed source commit, and the frozen binary independently hashes to the digest embedded in that build id."
+    },
+    "excluded_attempt": {
+      "directory": "/private/tmp/oneshotsea-index206-fallback-976924b.QHrL4v",
+      "emitted_build_commit_that_failed_identity_check": "976924be108890883653ea437c2645f2851581c3",
+      "actual_source_commit": "976924b3aa2148f62ceae11948824d8aed5a41bb",
+      "used_as_release_evidence": false,
+      "reason": "The emitted full Git SHA did not equal the actual source commit even though the seven-character prefix and frozen-binary digest matched. None of this attempt's raw hashes, timings, or mathematical output is used for the final release gate."
+    },
+    "command": {
+      "retention_note": "No launcher script was retained. The exact effective argv is reconstructed from the authoritative search-start record, corrected raw paths, and execution transcript.",
+      "timing_wrapper": "/usr/bin/time -l",
+      "executable": "./work/oneshotsea-976924b",
+      "argv": [
+        "search",
+        "--p", "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+        "--seed", "202607300000",
+        "--range-start", "206",
+        "--range-end", "207",
+        "--worker-id", "0",
+        "--worker-count", "1",
+        "--curve-family", "x1-11",
+        "--x1-require-point4", "1",
+        "--max-level", "401",
+        "--trace-cap", "16",
+        "--schoof-fallback", "1",
+        "--skip-incomplete-curves", "0",
+        "--curve-threads", "1",
+        "--sea-threads", "10",
+        "--sea-level-telemetry", "1",
+        "--table-dir", "data/modpoly/weber_f",
+        "--smooth-cache", "/Users/agent/Documents/ecpp reach/work/p125/smooth.cache",
+        "--smooth-cache-sha256", "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+        "--smooth-threads", "10",
+        "--smooth-max-batch", "128",
+        "--smooth-root-auxiliary-bytes", "134217728",
+        "--smooth-build-segment-span", "500000000",
+        "--checkpoint", "/private/tmp/oneshotsea-index206-fallback-976924b-correct.iZfki5/checkpoint.json",
+        "--checkpoint-every", "1",
+        "--progress", "/private/tmp/oneshotsea-index206-fallback-976924b-correct.iZfki5/progress.ndjson",
+        "--certificate-out", "/private/tmp/oneshotsea-index206-fallback-976924b-correct.iZfki5/certificate.txt",
+        "--assembly-attempts", "400",
+        "--max-certificate-candidates", "100000",
+        "--max-candidate-search-nodes", "1000000",
+        "--max-curves", "1",
+        "--build-id", "git:976924b3aa2148f62ceae11948824d8aed5a41bb+binary-sha256:67a85ad69d176f8602af5e177819709f86893a32939691b2b4ca43fc8d7c7a70"
+      ],
+      "output_capture": "stderr was merged into stdout and retained in /private/tmp/oneshotsea-index206-fallback-976924b-correct.iZfki5/run.log",
+      "authenticated_effective_resources": {
+        "curve_threads": 1,
+        "sea_threads": 10,
+        "smooth_threads": 10,
+        "smooth_max_batch": 128,
+        "smooth_root_auxiliary_bytes": 134217728,
+        "smooth_build_segment_span": 500000000,
+        "x1_require_point_four": true,
+        "trace_cap": 16,
+        "schoof_fallback": true,
+        "skip_incomplete_curves": false,
+        "sea_level_telemetry": true,
+        "assembly_attempts": 400,
+        "max_certificate_candidates": 100000,
+        "max_candidate_search_nodes": 1000000
+      }
+    },
+    "raw_outputs": {
+      "authoritative_directory_at_capture": "/private/tmp/oneshotsea-index206-fallback-976924b-correct.iZfki5",
+      "run_log": {
+        "lines": 81,
+        "sha256": "8f2e59f8ffe11ebd634387b5b383d4a658084abbf2ebed3e1f07b171e1587266"
+      },
+      "progress": {
+        "lines": 1,
+        "sha256": "1173453d5f1a4ae922966038b4ab43468517369df4b45286ef6b2bdb279ec964"
+      },
+      "checkpoint": {
+        "lines": 1,
+        "sha256": "2d08a6a4caf6b24f5c09ea0f5b6cbee82fdc62e0b54eadcc5a46b1d5e068c4ec",
+        "crc64_ecma": "85bc57784effe944"
+      },
+      "certificate": null,
+      "certificate_interpretation": "No certificate file was published because the curve was soundly rejected at exact smoothness screening."
+    },
+    "mathematical_replay": {
+      "ordinary_endpoint_matches_prototype": true,
+      "ordinary_exact_combined_residue": "15029014590967038616617506331193089845876979116643132846050",
+      "ordinary_exact_modulus": "27528898210289577711473710614634102322436780284511434699152",
+      "ordinary_exact_trace_candidate_count": 45948,
+      "ordinary_constraint_modulus_with_singleton_atkin_5": "137644491051447888557368553073170511612183901422557173495760",
+      "ordinary_effective_trace_candidate_count": 9189,
+      "fallback_levels": [
+        {
+          "ell": 3,
+          "trace_residue": 0,
+          "exact_modulus": "82586694630868733134421131843902306967310340853534304097456",
+          "constraint_modulus": "412933473154343665672105659219511534836551704267671520487280",
+          "exact_trace_candidate_count": 15316,
+          "effective_trace_candidate_count": 3063,
+          "elapsed_us": 5409
+        },
+        {
+          "ell": 5,
+          "trace_residue": 0,
+          "exact_modulus": "412933473154343665672105659219511534836551704267671520487280",
+          "constraint_modulus": "412933473154343665672105659219511534836551704267671520487280",
+          "exact_trace_candidate_count": 3063,
+          "effective_trace_candidate_count": 3063,
+          "elapsed_us": 28441
+        },
+        {
+          "ell": 13,
+          "trace_residue": 2,
+          "exact_modulus": "5368135151006467653737373569853649952875172155479729766334640",
+          "constraint_modulus": "5368135151006467653737373569853649952875172155479729766334640",
+          "exact_trace_candidate_count": 235,
+          "effective_trace_candidate_count": 235,
+          "elapsed_us": 1025934
+        },
+        {
+          "ell": 17,
+          "trace_residue": 0,
+          "exact_modulus": "91258297567109950113535350687512049198877926643155406027688880",
+          "constraint_modulus": "91258297567109950113535350687512049198877926643155406027688880",
+          "exact_trace_candidate_count": 14,
+          "effective_trace_candidate_count": 14,
+          "elapsed_us": 2862631
+        }
+      ],
+      "fallback_elapsed_us_sum": 3922415,
+      "final_exact_combined_residue": "53558736033604195687432984651794522106985414632491383622696690",
+      "final_exact_modulus": "91258297567109950113535350687512049198877926643155406027688880",
+      "final_exact_trace_candidate_count": 14,
+      "final_effective_trace_candidate_count": 14
+    },
+    "outcome": {
+      "status": "sound_smoothness_reject",
+      "heuristic": false,
+      "outcome_class": "sound_rejection",
+      "sound_early_abort": true,
+      "full_point_count": false,
+      "reached_smoothness": true,
+      "generator_rejections": 7,
+      "trace_prior": {"modulus": 176, "residue": 82},
+      "sea_passes": 1,
+      "sea_levels": 76,
+      "exact_sea_levels": 27,
+      "atkin_sea_levels": 1,
+      "schoof_fallback_level_count": 4,
+      "complete_traces_screened": 14,
+      "curve_and_twist_orders_screened": 28,
+      "candidate_attempts": 0,
+      "candidate_search_nodes": 0,
+      "assembly_calls": 0,
+      "canonical_rejections": 0,
+      "certificates_found": 0,
+      "checkpoint_next_index": 207,
+      "checkpoint_complete": true,
+      "checkpoint_counters": {
+        "curves_attempted": 1,
+        "sound_early_abort_rejections": 1,
+        "heuristic_rejections": 0,
+        "certificates_found": 0
+      },
+      "timings_us": {
+        "generation": 61683,
+        "sea": 95020926,
+        "smoothness": 10125735,
+        "candidate": 0,
+        "assembly": 0,
+        "verifier": 0,
+        "curve_total": 105208351
+      },
+      "invocation_time_seconds": {
+        "real": 169.36,
+        "user": 240.58,
+        "sys": 3.64
+      },
+      "reported_peak_rss_bytes": 6033129472,
+      "verified_summary": false,
+      "verified_summary_interpretation": "No certificate existed to verify; verified=false is not a verifier failure."
+    },
+    "independent_audit": {
+      "method": "Recomputed CRC64-ECMA over the canonical checkpoint payload; rebuilt the ordinary exact CRT from trace prior 82 mod 176 and every exact Weber residue; independently counted Hasse representatives; replayed the singleton Atkin-5 constraint and exact fallback residues; then compared every non-timing mathematical projection with the retained prototype.",
+      "ordinary_counts_reproduced": [45948, 9189],
+      "fallback_transitions_reproduced": [
+        {"ell": 3, "exact": 15316, "effective": 3063},
+        {"ell": 5, "exact": 3063, "effective": 3063},
+        {"ell": 13, "exact": 235, "effective": 235},
+        {"ell": 17, "exact": 14, "effective": 14}
+      ],
+      "prototype_semantic_projection_equal": true,
+      "result": "raw identities, checkpoint CRC, CRT residues, moduli, Hasse counts, terminal outcome, and checkpoint advancement all agree"
+    },
+    "release_conclusion": "The final committed and frozen binary reproduced the prototype's complete mathematical projection and soundly rejected index 206 with heuristic skipping disabled. The committed-build recovery gate is satisfied."
+  },
+  "production_interpretation": {
+    "historical_checkpoint": "The earlier production identity recorded index 206 as an explicit heuristic incomplete skip. This isolated replay does not rewrite that checkpoint or relabel its historical outcome.",
+    "sound_recovery_evidence": "The retained prototype first established the path; the corrected final replay under commit 976924b3aa2148f62ceae11948824d8aed5a41bb and frozen binary SHA-256 67a85ad69d176f8602af5e177819709f86893a32939691b2b4ca43fc8d7c7a70 independently establishes committed-build sound recovery for the same deterministic index.",
+    "required_next_gate": "Start sound-only X1(27) point-four production at global index 246 with exact fallback enabled and incomplete skip disabled."
+  },
+  "timing_wrapper_note": "/usr/bin/time -l emitted usable real/user/sys values and then reported 'sysctl kern.clockrate: Operation not permitted'. The search summary and checkpoint were complete; unavailable extended counters are not inferred."
+}

@@ -1,12 +1,153 @@
 # SEA search design for one-shot primality certificates
 
-Status: implementation contract.  The bootstrap code currently in `include/` and
-`src/` is a correctness scaffold, not the production implementation described
-here.
+Status: Section 0 is the authoritative as-built design of the current CPU
+production search.  Sections 1--13 retain the original implementation contract
+and target architecture for rationale and historical traceability; imperative
+or future-tense mechanisms there are not claims about the binary unless
+Section 0 or the linked executable-path documents say they are implemented.
+In particular, fixed-limb/Newton arithmetic, learned search policies,
+level-major cross-curve table reuse, and CUDA SEA kernels are targets, not
+current features.
+
+## 0. Authoritative as-built production design
+
+### 0.1 Search identity and curve stream
+
+`oneshotsea search` is input-driven rather than target-hard-coded: it accepts a
+probable-prime target greater than seven whose `n^4` bound fits `uint64_t`, plus
+a deterministic seed, global half-open index range, and exact worker
+partition.  The current X1(11)/X1(27) generators additionally require
+`p=1 (mod 4)`; the Weber-f family covers the general supported prime path.  The
+production deployment
+currently selects `x1-27` with the audited point-order-four filter.  For every
+assigned global index the generator deterministically samples the pinned
+X1(27) model, validates its exact torsion, full rational `E[2]`, point-four
+branch, Weber/Montgomery image, and canonical curve/twist side, and retains the
+exact nonexceptional Weber-f source coordinate.  These checks give the selected
+side a conservative cyclic divisor 108 and, for `p125`, a proven group-order
+divisor 432.  The sign of the resulting exact trace prior is determined only
+after the same-j scaling identities identify which side is the canonical SEA
+curve.  The program itself is not hard-coded to `p125`: bounds, Hasse interval,
+trace residues, and certificate inequalities are derived from the input.
+
+The semantic schedule digest binds curve family/formula and sampling policy,
+point-four flag, exact-prior policy, fallback/heuristic policy,
+smooth-cache digest, and verifier digest.  The full search/checkpoint identity
+separately binds the prime, seed, range partition, authenticated table
+manifest, build identity, and schedule digest.  Resource-only choices
+such as thread counts may change on resume.  Any semantic identity mismatch
+fails before SEA.
+
+### 0.2 Custom SEA and specialized modular-polynomial path
+
+The point counter is project-native C++20 with exact GMP-backed field and
+polynomial arithmetic; production does not call Magma, Sage, PARI, FLINT, or
+another point counter.  Startup authenticates the complete 77-level Weber-f
+table set through prime level 401, including exact filenames, byte counts, and
+SHA-256 values.  Each admitted curve begins from its validated retained Weber
+source coordinate, directly specializes `Phi_l^f(f,Y) mod p`, finds rational
+neighbors, recovers normalized isogenies with the BMSS power-series/Padé path,
+and proves Frobenius eigenvalues in the quotient algebra.  Verified 24th-root
+source-orbit transport shares one specialization across covariant lifts, and a
+validated first stable kernel may derive only its characteristic-polynomial
+conjugate.  Both optimizations retain independent reference paths and exact
+projection A/B tests.
+
+Levels are processed in increasing prime order.  A measured
+information-per-cost schedule remains available only in the low-level tool;
+its held-out production A/B was 0.7% slower, so it is not the search default.
+Authenticated classical levels 5 and 7 may add certified Atkin factor-degree
+constraints.  Exact Elkies residues and the family trace prior form the exact
+CRT; Atkin state is separate and can narrow a complete bounded Hasse set but
+cannot satisfy the final unique-trace gate.  If the Weber schedule is
+insufficient, the explicitly enabled exact Schoof fallback extends the retained
+state through a fixed audited prime sequence.  A contradiction or exhausted
+implementation limit fails closed.
+
+### 0.3 Sound early abort, exact smoothness, and certificate tail
+
+The first SEA pass proceeds to early screening only when the
+exact-plus-certified constraint state represents at most the configured trace
+cap (16 in the current `p125` deployment).  It can instead fail closed on a
+missing rational lift or exhausted implementation limit.  For screening it
+enumerates the complete Hasse-compatible set, forms both orders `p+1-t` and
+`p+1+t` for every trace, and extracts their exact
+`n^4`-smooth parts against one authenticated full prime-product cache.  If all
+parts are at most the verifier lower bound `L`, rejection is mathematically
+sound: any admissible exact point order `m>L` would divide one of those exact
+smooth parts.  With exact Schoof fallback enabled, a survivor extends the same
+retained state toward uniqueness; without fallback, the second trace-cap-one
+pass recomputes SEA from the authenticated schedule.  Smoothness never creates
+a trace congruence.
+
+The production search has no `--search-policy` option and no learned score or
+partial-smoothness rejection.  Its explicit, schedule-bound
+`--skip-incomplete-curves 1` may advance past
+`implementation_no_lift` or `implementation_level_limit` and is always logged
+as a heuristic rejection.  The sound RunPod shard uses fallback on and this
+skip off.  Certificate construction also has a finite deterministic
+`--assembly-attempts` budget per coefficient: exhaustion is recorded as
+`certificate_assembly_failed` and can miss a realizable point even though it
+cannot emit a false certificate.  Candidate/node enumeration caps differ:
+they stop without advancing, so a resume with larger caps rechecks the curve.
+
+For a unique order, the native tail exhaustively enumerates bounded admissible
+smooth divisors, tries curve and twist Montgomery classes, constructs primary
+components, and proves exact point order with `[m]P=O` and `[m/q]P!=O` for each
+prime divisor.  It checks `L<m<L*r`, recomputes exactly the required sorted
+large-prime list, validates the Montgomery coordinate, and atomically publishes
+only after the unmodified pinned `voneshot.py` accepts the one-line certificate.
+
+### 0.4 Concurrency, memory, and durable evidence
+
+Rolling curve concurrency shares one immutable smooth cache but commits curve
+records, checkpoints, and any winning certificate strictly by increasing
+global index.  Each curve currently walks its own increasing SEA level
+sequence; level-major cross-curve table reuse is not implemented.  Optional
+smooth coordinator cohorts can group requests that arrive during another
+cache scan, but remain disabled until a clean bracketed throughput gate passes.
+The full product, root auxiliary tables, per-curve polynomial state, candidate
+enumeration, and worker fan-out all have explicit caps.  A partial curve is
+recomputed after a crash rather than serializing mutable polynomial state.
+
+Machine-readable curve records distinguish sound, heuristic, assembly, and
+implementation-limit outcomes and include exact/Atkin/fallback counts,
+candidate counts, full point counts, major-kernel and optional per-level
+timings, memory, and monotone state counters.  Run manifests bind source,
+binary, command, table, cache, range, and seed.  Separate provision/fetch
+metadata records pod or instance hardware, rate, lifetime/spend estimate,
+checksums, and resource logs.  The exact commands and operational boundaries
+are in `docs/search_pipeline.md`, `docs/runpod.md`, and `docs/aws.md`.
+
+### 0.5 Asymptotic expectation and measured boundary
+
+Let `n=ceil(log2 p)`, `B=n^4`, and
+`L=sqrt(p)+2*p^(1/4)+O(1)=p^(1/2+o(1))`, as follows directly from the
+verifier's nested-square-root bound.  The one-shot smooth-divisor heuristic
+used by this approach predicts that a curve or its twist supplies the required
+`B`-smooth divisor with probability `p^(-1/8+o(1))`.  The expected search is
+therefore `p^(1/8+o(1))` curves.  Heuristically, enough small SEA primes have
+product above the Hasse width after total log-prime mass `Theta(log p)`; with
+directly instantiated modular functions, point counting contributes factors
+polynomial in `log p` per curve and is absorbed by the `o(1)` exponent.  This
+is the intended asymptotic separation from discriminant enumeration in the CM
+route, whose search term is `p^(1/4+o(1))`.
+
+Those exponents are not runtime promises.  At 416 bits the constants are
+dominated by quotient-polynomial Frobenius/eigenvalue work and exact scans of a
+5.4 GB smooth prime product.  The retained X1(27) cyclic-divisor planning model
+uses probability `0.000010446455027346424`, or about 95,726 curves, but it omits
+curve/twist dependence, group-exponent restrictions, representability, and
+exact-order assembly.  The isolated 30-curve RunPod probe measured 26.7
+elapsed seconds per curve including cache startup.  These are an optimistic
+capacity model and an observed throughput, respectively, not a measured
+certificate rate.
 
 ## 1. Decisions
 
-The first production search will make the following choices.
+The original target architecture made the following choices.  Where an item
+is aspirational, the current implementation documents its exact fallback in
+the files cited above.
 
 1. Use C++20 for orchestration and a fixed-modulus, fixed-limb `Fp` backend for
    the hot path.  GMP remains the reference backend and handles integers, CRT,
@@ -407,6 +548,31 @@ form the companion matrix of `X^2-tau*X+p`, compute its order in `PGL(2,l)`,
 and retain exactly those of order `r`.  This costs little for `l<1000` and is
 easy to oracle-test.
 
+The table-independent PGL arithmetic and exact residue-set generator are now
+implemented and exhaustively tested through level 43, including differential
+checks against factor degrees of the classical level-5 and level-7 modular
+polynomials.  This is the arithmetic half of the Atkin path, not evidence that
+an empty rational Weber-root list is Atkin.  Production integration must first
+descend the specialized Weber relation through
+`j(z)=(z^24-16)^3/z^24`, certify the descended factor degree/projective order,
+and fail closed on repeated roots, collisions, or exceptional descent.
+
+As a production-safe first slice, the independently generated and checksummed
+classical `Phi_5` and `Phi_7` tables are used directly.  A specialization
+supplies Atkin evidence only when it is monic and square-free of degree
+`l+1`, has no linear factor, and every irreducible factor has one common degree
+`r | l+1`.  Repeated roots, mixed degrees, rational roots, exceptional source
+invariants, absent tables, and untrusted levels supply no Atkin constraint; a
+present level-5 or level-7 table with the wrong pinned digest is a hard error.
+Thus an empty Weber result is never the premise of the classification.
+
+The resulting constraint is held separately from exact Elkies CRT state.  It
+may reduce a complete bounded trace set for sound smoothness rejection, but a
+trace-cap-one pass ignores Atkin uniqueness and continues until the exact
+Elkies CRT alone identifies the trace.  Full Weber-to-`j` descent remains the
+route to extending this optimization beyond the two authenticated classical
+levels.
+
 Atkin constraints are ranked by
 
 ```text
@@ -498,8 +664,9 @@ the smooth engine, and resumes surviving curves.  Profile the saved SEA work
 against the bytes read and big reductions; disable the early checkpoint if it
 loses.  Even when disabled, the same engine runs after exact point counting.
 
-The following rules are **heuristic false-negative filters** and are available
-only with `--search-policy=heuristic`:
+The following were proposed **heuristic false-negative filters** in the target
+architecture, but they are not implemented and there is no
+`--search-policy` CLI option:
 
 - stop the smooth ladder early when an empirically calibrated model says the
   chance that primes in `(y,B]` lift any candidate above `L` is below a
@@ -508,11 +675,14 @@ only with `--search-policy=heuristic`:
   partial-smoothness score fall below the retained batch quantile; and
 - limit the number of `(trace,side)` candidates sent to exact screening.
 
-The model is trained on completed, exactly labelled batches for the same bit
-range.  Its features, coefficients, training-log checksum, threshold, observed
-false-negative rate, and rejection count are logged.  `--search-policy=sound`
-disables all three.  A heuristic rule may reject work but may never create a
-candidate, a trace residue, or a certificate.
+A future model would have to retain completed, exactly labelled batches for the
+same bit range plus its features, coefficients, training-log checksum,
+threshold, observed false-negative rate, and rejection count.  The only
+implemented implementation-limit skip switch is `--skip-incomplete-curves 1`;
+it handles missing lifts or exhausted levels, not a smoothness score, and it is
+off in the sound production shard.  The separately finite assembly-attempt
+budget is documented in Section 0.3.  A heuristic rule may reject work but may
+never create a candidate, trace residue, or certificate.
 
 ### 7.4 Why classification alone is not a sound abort
 
@@ -575,20 +745,21 @@ before invoking `voneshot.py`.
 
 ## 9. Scheduling, batching, and resource split
 
-Prime order is a frozen artifact produced by a profiling run, not necessarily
-increasing `l`.  For each level record median and tail time for table
+The implemented production order is increasing `l`.  A profiled alternative
+is available in the low-level tool and records median and tail time for table
 instantiation, descent/Frobenius, classification, kernel construction, and
-eigenvalue.  The initial score is
+eigenvalue.  Its experimental score is
 
 ```text
 score(l) = observed_Elkies_probability * log(l) /
            observed_total_cost(l).
 ```
 
-Process one level across a batch so the reduced table and extension setup are
-shared.  Curves leave the batch on singular/exceptional input, sound early
-abort, heuristic early abort, or certificate completion.  Compact live arrays
-between levels; no rejected curve retains polynomials.
+The held-out A/B found that score order 0.7% slower, so production retained
+increasing order.  Level-major processing across a curve batch and shared
+reduced table/extension setup remain unimplemented targets.  The current
+rolling window instead lets each curve walk its own level sequence, shares the
+immutable smooth cache, and durably retires results in global-index order.
 
 CPU ownership:
 

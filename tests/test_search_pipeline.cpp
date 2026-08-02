@@ -1,11 +1,21 @@
 #include "oneshotsea/search_pipeline.hpp"
+#include "oneshotsea/weber_table_trust.hpp"
+#include "oneshotsea/x1_11_probe.hpp"
+#include "oneshotsea/x1_27_probe.hpp"
 
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <utility>
 
 #include <unistd.h>
 
@@ -101,6 +111,67 @@ void test_sha256_fixtures() {
     }
 }
 
+void test_weber_table_authentication() {
+    const std::filesystem::path source = "data/modpoly/weber_f";
+    oneshotsea::authenticate_trusted_weber_table_set(source);
+
+    TemporaryDirectory temporary;
+    const std::filesystem::path copy = temporary.path() / "weber_f";
+    std::filesystem::create_directory(copy);
+    std::filesystem::copy_file(source / "MANIFEST.json",
+                               copy / "MANIFEST.json");
+    for (const auto& entry : std::filesystem::directory_iterator(source)) {
+        if (entry.path().filename().string().starts_with("phi_") &&
+            entry.path().extension() == ".txt") {
+            std::filesystem::create_symlink(
+                std::filesystem::absolute(entry.path()),
+                copy / entry.path().filename());
+        }
+    }
+    oneshotsea::authenticate_trusted_weber_table_set(copy);
+
+    std::filesystem::remove(copy / "phi_5.txt");
+    bool rejected_missing = false;
+    try {
+        oneshotsea::authenticate_trusted_weber_table_set(copy);
+    } catch (const std::runtime_error&) {
+        rejected_missing = true;
+    }
+    check(rejected_missing,
+          "trusted Weber authentication rejects missing files");
+
+    std::filesystem::create_symlink(
+        std::filesystem::absolute(source / "phi_5.txt"), copy / "phi_5.txt");
+    {
+        std::ofstream extra(copy / "phi_409.txt");
+        extra << "410 0 1\n";
+    }
+    bool rejected_extra = false;
+    try {
+        oneshotsea::authenticate_trusted_weber_table_set(copy);
+    } catch (const std::runtime_error&) {
+        rejected_extra = true;
+    }
+    check(rejected_extra,
+          "trusted Weber authentication rejects extra files");
+
+    std::filesystem::remove(copy / "phi_409.txt");
+    std::filesystem::remove(copy / "phi_5.txt");
+    std::filesystem::copy_file(source / "phi_5.txt", copy / "phi_5.txt");
+    {
+        std::ofstream altered(copy / "phi_5.txt", std::ios::app);
+        altered << "\n";
+    }
+    bool rejected_altered = false;
+    try {
+        oneshotsea::authenticate_trusted_weber_table_set(copy);
+    } catch (const std::runtime_error&) {
+        rejected_altered = true;
+    }
+    check(rejected_altered,
+          "trusted Weber authentication rejects altered files");
+}
+
 oneshotsea::SearchPipelineConfig small_config() {
     oneshotsea::SearchPipelineConfig config;
     config.prime = 101;
@@ -136,19 +207,27 @@ void test_small_prime_resume_and_canonical_verification() {
     const oneshotsea::SearchIdentity identity = oneshotsea::make_search_identity(
         config, {1, 2}, 0, 1, smooth_sha, verifier_sha, "pipeline-test-v1");
     config.expected_schedule_sha256 = identity.schedule_sha256;
+    config.expected_smooth_cache_sha256 = smooth_sha;
+    config.expected_verifier_sha256 = verifier_sha;
     config.expected_table_manifest_sha256 =
         identity.table_manifest_sha256;
     oneshotsea::SearchState state(identity);
 
     oneshotsea::SearchPipelineRunOptions first;
     first.max_curves = 0;
+    first.curve_threads = 2;
+    first.smooth_coordinator_count = 1;
     first.checkpoint_path = checkpoint;
     first.progress_path = progress;
     first.certificate_path = temporary.path() / "certificate.txt";
     const auto first_result = oneshotsea::run_search_pipeline(
         config, smooth, state, first);
     check(first_result.curves_processed == 0U &&
-              !first_result.verified.has_value() && state.next_index() == 1U,
+              !first_result.verified.has_value() &&
+              !first_result.smooth_batch_coordinator_enabled &&
+              first_result.smooth_batch_coordinator_count == 0U &&
+              first_result.smooth_batch_cohort_telemetry.empty() &&
+              state.next_index() == 1U,
           "zero-curve first chunk leaves the initial resume cursor");
     oneshotsea::save_search_checkpoint(state, checkpoint);
     const std::filesystem::path precertificate_checkpoint =
@@ -168,7 +247,10 @@ void test_small_prime_resume_and_canonical_verification() {
     const auto second_result = oneshotsea::run_search_pipeline(
         config, smooth, resumed, second, {}, canonical);
     check(second_result.curves_processed == 1U &&
-              second_result.verified.has_value(),
+              second_result.verified.has_value() &&
+              second_result.smooth_batch_coordinator_enabled &&
+              second_result.smooth_batch_coordinator_count == 1U &&
+              second_result.smooth_batch_cohort_telemetry.size() == 1U,
           "resumed search finds deterministic certificate");
     check(canonical_calls == 1U,
           "pipeline invoked the unmodified canonical verifier before success");
@@ -189,6 +271,9 @@ void test_small_prime_resume_and_canonical_verification() {
         config, smooth, crash_window, crash_recovery, {}, canonical);
     check(crash_result.curves_processed == 0U &&
               crash_result.verified.has_value() &&
+              !crash_result.smooth_batch_coordinator_enabled &&
+              crash_result.smooth_batch_coordinator_count == 0U &&
+              crash_result.smooth_batch_cohort_telemetry.empty() &&
               crash_window.next_index() == 2U &&
               crash_window.counters().certificates_found == 1U,
           "pre-certificate checkpoint recovers the metadata-bound winning index");
@@ -198,7 +283,11 @@ void test_small_prime_resume_and_canonical_verification() {
     const auto recovered_result = oneshotsea::run_search_pipeline(
         config, smooth, completed, second, {}, canonical);
     check(recovered_result.curves_processed == 0U &&
-              recovered_result.verified.has_value() && canonical_calls == 3U,
+              recovered_result.verified.has_value() &&
+              !recovered_result.smooth_batch_coordinator_enabled &&
+              recovered_result.smooth_batch_coordinator_count == 0U &&
+              recovered_result.smooth_batch_cohort_telemetry.empty() &&
+              canonical_calls == 3U,
           "resume revalidates durable certificate without advancing search");
 
     std::ifstream events(progress);
@@ -210,6 +299,472 @@ void test_small_prime_resume_and_canonical_verification() {
         ++event_count;
     }
     check(event_count == 1U, "one NDJSON event per completed curve");
+}
+
+void test_mismatched_smooth_coordinator_fails_before_sea() {
+    const oneshotsea::SearchPipelineConfig config = small_config();
+    const auto search_engine =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+    const auto wrong_engine = oneshotsea::ExactSmoothEngine::build(103);
+    oneshotsea::ExactSmoothBatchCoordinator wrong_coordinator(wrong_engine);
+    std::size_t sea_callbacks = 0U;
+    bool rejected = false;
+    try {
+        (void)oneshotsea::process_search_curve(
+            config, search_engine, 1U, {},
+            [&](std::uint64_t, const oneshotsea::SearchSeaLevelTiming&) {
+                ++sea_callbacks;
+            },
+            &wrong_coordinator);
+    } catch (const std::invalid_argument&) {
+        rejected = true;
+    }
+    check(rejected,
+          "search rejects an exact-smooth coordinator for another prime");
+    check(sea_callbacks == 0U &&
+              wrong_coordinator.telemetry().submitted_requests == 0U,
+          "coordinator mismatch fails before SEA or smoothness work");
+}
+
+void test_pool_telemetry_merge_checks_overflow_transactionally() {
+    using PoolMember =
+        std::uint64_t oneshotsea::ExactSmoothBatchPoolTelemetry::*;
+    using CohortMember =
+        std::uint64_t oneshotsea::ExactSmoothBatchTelemetry::*;
+    const std::array<std::pair<PoolMember, CohortMember>, 7> counters = {{
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::submitted_requests,
+         &oneshotsea::ExactSmoothBatchTelemetry::submitted_requests},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::completed_requests,
+         &oneshotsea::ExactSmoothBatchTelemetry::completed_requests},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::failed_requests,
+         &oneshotsea::ExactSmoothBatchTelemetry::failed_requests},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::cancelled_requests,
+         &oneshotsea::ExactSmoothBatchTelemetry::cancelled_requests},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::coordinator_batches,
+         &oneshotsea::ExactSmoothBatchTelemetry::coordinator_batches},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::
+             successful_cache_scan_chunks,
+         &oneshotsea::ExactSmoothBatchTelemetry::
+             successful_cache_scan_chunks},
+        {&oneshotsea::ExactSmoothBatchPoolTelemetry::submitted_orders,
+         &oneshotsea::ExactSmoothBatchTelemetry::submitted_orders},
+    }};
+    for (const auto& [pool_member, cohort_member] : counters) {
+        oneshotsea::ExactSmoothBatchPoolTelemetry aggregate;
+        aggregate.*pool_member = std::numeric_limits<std::uint64_t>::max();
+        aggregate.max_queued_requests_in_any_cohort = 7U;
+        oneshotsea::ExactSmoothBatchTelemetry cohort;
+        cohort.*cohort_member = 1U;
+        bool rejected = false;
+        try {
+            oneshotsea::merge_exact_smooth_batch_pool_telemetry(
+                aggregate, cohort);
+        } catch (const std::overflow_error&) {
+            rejected = true;
+        }
+        check(rejected &&
+                  aggregate.*pool_member ==
+                      std::numeric_limits<std::uint64_t>::max() &&
+                  aggregate.max_queued_requests_in_any_cohort == 7U,
+              "pool telemetry scalar overflow is transactional");
+    }
+
+    oneshotsea::ExactSmoothBatchPoolTelemetry histogram_aggregate;
+    histogram_aggregate.successful_scan_chunks_by_order_count.push_back(
+        {4U, std::numeric_limits<std::uint64_t>::max()});
+    oneshotsea::ExactSmoothBatchTelemetry histogram_cohort;
+    histogram_cohort.successful_scan_chunks_by_order_count.push_back(
+        {4U, 1U});
+    bool histogram_rejected = false;
+    try {
+        oneshotsea::merge_exact_smooth_batch_pool_telemetry(
+            histogram_aggregate, histogram_cohort);
+    } catch (const std::overflow_error&) {
+        histogram_rejected = true;
+    }
+    check(histogram_rejected &&
+              histogram_aggregate.successful_scan_chunks_by_order_count
+                      .front()
+                      .scan_chunks ==
+                  std::numeric_limits<std::uint64_t>::max(),
+          "pool telemetry histogram overflow is transactional");
+}
+
+void test_search_uses_retained_schoof_fallback_without_second_sea_pass() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.max_level = 5U;
+    config.early_trace_cap = 1U;
+    config.enable_schoof_fallback = true;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto report = oneshotsea::process_search_curve(
+        config, smooth, 1U,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto generated = oneshotsea::deterministic_weber_curve_pair(
+        config.prime, config.seed, 1U);
+    const mpz_class expected_trace =
+        config.prime + 1 -
+        oneshotsea::count_points_bruteforce(generated.curve);
+    check(report.status != oneshotsea::SearchCurveStatus::sea_level_limit &&
+              report.exact_trace ==
+                  std::optional<mpz_class>(expected_trace) &&
+              report.sea_passes == 1U &&
+              !report.schoof_fallback_levels.empty(),
+          "search completes from retained SEA state without a second table pass");
+    for (const auto& level : report.schoof_fallback_levels) {
+        check(level.trace_residue ==
+                  mpz_fdiv_ui(expected_trace.get_mpz_t(), level.ell),
+              "search fallback residue matches the brute-force trace");
+    }
+    const std::string digest(64U, 'd');
+    const auto identity = oneshotsea::make_search_identity(
+        config, {1, 2}, 0, 1, digest, digest, "fallback-pipeline-test-v1");
+    const std::string report_json = oneshotsea::search_curve_report_json(
+        report, oneshotsea::SearchState(identity), false);
+    check(report_json.find("\"schoof_fallback_level_count\":\"") !=
+                  std::string::npos &&
+              report_json.find("\"schoof_fallback_levels\":[{") !=
+                  std::string::npos,
+          "search telemetry retains compact exact-Schoof evidence");
+}
+
+void test_parallel_curve_ordering_and_shared_checkpoint() {
+    TemporaryDirectory temporary;
+    oneshotsea::SearchPipelineConfig config = small_config();
+    // This fixture has four consecutive terminal curves at level eleven when
+    // the injected canonical verifier rejects each valid candidate.
+    config.seed = 11;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime,
+                                             {.thread_count = 1});
+    const std::filesystem::path smooth_cache =
+        temporary.path() / "parallel-smooth.cache";
+    smooth.save(smooth_cache);
+    const oneshotsea::SearchIdentity identity = oneshotsea::make_search_identity(
+        config, {0, 4}, 0, 1, oneshotsea::sha256_file(smooth_cache),
+        oneshotsea::sha256_file(config.canonical_verifier),
+        "parallel-pipeline-test-v1");
+    config.expected_schedule_sha256 = identity.schedule_sha256;
+    config.expected_smooth_cache_sha256 =
+        oneshotsea::sha256_file(smooth_cache);
+    config.expected_verifier_sha256 =
+        oneshotsea::sha256_file(config.canonical_verifier);
+    config.expected_table_manifest_sha256 = identity.table_manifest_sha256;
+
+    struct Observation {
+        std::vector<std::uint64_t> indices;
+        std::vector<oneshotsea::SearchCurveStatus> statuses;
+        oneshotsea::SearchCounters counters;
+        std::uint64_t next_index = 0;
+    };
+    const auto run = [&](std::size_t curve_threads,
+                         std::size_t smooth_coordinators,
+                         const std::string& name,
+                         bool audit_live_levels) {
+        oneshotsea::SearchState state(identity);
+        oneshotsea::SearchPipelineRunOptions options;
+        options.max_curves = 4;
+        options.curve_threads = curve_threads;
+        options.smooth_coordinator_count = smooth_coordinators;
+        options.checkpoint_every = 2;
+        options.checkpoint_path = temporary.path() / (name + ".checkpoint");
+        options.progress_path = temporary.path() / (name + ".ndjson");
+        options.certificate_path = temporary.path() / (name + ".cert");
+
+        std::atomic<unsigned> active_callbacks{0};
+        std::atomic<unsigned> maximum_active_callbacks{0};
+        std::map<std::uint64_t,
+                 std::vector<std::pair<std::size_t, std::uint64_t>>>
+            live_levels;
+        std::map<std::uint64_t,
+                 std::vector<std::pair<std::size_t, std::uint64_t>>>
+            report_levels;
+        if (audit_live_levels) {
+            options.sea_level_callback =
+                [&](std::uint64_t index,
+                    const oneshotsea::SearchSeaLevelTiming& level) {
+                    const unsigned active =
+                        active_callbacks.fetch_add(1U) + 1U;
+                    unsigned maximum = maximum_active_callbacks.load();
+                    while (maximum < active &&
+                           !maximum_active_callbacks.compare_exchange_weak(
+                               maximum, active)) {
+                    }
+                    std::this_thread::sleep_for(std::chrono::microseconds(50));
+                    live_levels[index].emplace_back(level.pass, level.ell);
+                    active_callbacks.fetch_sub(1U);
+                };
+        }
+
+        Observation observation;
+        const auto result = oneshotsea::run_search_pipeline(
+            config, smooth, state, options,
+            [&](const oneshotsea::SearchCurveReport& report,
+                const oneshotsea::SearchState&) {
+                observation.indices.push_back(report.global_index);
+                observation.statuses.push_back(report.status);
+                auto& levels = report_levels[report.global_index];
+                for (const auto& level : report.sea_level_timings) {
+                    levels.emplace_back(level.pass, level.ell);
+                }
+            },
+            [](const oneshotsea::MontgomeryCertificate&) { return false; });
+        check(result.curves_processed == 4U &&
+                  result.exhausted_assigned_range &&
+                  !result.verified.has_value(),
+              "four-curve fixture exhausts under rejecting verifier");
+        if (smooth_coordinators == 0U) {
+            check(!result.smooth_batch_coordinator_enabled &&
+                      result.smooth_batch_coordinator_count == 0U &&
+                      result.smooth_batch_cohort_telemetry.empty() &&
+                      result.smooth_batch_telemetry.submitted_requests == 0U,
+                  "zero-coordinator pipeline keeps direct exact-smooth extraction");
+        } else {
+            bool routing_matches =
+                result.smooth_batch_cohort_telemetry.size() ==
+                smooth_coordinators;
+            std::uint64_t submitted_requests = 0U;
+            std::uint64_t completed_requests = 0U;
+            std::uint64_t failed_requests = 0U;
+            std::uint64_t cancelled_requests = 0U;
+            std::uint64_t coordinator_batches = 0U;
+            std::uint64_t successful_scan_chunks = 0U;
+            std::uint64_t submitted_orders = 0U;
+            std::size_t max_queued_requests = 0U;
+            std::size_t max_requests_per_batch = 0U;
+            std::size_t max_orders_per_scan_chunk = 0U;
+            for (std::size_t cohort = 0U;
+                 routing_matches && cohort < smooth_coordinators; ++cohort) {
+                std::uint64_t expected_requests = 0U;
+                for (std::uint64_t index = 0U; index < 4U; ++index) {
+                    expected_requests +=
+                        static_cast<std::uint64_t>(
+                            index % smooth_coordinators == cohort);
+                }
+                routing_matches =
+                    result.smooth_batch_cohort_telemetry[cohort]
+                        .submitted_requests == expected_requests;
+                const auto& telemetry =
+                    result.smooth_batch_cohort_telemetry[cohort];
+                submitted_requests += telemetry.submitted_requests;
+                completed_requests += telemetry.completed_requests;
+                failed_requests += telemetry.failed_requests;
+                cancelled_requests += telemetry.cancelled_requests;
+                coordinator_batches += telemetry.coordinator_batches;
+                successful_scan_chunks +=
+                    telemetry.successful_cache_scan_chunks;
+                submitted_orders += telemetry.submitted_orders;
+                max_queued_requests = std::max(
+                    max_queued_requests, telemetry.max_queued_requests);
+                max_requests_per_batch = std::max(
+                    max_requests_per_batch,
+                    telemetry.max_requests_per_batch);
+                max_orders_per_scan_chunk = std::max(
+                    max_orders_per_scan_chunk,
+                    telemetry.max_orders_per_successful_scan_chunk);
+            }
+            check(result.smooth_batch_coordinator_enabled &&
+                      result.smooth_batch_coordinator_count ==
+                          smooth_coordinators &&
+                      routing_matches &&
+                      result.smooth_batch_telemetry.submitted_requests == 4U &&
+                      result.smooth_batch_telemetry.completed_requests ==
+                          result.smooth_batch_telemetry.submitted_requests &&
+                      result.smooth_batch_telemetry.failed_requests == 0U &&
+                      result.smooth_batch_telemetry.cancelled_requests == 0U &&
+                      result.smooth_batch_telemetry
+                              .successful_cache_scan_chunks != 0U &&
+                      result.smooth_batch_telemetry.submitted_requests ==
+                          submitted_requests &&
+                      result.smooth_batch_telemetry.completed_requests ==
+                          completed_requests &&
+                      result.smooth_batch_telemetry.failed_requests ==
+                          failed_requests &&
+                      result.smooth_batch_telemetry.cancelled_requests ==
+                          cancelled_requests &&
+                      result.smooth_batch_telemetry.coordinator_batches ==
+                          coordinator_batches &&
+                      result.smooth_batch_telemetry
+                              .successful_cache_scan_chunks ==
+                          successful_scan_chunks &&
+                      result.smooth_batch_telemetry.submitted_orders ==
+                          submitted_orders &&
+                      result.smooth_batch_telemetry
+                              .max_queued_requests_in_any_cohort ==
+                          max_queued_requests &&
+                      result.smooth_batch_telemetry
+                              .max_requests_per_batch_in_any_cohort ==
+                          max_requests_per_batch &&
+                      result.smooth_batch_telemetry
+                              .max_orders_per_successful_scan_chunk_in_any_cohort ==
+                          max_orders_per_scan_chunk,
+                  "parallel pipeline reports coordinated exact-smooth scans");
+        }
+        observation.counters = state.counters();
+        observation.next_index = state.next_index();
+        const oneshotsea::SearchState saved =
+            oneshotsea::load_search_checkpoint(options.checkpoint_path,
+                                               identity);
+        check(saved.next_index() == state.next_index() &&
+                  saved.counters() == state.counters(),
+              "parallel coordinator publishes the complete ordered checkpoint");
+        if (audit_live_levels) {
+            check(maximum_active_callbacks.load() == 1U,
+                  "parallel live SEA callbacks are serialized atomically");
+            check(live_levels == report_levels,
+                  "each interleaved live index subsequence stays in SEA order");
+        }
+        return observation;
+    };
+
+    const Observation serial = run(1U, 0U, "serial", false);
+    const Observation direct2 = run(2U, 0U, "direct2", false);
+    const Observation cohort2 = run(2U, 2U, "cohort2", true);
+    const Observation cohort3 = run(3U, 3U, "cohort3", false);
+    const Observation cohort5 = run(5U, 5U, "cohort5", false);
+    for (const Observation* parallel :
+         {&direct2, &cohort2, &cohort3, &cohort5}) {
+        check(parallel->indices ==
+                      std::vector<std::uint64_t>({0, 1, 2, 3}) &&
+                  parallel->indices == serial.indices &&
+                  parallel->statuses == serial.statuses &&
+                  parallel->counters == serial.counters &&
+                  parallel->next_index == serial.next_index,
+              "coordinator cohorts preserve serial report order and outcomes");
+    }
+
+    oneshotsea::SearchState invalid(identity);
+    oneshotsea::SearchPipelineRunOptions invalid_options;
+    invalid_options.curve_threads = 0;
+    bool rejected_zero = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            config, smooth, invalid, invalid_options);
+    } catch (const std::invalid_argument&) {
+        rejected_zero = true;
+    }
+    check(rejected_zero, "zero curve concurrency is rejected");
+
+    oneshotsea::SearchPipelineRunOptions too_many_coordinators;
+    too_many_coordinators.curve_threads = 2U;
+    too_many_coordinators.smooth_coordinator_count = 3U;
+    bool rejected_coordinator_count = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            config, smooth, invalid, too_many_coordinators);
+    } catch (const std::invalid_argument&) {
+        rejected_coordinator_count = true;
+    }
+    check(rejected_coordinator_count,
+          "smooth coordinator pool cannot exceed curve concurrency");
+}
+
+void test_parallel_stop_discards_later_reports() {
+    TemporaryDirectory temporary;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(101, {.thread_count = 1});
+    const std::filesystem::path smooth_cache =
+        temporary.path() / "stop-smooth.cache";
+    smooth.save(smooth_cache);
+    const std::string smooth_sha = oneshotsea::sha256_file(smooth_cache);
+
+    // Index zero is an implementation limit while the already-launched index
+    // one finds a canonical certificate. The coordinator must drain but never
+    // publish or checkpoint the later success across the unchanged cursor.
+    oneshotsea::SearchPipelineConfig limited = small_config();
+    const oneshotsea::SearchIdentity limited_identity =
+        oneshotsea::make_search_identity(
+            limited, {0, 2}, 0, 1, smooth_sha,
+            oneshotsea::sha256_file(limited.canonical_verifier),
+            "parallel-stop-limit-v1");
+    limited.expected_schedule_sha256 = limited_identity.schedule_sha256;
+    limited.expected_smooth_cache_sha256 = smooth_sha;
+    limited.expected_verifier_sha256 =
+        oneshotsea::sha256_file(limited.canonical_verifier);
+    limited.expected_table_manifest_sha256 =
+        limited_identity.table_manifest_sha256;
+    oneshotsea::SearchState limited_state(limited_identity);
+    oneshotsea::SearchPipelineRunOptions limited_options;
+    limited_options.max_curves = 2;
+    limited_options.curve_threads = 2;
+    limited_options.checkpoint_path = temporary.path() / "limit.checkpoint";
+    limited_options.progress_path = temporary.path() / "limit.ndjson";
+    limited_options.certificate_path = temporary.path() / "limit.cert";
+    std::atomic<unsigned> later_verifications{0};
+    std::atomic<bool> saw_later_level{false};
+    limited_options.sea_level_callback =
+        [&](std::uint64_t index,
+            const oneshotsea::SearchSeaLevelTiming&) {
+            if (index == 1U) {
+                saw_later_level = true;
+            }
+        };
+    std::vector<std::uint64_t> limited_reports;
+    const auto limited_result = oneshotsea::run_search_pipeline(
+        limited, smooth, limited_state, limited_options,
+        [&](const oneshotsea::SearchCurveReport& report,
+            const oneshotsea::SearchState&) {
+            limited_reports.push_back(report.global_index);
+        },
+        [&](const oneshotsea::MontgomeryCertificate&) {
+            ++later_verifications;
+            return true;
+        });
+    check(limited_result.curves_processed == 0U &&
+              !limited_result.verified.has_value() &&
+              limited_state.next_index() == 0U &&
+              limited_reports == std::vector<std::uint64_t>{0U} &&
+              saw_later_level.load() && later_verifications.load() == 1U &&
+              !std::filesystem::exists(limited_options.certificate_path),
+          "earlier implementation limit drains and discards later certificate");
+
+    // Conversely, index one wins while the launched index two reaches an
+    // implementation limit. Only the lowest winning index may advance and
+    // publish, regardless of the later report's completion order.
+    oneshotsea::SearchIdentity winning_identity =
+        oneshotsea::make_search_identity(
+            limited, {1, 3}, 0, 1, smooth_sha,
+            oneshotsea::sha256_file(limited.canonical_verifier),
+            "parallel-stop-certificate-v1");
+    limited.expected_schedule_sha256 = winning_identity.schedule_sha256;
+    limited.expected_smooth_cache_sha256 = smooth_sha;
+    limited.expected_verifier_sha256 =
+        oneshotsea::sha256_file(limited.canonical_verifier);
+    limited.expected_table_manifest_sha256 =
+        winning_identity.table_manifest_sha256;
+    oneshotsea::SearchState winning_state(winning_identity);
+    oneshotsea::SearchPipelineRunOptions winning_options;
+    winning_options.max_curves = 2;
+    winning_options.curve_threads = 2;
+    winning_options.checkpoint_path = temporary.path() / "winning.checkpoint";
+    winning_options.progress_path = temporary.path() / "winning.ndjson";
+    winning_options.certificate_path = temporary.path() / "winning.cert";
+    std::atomic<bool> saw_discarded_level{false};
+    winning_options.sea_level_callback =
+        [&](std::uint64_t index,
+            const oneshotsea::SearchSeaLevelTiming&) {
+            if (index == 2U) {
+                saw_discarded_level = true;
+            }
+        };
+    std::vector<std::uint64_t> winning_reports;
+    const auto winning_result = oneshotsea::run_search_pipeline(
+        limited, smooth, winning_state, winning_options,
+        [&](const oneshotsea::SearchCurveReport& report,
+            const oneshotsea::SearchState&) {
+            winning_reports.push_back(report.global_index);
+        },
+        [](const oneshotsea::MontgomeryCertificate&) { return true; });
+    check(winning_result.curves_processed == 1U &&
+              winning_result.verified.has_value() &&
+              winning_result.verified->global_index == 1U &&
+              winning_state.next_index() == 2U &&
+              winning_reports == std::vector<std::uint64_t>{1U} &&
+              saw_discarded_level.load() &&
+              std::filesystem::is_regular_file(
+                  winning_options.certificate_path),
+          "earlier certificate drains and discards later implementation report");
 }
 
 void test_sea_level_limit_does_not_advance_cursor() {
@@ -229,6 +784,8 @@ void test_sea_level_limit_does_not_advance_cursor() {
             limited, {1, 2}, 0, 1, smooth_sha, verifier_sha,
             "level-limit-test-v1");
     limited.expected_schedule_sha256 = limited_identity.schedule_sha256;
+    limited.expected_smooth_cache_sha256 = smooth_sha;
+    limited.expected_verifier_sha256 = verifier_sha;
     limited.expected_table_manifest_sha256 =
         limited_identity.table_manifest_sha256;
     oneshotsea::SearchState limited_state(limited_identity);
@@ -278,12 +835,165 @@ void test_sea_level_limit_does_not_advance_cursor() {
               "progress preserves implementation-limit evidence and cursor");
     }
 
+    oneshotsea::SearchPipelineConfig skipping = limited;
+    skipping.skip_incomplete_curves = true;
+    const oneshotsea::SearchIdentity skipping_identity =
+        oneshotsea::make_search_identity(
+            skipping, {1, 2}, 0, 1, smooth_sha, verifier_sha,
+            "level-limit-skip-test-v1");
+    check(skipping_identity.schedule_sha256 !=
+              limited_identity.schedule_sha256,
+          "incomplete-skip policy is bound into schedule identity");
+    skipping.expected_schedule_sha256 = skipping_identity.schedule_sha256;
+    skipping.expected_smooth_cache_sha256 = smooth_sha;
+    skipping.expected_verifier_sha256 = verifier_sha;
+    skipping.expected_table_manifest_sha256 =
+        skipping_identity.table_manifest_sha256;
+    oneshotsea::SearchState skipping_state(skipping_identity);
+    oneshotsea::SearchPipelineRunOptions skipping_options;
+    skipping_options.max_curves = 1;
+    skipping_options.checkpoint_path = temporary.path() / "skipping.json";
+    skipping_options.progress_path = temporary.path() / "skipping.ndjson";
+    skipping_options.certificate_path = temporary.path() / "skipping.cert";
+    oneshotsea::SearchCurveStatus skipping_status =
+        oneshotsea::SearchCurveStatus::sea_level_limit;
+    const oneshotsea::SearchPipelineRunResult skipping_result =
+        oneshotsea::run_search_pipeline(
+            skipping, smooth, skipping_state, skipping_options,
+            [&](const oneshotsea::SearchCurveReport& report,
+                const oneshotsea::SearchState& current) {
+                skipping_status = report.status;
+                check(current.next_index() == 2U,
+                      "heuristic incomplete skip advances cursor");
+            });
+    check(skipping_result.curves_processed == 1U &&
+              skipping_status ==
+                  oneshotsea::SearchCurveStatus::heuristic_level_limit_skip &&
+              skipping_state.next_index() == 2U &&
+              skipping_state.counters().curves_attempted == 1U &&
+              skipping_state.counters().rejected_heuristic == 1U &&
+              skipping_state.counters().rejected_sound_early_abort == 0U,
+          "opt-in level-limit skip is counted only as heuristic rejection");
+    {
+        std::ifstream progress(skipping_options.progress_path);
+        std::string event;
+        std::getline(progress, event);
+        check(event.find("\"status\":\"heuristic_level_limit_skip\"") !=
+                      std::string::npos &&
+                  event.find("\"heuristic\":true") !=
+                      std::string::npos &&
+                  event.find("\"outcome_class\":\"heuristic_rejection\"") !=
+                      std::string::npos &&
+                  event.find("\"next_index\":\"2\"") !=
+                      std::string::npos,
+              "progress explicitly labels incomplete heuristic skip");
+    }
+
+    oneshotsea::SearchPipelineConfig second_pass = small_config();
+    second_pass.skip_incomplete_curves = true;
+    const oneshotsea::SearchIdentity second_pass_identity =
+        oneshotsea::make_search_identity(
+            second_pass, {0, 1}, 0, 1, smooth_sha, verifier_sha,
+            "second-pass-skip-test-v1");
+    second_pass.expected_schedule_sha256 =
+        second_pass_identity.schedule_sha256;
+    second_pass.expected_smooth_cache_sha256 = smooth_sha;
+    second_pass.expected_verifier_sha256 = verifier_sha;
+    second_pass.expected_table_manifest_sha256 =
+        second_pass_identity.table_manifest_sha256;
+    oneshotsea::SearchState second_pass_state(second_pass_identity);
+    oneshotsea::SearchPipelineRunOptions second_pass_options;
+    second_pass_options.max_curves = 1;
+    second_pass_options.checkpoint_path = temporary.path() / "second-pass.json";
+    second_pass_options.progress_path = temporary.path() / "second-pass.ndjson";
+    second_pass_options.certificate_path = temporary.path() / "second-pass.cert";
+    bool second_pass_reached_smoothness = false;
+    const auto second_pass_result = oneshotsea::run_search_pipeline(
+        second_pass, smooth, second_pass_state, second_pass_options,
+        [&](const oneshotsea::SearchCurveReport& report,
+            const oneshotsea::SearchState&) {
+            second_pass_reached_smoothness =
+                report.outcome.reached_smoothness_testing;
+        });
+    check(second_pass_result.curves_processed == 1U &&
+              second_pass_state.counters().rejected_heuristic == 1U &&
+              second_pass_state.counters().candidates_reaching_smoothness ==
+                  1U &&
+              second_pass_reached_smoothness,
+          "second-pass heuristic skip preserves completed work milestones");
+
+    oneshotsea::SearchPipelineConfig mutated = small_config();
+    const oneshotsea::SearchIdentity sound_identity =
+        oneshotsea::make_search_identity(
+            mutated, {0, 1}, 0, 1, smooth_sha, verifier_sha,
+            "mutated-schedule-test-v1");
+    mutated.expected_schedule_sha256 = sound_identity.schedule_sha256;
+    mutated.expected_smooth_cache_sha256 = smooth_sha;
+    mutated.expected_verifier_sha256 = verifier_sha;
+    mutated.expected_table_manifest_sha256 =
+        sound_identity.table_manifest_sha256;
+    mutated.skip_incomplete_curves = true;
+    oneshotsea::SearchState mutated_state(sound_identity);
+    oneshotsea::SearchPipelineRunOptions mutated_options;
+    mutated_options.max_curves = 1;
+    mutated_options.checkpoint_path = temporary.path() / "mutated.json";
+    mutated_options.progress_path = temporary.path() / "mutated.ndjson";
+    mutated_options.certificate_path = temporary.path() / "mutated.cert";
+    bool mutation_rejected = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            mutated, smooth, mutated_state, mutated_options);
+    } catch (const std::invalid_argument&) {
+        mutation_rejected = true;
+    }
+    check(mutation_rejected && mutated_state.next_index() == 0U,
+          "post-identity semantic mutation is rejected before processing");
+
+    oneshotsea::SearchPipelineConfig fallback_mutated = small_config();
+    fallback_mutated.expected_schedule_sha256 =
+        sound_identity.schedule_sha256;
+    fallback_mutated.expected_smooth_cache_sha256 = smooth_sha;
+    fallback_mutated.expected_verifier_sha256 = verifier_sha;
+    fallback_mutated.expected_table_manifest_sha256 =
+        sound_identity.table_manifest_sha256;
+    fallback_mutated.enable_schoof_fallback = true;
+    oneshotsea::SearchState fallback_mutated_state(sound_identity);
+    bool fallback_mutation_rejected = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            fallback_mutated, smooth, fallback_mutated_state,
+            mutated_options);
+    } catch (const std::invalid_argument&) {
+        fallback_mutation_rejected = true;
+    }
+    check(fallback_mutation_rejected &&
+              fallback_mutated_state.next_index() == 0U,
+          "post-identity Schoof-fallback mutation is rejected before processing");
+
+    oneshotsea::SearchPipelineConfig unbound = small_config();
+    const oneshotsea::SearchIdentity unbound_identity =
+        oneshotsea::make_search_identity(
+            unbound, {0, 1}, 0, 1, smooth_sha, verifier_sha,
+            "unbound-schedule-test-v1");
+    oneshotsea::SearchState unbound_state(unbound_identity);
+    bool unbound_rejected = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            unbound, smooth, unbound_state, mutated_options);
+    } catch (const std::invalid_argument&) {
+        unbound_rejected = true;
+    }
+    check(unbound_rejected && unbound_state.next_index() == 0U,
+          "search execution rejects missing authenticated identities");
+
     oneshotsea::SearchPipelineConfig sufficient = small_config();
     const oneshotsea::SearchIdentity sufficient_identity =
         oneshotsea::make_search_identity(
             sufficient, {1, 2}, 0, 1, smooth_sha, verifier_sha,
             "level-limit-test-v1");
     sufficient.expected_schedule_sha256 = sufficient_identity.schedule_sha256;
+    sufficient.expected_smooth_cache_sha256 = smooth_sha;
+    sufficient.expected_verifier_sha256 = verifier_sha;
     sufficient.expected_table_manifest_sha256 =
         sufficient_identity.table_manifest_sha256;
     oneshotsea::SearchState sufficient_state(sufficient_identity);
@@ -315,6 +1025,7 @@ void test_sea_level_limit_does_not_advance_cursor() {
 }
 
 void test_worker_partition_is_identity_bound() {
+    TemporaryDirectory temporary;
     oneshotsea::SearchPipelineConfig config = small_config();
     config.sea_threads = 1;
     const std::string digest(64U, 'a');
@@ -330,6 +1041,385 @@ void test_worker_partition_is_identity_bound() {
           "pipeline identity binds schedule and table content");
     check(differently_threaded == identity,
           "SEA thread limit is a resumable resource setting, not an identity");
+
+    const std::filesystem::path canonical_schedule =
+        temporary.path() / "canonical-default-schedule.txt";
+    {
+        std::ostringstream canonical;
+        canonical << "oneshotsea.search-schedule.v1\n"
+                  << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "trace_prior_policy="
+                  << "weber-full-e2-mod4-if-validated-"
+                     "x1-selected-group-divisor-point4-p5mod8-176-v2\n"
+                  << "weber_source_lift_policy="
+                     "generator-retained-unramified-singleton-v1\n"
+                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "rare_schoof_fallback=disabled\n"
+                  << "heuristic_rejection=disabled\n"
+                  << "prime=" << config.prime << '\n'
+                  << "max_level=" << config.max_level << '\n'
+                  << "early_trace_cap=" << config.early_trace_cap << '\n'
+                  << "assembly_attempts=" << config.assembly_attempts << '\n'
+                  << "certificate_seed=" << config.certificate_seed << '\n'
+                  << "python_executable_path=" << config.python_executable
+                  << '\n'
+                  << "python_executable_sha256="
+                  << oneshotsea::sha256_file(config.python_executable) << '\n'
+                  << "smooth_cache_sha256=" << digest << '\n'
+                  << "canonical_verifier_sha256=" << digest << '\n';
+        std::ofstream output(canonical_schedule, std::ios::binary);
+        output << canonical.str();
+    }
+    check(identity.schedule_sha256 ==
+              oneshotsea::sha256_file(canonical_schedule),
+          "search schedule identity binds trace-prior and known-lift policy versions");
+
+    oneshotsea::SearchPipelineConfig fallback_config = config;
+    fallback_config.enable_schoof_fallback = true;
+    const auto fallback_identity = oneshotsea::make_search_identity(
+        fallback_config, {10, 21}, 2, 3, digest, digest,
+        "pipeline-test-v1");
+    check(fallback_identity.schedule_sha256 != identity.schedule_sha256,
+          "fixed Schoof fallback policy is bound into schedule identity");
+
+    const std::filesystem::path pre_source_lift_schedule =
+        temporary.path() / "pre-source-lift-schedule.txt";
+    {
+        std::ostringstream canonical;
+        canonical << "oneshotsea.search-schedule.v1\n"
+                  << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "trace_prior_policy="
+                  << "weber-full-e2-mod4-if-validated-"
+                     "x1-selected-group-divisor-point4-p5mod8-176-v2\n"
+                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "heuristic_rejection=disabled\n"
+                  << "prime=" << config.prime << '\n'
+                  << "max_level=" << config.max_level << '\n'
+                  << "early_trace_cap=" << config.early_trace_cap << '\n'
+                  << "assembly_attempts=" << config.assembly_attempts << '\n'
+                  << "certificate_seed=" << config.certificate_seed << '\n'
+                  << "python_executable_path=" << config.python_executable
+                  << '\n'
+                  << "python_executable_sha256="
+                  << oneshotsea::sha256_file(config.python_executable) << '\n'
+                  << "smooth_cache_sha256=" << digest << '\n'
+                  << "canonical_verifier_sha256=" << digest << '\n';
+        std::ofstream output(pre_source_lift_schedule, std::ios::binary);
+        output << canonical.str();
+    }
+    oneshotsea::SearchIdentity pre_source_lift_identity = identity;
+    pre_source_lift_identity.schedule_sha256 =
+        oneshotsea::sha256_file(pre_source_lift_schedule);
+    check(pre_source_lift_identity.schedule_sha256 != identity.schedule_sha256,
+          "known-source policy changes the production schedule hash");
+    const std::filesystem::path pre_source_lift_checkpoint =
+        temporary.path() / "pre-source-lift.json";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(pre_source_lift_identity),
+        pre_source_lift_checkpoint);
+    bool pre_source_lift_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(
+            pre_source_lift_checkpoint, identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        pre_source_lift_rejected = true;
+    }
+    check(pre_source_lift_rejected,
+          "checkpoint rejects the pre-known-source schedule identity");
+
+    const std::filesystem::path pre_point_four_176_schedule =
+        temporary.path() / "pre-point-four-176-schedule.txt";
+    {
+        std::ostringstream canonical;
+        canonical << "oneshotsea.search-schedule.v1\n"
+                  << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "trace_prior_policy="
+                  << "weber-full-e2-mod4-if-validated-"
+                     "x1-selected-group-divisor-v1\n"
+                  << "weber_source_lift_policy="
+                     "generator-retained-unramified-singleton-v1\n"
+                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "heuristic_rejection=disabled\n"
+                  << "prime=" << config.prime << '\n'
+                  << "max_level=" << config.max_level << '\n'
+                  << "early_trace_cap=" << config.early_trace_cap << '\n'
+                  << "assembly_attempts=" << config.assembly_attempts << '\n'
+                  << "certificate_seed=" << config.certificate_seed << '\n'
+                  << "python_executable_path=" << config.python_executable
+                  << '\n'
+                  << "python_executable_sha256="
+                  << oneshotsea::sha256_file(config.python_executable) << '\n'
+                  << "smooth_cache_sha256=" << digest << '\n'
+                  << "canonical_verifier_sha256=" << digest << '\n';
+        std::ofstream output(pre_point_four_176_schedule, std::ios::binary);
+        output << canonical.str();
+    }
+    oneshotsea::SearchIdentity pre_point_four_176_identity = identity;
+    pre_point_four_176_identity.schedule_sha256 =
+        oneshotsea::sha256_file(pre_point_four_176_schedule);
+    check(pre_point_four_176_identity.schedule_sha256 !=
+              identity.schedule_sha256,
+          "point-four 176 prior changes the production schedule hash");
+    const std::filesystem::path pre_point_four_176_checkpoint =
+        temporary.path() / "pre-point-four-176.json";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(pre_point_four_176_identity),
+        pre_point_four_176_checkpoint);
+    bool pre_point_four_176_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(
+            pre_point_four_176_checkpoint, identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        pre_point_four_176_rejected = true;
+    }
+    check(pre_point_four_176_rejected,
+          "checkpoint rejects the pre-point-four-176 schedule identity");
+
+    const std::filesystem::path pre_policy_schedule =
+        temporary.path() / "pre-trace-prior-schedule.txt";
+    {
+        std::ostringstream canonical;
+        canonical << "oneshotsea.search-schedule.v1\n"
+                  << "curve_generator=weber-f-montgomery-filtered-v2\n"
+                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "heuristic_rejection=disabled\n"
+                  << "prime=" << config.prime << '\n'
+                  << "max_level=" << config.max_level << '\n'
+                  << "early_trace_cap=" << config.early_trace_cap << '\n'
+                  << "assembly_attempts=" << config.assembly_attempts << '\n'
+                  << "certificate_seed=" << config.certificate_seed << '\n'
+                  << "python_executable_path=" << config.python_executable
+                  << '\n'
+                  << "python_executable_sha256="
+                  << oneshotsea::sha256_file(config.python_executable) << '\n'
+                  << "smooth_cache_sha256=" << digest << '\n'
+                  << "canonical_verifier_sha256=" << digest << '\n';
+        std::ofstream output(pre_policy_schedule, std::ios::binary);
+        output << canonical.str();
+    }
+    oneshotsea::SearchIdentity pre_policy_identity = identity;
+    pre_policy_identity.schedule_sha256 =
+        oneshotsea::sha256_file(pre_policy_schedule);
+    check(pre_policy_identity.schedule_sha256 != identity.schedule_sha256,
+          "trace-prior policy changes the production schedule hash");
+    const std::filesystem::path pre_policy_checkpoint =
+        temporary.path() / "pre-trace-prior.json";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(pre_policy_identity),
+        pre_policy_checkpoint);
+    bool pre_policy_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(
+            pre_policy_checkpoint, identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        pre_policy_rejected = true;
+    }
+    check(pre_policy_rejected,
+          "checkpoint rejects the pre-trace-prior schedule identity");
+
+    oneshotsea::SearchPipelineConfig x1_config = small_config();
+    x1_config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+    const auto x1_identity = oneshotsea::make_search_identity(
+        x1_config, {10, 21}, 2, 3, digest, digest, "pipeline-test-v1");
+    check(x1_identity.range == identity.range &&
+              x1_identity.schedule_sha256 != identity.schedule_sha256,
+          "curve family changes schedule identity without changing partition");
+
+    x1_config.x1_require_point_four = true;
+    const auto x1_point_four_identity = oneshotsea::make_search_identity(
+        x1_config, {10, 21}, 2, 3, digest, digest, "pipeline-test-v1");
+    check(x1_point_four_identity.range == identity.range &&
+              x1_point_four_identity.schedule_sha256 !=
+                  x1_identity.schedule_sha256,
+          "X1 point-four requirement changes schedule identity only");
+
+    oneshotsea::SearchPipelineConfig x127_config = small_config();
+    x127_config.curve_family = oneshotsea::SearchCurveFamily::x1_27;
+    x127_config.x1_require_point_four = true;
+    const auto x127_identity = oneshotsea::make_search_identity(
+        x127_config, {10, 21}, 2, 3, digest, digest, "pipeline-test-v1");
+    check(x127_identity.range == identity.range &&
+              x127_identity.schedule_sha256 !=
+                  x1_point_four_identity.schedule_sha256,
+          "X1(27) generator and formula identity bind the schedule");
+
+    const std::filesystem::path checkpoint = temporary.path() / "weber.json";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(identity), checkpoint);
+    bool mismatch_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(checkpoint, x1_identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        mismatch_rejected = true;
+    }
+    check(mismatch_rejected,
+          "checkpoint rejects a mismatched curve-family schedule");
+
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(x1_point_four_identity), checkpoint);
+    bool x127_mismatch_rejected = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(checkpoint, x127_identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        x127_mismatch_rejected = true;
+    }
+    check(x127_mismatch_rejected,
+          "checkpoint rejects X1(11)/X1(27) schedule substitution");
+}
+
+void test_x1_curve_family_enters_search_pipeline() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.prime = 157;
+    config.seed = UINT64_C(0x7821058d55e0f265);
+    config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+    config.x1_require_point_four = true;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto first = oneshotsea::process_search_curve(
+        config, smooth, 7,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto repeat = oneshotsea::process_search_curve(
+        config, smooth, 7,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(first.global_index == 7U &&
+              first.rejected_generator_samples ==
+                  repeat.rejected_generator_samples &&
+              first.status == repeat.status &&
+              first.sea_levels == repeat.sea_levels &&
+              first.initial_trace_count == repeat.initial_trace_count,
+          "X1 family feeds the common pipeline deterministically");
+    const auto twist_sample = oneshotsea::deterministic_x1_11_search_curve(
+        config.prime, config.seed, 7, true);
+    check(twist_sample.sample->selected_side ==
+              oneshotsea::X111CanonicalSide::twist,
+          "pinned X1 fixture exercises selected-twist semantics");
+    const mpz_class twist_fixture_trace =
+        config.prime + 1 - oneshotsea::count_points_bruteforce(
+                               twist_sample.sample->pair.curve);
+    check(first.trace_prior_modulus ==
+              std::optional<std::uint64_t>(176U) &&
+              first.trace_prior_residue ==
+                  std::optional<std::uint64_t>(18U) &&
+              first.exact_trace ==
+                  std::optional<mpz_class>(twist_fixture_trace) &&
+              twist_fixture_trace == 18 && first.sea_levels == 0U,
+          "selected-twist divisor becomes the negated curve-trace prior");
+
+    const std::string digest(64U, 'b');
+    const auto identity = oneshotsea::make_search_identity(
+        config, {7, 8}, 0, 1, digest, digest, "pipeline-test-v1");
+    const std::string report_json = oneshotsea::search_curve_report_json(
+        first, oneshotsea::SearchState(identity));
+    check(report_json.find(
+              "\"trace_prior\":{\"modulus\":\"176\",\"residue\":\"18\"}") !=
+              std::string::npos,
+          "production curve telemetry exposes the applied exact prior");
+
+    oneshotsea::SearchPipelineConfig curve_side_config = small_config();
+    curve_side_config.prime = 397;
+    curve_side_config.seed = UINT64_C(0x7821058d55e0f265);
+    curve_side_config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+    const oneshotsea::ExactSmoothEngine curve_side_smooth =
+        oneshotsea::ExactSmoothEngine::build(curve_side_config.prime);
+    const auto curve_side_report = oneshotsea::process_search_curve(
+        curve_side_config, curve_side_smooth, 0,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto curve_sample = oneshotsea::deterministic_x1_11_search_curve(
+        curve_side_config.prime, curve_side_config.seed, 0, false);
+    const mpz_class curve_fixture_trace =
+        curve_side_config.prime + 1 - oneshotsea::count_points_bruteforce(
+                                          curve_sample.sample->pair.curve);
+    check(curve_sample.sample->selected_side ==
+              oneshotsea::X111CanonicalSide::curve &&
+              curve_side_report.trace_prior_modulus ==
+                  std::optional<std::uint64_t>(44U) &&
+              curve_side_report.trace_prior_residue ==
+                  std::optional<std::uint64_t>(2U) &&
+              curve_side_report.exact_trace ==
+                  std::optional<mpz_class>(curve_fixture_trace) &&
+              curve_side_report.sea_levels == 0U,
+          "selected-curve divisor keeps the positive curve-trace prior");
+    check(std::none_of(
+              curve_side_report.sea_level_timings.begin(),
+              curve_side_report.sea_level_timings.end(),
+              [](const oneshotsea::SearchSeaLevelTiming& level) {
+                  return level.ell == 11U;
+              }),
+          "X1 group-divisor prior skips SEA level eleven");
+}
+
+void test_x1_27_curve_family_enters_search_pipeline() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.prime = 461;
+    config.seed = UINT64_C(202607300000);
+    config.curve_family = oneshotsea::SearchCurveFamily::x1_27;
+    config.x1_require_point_four = true;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto report = oneshotsea::process_search_curve(
+        config, smooth, 0,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto generated = oneshotsea::deterministic_x1_27_search_curve(
+        config.prime, config.seed, 0, true);
+    const auto& sample = *generated.sample;
+    const mpz_class curve_trace =
+        config.prime + 1 -
+        oneshotsea::count_points_bruteforce(sample.pair.curve);
+    const std::uint64_t p_plus_one =
+        (mpz_fdiv_ui(config.prime.get_mpz_t(), 432U) + 1U) % 432U;
+    const std::uint64_t expected_residue =
+        sample.selected_side == oneshotsea::X127CanonicalSide::curve
+            ? p_plus_one
+            : (432U - p_plus_one) % 432U;
+
+    check(sample.group_divisor == 432U &&
+              report.trace_prior_modulus ==
+                  std::optional<std::uint64_t>(432U) &&
+              report.trace_prior_residue ==
+                  std::optional<std::uint64_t>(expected_residue) &&
+              report.exact_trace == std::optional<mpz_class>(curve_trace) &&
+              report.sea_levels == 0U,
+          "X1(27) point-four p=5 mod 8 divisor enters production trace prior");
+}
+
+void test_known_weber_source_lift_pipeline_determinism() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.early_trace_cap = 1;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto first = oneshotsea::process_search_curve(
+        config, smooth, 1,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto repeat = oneshotsea::process_search_curve(
+        config, smooth, 1,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(first.status == repeat.status &&
+              first.sea_passes == repeat.sea_passes &&
+              first.sea_levels == repeat.sea_levels &&
+              first.exact_sea_levels == repeat.exact_sea_levels &&
+              first.initial_trace_count == repeat.initial_trace_count &&
+              first.exact_trace == repeat.exact_trace &&
+              first.sea_level_timings.size() ==
+                  repeat.sea_level_timings.size(),
+          "known Weber source production path is deterministic");
+    check(!first.sea_level_timings.empty(),
+          "known Weber source pipeline fixture exercises SEA levels");
+    for (std::size_t index = 0; index < first.sea_level_timings.size();
+         ++index) {
+        const auto& left = first.sea_level_timings[index];
+        const auto& right = repeat.sea_level_timings[index];
+        check(left.pass == right.pass && left.ell == right.ell &&
+                  left.exact == right.exact &&
+                  left.trace_residue == right.trace_residue &&
+                  left.exact_modulus == right.exact_modulus &&
+                  left.constraint_modulus == right.constraint_modulus &&
+                  left.compatible_source_lifts == 1U &&
+                  right.compatible_source_lifts == 1U,
+              "known Weber singleton preserves deterministic per-level state");
+    }
 }
 
 void test_bounded_early_screen_default() {
@@ -375,12 +1465,21 @@ void test_verifier_runtime_failure_is_not_a_rejection() {
 int main() {
     try {
         test_sha256_fixtures();
+        test_weber_table_authentication();
         test_non_python_success_program_is_rejected();
         test_verifier_runtime_failure_is_not_a_rejection();
         test_bounded_early_screen_default();
         test_worker_partition_is_identity_bound();
+        test_x1_curve_family_enters_search_pipeline();
+        test_x1_27_curve_family_enters_search_pipeline();
+        test_known_weber_source_lift_pipeline_determinism();
         test_sea_level_limit_does_not_advance_cursor();
+        test_parallel_stop_discards_later_reports();
+        test_parallel_curve_ordering_and_shared_checkpoint();
         test_small_prime_resume_and_canonical_verification();
+        test_mismatched_smooth_coordinator_fails_before_sea();
+        test_pool_telemetry_merge_checks_overflow_transactionally();
+        test_search_uses_retained_schoof_fallback_without_second_sea_pass();
         std::cout << "search pipeline tests passed\n";
         return 0;
     } catch (const std::exception& error) {

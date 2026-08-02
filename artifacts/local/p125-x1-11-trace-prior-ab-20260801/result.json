@@ -1,0 +1,159 @@
+{
+  "schema": "oneshotsea.p125-x1-11-trace-prior-ab.v1",
+  "date": "2026-08-01",
+  "classification": "bounded same-curve, different-build trace-prior A/B; benchmark-only; zero certificates; no production-cursor advancement",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bit_length": 416,
+    "seed": "202607300000",
+    "curve_family": "x1-11",
+    "x1_require_point_four": true,
+    "half_open_index_range": "[12,22)",
+    "indices": [12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+    "observations_per_run": 10
+  },
+  "control": {
+    "same_host": true,
+    "same_deterministic_curves": true,
+    "same_seed_indices_family_and_point_four_filter": true,
+    "same_curve_threads": 10,
+    "same_sea_threads_per_curve": 1,
+    "same_smooth_threads_per_curve": 1,
+    "same_smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "same_table_set_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "same_verifier_sha256": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+    "same_trace_cap": 64,
+    "same_max_level": 401,
+    "same_smooth_max_batch": 128,
+    "same_smooth_root_auxiliary_bytes": 134217728,
+    "same_smooth_build_segment_span": 500000000,
+    "not_same_binary": true,
+    "note": "The raw search-start records authenticate the common effective resources and identities. max_level and checkpoint interval come from the audited bounded invocation because search-start does not emit those two values."
+  },
+  "implementation_identities": {
+    "baseline": {
+      "git_commit": "4d0df939c38d225da6e86020968e370b61920798",
+      "git_subject": "Accelerate SEA and add X1(11) search",
+      "binary_sha256": "1ab2ffa06dff5970955675814c2cd5198dee4150476397e83fc5c208eee09cf2",
+      "build_id": "git:4d0df939c38d225da6e86020968e370b61920798+binary-sha256:1ab2ffa06dff5970955675814c2cd5198dee4150476397e83fc5c208eee09cf2",
+      "schedule_sha256": "d81c3f2a0b52093a61795dbef41b4e766cce747d860c1e907c9886bf8cdabec3"
+    },
+    "trace_prior": {
+      "git_commit": "8c1605f0fd702260528915bde3ef52c8043acd4c",
+      "git_subject": "Seed SEA with exact family trace priors",
+      "binary_sha256": "feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa",
+      "build_id": "git:8c1605f0fd702260528915bde3ef52c8043acd4c+binary-sha256:feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa",
+      "schedule_sha256": "8a7b2af7e867ba662aabf014c18a45a510f711be878e20765974b2a4f5962ce8"
+    }
+  },
+  "raw_outputs": {
+    "retention_note": "Raw outputs are host-local /tmp captures and are intentionally not checked in. Paths, byte sizes, line counts, SHA-256 digests, and checkpoint CRC64 values pin the captures.",
+    "baseline": {
+      "checkpoint": {"path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/checkpoint.json", "bytes": 927, "lines": 1, "sha256": "5a4ecbc7ab90ebc020926d79c3c277e62ae05718a7a7012cd2f73327b6bf58d6", "crc64_ecma": "190b268fa43e86bb"},
+      "progress": {"path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/progress.ndjson", "bytes": 458866, "lines": 10, "sha256": "c32d2964cc80104b5d9430c1de699995f75bbff427bdea9cf6749c10ab75dcb9"},
+      "run_log": {"path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/run.log", "bytes": 937210, "lines": 611, "sha256": "06414c00067975ce1aeed1065b69790c8699ca08c6a2e7e33f8470fe1b0add48"}
+    },
+    "trace_prior": {
+      "checkpoint": {"path_at_capture": "/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/checkpoint.json", "bytes": 927, "lines": 1, "sha256": "b725c26a8b1b699916a205ac3e6d01dda2d21b6452229dc59b157fd3b379f9f1", "crc64_ecma": "8e574701502c80ea"},
+      "progress": {"path_at_capture": "/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/progress.ndjson", "bytes": 447438, "lines": 10, "sha256": "b97f7a1a7f80329386ec42c0a8e146bf5bb6c2c8b12a1c212668c63f0d15e160"},
+      "run_log": {"path_at_capture": "/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/run.log", "bytes": 912898, "lines": 595, "sha256": "3c7664d015f4273d71a3d3412392a934c9d0d01a59e058bed9aa6522c19dc768"}
+    }
+  },
+  "runs": {
+    "baseline": {
+      "invocation_time_seconds": {"real": 294.57, "user": 1618.52, "sys": 4.94},
+      "aggregate_per_curve_timings_us": {"generation": 22386355, "sea": 1217422984, "smoothness": 327610040, "candidate": 0, "assembly": 0, "verifier": 0, "total": 1567419428},
+      "sea_levels": {"total": 597, "mean": 59.7, "exact": 315, "atkin": 11, "ell_11": 10},
+      "initial_trace_count": {"total": 43, "mean": 4.3},
+      "reported_peak_rss_bytes": 6409568256,
+      "reported_peak_rss_gib": 5.969376,
+      "full_point_counts": 3,
+      "sound_smoothness_rejections": 10,
+      "certificates_found": 0,
+      "next_index": 22,
+      "range_exhausted": true
+    },
+    "trace_prior": {
+      "invocation_time_seconds": {"real": 272.19, "user": 1727.19, "sys": 5.01},
+      "aggregate_per_curve_timings_us": {"generation": 22536363, "sea": 1186395751, "smoothness": 469073401, "candidate": 0, "assembly": 0, "verifier": 0, "total": 1678005564},
+      "sea_levels": {"total": 581, "mean": 58.1, "exact": 301, "atkin": 11, "ell_11": 0},
+      "initial_trace_count": {"total": 97, "mean": 9.7},
+      "reported_peak_rss_bytes": 6659440640,
+      "reported_peak_rss_gib": 6.202087,
+      "full_point_counts": 5,
+      "sound_smoothness_rejections": 10,
+      "certificates_found": 0,
+      "next_index": 22,
+      "range_exhausted": true
+    }
+  },
+  "per_curve": [
+    {"index":12,"generator_rejections":87,"baseline":{"generation_us":1779298,"sea_us":106234908,"smoothness_us":67838099,"total_us":175852309,"sea_levels":60,"exact_sea_levels":32,"atkin_sea_levels":1,"initial_trace_count":14,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":82},"generation_us":1778249,"sea_us":106141721,"smoothness_us":26851978,"total_us":134771951,"sea_levels":59,"exact_sea_levels":31,"atkin_sea_levels":1,"initial_trace_count":2,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"}},
+    {"index":13,"generator_rejections":148,"baseline":{"generation_us":3281903,"sea_us":94935152,"smoothness_us":20680561,"total_us":118897621,"sea_levels":55,"exact_sea_levels":31,"atkin_sea_levels":2,"initial_trace_count":1,"trace":"567016778891909917705145656495221226416994076949916870726764786","full_point_count":true,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":82},"generation_us":3234612,"sea_us":88722721,"smoothness_us":95343261,"total_us":187300598,"sea_levels":53,"exact_sea_levels":29,"atkin_sea_levels":2,"initial_trace_count":23,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"}},
+    {"index":14,"generator_rejections":27,"baseline":{"generation_us":774032,"sea_us":101234576,"smoothness_us":34567865,"total_us":136576478,"sea_levels":58,"exact_sea_levels":33,"atkin_sea_levels":0,"initial_trace_count":3,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":82},"generation_us":795814,"sea_us":100857668,"smoothness_us":20480178,"total_us":122133664,"sea_levels":57,"exact_sea_levels":32,"atkin_sea_levels":0,"initial_trace_count":1,"trace":"-7952673749351051315126464519955208459106635488982411504606318","full_point_count":true,"status":"sound_smoothness_reject"}},
+    {"index":15,"generator_rejections":47,"baseline":{"generation_us":1238575,"sea_us":130565123,"smoothness_us":17643595,"total_us":149447298,"sea_levels":64,"exact_sea_levels":31,"atkin_sea_levels":2,"initial_trace_count":1,"trace":"-230860316762056466823182699231398486004465136514916283324300850","full_point_count":true,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":6},"generation_us":1234523,"sea_us":120547704,"smoothness_us":84233553,"total_us":206015786,"sea_levels":62,"exact_sea_levels":29,"atkin_sea_levels":2,"initial_trace_count":23,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"}},
+    {"index":16,"generator_rejections":308,"baseline":{"generation_us":6388983,"sea_us":102403725,"smoothness_us":33587561,"total_us":142380273,"sea_levels":58,"exact_sea_levels":31,"atkin_sea_levels":2,"initial_trace_count":3,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":6},"generation_us":6422718,"sea_us":102542390,"smoothness_us":19855668,"total_us":128820783,"sea_levels":57,"exact_sea_levels":30,"atkin_sea_levels":2,"initial_trace_count":1,"trace":"-531585336259108088228571380022701927236407943933387949771950866","full_point_count":true,"status":"sound_smoothness_reject"}},
+    {"index":17,"generator_rejections":36,"baseline":{"generation_us":1030345,"sea_us":184388438,"smoothness_us":43046992,"total_us":228465779,"sea_levels":56,"exact_sea_levels":32,"atkin_sea_levels":0,"initial_trace_count":9,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":82},"generation_us":1013637,"sea_us":190082989,"smoothness_us":13613415,"total_us":204710047,"sea_levels":55,"exact_sea_levels":31,"atkin_sea_levels":0,"initial_trace_count":1,"trace":"99665767869812870924682147829487733751548741139379532401938818","full_point_count":true,"status":"sound_smoothness_reject"}},
+    {"index":18,"generator_rejections":28,"baseline":{"generation_us":786760,"sea_us":140391401,"smoothness_us":15635969,"total_us":156814134,"sea_levels":65,"exact_sea_levels":30,"atkin_sea_levels":2,"initial_trace_count":1,"trace":"34238702692748005928216607504774385228121332067558814079514574","full_point_count":true,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":6},"generation_us":749864,"sea_us":126902426,"smoothness_us":66823228,"total_us":194475523,"sea_levels":61,"exact_sea_levels":28,"atkin_sea_levels":2,"initial_trace_count":14,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"}},
+    {"index":19,"generator_rejections":46,"baseline":{"generation_us":985316,"sea_us":101599055,"smoothness_us":50314556,"total_us":152898931,"sea_levels":58,"exact_sea_levels":31,"atkin_sea_levels":1,"initial_trace_count":7,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":6},"generation_us":951613,"sea_us":101115563,"smoothness_us":20575490,"total_us":122642674,"sea_levels":57,"exact_sea_levels":30,"atkin_sea_levels":1,"initial_trace_count":1,"trace":"208059643158210255490274397097617224884597080723017630315343198","full_point_count":true,"status":"sound_smoothness_reject"}},
+    {"index":20,"generator_rejections":63,"baseline":{"generation_us":1043706,"sea_us":102807178,"smoothness_us":26914779,"total_us":130765670,"sea_levels":56,"exact_sea_levels":32,"atkin_sea_levels":1,"initial_trace_count":2,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":6},"generation_us":1117676,"sea_us":96942491,"smoothness_us":104514509,"total_us":202574679,"sea_levels":54,"exact_sea_levels":30,"atkin_sea_levels":1,"initial_trace_count":30,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"}},
+    {"index":21,"generator_rejections":251,"baseline":{"generation_us":5077437,"sea_us":152863428,"smoothness_us":17380063,"total_us":175320935,"sea_levels":67,"exact_sea_levels":32,"atkin_sea_levels":0,"initial_trace_count":2,"trace":null,"full_point_count":false,"status":"sound_smoothness_reject"},"trace_prior":{"prior":{"modulus":88,"residue":6},"generation_us":5237657,"sea_us":152540078,"smoothness_us":16782121,"total_us":174559859,"sea_levels":66,"exact_sea_levels":31,"atkin_sea_levels":0,"initial_trace_count":1,"trace":"-427801753843083594430043012708493834662402083698607820363681778","full_point_count":true,"status":"sound_smoothness_reject"}}
+  ],
+  "paired_validation": {
+    "generator_rejections_match_all_10": true,
+    "generator_rejections_by_index": [87, 148, 27, 47, 308, 36, 28, 46, 63, 251],
+    "common_sea_levels_compared": 581,
+    "common_sea_level_mismatches": 0,
+    "compared_sea_level_fields": ["exact", "trace_residue", "atkin_projective_order", "atkin_residue_count", "compatible_source_lifts"],
+    "baseline_ell_11_levels_in_progress": 10,
+    "trace_prior_ell_11_levels_in_progress": 0,
+    "trace_prior_ell_11_levels_in_run_log": 0,
+    "prime_plus_one_mod_88": 6,
+    "negative_prime_plus_one_mod_88": 82,
+    "positive_prior_indices": [15, 16, 18, 19, 20, 21],
+    "negative_prior_indices": [12, 13, 14, 17],
+    "baseline_ell_11_trace_residue_matches_prior_mod_11_all_10": true,
+    "exact_traces_available_across_either_run": 8,
+    "exact_trace_indices": [13, 14, 15, 16, 17, 18, 19, 21],
+    "all_available_exact_traces_match_prior_mod_88": true,
+    "status_matches_all_10": true,
+    "status_in_both_runs": "sound_smoothness_reject",
+    "both_checkpoints_complete_at_next_index_22": true,
+    "raw_sha256_and_line_counts_rechecked": true
+  },
+  "measured_comparison": {
+    "basis": "Ten paired deterministic curves with curve_threads=10; whole-invocation real time is the operational throughput measure.",
+    "baseline_seconds_per_curve": 29.457,
+    "trace_prior_seconds_per_curve": 27.219,
+    "baseline_curves_per_second": 0.033947788,
+    "trace_prior_curves_per_second": 0.036739043,
+    "trace_prior_over_baseline_wall_throughput_ratio": 1.082221977,
+    "real_time_reduction_seconds": 22.38,
+    "real_time_reduction_fraction": 0.07597515,
+    "sea_time_reduction_us": 31027233,
+    "sea_time_reduction_fraction": 0.02548599,
+    "sea_levels_removed": 16,
+    "sea_levels_reduction_fraction": 0.02680067,
+    "exact_sea_levels_removed": 14,
+    "exact_sea_levels_reduction_fraction": 0.04444444,
+    "aggregate_per_curve_total_us_delta": 110586136,
+    "aggregate_per_curve_total_us_increase_fraction": 0.070552996,
+    "aggregate_smoothness_us_delta": 141463361,
+    "aggregate_smoothness_us_increase_fraction": 0.431804108,
+    "reported_peak_rss_bytes_delta": 249872384,
+    "warning": "The wall run improved, while summed concurrent per-curve total and smoothness time increased. Per-curve sums overlap under curve_threads=10 and are not wall time; smoothness work also changes when the prior permits sound rejection with a different surviving trace set."
+  },
+  "time_wrapper_note": {
+    "wrapper": "/usr/bin/time -l",
+    "diagnostic": "time: sysctl kern.clockrate: Operation not permitted",
+    "observed_wrapper_exit_status": 1,
+    "interpretation": "The wrapper's post-run attempt to read a blocked macOS sysctl produced status 1. Both logs already contain search-summary records, both checkpoints are complete at next_index 22, and real/user/sys values were printed, so this is not a failed or partial search. Peak RSS is taken from search progress rather than unavailable extended time counters."
+  },
+  "limits": [
+    "This is a paired same-curve comparison, but it is not a same-binary feature toggle: commit, binary, build_id, and schedule digest differ. The 7.60% wall improvement is measured; it cannot be assigned solely to the trace prior without a same-build toggle experiment.",
+    "Ten concurrent curves are too few for a confidence interval, and host load, scheduling overlap, SEA tails, and smoothness tails can materially move wall time.",
+    "Different full_point_count flags do not imply different mathematical curve outputs. Sound smoothness rejection can stop with multiple trace candidates; the prior changes when that proof becomes possible. All shared SEA outputs agree.",
+    "Both runs found zero certificates. This window measures execution and sound rejection behavior, not certificate yield.",
+    "Neither benchmark checkpoint is production continuation authority."
+  ]
+}

@@ -1,0 +1,205 @@
+{
+  "schema": "oneshotsea.p125-x1-25-family-ab.v1",
+  "date": "2026-08-01",
+  "classification": "bounded same-binary negative family-promotion gate",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "range": "[0,10)",
+    "point_four_required": true
+  },
+  "prototype": {
+    "isolated_clone": "/private/tmp/oneshotsea-next-family.akWo8O/repo",
+    "base_commit": "976924b3aa2148f62ceae11948824d8aed5a41bb",
+    "binary_sha256": "b775e7e622d2242b1c39e134bda040b7767a4dea169ba3861f34129aa6a834da",
+    "runner": "/private/tmp/oneshotsea-x125-ab.BYFbEP/run.sh",
+    "runner_sha256": "0e77000c2d2e7abd0e0d040cf987e6af54c7ef9d39f1280827175079a52fee48",
+    "formula_url": "https://math.mit.edu/~drew/X1/X1opt25new.txt",
+    "formula_sha256": "0bab11b78faa5ed48e00b20318fc728bbf45c805c9f3024bcf718869d1a8f2bc",
+    "prototype_source_sha256": "0cbdb7bd40e7b4b7ba106ceaa6c7601b6eb20ad7c9a89c7bd36436d810a5db57",
+    "prototype_header_sha256": "68d0ec2ca91e3ff15fcf15800ad171eceed1b5a84e81c9eead67157f025e4ae5",
+    "prototype_test_sha256": "b06f394847de6010332dd20650b645340e873a8bde88b305a5dd065179e06c46",
+    "integration_disposition": "not integrated because the measured gate lost"
+  },
+  "authenticated_inputs": {
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "canonical_verifier_sha256": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+    "python_executable": "/usr/bin/python3",
+    "python_sha256": "179301dcb41ea78accc3fa0048a7e6f6710d891945a751a34addd622020c1818"
+  },
+  "common_configuration": {
+    "max_level": 401,
+    "trace_cap": 16,
+    "schoof_fallback": true,
+    "skip_incomplete_curves": true,
+    "curve_threads": 10,
+    "sea_threads_per_curve": 1,
+    "smooth_threads_per_curve": 1,
+    "smooth_max_batch": 128,
+    "smooth_root_auxiliary_bytes": 134217728,
+    "max_curves": 10,
+    "note": "The opt-in incomplete skip was configured symmetrically but never used; every retained record is a sound rejection and every Schoof fallback level count is zero."
+  },
+  "family_identities": {
+    "x1_25": {
+      "schedule_sha256": "28d7d1d70572a5cf74d90c563ef6d3a5ffb252be5229e4af9235cba8cd47dbcc",
+      "cyclic_divisor": 100,
+      "selected_group_order_divisor": 400,
+      "trace_residues_mod_400": [162, 238]
+    },
+    "x1_27": {
+      "schedule_sha256": "9820d6c10e5d9506acc0e8a50a2585335f582b766847a6c2ac26b7fb6ad2c22e",
+      "cyclic_divisor": 108,
+      "selected_group_order_divisor": 432,
+      "trace_residues_mod_432": [14, 418]
+    }
+  },
+  "retained_runs": {
+    "b1_x1_27": {
+      "wall_seconds": 198.29,
+      "user_seconds": 942.69,
+      "sys_seconds": 4.70,
+      "sum_generation_us": 45661229,
+      "sum_sea_us": 621106437,
+      "sum_smoothness_us": 232909383,
+      "sum_total_us": 899677104,
+      "sea_levels": 542,
+      "exact_sea_levels": 309,
+      "atkin_sea_levels": 12,
+      "full_point_counts": 6,
+      "sum_final_trace_candidates": 22,
+      "search_log_sha256": "74beb68ad37d54f2d9eee87cb208a49ac19ac04ca4ef9288595d59d31e45dac9",
+      "progress_sha256": "ff2bca1126cdfa7174fab80ccc8e35a4375a139b8cdb0e9ec6e463e18cb0770d",
+      "checkpoint_sha256": "d0eb108e8404e14edd6a8b04e0ff36cfcad061ba9a72a25dd145309cdcbe9f36"
+    },
+    "x1_x1_25": {
+      "wall_seconds": 222.57,
+      "user_seconds": 1237.53,
+      "sys_seconds": 4.82,
+      "sum_generation_us": 37154246,
+      "sum_sea_us": 947627165,
+      "sum_smoothness_us": 213265906,
+      "sum_total_us": 1198047364,
+      "sea_levels": 619,
+      "exact_sea_levels": 299,
+      "atkin_sea_levels": 3,
+      "full_point_counts": 7,
+      "sum_final_trace_candidates": 18,
+      "search_log_sha256": "58a50c2516aef78fe4c35134545a5c63eb44b08cce6872fa84f0ff34bf5298c7",
+      "progress_sha256": "588eb1c1acb05b2ccc8487002eee23c7fad3103963d5f16a9bfa2433a52be22a",
+      "checkpoint_sha256": "31dfbe0d2f502c7f671f37664ed3ab28c73e7523fc42c506e878420185cb70af"
+    },
+    "x3_x1_25": {
+      "wall_seconds": 221.13,
+      "user_seconds": 1242.94,
+      "sys_seconds": 5.34,
+      "sum_generation_us": 36694476,
+      "sum_sea_us": 942564444,
+      "sum_smoothness_us": 211964872,
+      "sum_total_us": 1191223844,
+      "sea_levels": 619,
+      "exact_sea_levels": 299,
+      "atkin_sea_levels": 3,
+      "full_point_counts": 7,
+      "sum_final_trace_candidates": 18,
+      "search_log_sha256": "987d0591083c5f15a66416ba6bdf4ce04307b00be8877cf296179e080c2a44d8",
+      "progress_sha256": "011da1458ce0781e4cce3816bdf72194139548d718e84b88d6741af26a13089a",
+      "checkpoint_sha256": "31dfbe0d2f502c7f671f37664ed3ab28c73e7523fc42c506e878420185cb70af"
+    },
+    "b2_x1_27": {
+      "wall_seconds": 198.09,
+      "user_seconds": 944.38,
+      "sys_seconds": 4.49,
+      "sum_generation_us": 45075681,
+      "sum_sea_us": 620904014,
+      "sum_smoothness_us": 231318414,
+      "sum_total_us": 897298163,
+      "sea_levels": 542,
+      "exact_sea_levels": 309,
+      "atkin_sea_levels": 12,
+      "full_point_counts": 6,
+      "sum_final_trace_candidates": 22,
+      "search_log_sha256": "f7ec74d53995e92802f6ab7e59f403727e7cf1bb022b61fb6931f8b18a7e57ee",
+      "progress_sha256": "4f63a6fd01daad78ff5ec354b5cf232dd3b39a00e09f2c6283d415ae2b534238",
+      "checkpoint_sha256": "d0eb108e8404e14edd6a8b04e0ff36cfcad061ba9a72a25dd145309cdcbe9f36"
+    }
+  },
+  "excluded_runs": {
+    "x2_x1_25": {
+      "wall_seconds": 259.65,
+      "reason": "overlapped the committed index-246 release replay and is excluded from every timing mean and decision",
+      "search_log_sha256": "75b414a064a8831a77962df7b2449a6b02fe8fda81bc4daa6cb372d2a94b28f3",
+      "progress_sha256": "9d6843e382a6dfe69a6d1ebc92d557db28b8157b8c8d6d4590c36084a04ccfb3",
+      "checkpoint_sha256": "31dfbe0d2f502c7f671f37664ed3ab28c73e7523fc42c506e878420185cb70af",
+      "mathematical_projection_note": "Its normalized mathematical projection and checkpoint still match the clean X1(25) repetitions exactly; only resource timing is contaminated."
+    }
+  },
+  "determinism": {
+    "normalization": "Remove peak_rss_bytes, timings_us, and embedded state from each ordered progress record; serialize the remaining JSON with sorted keys and compact separators.",
+    "x1_25_normalized_progress_sha256": "1baafb5552473acb32b49fce891d5b0afca04f83f8b051b70478fa572ed5cc5e",
+    "x1_27_normalized_progress_sha256": "c64ddaff02672125fe37499e4975614ebb285aa8569fa29ec549d6e0a576910c",
+    "x1_25_checkpoint_sha256": "31dfbe0d2f502c7f671f37664ed3ab28c73e7523fc42c506e878420185cb70af",
+    "x1_27_checkpoint_sha256": "d0eb108e8404e14edd6a8b04e0ff36cfcad061ba9a72a25dd145309cdcbe9f36",
+    "projection_result": "All per-index statuses, signed trace priors, SEA level counts, exact/Atkin counts, candidate counts, exact traces, and terminal counters are identical within each family across clean repeats."
+  },
+  "clean_means": {
+    "x1_25": {
+      "wall_seconds": 221.85,
+      "user_seconds": 1240.235,
+      "sys_seconds": 5.08,
+      "sum_generation_us": 36924361.0,
+      "sum_sea_us": 945095804.5,
+      "sum_smoothness_us": 212615389.0,
+      "sum_total_us": 1194635604.0,
+      "wall_seconds_per_curve": 22.185
+    },
+    "x1_27": {
+      "wall_seconds": 198.19,
+      "user_seconds": 943.535,
+      "sys_seconds": 4.595,
+      "sum_generation_us": 45368455.0,
+      "sum_sea_us": 621005225.5,
+      "sum_smoothness_us": 232113898.5,
+      "sum_total_us": 898487633.5,
+      "wall_seconds_per_curve": 19.819
+    }
+  },
+  "ratios": {
+    "x1_27_wall_throughput_over_x1_25": 1.1193803925526011,
+    "x1_25_wall_throughput_over_x1_27": 0.8933513635339193,
+    "x1_25_wall_time_over_x1_27": 1.1193803925526011,
+    "x1_27_generation_work_over_x1_25": 1.2286862594588976,
+    "x1_25_sea_work_over_x1_27": 1.521880598893608,
+    "x1_25_total_work_over_x1_27": 1.3296071748326406
+  },
+  "opportunity_model": {
+    "classification": "same checked-in Dickman--Mertens marginal model used for prior family gates; not an observed certificate rate",
+    "x1_25_over_x1_27_cyclic_opportunity_ratio": 0.994186006360301,
+    "x1_25_over_x1_27_group_divisor_sensitivity_ratio": 0.9938162597750915,
+    "x1_25_over_x1_27_modeled_opportunities_per_wall_cyclic": 0.8881574243883167,
+    "x1_25_over_x1_27_modeled_opportunities_per_wall_group_sensitivity": 0.8878271107722577,
+    "cyclic_modeled_rate_deficit_percent": 11.184257561168332,
+    "group_sensitivity_rate_deficit_percent": 11.217288922774227,
+    "interpretation": "X1(25)'s lower-degree generator used 18.61% less generation work, but its weaker exact divisor and this deterministic curve window required 14.21% more SEA levels and 52.19% more SEA work. The wall loss dominates the already slightly lower modeled opportunity."
+  },
+  "outcomes": {
+    "sound_rejections_per_retained_run": 10,
+    "heuristic_rejections_per_retained_run": 0,
+    "schoof_fallback_levels_per_retained_run": 0,
+    "certificates_per_retained_run": 0
+  },
+  "decision": {
+    "promote_x1_25": false,
+    "retain_family": "x1-27",
+    "reason": "The clean reverse-order gate measured X1(25) 11.94% slower in wall time and about 11.18% lower in conservative modeled opportunities per wall time. The prototype is not integrated."
+  },
+  "limitations": [
+    "The families use different deterministic curve streams, so equal index labels are not paired observations.",
+    "There are ten independent curve observations per family and two timing repetitions of those same curves; the timing repetitions are not twenty independent curves.",
+    "No certificate was found, so the opportunity comparison is modeled rather than an observed yield ratio.",
+    "The per-family SEA-work difference includes curve-distribution variance as well as the trace-prior difference.",
+    "/usr/bin/time emitted valid real/user/sys values and then exited nonzero because sysctl kern.clockrate was unavailable; every search itself exhausted all ten indices cleanly."
+  ],
+  "raw_root": "/private/tmp/oneshotsea-x125-ab.BYFbEP"
+}

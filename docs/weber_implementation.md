@@ -1,11 +1,12 @@
 # Weber-f specialized modular-polynomial path
 
-This is the executable reference path for the specialized modular function
-proposed in the task. It follows Section 7.3 of
+This is the executable CPU production path for the specialized modular
+function proposed in the task. It follows Section 7.3 of
 [Broeker-Lauter-Sutherland](https://arxiv.org/abs/1001.0402) and Sections 3.8
 and 3.9 of [Sutherland](https://arxiv.org/abs/1202.3985).
-The current checked-in levels are an end-to-end reference, not yet a
-large-level production CRT evaluator.
+The checked-in authenticated table set contains 77 admissible prime levels
+through 401.  Its finite-field polynomial arithmetic is still the GMP-backed
+exact implementation rather than the aspirational fixed-limb/Newton backend.
 
 ## Exact normalization
 
@@ -71,14 +72,30 @@ walking a component.
 
 Both primary targets are `1 (mod 12)`, not `11 (mod 12)`. Therefore the
 two-root lemma does not apply to the production search. The safe 1202.3985
-fallback is to enumerate every root of `Psi^f(F,j(E))`, instantiate for each,
-and validate the resulting isogeny using its dual. Silently choosing one root
-would make this path incorrect.
+fallback for an unknown source is to enumerate every root of
+`Psi^f(F,j(E))`, instantiate each one, and validate the resulting isogeny
+using its dual. Silently choosing an arbitrary root would make that generic
+path incorrect.
 
 `weber_f_lifts` and `elkies_kernels_weber_bmss_reference` implement this
 exhaustive policy. Incompatible lifts are rejected by normalized BMSS
 reconstruction; duplicate sign lifts are coalesced only after their kernels,
 neighbors, eigenvalues, and residues agree.
+
+The production generators are a narrower case: `WeberCurvePair` retains the
+exact Weber moduli point used to construct the curve. For prime levels coprime
+to 48, that retained point is a sufficient source coordinate; it is not an
+arbitrary root selected after seeing only `j`. The singleton fast path first
+requires the retained value to be canonical, nonzero, unramified, outside
+`j=0,1728`, and to map back to the curve's exact `j`-invariant. A failed check
+is an error, while callers without this witness preserve exhaustive discovery.
+The BMSS rational-map, isogeny, and Frobenius proof checks remain unchanged.
+
+The regression audit exhaustively compared all 36 lifts in a three-`f^24`-
+orbit fixture over `F_277`: empty level 5 and exact level 17 agreed for every
+singleton, on both the generated curve and its twist. An independent broader
+sweep found the same classification, residues, and deduplicated kernel counts
+through level 43, including 72-lift fixtures.
 
 ## Kernel and codomain handoff
 
@@ -103,24 +120,73 @@ For each accepted Weber lift `x` of `j(E)`:
                + ell^6*mtilde^2*ktilde/864.
    ```
 
-5. Hand `E` and this codomain to fastElkies' to recover the kernel polynomial.
-   Validate by constructing the dual with normalization factor `ell` and check
-   that the composition acts as multiplication by `ell` on random points.
+5. Reconstruct the normalized rational isogeny and kernel with the BMSS power
+   series and Padé path.  Validate exact degrees and normalizations,
+   square-freeness, numerator/denominator coprimality, the kernel-square
+   denominator, and the full rational isogeny equation.  At small levels an
+   additional division-polynomial and Vélu-codomain comparison is retained.
 
 Exceptional zeros of `A`, `j`, `j-1728`, `F'`, or either modular derivative
 must fall back to the classical-j/Schoof path; division through them is not
 valid.
 
+## Exact source-lift orbit reuse
+
+For the table orientation used by the evaluator, every nonzero `X^a Y^b`
+term obeys `a+ell*b=ell+1 (mod 24)`.  Thus, for every 24th root of unity,
+
+```text
+Phi_ell(zeta*f, zeta^ell*y) = zeta^(ell+1) Phi_ell(f,y).
+```
+
+Source lifts with the same `f^24` therefore share one specialization and
+factorization.  The implementation evaluates a representative, transports
+each root by `zeta^ell`, sorts the transported root set, and then continues
+through the unchanged codomain, BMSS, and eigenvalue checks.  It verifies the
+weight identity term-by-term from the loaded table and confirms the lift ratio
+is a 24th root in the field.  Composite fields, unverified tables, disabled
+ablation runs, and an exceptional zero lift retain exact per-lift evaluation.
+
+The 2026-08-01 controlled ablation produced identical canonical SEA records.
+On retained production index 4, root evaluation time fell from 1,252.390 to
+207.917 seconds while all 64 level projections remained identical; see
+`docs/benchmark_20260801.md`.
+
+## Exact conjugate eigenvalue reuse
+
+Every validated rational `ell`-isogeny over `F_p` has a Frobenius-stable
+kernel.  If independent quotient-ring recovery on the first kernel gives
+`lambda`, the characteristic polynomial determinant forces the other value:
+
+```text
+mu = (p mod ell) * lambda^-1 mod ell.
+```
+
+The implementation still performs the complete rational-isogeny validation
+for every distinct kernel.  It derives `mu` only after one nonzero independent
+recovery, permits additional stable lines only when `lambda=mu` is scalar, and
+hard-fails if more than two distinct non-scalar stable kernels appear.  The
+independent path remains an explicit off/on ablation and telemetry partitions
+all attempts into independent recoveries and derived conjugates.
+
+The controlled level-193 ablation cut the eigenvalue stage from 23.494 to
+9.644 seconds, with all 42 canonical level records identical.  A production
+index-4 replay resolved 61 kernels as 31 independent plus 30 derived, reduced
+eigenvalue time from 148.418 to 70.196 seconds, and preserved all 64 canonical
+records and 15 final trace candidates.
+
 ## Remaining production work
 
-The exhaustive root/codomain experiment is complete at levels 5 and 7. Weber
-and classical-j paths recover identical kernels and trace residues on the
-admitted fixtures, and the Weber path produces an independently Schoof-checked
-level-7 residue over the 416-bit `p125` field. A curve with no compatible Weber
-class-invariant lift safely returns no result so the scheduler can fall back.
+The end-to-end path is complete through the level-401 production schedule and
+has processed eight unique `p125` curves soundly.  The checked-in manifest is
+pinned by digest, and production startup verifies every table filename, byte
+count, and SHA-256 before SEA.  Differential tests cover classical-j/BMSS,
+native Schoof, the 416-bit target field, and Magma oracle traces.
 
-The remaining blockers are the large-level instantiated evaluator and the fast
-arithmetic behind it: generate or explicitly evaluate the levels selected by
-the SEA scheduler, replace quadratic reference power-series arithmetic with
-Newton doubling and fast multiplication, and use dual-composition validation
-when full division polynomials are no longer a practical independent check.
+The remaining outcome blocker is not a missing large-level evaluator: it is
+finding a `p125` order whose exact smooth part supports a canonical certificate.
+The root/eigen balance now varies with the source-lift orbit count; new
+production telemetry must decide the next performance change.  Faster
+fixed-limb field arithmetic, cross-level batching, and a measured small-prime
+Schoof fallback remain optimization opportunities, but must retain the exact
+fallback and oracle gates rather than becoming completion claims.

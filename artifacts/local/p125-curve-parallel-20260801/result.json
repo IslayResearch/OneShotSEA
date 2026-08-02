@@ -1,0 +1,207 @@
+{
+  "schema": "oneshotsea.curve-parallel-benchmark.v1",
+  "date": "2026-08-01",
+  "host": "Apple M4, 10 cores, 16 GiB",
+  "classification": "same frozen executable, serial then rolling two-curve replay",
+  "retained_raw_directory": "raw",
+  "search_accounting": "This pre-commit scaling evaluation does not advance the authenticated production cursor. Indices 12 through 17 are benchmark-only observations and must be rerun from production range start 12 under the final committed build identity.",
+  "code_base_commit": "f8347c68ef357107e3bfead0107e947e1c4c4500",
+  "evaluated_source": {
+    "description": "f8347c6 plus threshold-32 Karatsuba polynomial convolution in src/poly.cpp",
+    "src_poly_diff_sha256": "66f82c7a4296af176bcc93d840f7d9c5b640ad54b6dc556f8a9d4615fa8da7b1",
+    "src_and_test_diff_sha256": "69454e84e87b568416a09aca421d8827b2c4b1311d2b4774695084c9dc02ed4d",
+    "retained_frozen_binary_path": "raw/frozen-executable/oneshotsea",
+    "frozen_binary_sha256": "01d9cabac89660094545c7cd42b83b1c6d06d74b5c979aec3d52ea14a01eee0e"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "range": "[8,10)",
+    "curves": 2,
+    "max_level": 401,
+    "trace_cap": 64,
+    "table_directory": "data/modpoly/weber_f",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "smooth_max_batch": 128,
+    "smooth_root_auxiliary_bytes": 134217728
+  },
+  "modes": {
+    "serial": {
+      "curve_threads": 1,
+      "sea_threads_per_curve": 10,
+      "smooth_threads_per_curve": 8,
+      "invocation_wall_seconds": 266.19,
+      "user_seconds": 368.93,
+      "system_seconds": 3.67,
+      "invocation_seconds_per_curve": 133.095,
+      "reported_peak_rss_bytes": 6020055040,
+      "curve_total_seconds": {
+        "8": 110.340210,
+        "9": 90.010102
+      },
+      "curve_sea_seconds": {
+        "8": 106.529230,
+        "9": 75.931853
+      },
+      "curve_smooth_seconds": {
+        "8": 3.802885,
+        "9": 14.063472
+      }
+    },
+    "parallel": {
+      "curve_threads": 2,
+      "sea_threads_per_curve": 5,
+      "smooth_threads_per_curve": 4,
+      "invocation_wall_seconds": 181.94,
+      "user_seconds": 349.34,
+      "system_seconds": 4.03,
+      "invocation_seconds_per_curve": 90.97,
+      "reported_peak_rss_bytes": 6288162816,
+      "curve_total_seconds": {
+        "8": 115.600516,
+        "9": 99.305096
+      },
+      "curve_sea_seconds": {
+        "8": 110.977229,
+        "9": 77.424190
+      },
+      "curve_smooth_seconds": {
+        "8": 4.614786,
+        "9": 21.866034
+      }
+    }
+  },
+  "scaling_followups": {
+    "classification": "same frozen binary; every configured curve was launched in one initial window, so warm seconds per curve is max(reported curve total)/curve_threads",
+    "curve_threads_3": {
+      "range": "[8,11)",
+      "sea_threads_per_curve": 3,
+      "smooth_threads_per_curve": 2,
+      "invocation_wall_seconds": 188.03,
+      "invocation_seconds_per_curve": 62.676667,
+      "warm_window_seconds": 121.503212,
+      "warm_seconds_per_curve": 40.501071,
+      "warm_speedup_over_serial_sum": 2.525590,
+      "user_seconds": 476.67,
+      "reported_peak_rss_bytes": 5786042368,
+      "system_vm_delta_pages": {
+        "pageouts": 274,
+        "swapins": 5102,
+        "swapouts": 4132
+      },
+      "raw_sha256": {
+        "stdout_jsonl": "3c57a553b845b3e3b73707341f9d1fb20b596233e30da7da503dd944ad40882a",
+        "progress_jsonl": "d419800eb4464d798df055265d172181dd680c2f0d2e4a1b01f63a2998c679b9",
+        "checkpoint": "8f09add36224c99d9b954a2fd77131e658511489d5a83fb4d756ecf8d5ffff68",
+        "time": "ecb2aa2e627409829cc2be2f04996a65930b0264467ad6910b3d1bbaed36b008",
+        "vm_before": "171c848ca9ced2cbbe52d4777db560c93465fc5fc1c747b310ac2d680cfb12f5",
+        "vm_after": "64dee71880d4905d2a6fea0dd8132cad4b8952722ed52a70f710a9ed8b6b71fd"
+      }
+    },
+    "curve_threads_5": {
+      "range": "[8,13)",
+      "sea_threads_per_curve": 2,
+      "smooth_threads_per_curve": 1,
+      "invocation_wall_seconds": 236.98,
+      "invocation_seconds_per_curve": 47.396,
+      "warm_window_seconds": 170.925640,
+      "warm_seconds_per_curve": 34.185128,
+      "user_seconds": 903.69,
+      "reported_peak_rss_bytes": 6387302400,
+      "system_vm_delta_pages": {
+        "pageouts": 581,
+        "swapins": 5500,
+        "swapouts": 0
+      },
+      "raw_sha256": {
+        "stdout_jsonl": "2a09d03e818de28cd4b752f6ae539754bd0af3c5a39a3ae52079734c8cb66a79",
+        "progress_jsonl": "b473ee7bc31398ec3ac1366d79ed0b4df13b19985c85a0f0b8319f897cf7a6fd",
+        "checkpoint": "38a6fb7de970d3325fce3421c034bdfe03b2c0ab0a32ca8081774e4144e3d040",
+        "time": "51ea868fe56d1c950e32c6bc484b82de309d3316bbd57266ee3d6b8892fec687",
+        "vm_before": "a4b7ae2b50935f5a4e7003f0eca1e2acc93e47f4f89675cc8e2dc4ba559fa8de",
+        "vm_after": "a7dc3e287d1adb53301329a035b90fa2a0fddce3dcebfa85d28caaf401b3412a"
+      }
+    },
+    "curve_threads_10": {
+      "range": "[8,18)",
+      "sea_threads_per_curve": 1,
+      "smooth_threads_per_curve": 1,
+      "invocation_wall_seconds": 336.51,
+      "invocation_seconds_per_curve": 33.651,
+      "warm_window_seconds": 270.712284,
+      "warm_seconds_per_curve": 27.071228,
+      "user_seconds": 2231.71,
+      "reported_peak_rss_bytes": 6188974080,
+      "system_vm_delta_pages": {
+        "pageouts": 1244,
+        "swapins": 23392,
+        "swapouts": 4412
+      },
+      "raw_sha256": {
+        "stdout_jsonl": "b42e45a492aa6249ba337df42fa563112c3b30561e438bc4e60ec0cd4a082afd",
+        "progress_jsonl": "58ab5e2c52e42e6775b6a2e0b64f7e7ff14ec176be5b5382ab4c1bbbf31613b9",
+        "checkpoint": "1165d055894321fa5501c63de9532253627dca30f892c60716c8f4343ae4c901",
+        "time": "2b818a8a3045eb3e746b46d0eac7436b61f93433c9e04bfa1736d3691edff177",
+        "vm_before": "c3a9a2465666c3c19a1af0814ce8938171b931a5f3edc95be8b1a55f4ed15a04",
+        "vm_after": "7622d543d6c635f4af089c128de6f7fbaa80f242ed60d32efff41306ca3374c5"
+      }
+    },
+    "canonical_math": {
+      "indices_8_through_10_identical_in_k1_k2_k3_k5_k10": true,
+      "index_11_identical_in_k5_k10_and_retained_production": true,
+      "index_10_sha256": "9d76f61fbf2e7d72206821c4e148639439cef23f318ff99461dfc04225709164",
+      "index_11_sha256": "a3108512d55b6493725a0a4420b79a3addc56bfe7775ea6cb3fcfa68af6994de"
+    }
+  },
+  "comparison": {
+    "full_invocation_speedup": 1.463065,
+    "warm_curve_window_definition": "sum of serial curve totals divided by the maximum parallel curve total; both parallel curves were launched in the initial rolling window",
+    "serial_warm_curve_seconds_sum": 200.350312,
+    "parallel_warm_curve_window_seconds": 115.600516,
+    "warm_curve_throughput_speedup": 1.733126,
+    "peak_rss_ratio_parallel_over_serial": 1.044536,
+    "peak_rss_increase_bytes": 268107776,
+    "scaling_decision": "Use curve_threads=10, sea_threads=1, smooth_threads=1 on the 10-core local host. It reached 33.651 seconds/curve including one cold load and 27.071 seconds/curve in the fixed warm window, with 6.19 GB reported peak RSS. Do not raise concurrency beyond the physical core count; retain vm_stat monitoring because the k10 window observed 68.9 MiB of system-wide swapouts.",
+    "remaining_gap_to_30_day_model_target": 1.37442,
+    "cloud_decision": "Keep AWS compute off: the measured m8g.xlarge is slower per curve, and local scaling is the higher-throughput path."
+  },
+  "system_vm_stat_parallel_window": {
+    "page_size_bytes": 16384,
+    "pageouts_delta_pages": 230,
+    "swapins_delta_pages": 3033,
+    "swapouts_delta_pages": 1960,
+    "pageouts_delta_bytes": 3768320,
+    "swapins_delta_bytes": 49692672,
+    "swapouts_delta_bytes": 32112640,
+    "interpretation": "These are system-wide cumulative deltas, not process-attributed counters. The measured parallel speedup already includes this modest memory pressure; long-run telemetry should continue to watch it."
+  },
+  "post_scaling_polynomial_followup": {
+    "included_in_frozen_curve_binary": false,
+    "change": "retain modulus and denominator coefficient vectors by const reference in quadratic elimination hot loops",
+    "degree_194_quotient_frobenius_baseline_median_seconds": 1.183812,
+    "degree_194_quotient_frobenius_optimized_median_seconds": 0.964617,
+    "throughput_speedup": 1.2273,
+    "time_reduction_percent": 18.52,
+    "all_degrees_and_evaluation_checksums_identical": true,
+    "interpretation": "This exact follow-up was measured after the frozen K=1--10 scaling series and must not be multiplied into those retained wall times without a new complete-curve measurement."
+  },
+  "correctness": {
+    "index_8_canonical_math_sha256": "0ef2274837c82a2278c196308e608bc1ad8e8d74246aa8972b3a761d43762f60",
+    "index_9_canonical_math_sha256": "49f217a6cf763b54d6d47bd4902fe6c8b7d7aa7287043230e210ed5be681252e",
+    "serial_parallel_math_identical": true,
+    "matches_retained_pre_karatsuba_index_8": true,
+    "matches_retained_pre_karatsuba_index_9": true,
+    "final_checkpoint_sha256_both_modes": "8f274da1a18c5e1e89acf48100cb385e962db28c3a6da82421394f86c32bc64a"
+  },
+  "raw_sha256": {
+    "serial_stdout_jsonl": "5fea3257b76c878fff7fc8acae8b1988e086c75c9075eb1ec47f1042b85d8395",
+    "parallel_stdout_jsonl": "47bca3affe5fa6821f87b3725ef0405b646c531509bd39450bfdff7275c05c7c",
+    "serial_progress_jsonl": "9b55b2923c8390a16a4023da5c46b1871e9e6eada2e7e359a45aa500a82f69fc",
+    "parallel_progress_jsonl": "9c30f884c52478ad2450048b1eba593cb97502f1235eaaefe001f187929d531d",
+    "serial_time": "68ba4118e460e79f0ca3509c3e9aba433661835f1b6ea4c72e8c053f7b3e0bea",
+    "parallel_time": "db93c0aa4551266035eb1492ff872a4c9d6aa62d04f3a21c86857a147abcf360",
+    "vm_before_parallel": "de4867e7f70eba3ba065b52cf3252f5792858b2d909d4bb8b0134a83d108688b",
+    "vm_after_parallel": "7539e569c23b6093596bad0d6587a0a3d1cdc8d7a9828727471637813b72683b"
+  },
+  "timing_note": "The serial command completed normally, but macOS extended /usr/bin/time reporting returned a sandboxed kern.clockrate warning after recording portable real/user/sys values. The parallel command therefore used portable /usr/bin/time -p. Peak RSS comes from the search records in both modes."
+}

@@ -121,11 +121,42 @@ void compare_level_37(Coverage& coverage) {
     const auto modular_polynomial =
         oneshotsea::SparseModularPolynomial::load(
             37, "data/modpoly/weber_f/phi_37.txt");
-    const auto kernels = oneshotsea::elkies_kernels_weber_bmss_reference(
-        curve, modular_polynomial);
-    check(!kernels.empty(), "level-37 Weber fixture is not Elkies");
+    const auto independent =
+        oneshotsea::compute_weber_elkies_level_reference(
+            curve, modular_polynomial, nullptr, 1, true, false);
+    const auto reused = oneshotsea::compute_weber_elkies_level_reference(
+        curve, modular_polynomial, nullptr, 1, true, true);
+    check(!independent.kernels.empty(),
+          "level-37 Weber fixture is not Elkies");
+    check(independent.kernels.size() == reused.kernels.size(),
+          "conjugate reuse changed the level-37 kernel count");
+    check(independent.compatible_source_lifts ==
+              reused.compatible_source_lifts,
+          "conjugate reuse changed compatible Weber source lifts");
+    check(!independent.timings.conjugate_eigenvalue_reuse &&
+              independent.timings.conjugate_eigenvalues_derived == 0U &&
+              independent.timings.independent_eigenvalue_recoveries ==
+                  independent.timings.eigenvalue_attempts,
+          "disabled conjugate reuse did not retain independent recovery");
+    check(reused.timings.conjugate_eigenvalue_reuse &&
+              reused.timings.eigenvalue_attempts == reused.kernels.size() &&
+              reused.timings.independent_eigenvalue_recoveries == 1U &&
+              reused.timings.conjugate_eigenvalues_derived + 1U ==
+                  reused.kernels.size(),
+          "enabled conjugate reuse telemetry does not partition recoveries");
+    for (std::size_t index = 0; index < independent.kernels.size(); ++index) {
+        const auto& expected = independent.kernels[index];
+        const auto& actual = reused.kernels[index];
+        check(oneshotsea::equal(expected.kernel, actual.kernel) &&
+                  expected.codomain.a() == actual.codomain.a() &&
+                  expected.codomain.b() == actual.codomain.b() &&
+                  expected.neighbor_j == actual.neighbor_j &&
+                  expected.eigenvalue == actual.eigenvalue &&
+                  expected.trace_residue == actual.trace_residue,
+              "independent and conjugate-derived Weber kernels disagree");
+    }
     ++coverage.levels;
-    for (const auto& kernel : kernels) {
+    for (const auto& kernel : reused.kernels) {
         const auto isogeny = oneshotsea::bmss_isogeny_reference(
             curve, kernel.codomain, 37);
         check(oneshotsea::equal(isogeny.kernel, kernel.kernel),

@@ -1,0 +1,211 @@
+{
+  "curve_twist_projection": {
+    "actual_orders_per_curve": 2,
+    "expected_curves": 120490.0,
+    "median_curves": 83516.0,
+    "optimistic_probability_per_curve": 8.2995e-06,
+    "p95_curves": 360950.0,
+    "warning": "This is an optimistic smooth-factor opportunity rate, not a verified-certificate probability; exact-order assembly can fail."
+  },
+  "date": "2026-08-01",
+  "forced_divisor_scenarios": {
+    "classification": "optimistic smooth-group-order opportunity model; not a certificate rate",
+    "conditioning": "For a selected side conditioned on a y-smooth divisor D, independent geometric prime valuations are memoryless, so the Dickman threshold shifts from L to L/D. Because the paired order is 2(p+1)-N, it is conditioned on the exact guaranteed divisor gcd(D,2(p+1)).",
+    "limitations": [
+      "The selected-side and paired-twist tail events are combined as independent marginals only for an optimistic union estimate.",
+      "A group-order divisor does not by itself guarantee the same divisor in the group exponent or an exact-order point.",
+      "Curve-family trace bias, curve/twist correlation, representability, and certificate assembly are not modeled.",
+      "No value in this section is a certificate probability or observed certificate rate."
+    ],
+    "scenarios": {
+      "current_generator": {
+        "description": "production full rational 2-torsion",
+        "optimistic_expected_curves": 120490.0,
+        "optimistic_expected_days_at_measured_k10_warm": 37.752,
+        "optimistic_paired_smooth_opportunity_probability": 8.2995e-06,
+        "optimistic_paired_yield_multiplier_over_current": 1.0,
+        "paired_twist_forced_divisor": 4,
+        "paired_twist_order_residue_mod_selected_divisor": 0,
+        "paired_twist_rho": 2.5866e-05,
+        "paired_twist_smooth_opportunity_probability": 4.1498e-06,
+        "paired_twist_tail_integral": 8.4633e-06,
+        "paired_twist_u_log_L_over_D_log_y": 5.9083,
+        "selected_side_forced_divisor": 4,
+        "selected_side_rho": 2.5866e-05,
+        "selected_side_smooth_opportunity_probability": 4.1498e-06,
+        "selected_side_tail_integral": 8.4633e-06,
+        "selected_side_u_log_L_over_D_log_y": 5.9083
+      },
+      "x1_11_cyclic": {
+        "description": "X1(11) selected-side cyclic divisor",
+        "optimistic_expected_curves": 102330.0,
+        "optimistic_expected_days_at_measured_k10_warm": 32.062,
+        "optimistic_paired_smooth_opportunity_probability": 9.7724e-06,
+        "optimistic_paired_yield_multiplier_over_current": 1.1775,
+        "paired_twist_forced_divisor": 4,
+        "paired_twist_order_residue_mod_selected_divisor": 12,
+        "paired_twist_rho": 2.5866e-05,
+        "paired_twist_smooth_opportunity_probability": 4.1498e-06,
+        "paired_twist_tail_integral": 8.4633e-06,
+        "paired_twist_u_log_L_over_D_log_y": 5.9083,
+        "selected_side_forced_divisor": 44,
+        "selected_side_rho": 3.4775e-05,
+        "selected_side_smooth_opportunity_probability": 5.6227e-06,
+        "selected_side_tail_integral": 1.1456e-05,
+        "selected_side_u_log_L_over_D_log_y": 5.8089
+      },
+      "x1_11_group": {
+        "description": "X1(11) selected-side group-order divisor",
+        "optimistic_expected_curves": 97219.0,
+        "optimistic_expected_days_at_measured_k10_warm": 30.461,
+        "optimistic_paired_smooth_opportunity_probability": 1.0286e-05,
+        "optimistic_paired_yield_multiplier_over_current": 1.2394,
+        "paired_twist_forced_divisor": 4,
+        "paired_twist_order_residue_mod_selected_divisor": 12,
+        "paired_twist_rho": 2.5866e-05,
+        "paired_twist_smooth_opportunity_probability": 4.1498e-06,
+        "paired_twist_tail_integral": 8.4633e-06,
+        "paired_twist_u_log_L_over_D_log_y": 5.9083,
+        "selected_side_forced_divisor": 88,
+        "selected_side_rho": 3.7866e-05,
+        "selected_side_smooth_opportunity_probability": 6.1364e-06,
+        "selected_side_tail_integral": 1.2499e-05,
+        "selected_side_u_log_L_over_D_log_y": 5.7802
+      },
+      "x1_25_cyclic": {
+        "description": "X1(25) selected-side cyclic divisor",
+        "optimistic_expected_curves": 96286.0,
+        "optimistic_expected_days_at_measured_k10_warm": 30.169,
+        "optimistic_paired_smooth_opportunity_probability": 1.0386e-05,
+        "optimistic_paired_yield_multiplier_over_current": 1.2514,
+        "paired_twist_forced_divisor": 4,
+        "paired_twist_order_residue_mod_selected_divisor": 76,
+        "paired_twist_rho": 2.5866e-05,
+        "paired_twist_smooth_opportunity_probability": 4.1498e-06,
+        "paired_twist_tail_integral": 8.4633e-06,
+        "paired_twist_u_log_L_over_D_log_y": 5.9083,
+        "selected_side_forced_divisor": 100,
+        "selected_side_rho": 3.8464e-05,
+        "selected_side_smooth_opportunity_probability": 6.236e-06,
+        "selected_side_tail_integral": 1.2701e-05,
+        "selected_side_u_log_L_over_D_log_y": 5.7749
+      },
+      "x1_25_group": {
+        "description": "X1(25) selected-side group-order divisor",
+        "optimistic_expected_curves": 91291.0,
+        "optimistic_expected_days_at_measured_k10_warm": 28.604,
+        "optimistic_paired_smooth_opportunity_probability": 1.0954e-05,
+        "optimistic_paired_yield_multiplier_over_current": 1.3198,
+        "paired_twist_forced_divisor": 4,
+        "paired_twist_order_residue_mod_selected_divisor": 76,
+        "paired_twist_rho": 2.5866e-05,
+        "paired_twist_smooth_opportunity_probability": 4.1498e-06,
+        "paired_twist_tail_integral": 8.4633e-06,
+        "paired_twist_u_log_L_over_D_log_y": 5.9083,
+        "selected_side_forced_divisor": 200,
+        "selected_side_rho": 4.1873e-05,
+        "selected_side_smooth_opportunity_probability": 6.8043e-06,
+        "selected_side_tail_integral": 1.3855e-05,
+        "selected_side_u_log_L_over_D_log_y": 5.7462
+      }
+    }
+  },
+  "model": {
+    "assumptions": [
+      "Actual curve orders are modeled by random integers in their Hasse interval.",
+      "Montgomery-compatible curve and twist orders are conditioned to be even.",
+      "The production p125 Weber prefilter further forces full rational E[2], hence divisibility by four on both actual orders.",
+      "Curve and twist smooth-tail events are treated as independent only for the optimistic union estimate.",
+      "Curve/twist correlation, group-exponent constraints, and exact-order assembly may reduce certificate yield."
+    ],
+    "classification": "heuristic random-integer marginal model",
+    "dickman_equation": "rho(u)=1 for 0<=u<=1; u*rho'(u)+rho(u-1)=0 for u>1",
+    "exact_factor_gate": "A canonical-window smooth divisor can exist only when the exact n^4-smooth part S_y(N) exceeds L; exact-order point assembly is an additional requirement.",
+    "tail_approximation": "exp(-EulerGamma)*(integral_u^infinity rho(v)dv-rho(u)/log(y))"
+  },
+  "numerics": {
+    "coarse_convergence_grid_step": 2e-05,
+    "even_conditioned_probability_per_actual_order": 3.7995e-06,
+    "even_conditioned_u_log_L_over_2_log_y": 5.9371,
+    "grid_max_u": 16.0,
+    "grid_step": 1e-05,
+    "method": "fixed-grid Heun integration plus trapezoidal tail",
+    "production_generator_forced_divisor": 4,
+    "production_generator_probability_coarse_grid": 4.1497e-06,
+    "production_generator_probability_coarse_to_checked_relative_delta": 6.5981e-06,
+    "production_generator_probability_per_actual_order": 4.1498e-06,
+    "production_generator_rho": 2.5866e-05,
+    "production_generator_tail_integral": 8.4633e-06,
+    "production_generator_u_log_L_over_4_log_y": 5.9083,
+    "reported_significant_digits": 5,
+    "rho_2_exact_1_minus_log_2": 0.30685,
+    "rho_2_validation": 0.30685,
+    "rho_at_even_conditioned_u": 2.3735e-05,
+    "rho_at_u": 2.1776e-05,
+    "tail_integral_at_even_conditioned_u": 7.7511e-06,
+    "tail_integral_at_u": 7.0976e-06,
+    "unconditioned_probability_per_order": 3.4782e-06
+  },
+  "producer": {
+    "runtime": "Python standard library only",
+    "script": "tools/p125_yield_model.py",
+    "script_sha256": "eb8d6597acc8304d51a388c91e8fb4f2ec8256cfd10d389cead24aa811817cf3"
+  },
+  "retained_search_interpretation": {
+    "actual_curve_twist_order_opportunities": 24,
+    "complete_trace_candidates": 136,
+    "distinction": "Each admitted curve has one actual trace and exactly two actual curve/twist orders. Other Hasse-compatible trace candidates are sound screening alternatives, not independent certificate-yield trials.",
+    "expected_survivors_if_all_272_were_independent_production_orders": 0.0011287,
+    "probability_of_zero_if_all_272_were_independent_production_orders": 0.99887,
+    "smooth_survivors": 0,
+    "trace_candidate_orders_exactly_screened": 272,
+    "unique_admitted_curves_indices_0_through_11": 12
+  },
+  "schema": "oneshotsea.p125-yield-model.v1",
+  "target": {
+    "bit_length": 416,
+    "certificate_lower_bound_L": "316227766016837933199889354443307418960156292388546191109654339",
+    "dickman_u_log_L_over_log_y": 5.9658,
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "smooth_bound_n4": 29948379136
+  },
+  "throughput": {
+    "interpretation": "Aggregate seconds per curve includes all concurrent workers; trace-candidate orders per second must not be used as actual certificate-opportunity throughput.",
+    "measured_k10_warm_seconds_per_curve": 27.071228,
+    "projections": {
+      "mean": {
+        "curves": 120490.0,
+        "wall_days_at_240_seconds_per_curve": 334.69,
+        "wall_days_at_300_seconds_per_curve": 418.36
+      },
+      "median": {
+        "curves": 83516.0,
+        "wall_days_at_240_seconds_per_curve": 231.99,
+        "wall_days_at_300_seconds_per_curve": 289.99
+      },
+      "p95": {
+        "curves": 360950.0,
+        "wall_days_at_240_seconds_per_curve": 1002.6,
+        "wall_days_at_300_seconds_per_curve": 1253.3
+      }
+    },
+    "retained_warm_seconds_per_curve_range": [
+      240.0,
+      300.0
+    ],
+    "targets": {
+      "mean_within_30_days": {
+        "aggregate_seconds_per_curve": 21.512,
+        "speedup_over_270_seconds_per_curve": 12.551
+      },
+      "mean_within_7_days": {
+        "aggregate_seconds_per_curve": 5.0195,
+        "speedup_over_270_seconds_per_curve": 53.79
+      },
+      "mean_within_90_days": {
+        "aggregate_seconds_per_curve": 64.537,
+        "speedup_over_270_seconds_per_curve": 4.1836
+      }
+    }
+  }
+}

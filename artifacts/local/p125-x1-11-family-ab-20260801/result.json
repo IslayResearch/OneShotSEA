@@ -1,0 +1,292 @@
+{
+  "schema": "oneshotsea.p125-x1-11-family-ab.v1",
+  "date": "2026-08-01",
+  "classification": "bounded same-build family A/B; benchmark-only; no authenticated production-cursor advancement",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bit_length": 416,
+    "seed": "202607300000",
+    "half_open_index_range": "[12,22)",
+    "indices": [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21
+    ],
+    "observations_per_family": 10
+  },
+  "implementation_identity": {
+    "git_commit": "4d0df939c38d225da6e86020968e370b61920798",
+    "git_subject": "Accelerate SEA and add X1(11) search",
+    "binary_path_at_capture": "build/oneshotsea",
+    "binary_sha256": "1ab2ffa06dff5970955675814c2cd5198dee4150476397e83fc5c208eee09cf2",
+    "build_id_emitted_by_both_runs": "git:4d0df939c38d225da6e86020968e370b61920798+binary-sha256:1ab2ffa06dff5970955675814c2cd5198dee4150476397e83fc5c208eee09cf2",
+    "table_directory": "data/modpoly/weber_f",
+    "trusted_table_manifest_path": "data/modpoly/weber_f/MANIFEST.json",
+    "trusted_table_manifest_file_sha256": "e5b84a87335523f79d47f140d70ceddee9e1c6891a7fae8aaadcae5c080de3ab",
+    "authenticated_table_set_sha256_emitted_by_both_runs": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "smooth_cache_path": "work/p125/smooth.cache",
+    "smooth_cache_sha256_emitted_and_rechecked": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "canonical_verifier_path": "third_party/oneshot_primality_proofs/voneshot.py",
+    "canonical_verifier_sha256_emitted_and_rechecked": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+    "python_executable_emitted": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "python_sha256_emitted_and_rechecked": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf"
+  },
+  "effective_command_options": {
+    "retention_note": "The retained run.log files do not echo argv, so token order and whether default-valued options were written explicitly are not claimed. Values below are authenticated by the emitted search-start/state records, the raw output paths, and the audited bounded-run construction.",
+    "timing_wrapper": "/usr/bin/time -l",
+    "common": {
+      "command": "build/oneshotsea search",
+      "p": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+      "seed": "202607300000",
+      "range_start": 12,
+      "range_end": 22,
+      "worker_id": 0,
+      "worker_count": 1,
+      "max_level": 401,
+      "trace_cap": 64,
+      "curve_threads": 10,
+      "sea_threads": 1,
+      "table_dir": "data/modpoly/weber_f",
+      "smooth_cache": "work/p125/smooth.cache",
+      "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+      "smooth_threads": 1,
+      "smooth_max_batch": 128,
+      "smooth_root_auxiliary_bytes": 134217728,
+      "smooth_build_segment_span": 500000000,
+      "checkpoint_every": 1,
+      "assembly_attempts": 400,
+      "max_certificate_candidates": 100000,
+      "max_candidate_search_nodes": 1000000,
+      "max_curves": 10,
+      "heuristic_rejection": false,
+      "build_id": "git:4d0df939c38d225da6e86020968e370b61920798+binary-sha256:1ab2ffa06dff5970955675814c2cd5198dee4150476397e83fc5c208eee09cf2"
+    },
+    "weber": {
+      "curve_family": "weber-f",
+      "x1_require_point_four": false,
+      "schedule_sha256": "84bf5d7af03b09671967110af071e269a092df08590b22f46f7d3d2a7ef11f25",
+      "checkpoint": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/weber/checkpoint.json",
+      "progress": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/weber/progress.ndjson",
+      "run_log": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/weber/run.log"
+    },
+    "x1_point4": {
+      "curve_family": "x1-11",
+      "x1_require_point_four": true,
+      "schedule_sha256": "d81c3f2a0b52093a61795dbef41b4e766cce747d860c1e907c9886bf8cdabec3",
+      "checkpoint": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/checkpoint.json",
+      "progress": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/progress.ndjson",
+      "run_log": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/run.log"
+    }
+  },
+  "raw_outputs": {
+    "retention_note": "Host-local raw outputs were retained under /tmp at capture time and are intentionally not checked in. SHA-256 and line counts make each referenced capture identifiable.",
+    "weber": {
+      "checkpoint": {
+        "path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/weber/checkpoint.json",
+        "lines": 1,
+        "sha256": "ddb58627f6be25cf1715e00b66ee264ffea279543dcebdebebe34cfbb43115b6",
+        "crc64_ecma": "8ca7b20dc1930e3c"
+      },
+      "progress": {
+        "path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/weber/progress.ndjson",
+        "lines": 10,
+        "sha256": "6cc8302f1054a968a373d9055c30124a1dcff10ab0776f7c13da512160d5b131"
+      },
+      "run_log": {
+        "path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/weber/run.log",
+        "lines": 607,
+        "sha256": "70f18716cbf64403018e6263686f11c54a96c3b6e77cec89b401a3378101da09"
+      }
+    },
+    "x1_point4": {
+      "checkpoint": {
+        "path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/checkpoint.json",
+        "lines": 1,
+        "sha256": "5a4ecbc7ab90ebc020926d79c3c277e62ae05718a7a7012cd2f73327b6bf58d6",
+        "crc64_ecma": "190b268fa43e86bb"
+      },
+      "progress": {
+        "path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/progress.ndjson",
+        "lines": 10,
+        "sha256": "c32d2964cc80104b5d9430c1de699995f75bbff427bdea9cf6749c10ab75dcb9"
+      },
+      "run_log": {
+        "path_at_capture": "/tmp/oneshotsea-family-ab-20260801.Ba9BnP/x1-point4/run.log",
+        "lines": 611,
+        "sha256": "06414c00067975ce1aeed1065b69790c8699ca08c6a2e7e33f8470fe1b0add48"
+      }
+    }
+  },
+  "runs": {
+    "weber": {
+      "curve_family": "weber-f",
+      "schedule_sha256": "84bf5d7af03b09671967110af071e269a092df08590b22f46f7d3d2a7ef11f25",
+      "invocation_time_seconds": {
+        "real": 306.19,
+        "user": 1892.7,
+        "sys": 5.64
+      },
+      "reported_peak_rss_bytes_max": 6959546368,
+      "reported_peak_rss_gib_max": 6.481583,
+      "per_curve": [
+        {"index": 12, "generation_us": 6364, "sea_us": 201027250, "smoothness_us": 13697397, "total_us": 214731015, "sea_levels": 58, "exact_sea_levels": 33, "atkin_sea_levels": 0, "initial_trace_count": 1, "trace": "60844042942357204502267193165584430087114843655296897963645022", "full_point_count": true, "peak_rss_bytes": 6959546368},
+        {"index": 13, "generation_us": 3245, "sea_us": 85247388, "smoothness_us": 144231323, "total_us": 229481962, "sea_levels": 54, "exact_sea_levels": 30, "atkin_sea_levels": 2, "initial_trace_count": 58, "trace": null, "full_point_count": false, "peak_rss_bytes": 6959546368},
+        {"index": 14, "generation_us": 3506, "sea_us": 123694614, "smoothness_us": 20030119, "total_us": 143728243, "sea_levels": 62, "exact_sea_levels": 31, "atkin_sea_levels": 0, "initial_trace_count": 1, "trace": "-336580801637417287488986078039409734757495263021457897984643982", "full_point_count": true, "peak_rss_bytes": 6959546368},
+        {"index": 15, "generation_us": 9047, "sea_us": 177290577, "smoothness_us": 27706791, "total_us": 205006420, "sea_levels": 72, "exact_sea_levels": 30, "atkin_sea_levels": 0, "initial_trace_count": 4, "trace": null, "full_point_count": false, "peak_rss_bytes": 6959546368},
+        {"index": 16, "generation_us": 6499, "sea_us": 138500725, "smoothness_us": 101397049, "total_us": 239904279, "sea_levels": 64, "exact_sea_levels": 32, "atkin_sea_levels": 0, "initial_trace_count": 35, "trace": null, "full_point_count": false, "peak_rss_bytes": 6959546368},
+        {"index": 17, "generation_us": 6641, "sea_us": 124277598, "smoothness_us": 26394255, "total_us": 150678501, "sea_levels": 62, "exact_sea_levels": 32, "atkin_sea_levels": 0, "initial_trace_count": 2, "trace": null, "full_point_count": false, "peak_rss_bytes": 6959546368},
+        {"index": 18, "generation_us": 10101, "sea_us": 122769118, "smoothness_us": 26377198, "total_us": 149156422, "sea_levels": 60, "exact_sea_levels": 31, "atkin_sea_levels": 1, "initial_trace_count": 2, "trace": null, "full_point_count": false, "peak_rss_bytes": 6959546368},
+        {"index": 19, "generation_us": 19112, "sea_us": 116787311, "smoothness_us": 20483878, "total_us": 137290305, "sea_levels": 60, "exact_sea_levels": 32, "atkin_sea_levels": 0, "initial_trace_count": 1, "trace": "-280195651561112820091136212007515402589984279024694962661551598", "full_point_count": true, "peak_rss_bytes": 6959546368},
+        {"index": 20, "generation_us": 13061, "sea_us": 78028031, "smoothness_us": 103592519, "total_us": 181633615, "sea_levels": 52, "exact_sea_levels": 32, "atkin_sea_levels": 1, "initial_trace_count": 23, "trace": null, "full_point_count": false, "peak_rss_bytes": 6959546368},
+        {"index": 21, "generation_us": 7395, "sea_us": 62496194, "smoothness_us": 130232244, "total_us": 192735839, "sea_levels": 49, "exact_sea_levels": 33, "atkin_sea_levels": 1, "initial_trace_count": 36, "trace": null, "full_point_count": false, "peak_rss_bytes": 6959546368}
+      ],
+      "parsed_aggregates": {
+        "timings_us": {
+          "generation": {"sum": 84971, "mean": 8497.1, "median": 7018.0, "min": 3245, "max": 19112},
+          "sea": {"sum": 1230118806, "mean": 123011880.6, "median": 123231866.0, "min": 62496194, "max": 201027250},
+          "smoothness": {"sum": 614142773, "mean": 61414277.3, "median": 27050523.0, "min": 13697397, "max": 144231323},
+          "total": {"sum": 1844346601, "mean": 184434660.1, "median": 187184727.0, "min": 137290305, "max": 239904279}
+        },
+        "sea_levels_sum": 593,
+        "exact_sea_levels_sum": 316,
+        "atkin_sea_levels_sum": 5,
+        "initial_trace_count_sum": 163,
+        "generation_rejections_sum": 13,
+        "full_point_count_indices": [12, 14, 19],
+        "full_point_counts_completed": 3
+      }
+    },
+    "x1_point4": {
+      "curve_family": "x1-11",
+      "x1_require_point_four": true,
+      "schedule_sha256": "d81c3f2a0b52093a61795dbef41b4e766cce747d860c1e907c9886bf8cdabec3",
+      "invocation_time_seconds": {
+        "real": 294.57,
+        "user": 1618.52,
+        "sys": 4.94
+      },
+      "reported_peak_rss_bytes_max": 6409568256,
+      "reported_peak_rss_gib_max": 5.969376,
+      "per_curve": [
+        {"index": 12, "generation_us": 1779298, "sea_us": 106234908, "smoothness_us": 67838099, "total_us": 175852309, "sea_levels": 60, "exact_sea_levels": 32, "atkin_sea_levels": 1, "initial_trace_count": 14, "trace": null, "full_point_count": false, "peak_rss_bytes": 6409568256},
+        {"index": 13, "generation_us": 3281903, "sea_us": 94935152, "smoothness_us": 20680561, "total_us": 118897621, "sea_levels": 55, "exact_sea_levels": 31, "atkin_sea_levels": 2, "initial_trace_count": 1, "trace": "567016778891909917705145656495221226416994076949916870726764786", "full_point_count": true, "peak_rss_bytes": 6409568256},
+        {"index": 14, "generation_us": 774032, "sea_us": 101234576, "smoothness_us": 34567865, "total_us": 136576478, "sea_levels": 58, "exact_sea_levels": 33, "atkin_sea_levels": 0, "initial_trace_count": 3, "trace": null, "full_point_count": false, "peak_rss_bytes": 6409568256},
+        {"index": 15, "generation_us": 1238575, "sea_us": 130565123, "smoothness_us": 17643595, "total_us": 149447298, "sea_levels": 64, "exact_sea_levels": 31, "atkin_sea_levels": 2, "initial_trace_count": 1, "trace": "-230860316762056466823182699231398486004465136514916283324300850", "full_point_count": true, "peak_rss_bytes": 6409568256},
+        {"index": 16, "generation_us": 6388983, "sea_us": 102403725, "smoothness_us": 33587561, "total_us": 142380273, "sea_levels": 58, "exact_sea_levels": 31, "atkin_sea_levels": 2, "initial_trace_count": 3, "trace": null, "full_point_count": false, "peak_rss_bytes": 6409568256},
+        {"index": 17, "generation_us": 1030345, "sea_us": 184388438, "smoothness_us": 43046992, "total_us": 228465779, "sea_levels": 56, "exact_sea_levels": 32, "atkin_sea_levels": 0, "initial_trace_count": 9, "trace": null, "full_point_count": false, "peak_rss_bytes": 6409568256},
+        {"index": 18, "generation_us": 786760, "sea_us": 140391401, "smoothness_us": 15635969, "total_us": 156814134, "sea_levels": 65, "exact_sea_levels": 30, "atkin_sea_levels": 2, "initial_trace_count": 1, "trace": "34238702692748005928216607504774385228121332067558814079514574", "full_point_count": true, "peak_rss_bytes": 6409568256},
+        {"index": 19, "generation_us": 985316, "sea_us": 101599055, "smoothness_us": 50314556, "total_us": 152898931, "sea_levels": 58, "exact_sea_levels": 31, "atkin_sea_levels": 1, "initial_trace_count": 7, "trace": null, "full_point_count": false, "peak_rss_bytes": 6409568256},
+        {"index": 20, "generation_us": 1043706, "sea_us": 102807178, "smoothness_us": 26914779, "total_us": 130765670, "sea_levels": 56, "exact_sea_levels": 32, "atkin_sea_levels": 1, "initial_trace_count": 2, "trace": null, "full_point_count": false, "peak_rss_bytes": 6409568256},
+        {"index": 21, "generation_us": 5077437, "sea_us": 152863428, "smoothness_us": 17380063, "total_us": 175320935, "sea_levels": 67, "exact_sea_levels": 32, "atkin_sea_levels": 0, "initial_trace_count": 2, "trace": null, "full_point_count": false, "peak_rss_bytes": 6409568256}
+      ],
+      "parsed_aggregates": {
+        "timings_us": {
+          "generation": {"sum": 22386355, "mean": 2238635.5, "median": 1141140.5, "min": 774032, "max": 6388983},
+          "sea": {"sum": 1217422984, "mean": 121742298.4, "median": 104521043.0, "min": 94935152, "max": 184388438},
+          "smoothness": {"sum": 327610040, "mean": 32761004.0, "median": 30251170.0, "min": 15635969, "max": 67838099},
+          "total": {"sum": 1567419428, "mean": 156741942.8, "median": 151173114.5, "min": 118897621, "max": 228465779}
+        },
+        "sea_levels_sum": 597,
+        "exact_sea_levels_sum": 315,
+        "atkin_sea_levels_sum": 11,
+        "initial_trace_count_sum": 43,
+        "generation_rejections_sum": 1041,
+        "full_point_count_indices": [13, 15, 18],
+        "full_point_counts_completed": 3
+      }
+    }
+  },
+  "outcomes": {
+    "weber": {
+      "processed": 10,
+      "range_exhausted": true,
+      "complete": true,
+      "next_index": 22,
+      "sound_early_abort": 10,
+      "candidates_reaching_smoothness": 10,
+      "completed_without_certificate": 0,
+      "certificates_found": 0,
+      "summary_verified": false
+    },
+    "x1_point4": {
+      "processed": 10,
+      "range_exhausted": true,
+      "complete": true,
+      "next_index": 22,
+      "sound_early_abort": 10,
+      "candidates_reaching_smoothness": 10,
+      "completed_without_certificate": 0,
+      "certificates_found": 0,
+      "summary_verified": false
+    },
+    "interpretation": "Both bounded runs ended in ten sound smoothness rejections and found zero certificates. summary_verified=false means no certificate was produced and verified; it does not invalidate the sound rejection records. These benchmark checkpoints are not production continuation authority."
+  },
+  "throughput_comparison": {
+    "basis": "Ten completed benchmark curves divided by whole-invocation real time; this is the operational wall-throughput comparison for curve_threads=10.",
+    "weber": {
+      "seconds_per_curve": 30.619,
+      "curves_per_second": 0.03265946
+    },
+    "x1_point4": {
+      "seconds_per_curve": 29.457,
+      "curves_per_second": 0.03394779
+    },
+    "x1_over_weber_curve_throughput_ratio": 1.039447,
+    "x1_real_time_reduction_fraction": 0.0379503,
+    "x1_real_time_reduction_seconds": 11.62,
+    "aggregate_per_curve_total_us_ratio_weber_over_x1": 1.176677,
+    "aggregate_timing_warning": "The summed per-curve total_us values are concurrent task durations, not invocation wall time. Their 1.176677 ratio describes this one distribution of curve work and must not replace the 1.039447 wall-throughput ratio."
+  },
+  "yield_adjusted_opportunity_rate": {
+    "source": {
+      "path": "artifacts/local/p125-yield-model-20260801/result.json",
+      "sha256": "b0a1c97b4d32a864aacf616148ae08269a7355aa6f06d016f72eca9aa6c60a0a",
+      "classification": "heuristic Dickman smooth-group-order opportunity model; not a certificate-rate model"
+    },
+    "conservative_cyclic_basis": {
+      "reason": "Point-four X1(11) certifies a rational point of exact order 44. This is the conservative guaranteed cyclic divisor; it does not rely on treating the independent rational 2-torsion as part of one cyclic point.",
+      "model_opportunity_multiplier_x1_over_current_weber": 1.1775,
+      "wall_throughput_ratio_x1_over_weber": 1.0394473300064502,
+      "yield_adjusted_opportunity_rate_ratio_x1_over_weber": 1.223949231082595
+    },
+    "group_order_sensitivity_only": {
+      "reason": "The same family certifies divisibility of the selected group order by 88, but not a point of exact order 88 or the same divisor in the group exponent.",
+      "model_opportunity_multiplier_x1_over_current_weber": 1.2394,
+      "yield_adjusted_opportunity_rate_ratio_x1_over_weber": 1.2882910208099945
+    },
+    "interpretation": "The conservative 1.22395 ratio is throughput multiplied by a heuristic smooth-order opportunity multiplier. It is neither an observed yield ratio nor a verified-certificate rate. The n=10 runs produced zero certificates, so they cannot estimate empirical certificate yield."
+  },
+  "memory_comparison": {
+    "weber_reported_peak_rss_bytes": 6959546368,
+    "x1_point4_reported_peak_rss_bytes": 6409568256,
+    "x1_minus_weber_bytes": -549978112,
+    "x1_over_weber_ratio": 0.920975,
+    "warning": "peak_rss_bytes is a shared-process high-water value repeated in each ordered curve record, not isolated per-curve memory. The one-window difference is descriptive, not a stable family memory estimate."
+  },
+  "limitations": [
+    "The families use different deterministic curve distributions. Equal global index labels do not identify the same curve, so this is not a paired per-curve A/B and timing differences cannot be assigned solely to generator overhead.",
+    "Each family has only ten observations. Heavy-tailed SEA and exact-smooth work, concurrency overlap, host load, and curve distribution dominate fine-grained timing comparisons; no confidence interval is claimed.",
+    "Both runs found zero certificates. The bounded window therefore measures execution and sound rejection behavior, not empirical certificate yield.",
+    "The 44- and 88-divisor adjustments come from a heuristic random-integer Dickman opportunity model. Curve-family trace bias, curve/twist dependence, group exponent, exact-order assembly, and canonical verification can reduce realized certificate yield.",
+    "The final /usr/bin/time -l diagnostics reported `sysctl kern.clockrate: Operation not permitted` for both invocations. Real, user, and sys times were still printed, and search progress supplied process peak-RSS telemetry, but unavailable extended host counters are not inferred.",
+    "The benchmark checkpoints cover [12,22) only and must not be used to claim or advance the authenticated production cursor."
+  ],
+  "validation": {
+    "raw_sha256_recomputed": true,
+    "raw_line_counts_recomputed": true,
+    "progress_records_parsed": 20,
+    "checkpoint_identity_matches_start_and_final_progress": true,
+    "schedule_identity_matches_within_each_run": true,
+    "same_build_cache_table_verifier_and_python_identity_across_runs": true,
+    "captured_binary_sha256_rechecked_before_subsequent_worktree_rebuild": true,
+    "json_validation_command": "python3 -m json.tool artifacts/local/p125-x1-11-family-ab-20260801/result.json",
+    "note": "Raw records, retained inputs, checkpoints, identities, and calculations were rerun after authoring. The ignored mutable build/oneshotsea output was rebuilt concurrently after its captured 1ab2ffa0... digest had been rechecked, so its later worktree bytes are not represented as the captured binary."
+  }
+}

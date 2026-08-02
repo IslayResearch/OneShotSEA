@@ -26,6 +26,19 @@ std::uint64_t inverse_mod_small(std::uint64_t value, std::uint64_t modulus) {
     throw std::logic_error("Frobenius eigenvalue is not invertible modulo ell");
 }
 
+std::uint64_t conjugate_frobenius_eigenvalue(
+    const mpz_class& prime, std::uint64_t ell, std::uint64_t eigenvalue) {
+    const std::uint64_t p_mod_ell = mpz_fdiv_ui(prime.get_mpz_t(), ell);
+    const std::uint64_t inverse = inverse_mod_small(eigenvalue, ell);
+    const std::uint64_t conjugate = static_cast<std::uint64_t>(
+        (static_cast<unsigned __int128>(p_mod_ell) * inverse) % ell);
+    if (conjugate == 0U) {
+        throw std::logic_error(
+            "Frobenius conjugate eigenvalue is zero modulo ell");
+    }
+    return conjugate;
+}
+
 void assemble_kernel_divisors(const std::vector<Poly>& factors,
                               std::size_t first, int remaining_degree,
                               const Poly& product, std::size_t& visited,
@@ -72,6 +85,77 @@ std::size_t bounded_worker_count(std::size_t requested,
         requested = available == 0U ? 1U : static_cast<std::size_t>(available);
     }
     return std::min(requested, work_items);
+}
+
+struct WeberRootOrbit {
+    std::size_t representative = 0;
+    std::vector<std::size_t> members;
+};
+
+bool has_weber_root_covariance(
+    const SparseModularPolynomial& modular_polynomial) {
+    // If every nonzero X^a Y^b term has a + ell*b = ell+1 (mod 24), then
+    // Phi(zeta*X, zeta^ell*Y) = zeta^(ell+1)*Phi(X,Y) for zeta^24=1.
+    // Verify the identity from the loaded table instead of trusting its path or
+    // provenance; an unverified table retains the direct per-lift root path.
+    constexpr std::uint64_t kWeberWeightModulus = 24U;
+    const std::uint64_t ell = modular_polynomial.level();
+    const std::uint64_t expected = (ell + 1U) % kWeberWeightModulus;
+    for (const BivariateTerm& term : modular_polynomial.terms()) {
+        if (term.coefficient == 0) {
+            continue;
+        }
+        const std::uint64_t weight =
+            (static_cast<std::uint64_t>(term.x_degree) %
+                 kWeberWeightModulus +
+             (ell % kWeberWeightModulus) *
+                 (static_cast<std::uint64_t>(term.y_degree) %
+                  kWeberWeightModulus)) %
+            kWeberWeightModulus;
+        if (weight != expected) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::vector<WeberRootOrbit> make_weber_root_orbits(
+    const Field& field, const SparseModularPolynomial& modular_polynomial,
+    const std::vector<mpz_class>& source_lifts, bool enable_root_orbit_reuse,
+    bool& covariance_verified) {
+    covariance_verified = enable_root_orbit_reuse &&
+        mpz_probab_prime_p(field.modulus().get_mpz_t(), 25) != 0 &&
+        has_weber_root_covariance(modular_polynomial);
+    std::vector<WeberRootOrbit> orbits;
+    orbits.reserve(source_lifts.size());
+    if (!covariance_verified) {
+        for (std::size_t index = 0; index < source_lifts.size(); ++index) {
+            orbits.push_back({index, {index}});
+        }
+        return orbits;
+    }
+
+    std::map<mpz_class, std::size_t> orbit_by_power;
+    for (std::size_t index = 0; index < source_lifts.size(); ++index) {
+        const mpz_class normalized = field.normalize(source_lifts[index]);
+        // The Weber-to-j relation cannot produce zero, but callers may supply
+        // arbitrary restricted lifts.  Preserve the exact direct path for that
+        // exceptional input rather than attempting to form a quotient.
+        if (normalized == 0) {
+            orbits.push_back({index, {index}});
+            continue;
+        }
+        const mpz_class power = field.pow(normalized, 24);
+        const auto existing = orbit_by_power.find(power);
+        if (existing == orbit_by_power.end()) {
+            const std::size_t orbit_index = orbits.size();
+            orbit_by_power.emplace(power, orbit_index);
+            orbits.push_back({index, {index}});
+        } else {
+            orbits[existing->second].members.push_back(index);
+        }
+    }
+    return orbits;
 }
 
 }  // namespace
@@ -279,7 +363,8 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
     const Curve& curve,
     const SparseModularPolynomial& weber_modular_polynomial,
     const std::vector<mpz_class>* restricted_source_lifts,
-    std::size_t modular_root_threads) {
+    std::size_t modular_root_threads, bool enable_root_orbit_reuse,
+    bool enable_conjugate_eigenvalue_reuse) {
     using Clock = std::chrono::steady_clock;
     const auto elapsed_us = [](const Clock::time_point& started) {
         return static_cast<std::uint64_t>(
@@ -289,6 +374,8 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
     };
     WeberElkiesLevelResult output;
     ElkiesStageTimings& measured = output.timings;
+    measured.conjugate_eigenvalue_reuse =
+        enable_conjugate_eigenvalue_reuse;
     const std::uint64_t ell = weber_modular_polynomial.level();
     const Field& field = curve.field();
     std::vector<mpz_class> discovered_source_lifts;
@@ -313,9 +400,18 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
     };
     started = Clock::now();
     std::vector<std::vector<mpz_class>> neighbor_sets(source_lifts->size());
+    bool covariance_verified = false;
+    const std::vector<WeberRootOrbit> root_orbits = make_weber_root_orbits(
+        field, weber_modular_polynomial, *source_lifts,
+        enable_root_orbit_reuse, covariance_verified);
+    measured.modular_root_orbits = root_orbits.size();
+    measured.modular_root_reused_lifts =
+        source_lifts->size() - root_orbits.size();
+    measured.modular_root_orbit_reuse =
+        covariance_verified && measured.modular_root_reused_lifts != 0U;
     measured.modular_root_workers = bounded_worker_count(
-        modular_root_threads, source_lifts->size());
-    std::atomic<std::size_t> next_source_lift{0U};
+        modular_root_threads, root_orbits.size());
+    std::atomic<std::size_t> next_root_orbit{0U};
     std::vector<std::future<void>> root_jobs;
     root_jobs.reserve(measured.modular_root_workers);
     for (std::size_t worker = 0; worker < measured.modular_root_workers;
@@ -323,17 +419,47 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
         root_jobs.push_back(std::async(
             std::launch::async,
             [&field, &weber_modular_polynomial, source_lifts,
-             &neighbor_sets, &next_source_lift]() {
+             &root_orbits, &neighbor_sets, &next_root_orbit, ell]() {
                 while (true) {
-                    const std::size_t source_index =
-                        next_source_lift.fetch_add(1U);
-                    if (source_index >= source_lifts->size()) {
+                    const std::size_t orbit_index =
+                        next_root_orbit.fetch_add(1U);
+                    if (orbit_index >= root_orbits.size()) {
                         return;
                     }
+                    const WeberRootOrbit& orbit = root_orbits[orbit_index];
+                    const std::size_t source_index = orbit.representative;
+                    const mpz_class representative_f =
+                        field.normalize((*source_lifts)[source_index]);
                     const Poly specialized =
                         weber_modular_polynomial.evaluate_x(
-                            field, (*source_lifts)[source_index]);
+                            field, representative_f);
                     neighbor_sets[source_index] = linear_roots(specialized);
+                    if (orbit.members.size() == 1U) {
+                        continue;
+                    }
+                    for (const std::size_t member_index : orbit.members) {
+                        if (member_index == source_index) {
+                            continue;
+                        }
+                        const mpz_class member_f =
+                            field.normalize((*source_lifts)[member_index]);
+                        const mpz_class zeta =
+                            field.divide(member_f, representative_f);
+                        if (field.pow(zeta, 24) != 1) {
+                            throw std::logic_error(
+                                "Weber root orbit has an invalid 24th-root ratio");
+                        }
+                        const mpz_class scale = field.pow(
+                            zeta, mpz_class(std::to_string(ell)));
+                        std::vector<mpz_class>& mapped =
+                            neighbor_sets[member_index];
+                        mapped.reserve(neighbor_sets[source_index].size());
+                        for (const mpz_class& root :
+                             neighbor_sets[source_index]) {
+                            mapped.push_back(field.mul(scale, root));
+                        }
+                        std::sort(mapped.begin(), mapped.end());
+                    }
                 }
             }));
     }
@@ -403,8 +529,34 @@ WeberElkiesLevelResult compute_weber_elkies_level_reference(
             }
             started = Clock::now();
             ++measured.eigenvalue_attempts;
-            const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny(
-                curve, codomain, reconstruction, ell);
+            std::optional<std::uint64_t> eigenvalue;
+            if (enable_conjugate_eigenvalue_reuse &&
+                !output.kernels.empty()) {
+                // BMSS validates the complete rational map before returning.
+                // Revalidate at this public trust boundary exactly as the
+                // independent recovery path does.  A rational ell-isogeny over
+                // F_p has a Frobenius-stable kernel; after one eigenvalue lambda
+                // is known, the characteristic-polynomial determinant gives
+                // the other eigenvalue p/lambda modulo ell without a second
+                // quotient-ring Frobenius computation.
+                validate_rational_isogeny_reference(
+                    curve, codomain, ell, reconstruction);
+                const std::uint64_t anchor = output.kernels.front().eigenvalue;
+                const std::uint64_t conjugate =
+                    conjugate_frobenius_eigenvalue(
+                        field.modulus(), ell, anchor);
+                if (anchor != conjugate && output.kernels.size() >= 2U) {
+                    throw std::runtime_error(
+                        "more than two distinct non-scalar Frobenius-stable "
+                        "ell-kernels");
+                }
+                eigenvalue = conjugate;
+                ++measured.conjugate_eigenvalues_derived;
+            } else {
+                ++measured.independent_eigenvalue_recoveries;
+                eigenvalue = try_frobenius_eigenvalue_from_isogeny(
+                    curve, codomain, reconstruction, ell);
+            }
             measured.eigenvalue_us += elapsed_us(started);
             if (!eigenvalue.has_value()) {
                 continue;

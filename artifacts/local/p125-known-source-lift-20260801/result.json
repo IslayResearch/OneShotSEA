@@ -1,0 +1,125 @@
+{
+  "schema": "oneshotsea.known-weber-source-lift-benchmark.v1",
+  "date": "2026-08-01",
+  "classification": "bounded local benchmark only; production paused at authenticated next_index 60; benchmark did not advance any search cursor",
+  "host": "Apple M4, 10 cores, 16 GiB",
+  "baseline": {
+    "commit": "1e84475a7c5440df8b3446a8f7c4362344d28b62",
+    "clean_cli_binary_sha256": "feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa",
+    "comparison_contract": "Both timing modes use one patched harness/library and differ only in passing nullopt (the unchanged generic committed behavior) versus the validated generator-retained weber_f. This removes compiler/build variance. The clean pre-patch CLI binary is pinned as the source baseline but cannot express the new API argument."
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "curve_family": "x1-11",
+    "x1_require_point_four": true,
+    "max_level": 401,
+    "trace_cap": 16,
+    "sea_threads": 1,
+    "root_orbit_reuse": true,
+    "conjugate_eigenvalue_reuse": true,
+    "trace_prior": "selected X1 side group divisor, identical to production"
+  },
+  "build": {
+    "benchmark_source_sha256": "a13766e3eb5428686b51e6fdfd1e605d7fb1720a7a8fcaf2e8ac8cdad3ac85c1",
+    "benchmark_binary_sha256": "10dac85505995825712e4fd78e27b59bc66be3980bd7ade8993f2ee3b8d600a1",
+    "benchmark_library_sha256": "dc31479ff45e00e6bbc6342d49cfd35d7ad65c7f4e6934017f32fe5c4fc1baf2",
+    "sea_header_sha256": "37c19c1b0a9e37fdd4ba748f0600397dc34833149b87baff9e415afef54cbec8",
+    "sea_source_sha256": "120ec0774a0e302a6410286d0b192631980978f01cb8fc5a5a164a1691874ba1",
+    "pipeline_source_sha256": "b2575d07840047515201a5f29f04fb16becab527128a956d2feea1018f24871e",
+    "core_test_sha256": "1b45c2d423e1ae044419b1618f8282b936ad3d51ee9624e746bfd696f8accfab",
+    "pipeline_test_sha256": "e553de2cc1238294500f203e9a65a05fa87e08e28b4ebb879fb9ce3b46b37a90"
+  },
+  "curves": {
+    "12": {
+      "discovered_source_lifts": 12,
+      "distinct_f24_orbits": 1,
+      "generic": {
+        "retained_lifts": 12,
+        "levels": 59,
+        "traces": 2,
+        "elapsed_us": 65383303,
+        "modular_roots_us": 41318362,
+        "bmss_us": 6819486,
+        "eigenvalue_us": 16325739,
+        "external_real_seconds": 66.89
+      },
+      "known": {
+        "retained_lifts": 1,
+        "levels": 59,
+        "traces": 2,
+        "elapsed_us": 64763793,
+        "modular_roots_us": 41302274,
+        "bmss_us": 6865953,
+        "eigenvalue_us": 16388026,
+        "external_real_seconds": 66.01
+      },
+      "elapsed_speedup": 1.009565684,
+      "modular_root_speedup": 1.000389519,
+      "interpretation": "Neutral control: all twelve lifts already occupy one verified f^24 orbit.",
+      "ell_trace_residue_projection": "5:2,7:-,13:12,17:7,19:17,23:-,29:19,31:-,37:-,41:7,43:-,47:28,53:16,59:52,61:39,67:8,71:2,73:-,79:72,83:-,89:-,97:-,101:-,103:96,107:54,109:71,113:87,127:61,131:-,137:-,139:-,149:147,151:127,157:-,163:-,167:-,173:22,179:-,181:7,191:172,193:36,197:-,199:-,211:-,223:137,227:223,229:-,233:72,239:-,241:223,251:-,257:80,263:-,269:-,271:22,277:-,281:-,283:-,293:47",
+      "final_traces": [
+        "158789009397036364992209943036479871630630618569072935400810882",
+        "543210954153135665534995545689849104697280685674429635434620402"
+      ]
+    },
+    "17": {
+      "discovered_source_lifts": 36,
+      "distinct_f24_orbits": 3,
+      "generic": {
+        "retained_lifts": 36,
+        "levels": 55,
+        "traces": 1,
+        "elapsed_us": 129162540,
+        "modular_roots_us": 100456823,
+        "bmss_us": 7528083,
+        "eigenvalue_us": 18549855,
+        "external_real_seconds": 129.94
+      },
+      "known": {
+        "retained_lifts": 1,
+        "levels": 55,
+        "traces": 1,
+        "elapsed_us": 59822858,
+        "modular_roots_us": 33536506,
+        "bmss_us": 7566350,
+        "eigenvalue_us": 18575122,
+        "external_real_seconds": 60.62
+      },
+      "elapsed_speedup": 2.159083406,
+      "elapsed_reduction": 0.536840496,
+      "modular_root_speedup": 2.995446902,
+      "interpretation": "Decisive multi-orbit case: the singleton removes two of three root-specialization orbits while BMSS and eigenvalue work remain stable.",
+      "ell_trace_residue_projection": "5:3,7:4,13:-,17:-,19:-,23:2,29:19,31:30,37:33,41:0,43:-,47:-,53:19,59:-,61:9,67:2,71:-,73:-,79:16,83:52,89:-,97:62,101:-,103:84,107:-,109:-,113:31,127:44,131:-,137:129,139:-,149:-,151:-,157:60,163:29,167:104,173:-,179:12,181:-,191:-,193:107,197:172,199:132,211:-,223:-,227:-,229:-,233:184,239:-,241:193,251:129,257:251,263:49,269:193,271:223",
+      "final_traces": [
+        "99665767869812870924682147829487733751548741139379532401938818"
+      ]
+    }
+  },
+  "exact_equivalence": {
+    "generic_vs_known_level_count": true,
+    "generic_vs_known_ell_sequence": true,
+    "generic_vs_known_exact_classification": true,
+    "generic_vs_known_trace_residues": true,
+    "generic_vs_known_exact_moduli": true,
+    "generic_vs_known_trace_candidate_counts": true,
+    "generic_vs_known_final_trace_vectors": true
+  },
+  "audit": {
+    "public_validation": "known lift must be canonical, nonzero, unramified, nonexceptional, and map exactly to curve j; failure throws and never falls back silently",
+    "generic_fallback": "callers without a retained generator witness continue exhaustive weber_f_lifts discovery",
+    "bounded_regression": "F_277, f=20, j=73: all 36 lifts across three f^24 orbits agree at empty ell=5 and exact ell=17 for curve and twist",
+    "independent_sweep": "no counterexample through ell=43, including a 72-lift/three-orbit F_1153 fixture",
+    "schedule_policy": "weber_source_lift_policy=generator-retained-unramified-singleton-v1",
+    "checkpoint_rule": "pre-policy checkpoints are rejected by the changed canonical schedule digest"
+  },
+  "raw": {
+    "summary": "raw-summary.txt",
+    "summary_sha256": "4e76f9067cdb341dbeccf336c910f5844a995c245f79f820bbd818da788ca2b0",
+    "harness": "benchmark_known_lift.cpp",
+    "index12_exact_projection": "index12-projection.txt",
+    "index12_exact_projection_sha256": "f2a32b4852e4e8ffb8a1d138a29bf9bb5f801f46dbae2f270b5e354e6d2067d3",
+    "index17_exact_projection": "index17-projection.txt",
+    "index17_exact_projection_sha256": "22b0daab7318b737f93bf44c3ba57006ad9a2a76e86ed308ae84d57827631e27"
+  }
+}

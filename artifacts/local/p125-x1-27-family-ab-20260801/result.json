@@ -1,0 +1,230 @@
+{
+  "schema": "oneshotsea.p125-x1-27-family-ab.v1",
+  "date": "2026-08-01",
+  "classification": "bounded same-binary reverse-order family A/B; benchmark-only; no production-cursor advancement",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bit_length": 416,
+    "seed": "202607300000",
+    "half_open_index_range_per_run": "[0,10)",
+    "deterministic_observations_per_family": 10,
+    "timing_repetitions_per_family": 2,
+    "execution_order": [
+      "x1-11-b1",
+      "x1-27-x1",
+      "x1-27-x2",
+      "x1-11-b2"
+    ],
+    "pairing_warning": "Equal index labels reproduce a family-specific deterministic stream. X1(11) and X1(27) generate different curves, so the cross-family observations are not paired. Repetitions do not create 20 independent curves per family."
+  },
+  "implementation_identity": {
+    "git_commit": "07bbda3333ed88297d8a5a3a15650584e8956070",
+    "git_subject": "Add audited X1(27) search family",
+    "binary_path_at_capture": "work/oneshotsea-07bbda3",
+    "retained_binary_path": "raw/frozen-executable/oneshotsea",
+    "binary_sha256": "d4d839b889fc4f4cf50d70e5a17743c6f34b11ffbf29d1f5804026f382394fac",
+    "build_id_emitted_by_all_runs": "git:07bbda3333ed88297d8a5a3a15650584e8956070+binary-sha256:d4d839b889fc4f4cf50d70e5a17743c6f34b11ffbf29d1f5804026f382394fac",
+    "retained_runner_path": "raw/run.sh",
+    "runner_path_at_capture": "/private/tmp/oneshotsea-x127-ab-07bb/run.sh",
+    "runner_sha256": "c76c29775e08682896fd2cc45a33c8ff5700e95fd958418691852e851e943ca8",
+    "table_directory": "data/modpoly/weber_f",
+    "table_manifest_file_sha256": "e5b84a87335523f79d47f140d70ceddee9e1c6891a7fae8aaadcae5c080de3ab",
+    "authenticated_table_set_sha256_emitted_by_all_runs": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "smooth_cache_path": "work/p125/smooth.cache",
+    "smooth_cache_sha256_emitted_by_all_runs": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "canonical_verifier_path": "third_party/oneshot_primality_proofs/voneshot.py",
+    "canonical_verifier_sha256_emitted_by_all_runs": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+    "python_executable_emitted": "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+    "python_sha256_emitted_by_all_runs": "b502cb4c5b46b8d4192ec6bcb600ce8922f1afc396fcf646e8765c6eba74a0bf"
+  },
+  "effective_command_options": {
+    "timing_wrapper": "/usr/bin/time -l",
+    "common": {
+      "command": "work/oneshotsea-07bbda3 search",
+      "range_start": 0,
+      "range_end": 10,
+      "worker_id": 0,
+      "worker_count": 1,
+      "x1_require_point_four": true,
+      "max_level": 401,
+      "trace_cap": 16,
+      "skip_incomplete_curves": true,
+      "curve_threads": 10,
+      "sea_threads": 1,
+      "sea_level_telemetry": false,
+      "smooth_threads": 1,
+      "smooth_max_batch": 128,
+      "smooth_root_auxiliary_bytes": 134217728,
+      "smooth_build_segment_span": 500000000,
+      "checkpoint_every": 1,
+      "assembly_attempts": 400,
+      "max_certificate_candidates": 100000,
+      "max_candidate_search_nodes": 1000000,
+      "max_curves": 10
+    },
+    "x1_11": {
+      "curve_family": "x1-11",
+      "schedule_sha256": "bb2c036c4f61a4de0a2dbc2fb702b5aae80e14bf638e0aa864e928f5325d75bc",
+      "trace_prior_modulus": 176
+    },
+    "x1_27": {
+      "curve_family": "x1-27",
+      "schedule_sha256": "984ab615027fef48c73a1c86c895f0677e4057943303cb32a351de261d5d8725",
+      "trace_prior_modulus": 432
+    },
+    "incomplete_skip_observation": "The opt-in incomplete-skip capability was enabled symmetrically, but no run used it: every curve record has heuristic=false and every checkpoint reports rejected_heuristic=0."
+  },
+  "raw_outputs": {
+    "retention_note": "The original host-local runner, logs, progress, and checkpoints are retained byte-for-byte under raw/. Capture paths remain provenance only; retained paths, line counts, hashes, and checkpoint CRC64 values identify the captures.",
+    "x1_11_b1": {
+      "retained_directory": "raw/b1",
+      "directory_at_capture": "/private/tmp/oneshotsea-x127-ab-07bb/b1",
+      "search_log": {"lines": 14, "sha256": "88903c2660fa6a5c9ba8f935274e223e70c3f3a3e315e36aba4c9716af6b8431"},
+      "progress": {"lines": 10, "sha256": "802e83a0a4db27ebef400b11f4a88c4d0ff6d956772a267ff206842ab52e0c55"},
+      "checkpoint": {"lines": 1, "sha256": "57d180ac3e5b17bf5b25dc02f787923e6010d68fd325514db22a9562895c3cb2", "crc64_ecma": "b6357a81dca714eb"}
+    },
+    "x1_27_x1": {
+      "retained_directory": "raw/x1",
+      "directory_at_capture": "/private/tmp/oneshotsea-x127-ab-07bb/x1",
+      "search_log": {"lines": 14, "sha256": "f578561d45f69bbc87b69cb2ce9b67f17593d31fb81c0b42fc3bd521c3ec3c65"},
+      "progress": {"lines": 10, "sha256": "ffb7144fa94880d1a301e4fc7e7583142eb33f207013ae36047cb6242a470652"},
+      "checkpoint": {"lines": 1, "sha256": "122e86c21f26c1adc02f48b1afecd77077dd94c680f8fa721272f9628a9659a2", "crc64_ecma": "82bb89493ea5e6fb"}
+    },
+    "x1_27_x2": {
+      "retained_directory": "raw/x2",
+      "directory_at_capture": "/private/tmp/oneshotsea-x127-ab-07bb/x2",
+      "search_log": {"lines": 14, "sha256": "7e52c27333a237b5a4f88a54ac7827854296d3a28f00530908b618f9e24555d1"},
+      "progress": {"lines": 10, "sha256": "0e4a47b9357253e399399283ebc1bf88bb1277b12ef7a58d4b30456c4c6f2d0f"},
+      "checkpoint": {"lines": 1, "sha256": "122e86c21f26c1adc02f48b1afecd77077dd94c680f8fa721272f9628a9659a2", "crc64_ecma": "82bb89493ea5e6fb"}
+    },
+    "x1_11_b2": {
+      "retained_directory": "raw/b2",
+      "directory_at_capture": "/private/tmp/oneshotsea-x127-ab-07bb/b2",
+      "search_log": {"lines": 14, "sha256": "b26025df4e7172d9d6df8c0ad234336a1f533043f488cf57bda1f74a1344747c"},
+      "progress": {"lines": 10, "sha256": "1a7eb0e1820b91b3f78d13f0c58e3eaa3fd6159751a418c886fad4ec57ea605b"},
+      "checkpoint": {"lines": 1, "sha256": "57d180ac3e5b17bf5b25dc02f787923e6010d68fd325514db22a9562895c3cb2", "crc64_ecma": "b6357a81dca714eb"}
+    },
+    "semantic_repeat_check": {
+      "normalization": "jq -S 'del(.peak_rss_bytes,.timings_us,.state)' progress.ndjson",
+      "x1_11_b1_and_b2_sha256": "6780d4635be2ae45aa44f31b81124b5494b2c1d77253c2260c305798567349d5",
+      "x1_27_x1_and_x2_sha256": "1b0488ba130b01a0434dd9952c3c02c57a0612f13cd3ad0b603f9795800f508c",
+      "interpretation": "Within each family, the two repetitions have identical non-timing curve records and identical checkpoint content."
+    }
+  },
+  "runs": {
+    "x1_11_b1": {
+      "invocation_time_seconds": {"real": 215.53, "user": 1109.97, "sys": 5.21},
+      "timings_us_sum": {"generation": 12378979, "sea": 802163730, "smoothness": 250148894, "total": 1064691663},
+      "sea_levels_sum": 578,
+      "exact_sea_levels_sum": 303,
+      "atkin_sea_levels_sum": 9,
+      "final_exact_trace_candidates_sum": 83,
+      "final_trace_candidates_sum": 27,
+      "reported_peak_rss_bytes_max": 6589399040
+    },
+    "x1_27_x1": {
+      "invocation_time_seconds": {"real": 197.74, "user": 944.66, "sys": 4.34},
+      "timings_us_sum": {"generation": 43538418, "sea": 615578476, "smoothness": 229096928, "total": 888213872},
+      "sea_levels_sum": 542,
+      "exact_sea_levels_sum": 309,
+      "atkin_sea_levels_sum": 12,
+      "final_exact_trace_candidates_sum": 115,
+      "final_trace_candidates_sum": 22,
+      "reported_peak_rss_bytes_max": 5892325376
+    },
+    "x1_27_x2": {
+      "invocation_time_seconds": {"real": 198.12, "user": 948.12, "sys": 5.13},
+      "timings_us_sum": {"generation": 44315161, "sea": 616360165, "smoothness": 231114844, "total": 891790223},
+      "sea_levels_sum": 542,
+      "exact_sea_levels_sum": 309,
+      "atkin_sea_levels_sum": 12,
+      "final_exact_trace_candidates_sum": 115,
+      "final_trace_candidates_sum": 22,
+      "reported_peak_rss_bytes_max": 5820874752
+    },
+    "x1_11_b2": {
+      "invocation_time_seconds": {"real": 214.67, "user": 1113.99, "sys": 5.34},
+      "timings_us_sum": {"generation": 12350460, "sea": 795791562, "smoothness": 249185658, "total": 1057327730},
+      "sea_levels_sum": 578,
+      "exact_sea_levels_sum": 303,
+      "atkin_sea_levels_sum": 9,
+      "final_exact_trace_candidates_sum": 83,
+      "final_trace_candidates_sum": 27,
+      "reported_peak_rss_bytes_max": 5821743104
+    }
+  },
+  "outcomes_per_run": {
+    "curves_attempted": 10,
+    "sound_smoothness_rejections": 10,
+    "heuristic_rejections": 0,
+    "full_point_counts": 6,
+    "candidates_reaching_smoothness": 10,
+    "certificates_found": 0,
+    "range_exhausted": true,
+    "verified": false,
+    "verified_interpretation": "No certificate existed to submit to the verifier; verified=false is not a verifier failure."
+  },
+  "measured_comparison": {
+    "classification": "observed throughput and concurrent task-work only; not yield",
+    "x1_11_two_run_mean": {
+      "wall_seconds": 215.1,
+      "wall_seconds_per_curve": 21.51,
+      "wall_curves_per_second": 0.046490005,
+      "generation_us_sum": 12364719.5,
+      "sea_us_sum": 798977646.0,
+      "smoothness_us_sum": 249667276.0,
+      "total_us_sum": 1061009696.5
+    },
+    "x1_27_two_run_mean": {
+      "wall_seconds": 197.93,
+      "wall_seconds_per_curve": 19.793,
+      "wall_curves_per_second": 0.050522912,
+      "generation_us_sum": 43926789.5,
+      "sea_us_sum": 615969320.5,
+      "smoothness_us_sum": 230105886.0,
+      "total_us_sum": 890002047.5
+    },
+    "ratios_x1_27_over_x1_11": {
+      "wall_curve_throughput": 1.08674784,
+      "wall_time": 0.920176662,
+      "generation_task_time": 3.552590861,
+      "sea_task_throughput": 1.297106235,
+      "smoothness_task_throughput": 1.085010385,
+      "total_concurrent_task_work_throughput": 1.192142984
+    },
+    "interpretation": "X1(27) used 7.98% less wall time and delivered 8.67% more observed curve throughput. Sums of per-curve task timings overlap under the ten-curve window and therefore are not invocation wall time."
+  },
+  "modeled_opportunity_comparison": {
+    "classification": "Dickman-Mertens optimistic smooth-order opportunity model; not observed yield or certificate rate",
+    "model_source": "tools/p125_yield_model.py DickmanGrid and smooth_tail_probability, evaluated without modifying the checked-in model",
+    "assumptions": [
+      "Selected-side divisibility shifts the smooth threshold from L to L/D.",
+      "The paired curve/twist order is conditioned only by gcd(D,2(p+1)), which is 4 for all four divisors below.",
+      "Selected and paired marginal smooth opportunities are combined independently only for this optimistic planning model.",
+      "Curve-family trace bias, curve/twist correlation, group exponent, representability, exact-order assembly, and canonical verification are not modeled."
+    ],
+    "cyclic_divisor_case": {
+      "x1_11_selected_divisor": 44,
+      "x1_27_selected_divisor": 108,
+      "x1_11_optimistic_paired_probability": 0.000009772424944265445,
+      "x1_27_optimistic_paired_probability": 0.000010446455027346424,
+      "x1_27_over_x1_11_opportunity_multiplier": 1.068972654,
+      "combined_with_measured_wall_throughput": 1.161704099
+    },
+    "group_divisor_sensitivity": {
+      "x1_11_selected_group_divisor": 176,
+      "x1_27_selected_group_divisor": 432,
+      "x1_11_optimistic_paired_probability": 0.000010845544605397883,
+      "x1_27_optimistic_paired_probability": 0.000011644851429237768,
+      "x1_27_over_x1_11_opportunity_multiplier": 1.073699095,
+      "combined_with_measured_wall_throughput": 1.166840069,
+      "warning": "A group-order divisor need not divide the group exponent or produce a point of that exact order."
+    }
+  },
+  "decision": {
+    "result": "promote-x1-27-for-next-production-identity",
+    "reason": "The same-binary reverse-order gate measured 1.08675x wall curve throughput, and both separately modeled opportunity sensitivities remain favorable after accounting for X1(27)'s slower generation.",
+    "guardrails": "Treat this as a bounded n=10 throughput decision. Continue monitoring the larger production sample; do not report empirical yield because all four runs found zero certificates."
+  },
+  "timing_wrapper_note": "/usr/bin/time -l emitted real/user/sys values and then reported 'sysctl kern.clockrate: Operation not permitted'. The search summaries and checkpoints had already completed; no unavailable extended host counter is inferred."
+}

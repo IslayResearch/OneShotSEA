@@ -30,7 +30,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-poly-square test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-poly-square test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -141,6 +141,9 @@ test-progress-audit:
 test-yield-model:
 	python3 tests/test_yield_model.py -v
 
+test-performance-artifacts:
+	python3 tools/audit_performance_artifacts.py
+
 test-cli: all
 	python3 tests/test_cli.py -v
 
@@ -225,7 +228,7 @@ test-runpod: all
 test-aws:
 	scripts/aws/test.sh
 
-test-all: test test-poly-square test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
+test-all: test test-poly-square test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

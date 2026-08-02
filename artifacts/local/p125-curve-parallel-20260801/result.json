@@ -3,12 +3,14 @@
   "date": "2026-08-01",
   "host": "Apple M4, 10 cores, 16 GiB",
   "classification": "same frozen executable, serial then rolling two-curve replay",
+  "retained_raw_directory": "raw",
   "search_accounting": "This pre-commit scaling evaluation does not advance the authenticated production cursor. Indices 12 through 17 are benchmark-only observations and must be rerun from production range start 12 under the final committed build identity.",
   "code_base_commit": "f8347c68ef357107e3bfead0107e947e1c4c4500",
   "evaluated_source": {
     "description": "f8347c6 plus threshold-32 Karatsuba polynomial convolution in src/poly.cpp",
     "src_poly_diff_sha256": "66f82c7a4296af176bcc93d840f7d9c5b640ad54b6dc556f8a9d4615fa8da7b1",
     "src_and_test_diff_sha256": "69454e84e87b568416a09aca421d8827b2c4b1311d2b4774695084c9dc02ed4d",
+    "retained_frozen_binary_path": "raw/frozen-executable/oneshotsea",
     "frozen_binary_sha256": "01d9cabac89660094545c7cd42b83b1c6d06d74b5c979aec3d52ea14a01eee0e"
   },
   "target": {

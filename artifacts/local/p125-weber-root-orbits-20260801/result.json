@@ -2,7 +2,9 @@
   "schema": "oneshotsea.weber-root-orbit-benchmark.v1",
   "date": "2026-08-01",
   "host": "Apple M4, 10 SEA threads",
+  "retained_raw_directory": "raw",
   "code_commit": "b41311aae5dea44eef147fb52dc8b40fee6b2990",
+  "retained_binary_path": "raw/frozen-executable/oneshotsea",
   "binary_sha256": "ba10fe7f7887e98d67e704e5322d740c0345122899e3faff339e2066a02fde48",
   "identity": {
     "relation": "Phi(zeta*f,zeta^ell*y)=zeta^(ell+1)*Phi(f,y) for zeta^24=1",
@@ -77,6 +79,7 @@
     "optimized_run_1_jsonl": "031414666fb580e0c3945883be98038d610a3bbac4d1996fde5230612f7f7eb2",
     "baseline_run_2_jsonl": "02fc840dc38132ac8c438037ca50845c398188b4aa1fdabc6f7d78394e7d7972",
     "optimized_run_2_jsonl": "98117aab678828cc141a38c7b1b7162c7ff1078162d94f5f71a7c07ae53c69d2",
+    "index_4_baseline_progress": "b090397fb954cffba19e86e95a218d18c3439cc6d8f6cad76c1cb7e130a5b8fa",
     "index_4_optimized_jsonl": "ce7353c3541bb3836fa332f4df5527e325b470393fa5988aecae4aa8af997435",
     "index_4_time": "9770abef930de5038a6253dd46fb1a172a64abdb275949db1ae5e02f97532bda"
   },

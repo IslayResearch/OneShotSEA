@@ -25,6 +25,20 @@ sharing has no artificial duplicated-work baseline, and the direct classical com
 common checked-in levels because no classical schedule comparable to the 77
 Weber levels exists in this repository.
 
+The decisive local A/B bundles now retain every recovered original progress
+stream, log, timing capture, checkpoint, runner, and frozen benchmark
+executable; the categories available differ by experiment.  Each bundle has a
+complete `SHA256SUMS` covering its exact file set, including canonical
+mathematical projections that were not listed in the older summary JSON.
+`make test-performance-artifacts` verifies those manifests, selected
+retained-raw hashes and counts, canonical semantic projections, and the
+headline aggregate arithmetic.  Retained runner scripts are capture
+provenance: some contain their original absolute paths and are not represented
+as clean-clone launchers.  The reducer artifact explicitly labels its
+unrecovered synthetic timing transcript and baseline invocation-time file.
+The 5.4 GB exact-smooth cache remains an authenticated reproducible dependency
+rather than committed performance evidence.
+
 ## 1. Sound early abort
 
 The production rule is conservative.  SEA stops early only after its current
@@ -143,7 +157,9 @@ and a non-monic modulus.
 The deterministic replay preserved 60 levels, 31 exact levels, four terminal
 traces, and the `sound_smoothness_reject` result.  This is the strongest
 retained batching ablation because the source difference and both result
-identities are recorded.
+identities are recorded.  The retained progress, checkpoint, and log bytes,
+including the explicit limitation on the unrecovered synthetic timing
+transcript, are bound by [the reducer artifact](../artifacts/local/p125-polynomial-reducer-ab-20260731/result.json).
 
 ### Thresholded exact Karatsuba convolution
 
@@ -275,7 +291,10 @@ twist-counting baseline was timed.
 
 Correctness coverage includes the identity
 `#E + #E_twist = 2p+2`, paired smooth-part extraction, and both certificate
-sides.  See [search pipeline](search_pipeline.md) and `tests/test_core.cpp` /
+sides.  The twelve source progress streams and the distinction between 272
+screens and 24 actual curve/twist order opportunities are bound by
+[the work-count artifact](../artifacts/local/p125-curve-twist-workcount-20260801/result.json).
+See [search pipeline](search_pipeline.md) and `tests/test_core.cpp` /
 `tests/test_exact_smooth.cpp`.
 
 ## 4. Prime scheduling

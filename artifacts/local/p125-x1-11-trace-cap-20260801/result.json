@@ -16,6 +16,7 @@
   "implementation_identity": {
     "git_commit": "8c1605f0fd702260528915bde3ef52c8043acd4c",
     "git_subject": "Seed SEA with exact family trace priors",
+    "retained_binary_path": "raw/frozen-executable/oneshotsea",
     "binary_sha256": "feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa",
     "build_id_emitted_by_all_runs": "git:8c1605f0fd702260528915bde3ef52c8043acd4c+binary-sha256:feb9c06aa0303c699b4c6c9f777b53e0936b2e64b6a6908faa2ee0fc723288aa",
     "table_set_sha256_emitted_by_all_runs": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
@@ -43,30 +44,30 @@
     "note": "search-start authenticates the emitted resources. max_level and checkpoint interval one come from the audited bounded invocation because search-start does not emit them."
   },
   "raw_outputs": {
-    "retention_note": "Raw outputs are host-local /tmp captures and are intentionally not checked in. Paths, byte sizes, line counts, SHA-256 digests, and checkpoint CRC64 values pin every capture.",
+    "retention_note": "The original host-local captures are now retained byte-for-byte under raw/. Original paths remain provenance only; retained paths, byte sizes, line counts, SHA-256 digests, and checkpoint CRC64 values pin every capture.",
     "cap64": {
       "schedule_sha256": "8a7b2af7e867ba662aabf014c18a45a510f711be878e20765974b2a4f5962ce8",
-      "checkpoint": {"path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/checkpoint.json","bytes":927,"lines":1,"sha256":"b725c26a8b1b699916a205ac3e6d01dda2d21b6452229dc59b157fd3b379f9f1","crc64_ecma":"8e574701502c80ea"},
-      "progress": {"path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/progress.ndjson","bytes":447438,"lines":10,"sha256":"b97f7a1a7f80329386ec42c0a8e146bf5bb6c2c8b12a1c212668c63f0d15e160"},
-      "run_log": {"path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/run.log","bytes":912898,"lines":595,"sha256":"3c7664d015f4273d71a3d3412392a934c9d0d01a59e058bed9aa6522c19dc768"}
+      "checkpoint": {"retained_path":"raw/cap64/checkpoint.json","path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/checkpoint.json","bytes":927,"lines":1,"sha256":"b725c26a8b1b699916a205ac3e6d01dda2d21b6452229dc59b157fd3b379f9f1","crc64_ecma":"8e574701502c80ea"},
+      "progress": {"retained_path":"raw/cap64/progress.ndjson","path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/progress.ndjson","bytes":447438,"lines":10,"sha256":"b97f7a1a7f80329386ec42c0a8e146bf5bb6c2c8b12a1c212668c63f0d15e160"},
+      "run_log": {"retained_path":"raw/cap64/run.log","path_at_capture":"/tmp/oneshotsea-x1-prior-20260801.uDH5Ni/run.log","bytes":912898,"lines":595,"sha256":"3c7664d015f4273d71a3d3412392a934c9d0d01a59e058bed9aa6522c19dc768"}
     },
     "cap32": {
       "schedule_sha256": "3e92af9f6900c8745b7e4d37a9121c35411c1029c8d935d1d31d3c21ff2176b6",
-      "checkpoint": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/checkpoint.json","bytes":927,"lines":1,"sha256":"e3d2d1f653c7c299e9ef333e28953fff032f5a58b3a1afa0a93c5118132a82d9","crc64_ecma":"d585c3e820410941"},
-      "progress": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/progress.ndjson","bytes":447446,"lines":10,"sha256":"76a78487822c08beacc225dff278b44a16ab01f024882ee44011ced84769f8e8"},
-      "run_log": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/run.log","bytes":912914,"lines":595,"sha256":"76e433c7d7fa9a3728cc4322a82374d879459c41dd56db8063e86806e64c00c8"}
+      "checkpoint": {"retained_path":"raw/cap32/checkpoint.json","path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/checkpoint.json","bytes":927,"lines":1,"sha256":"e3d2d1f653c7c299e9ef333e28953fff032f5a58b3a1afa0a93c5118132a82d9","crc64_ecma":"d585c3e820410941"},
+      "progress": {"retained_path":"raw/cap32/progress.ndjson","path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/progress.ndjson","bytes":447446,"lines":10,"sha256":"76a78487822c08beacc225dff278b44a16ab01f024882ee44011ced84769f8e8"},
+      "run_log": {"retained_path":"raw/cap32/run.log","path_at_capture":"/tmp/oneshotsea-x1-prior-cap32-20260801.iDnwEM/run.log","bytes":912914,"lines":595,"sha256":"76e433c7d7fa9a3728cc4322a82374d879459c41dd56db8063e86806e64c00c8"}
     },
     "cap16": {
       "schedule_sha256": "b569f8ff0b481f9c3c63feeb71505fc0794ad753737a2a11020defaebb9a9eb2",
-      "checkpoint": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/checkpoint.json","bytes":927,"lines":1,"sha256":"7d4e66e8b27e35519ac96861376df44b073a3905763cb201e4bdd4b53d8c1e1f","crc64_ecma":"9c942eba75c9c596"},
-      "progress": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/progress.ndjson","bytes":449944,"lines":10,"sha256":"e5fc1ab3772345c820ba74991ce7a0b3e165e9e1ea5324accafdfbea60c96695"},
-      "run_log": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/run.log","bytes":917857,"lines":598,"sha256":"decda01bb5e911af185af3817ae954fc851674d72a477cd6fe706c68b9db5c0e"}
+      "checkpoint": {"retained_path":"raw/cap16/checkpoint.json","path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/checkpoint.json","bytes":927,"lines":1,"sha256":"7d4e66e8b27e35519ac96861376df44b073a3905763cb201e4bdd4b53d8c1e1f","crc64_ecma":"9c942eba75c9c596"},
+      "progress": {"retained_path":"raw/cap16/progress.ndjson","path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/progress.ndjson","bytes":449944,"lines":10,"sha256":"e5fc1ab3772345c820ba74991ce7a0b3e165e9e1ea5324accafdfbea60c96695"},
+      "run_log": {"retained_path":"raw/cap16/run.log","path_at_capture":"/tmp/oneshotsea-x1-prior-cap16-20260801.pvfUjj/run.log","bytes":917857,"lines":598,"sha256":"decda01bb5e911af185af3817ae954fc851674d72a477cd6fe706c68b9db5c0e"}
     },
     "cap1": {
       "schedule_sha256": "64871580c91e40c7cff0a25f497feaf8883ee5322acabac82f4f2e9e5ef40a22",
-      "checkpoint": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/checkpoint.json","bytes":928,"lines":1,"sha256":"2d06331683f9fb7f88c7c2a80d7b849414ad162eb07a2aacda1baecbc737947c","crc64_ecma":"697314e138bedba5"},
-      "progress": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/progress.ndjson","bytes":458303,"lines":10,"sha256":"4c51552f3584ae9f856bb0899e79bc2f85ec6275a856d825b259317bf80d392d"},
-      "run_log": {"path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/run.log","bytes":935035,"lines":609,"sha256":"b6f1c161cf481d5f3a7cbc9d1168e220ab9ffc4497c41362afc1e306bc7c33f2"}
+      "checkpoint": {"retained_path":"raw/cap1/checkpoint.json","path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/checkpoint.json","bytes":928,"lines":1,"sha256":"2d06331683f9fb7f88c7c2a80d7b849414ad162eb07a2aacda1baecbc737947c","crc64_ecma":"697314e138bedba5"},
+      "progress": {"retained_path":"raw/cap1/progress.ndjson","path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/progress.ndjson","bytes":458303,"lines":10,"sha256":"4c51552f3584ae9f856bb0899e79bc2f85ec6275a856d825b259317bf80d392d"},
+      "run_log": {"retained_path":"raw/cap1/run.log","path_at_capture":"/tmp/oneshotsea-x1-prior-cap1-20260801.uBtHhy/run.log","bytes":935035,"lines":609,"sha256":"b6f1c161cf481d5f3a7cbc9d1168e220ab9ffc4497c41362afc1e306bc7c33f2"}
     }
   },
   "runs": {

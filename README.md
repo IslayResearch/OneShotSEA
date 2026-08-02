@@ -56,6 +56,7 @@ local, CAS-free tests with:
 ```sh
 make all
 make test test-cli test-reference test-verifier test-vendor \
+  test-performance-artifacts \
   test-smooth test-smooth-cache test-runpod
 ```
 

@@ -17,8 +17,16 @@ class PolyAbSummaryTests(unittest.TestCase):
         (directory / "ENVIRONMENT.txt").write_text(
             "schema=oneshotsea.p125-poly-isolated-ab.v1\n"
             "label=fixture\n"
+            f"source_commit={'a' * 40}\n"
+            "source_tracked_diff_clean=true\n"
+            f"retained_baseline_sha256={hashlib.sha256(b'baseline').hexdigest()}\n"
+            f"retained_candidate_sha256={hashlib.sha256(b'candidate').hexdigest()}\n"
+            f"build_commands_sha256={hashlib.sha256(b'true\n').hexdigest()}\n"
         )
         (directory / "COMMANDS.sh").write_text("true\n")
+        (directory / "BUILD_COMMANDS.sh").write_bytes(b"true\n")
+        (directory / "baseline.bin").write_bytes(b"baseline")
+        (directory / "candidate.bin").write_bytes(b"candidate")
         projections = []
         timings = {"b1": 120, "a1": 100, "a2": 102, "b2": 118}
         rss = {"b1": 1000, "a1": 1020, "a2": 1010, "b2": 1000}

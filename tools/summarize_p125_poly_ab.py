@@ -13,6 +13,7 @@ import re
 PHASES = ("b1", "a1", "a2", "b2")
 MODES = ("frobenius-194", "frobenius-281", "frobenius-401", "sea")
 SHA256 = re.compile(r"[0-9a-f]{64}")
+GIT_COMMIT = re.compile(r"[0-9a-f]{40}")
 
 
 def _sha256(path: Path) -> str:
@@ -38,6 +39,7 @@ def _key_values(path: Path) -> dict[str, str]:
 def _verify_checksums(directory: Path) -> int:
     checksum_path = directory / "SHA256SUMS"
     records = 0
+    recorded_paths: set[Path] = set()
     for number, line in enumerate(checksum_path.read_text().splitlines(), 1):
         fields = line.split(maxsplit=1)
         if len(fields) != 2 or SHA256.fullmatch(fields[0]) is None:
@@ -47,6 +49,10 @@ def _verify_checksums(directory: Path) -> int:
         if path.is_absolute() or ".." in path.parts:
             raise ValueError(f"unsafe SHA256SUMS path on line {number}")
         target = directory / path
+        normalized = Path(*[part for part in path.parts if part != "."])
+        if normalized in recorded_paths:
+            raise ValueError(f"duplicate SHA256SUMS path on line {number}")
+        recorded_paths.add(normalized)
         if not target.is_file() or target.is_symlink():
             raise ValueError(f"missing or non-regular checksummed file: {path}")
         if _sha256(target) != fields[0]:
@@ -54,6 +60,13 @@ def _verify_checksums(directory: Path) -> int:
         records += 1
     if records == 0:
         raise ValueError("empty SHA256SUMS")
+    actual_paths = {
+        path.relative_to(directory)
+        for path in directory.iterdir()
+        if path.name != "SHA256SUMS"
+    }
+    if recorded_paths != actual_paths:
+        raise ValueError("SHA256SUMS does not cover the exact bundle file set")
     return records
 
 
@@ -92,6 +105,17 @@ def summarize(directory: Path) -> dict[str, object]:
     environment = _key_values(directory / "ENVIRONMENT.txt")
     if environment.get("schema") != "oneshotsea.p125-poly-isolated-ab.v1":
         raise ValueError("wrong environment schema")
+    for filename, key in (
+        ("baseline.bin", "retained_baseline_sha256"),
+        ("candidate.bin", "retained_candidate_sha256"),
+        ("BUILD_COMMANDS.sh", "build_commands_sha256"),
+    ):
+        if environment.get(key) != _sha256(directory / filename):
+            raise ValueError(f"retained identity mismatch: {filename}")
+    if GIT_COMMIT.fullmatch(environment.get("source_commit", "")) is None:
+        raise ValueError("invalid source commit identity")
+    if environment.get("source_tracked_diff_clean") != "true":
+        raise ValueError("benchmark source was not recorded clean")
 
     projection_file = {}
     for number, line in enumerate(

@@ -63,6 +63,11 @@ $(BUILD_DIR)/test_core: tests/test_core.cpp $(BUILD_DIR)/liboneshotsea.a
 $(BUILD_DIR)/test_poly_square: tests/test_poly_square.cpp $(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a $(LDFLAGS) $(LDLIBS) -o $@
 
+$(BUILD_DIR)/benchmark_p125_poly_trusted: \
+		tools/benchmark_p125_poly_trusted.cpp $(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
 $(BUILD_DIR)/test_smooth: tests/test_smooth.c $(BUILD_DIR)/smooth.o
 	$(CC) $(CPPFLAGS) -Ithird_party/oneshot_fast_ecpp $(OPENMP_CPPFLAGS) \
 		$(CFLAGS) -Wall -Wextra -Werror $^ $(LDFLAGS) $(OPENMP_LDFLAGS) \

@@ -163,6 +163,28 @@ std::vector<mpz_class> schoolbook_product(
     return output;
 }
 
+std::vector<mpz_class> schoolbook_square(
+    std::span<const mpz_class> value) {
+    if (value.empty()) {
+        return {};
+    }
+    std::vector<mpz_class> output(2U * value.size() - 1U, 0);
+    mpz_class cross_term;
+    for (std::size_t left = 0; left < value.size(); ++left) {
+        mpz_addmul(output[2U * left].get_mpz_t(),
+                   value[left].get_mpz_t(), value[left].get_mpz_t());
+        for (std::size_t right = left + 1U; right < value.size(); ++right) {
+            mpz_mul(cross_term.get_mpz_t(), value[left].get_mpz_t(),
+                    value[right].get_mpz_t());
+            mpz_mul_2exp(cross_term.get_mpz_t(), cross_term.get_mpz_t(), 1U);
+            mpz_add(output[left + right].get_mpz_t(),
+                    output[left + right].get_mpz_t(),
+                    cross_term.get_mpz_t());
+        }
+    }
+    return output;
+}
+
 std::vector<mpz_class> add_coefficient_slices(
     std::span<const mpz_class> low, std::span<const mpz_class> high) {
     std::vector<mpz_class> sum(std::max(low.size(), high.size()), 0);
@@ -221,6 +243,33 @@ std::vector<mpz_class> karatsuba_product(
     std::vector<mpz_class> middle = karatsuba_product(lhs_sum, rhs_sum);
 
     std::vector<mpz_class> output(lhs.size() + rhs.size() - 1U, 0);
+    add_shifted_coefficients(output, low, 0U, 1);
+    add_shifted_coefficients(output, middle, split, 1);
+    add_shifted_coefficients(output, low, split, -1);
+    add_shifted_coefficients(output, high, split, -1);
+    add_shifted_coefficients(output, high, 2U * split, 1);
+    return output;
+}
+
+std::vector<mpz_class> karatsuba_square(
+    std::span<const mpz_class> value) {
+    if (value.empty()) {
+        return {};
+    }
+    if (value.size() <= kKaratsubaCoefficientThreshold) {
+        return schoolbook_square(value);
+    }
+
+    const std::size_t split = value.size() / 2U;
+    const std::span<const mpz_class> low_input = value.first(split);
+    const std::span<const mpz_class> high_input = value.subspan(split);
+    std::vector<mpz_class> low = karatsuba_square(low_input);
+    std::vector<mpz_class> high = karatsuba_square(high_input);
+    const std::vector<mpz_class> sum =
+        add_coefficient_slices(low_input, high_input);
+    std::vector<mpz_class> middle = karatsuba_square(sum);
+
+    std::vector<mpz_class> output(2U * value.size() - 1U, 0);
     add_shifted_coefficients(output, low, 0U, 1);
     add_shifted_coefficients(output, middle, split, 1);
     add_shifted_coefficients(output, low, split, -1);
@@ -514,8 +563,8 @@ Poly squaremod(const Poly& value, const Poly& modulus) {
     if (reduced.is_zero()) {
         return Poly(value.field());
     }
-    std::vector<mpz_class> output = karatsuba_product(
-        reduced.coefficients(), reduced.coefficients());
+    std::vector<mpz_class> output =
+        karatsuba_square(reduced.coefficients());
     reduce_product_coefficients(output, modulus);
     return Poly(value.field(), std::move(output));
 }

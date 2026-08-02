@@ -541,6 +541,9 @@ yield.
 - The closed polynomial-subring proof, general-Element fallback tests,
   isolated eigen timing, and full p125 replay are in
   [the Element-subring artifact](../artifacts/local/p125-element-subring-window-20260801/result.json).
+- The specialized three-square recurrence, adversarial differential boundary,
+  isolated production-degree timings, and exact full p125 replay are in
+  [the polynomial-square artifact](../artifacts/local/p125-polynomial-square-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

@@ -29,7 +29,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-x1-11-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-poly-square test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-x1-11-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -57,6 +57,9 @@ $(BUILD_DIR)/oneshotsea: src/main.cpp $(BUILD_DIR)/liboneshotsea.a \
 		$(BUILD_DIR)/smooth.o $(LDFLAGS) $(OPENMP_LDFLAGS) $(LDLIBS) -o $@
 
 $(BUILD_DIR)/test_core: tests/test_core.cpp $(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a $(LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD_DIR)/test_poly_square: tests/test_poly_square.cpp $(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a $(LDFLAGS) $(LDLIBS) -o $@
 
 $(BUILD_DIR)/test_smooth: tests/test_smooth.c $(BUILD_DIR)/smooth.o
@@ -114,6 +117,9 @@ $(BUILD_DIR)/test_x1_11_probe: \
 
 test: $(BUILD_DIR)/test_core
 	./$(BUILD_DIR)/test_core
+
+test-poly-square: $(BUILD_DIR)/test_poly_square
+	./$(BUILD_DIR)/test_poly_square
 
 test-atkin: $(BUILD_DIR)/test_atkin
 	./$(BUILD_DIR)/test_atkin
@@ -186,7 +192,7 @@ test-runpod: all
 test-aws:
 	scripts/aws/test.sh
 
-test-all: test test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-x1-11-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws
+test-all: test test-poly-square test-atkin test-progress-audit test-yield-model test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-x1-11-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

@@ -192,7 +192,8 @@ The end-to-end path is complete through the checked-in level-401 production
 schedule and has processed representative `p125` curves soundly.  Selective
 catalog materialization has also run the custom 416-bit SEA path at levels 409
 and 997; level 409 produced two independently validated isogenies and exact
-trace residue 19, matching a fresh independent Magma full point count.
+trace residue 19, matching a retained, checksummed independent Magma full
+point count.
 Production startup verifies the pinned source catalog plus every selected
 table filename, byte count, and SHA-256.  Differential tests cover
 classical-j/BMSS, native Schoof, the 416-bit target field, and Magma oracle

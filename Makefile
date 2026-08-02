@@ -152,6 +152,7 @@ test-yield-model:
 
 test-performance-artifacts:
 	python3 tools/audit_performance_artifacts.py
+	python3 artifacts/local/p125-weber-catalog-magma-20260802/audit.py
 
 test-cli: all
 	python3 tests/test_cli.py -v

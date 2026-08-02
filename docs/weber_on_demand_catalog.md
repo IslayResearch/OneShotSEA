@@ -71,21 +71,25 @@ make build/benchmark_p125_poly_trusted
 On the fixed X1(27) p125 benchmark curve, a directory containing only level
 409 produced two compatible normalized isogenies, one independently recovered
 Frobenius eigenvalue and its validated conjugate, and exact trace residue
-`19 mod 409`.  A fresh independent Magma full count returned trace
+`19 mod 409`.  A retained independent Magma full count returned trace
 `-534284869337319737295513917655253909609824180266230842767530862`,
 which is 19 modulo 409 and also matches the exact family prior 418 modulo 432.
 Timings were:
 
 | Level | Result | Roots | BMSS | Eigenvalue | SEA total |
 |---:|---|---:|---:|---:|---:|
-| 409 | exact, two kernels | 0.900 s | 2.297 s | 4.534 s | 7.767 s |
-| 997 | no rational neighbor | 3.256 s | 0 | 0 | 3.354 s |
+| 409 | exact, two kernels | 0.683 s | 1.620 s | 2.795 s | 5.118 s |
+| 997 | no rational neighbor | 2.088 s | 0 | 0 | 2.140 s |
 
 The level-997 run is a top-of-catalog parsing, specialization, Frobenius, gcd,
 and fail-closed no-root test; it is not positive residue evidence.  Replaying
 the unchanged checked-in level-401 schedule produced the established exact
 projection SHA-256
 `8055a435d1abd535574867a55169168635ac683c2ed9e065df135d7440f4b8e6`.
+The exact binary, build log, native projections, table manifests, Magma
+launcher/runtime identities, point-count transcript, corrected 126-digit
+order, and self-audit are retained in the
+[checksummed evidence bundle](../artifacts/local/p125-weber-catalog-magma-20260802/README.md).
 
 Unit and integration gates additionally cover selective offline
 materialization, all 77 current files against the 166-level catalog, accepted

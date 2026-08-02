@@ -1,0 +1,21 @@
+{
+  "conversion": "tools/fetch_weber_tables.py",
+  "files": {
+    "phi_997.txt": {
+      "bytes": 10834957,
+      "level": 997,
+      "sha256": "8c94ea70bdfa1b05b6e35f0acc4c11a6a45e85cfa1dc025a59f6e6d1a8c42a7f"
+    }
+  },
+  "format": "full symmetric sparse rows: x_degree y_degree integer_coefficient",
+  "independent_q_expansion_cross_check": "tools/generate_weber_modpoly.py through level 43",
+  "levels": [
+    997
+  ],
+  "max_level": 997,
+  "normalization": "f=zeta_48^-1*eta((z+1)/2)/eta(z), r=q^(1/48)",
+  "source": "https://math.mit.edu/~drew/webermodpoly/phi1.tar.gz",
+  "source_archive_sha256": "4ecc78a3163ba7232d67e3b2f5e678a2dbc038c7ee4a9d2e8c00c9e0b5a58176",
+  "source_catalog_sha256": "031c35989f12d8f93c3a992014d6275edb93a21a3a9c70b4b78ce317e7db5dd5",
+  "source_page": "https://math.mit.edu/~drew/WeberModPolys.html"
+}

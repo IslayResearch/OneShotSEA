@@ -18,7 +18,8 @@ jobs:
     env:
       CC: gcc
       CXX: g++
-      GMP_PREFIX: /usr
+      CPPFLAGS: -Iinclude
+      LDFLAGS: ""
     steps:
       - uses: actions/checkout@v4
 

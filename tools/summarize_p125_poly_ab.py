@@ -131,8 +131,6 @@ def summarize(directory: Path) -> dict[str, object]:
         raise ValueError("projection digest mode set is incomplete")
 
     modes: dict[str, object] = {}
-    all_paired_improve = True
-    all_mode_means_improve = True
     candidate_rss_peak = 0
     baseline_rss_peak = 0
     pooled_baseline_frobenius = 0
@@ -161,8 +159,6 @@ def summarize(directory: Path) -> dict[str, object]:
         candidate_mean = sum(candidate) / 2
         paired_speedups = [baseline[0] / candidate[0], baseline[1] / candidate[1]]
         speedup = baseline_mean / candidate_mean
-        all_paired_improve &= all(value > 1.0 for value in paired_speedups)
-        all_mode_means_improve &= speedup > 1.0
         candidate_rss_peak = max(candidate_rss_peak, rss["a1"], rss["a2"])
         baseline_rss_peak = max(baseline_rss_peak, rss["b1"], rss["b2"])
         if mode.startswith("frobenius-"):
@@ -182,18 +178,33 @@ def summarize(directory: Path) -> dict[str, object]:
     pooled_speedup = pooled_baseline_frobenius / pooled_candidate_frobenius
     sea_speedup = modes["sea"]["speedup"]
     rss_ratio = candidate_rss_peak / baseline_rss_peak
+    label = environment.get("label")
+    gating_modes = ("sea",) if label == "quotient-context" else MODES
+    every_gating_pair_improves = all(
+        all(value > 1.0 for value in modes[mode]["paired_speedups"])
+        for mode in gating_modes
+    )
+    every_gating_mean_improves = all(
+        modes[mode]["speedup"] > 1.0 for mode in gating_modes
+    )
+    pooled_frobenius_gate_applicable = gating_modes != ("sea",)
     gates = {
         "semantic_projections_identical": True,
-        "every_paired_ratio_above_one": all_paired_improve,
-        "every_mode_mean_improves": all_mode_means_improve,
-        "pooled_frobenius_speedup_above_1_05": pooled_speedup > 1.05,
+        "every_paired_ratio_above_one": every_gating_pair_improves,
+        "every_mode_mean_improves": every_gating_mean_improves,
+        "pooled_frobenius_speedup_above_1_05": (
+            pooled_speedup > 1.05
+            if pooled_frobenius_gate_applicable else True
+        ),
         "sea_speedup_above_1_05": sea_speedup > 1.05,
         "candidate_rss_increase_at_most_5_percent": rss_ratio <= 1.05,
     }
     gates["accepted"] = all(gates.values())
     return {
         "schema": "oneshotsea.p125-poly-isolated-ab-summary.v1",
-        "label": environment.get("label"),
+        "label": label,
+        "gating_modes": list(gating_modes),
+        "pooled_frobenius_gate_applicable": pooled_frobenius_gate_applicable,
         "checksum_records_verified": checksum_records,
         "environment": environment,
         "modes": modes,

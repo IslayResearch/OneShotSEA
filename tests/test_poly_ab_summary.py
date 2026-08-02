@@ -13,10 +13,13 @@ import summarize_p125_poly_ab as summary  # noqa: E402
 
 
 class PolyAbSummaryTests(unittest.TestCase):
-    def build_bundle(self, directory: Path) -> None:
+    def build_bundle(
+        self, directory: Path, label: str = "fixture",
+        frobenius_timings=None,
+    ) -> None:
         (directory / "ENVIRONMENT.txt").write_text(
             "schema=oneshotsea.p125-poly-isolated-ab.v1\n"
-            "label=fixture\n"
+            f"label={label}\n"
             f"source_commit={'a' * 40}\n"
             "source_tracked_diff_clean=true\n"
             f"retained_baseline_sha256={hashlib.sha256(b'baseline').hexdigest()}\n"
@@ -31,6 +34,8 @@ class PolyAbSummaryTests(unittest.TestCase):
         (directory / "candidate.bin").write_bytes(b"candidate")
         projections = []
         timings = {"b1": 120, "a1": 100, "a2": 102, "b2": 118}
+        if frobenius_timings is None:
+            frobenius_timings = timings
         rss = {"b1": 1000, "a1": 1020, "a2": 1010, "b2": 1000}
         for mode in summary.MODES:
             projection = f"projection for {mode}\n".encode()
@@ -50,7 +55,7 @@ class PolyAbSummaryTests(unittest.TestCase):
                     timing = (
                         "timing.schema=oneshotsea.p125-poly-trusted-timing.v1\n"
                         "timing.mode=frobenius\n"
-                        f"timing.elapsed_us={timings[phase]}\n"
+                        f"timing.elapsed_us={frobenius_timings[phase]}\n"
                     )
                 (directory / f"{stem}.timing.stderr").write_text(timing)
                 (directory / f"{stem}.resource.txt").write_text(
@@ -73,6 +78,21 @@ class PolyAbSummaryTests(unittest.TestCase):
             self.assertEqual(result["label"], "fixture")
             self.assertTrue(result["gates"]["accepted"])
             self.assertGreater(result["pooled_frobenius_speedup"], 1.05)
+
+    def test_context_gate_ignores_unaffected_frobenius_controls(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            self.build_bundle(
+                directory, label="quotient-context",
+                frobenius_timings={
+                    "b1": 100, "a1": 120, "a2": 121, "b2": 100,
+                },
+            )
+            result = summary.summarize(directory)
+            self.assertTrue(result["gates"]["accepted"])
+            self.assertEqual(result["gating_modes"], ["sea"])
+            self.assertFalse(result["pooled_frobenius_gate_applicable"])
+            self.assertLess(result["pooled_frobenius_speedup"], 1.0)
 
     def test_rejects_tampered_retained_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

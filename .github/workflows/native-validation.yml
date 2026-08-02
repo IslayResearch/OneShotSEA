@@ -23,6 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Pack exact source snapshot
+        run: tar --exclude=.git -czf /tmp/oneshotsea-source.tgz .
+
+      - name: Upload exact source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: oneshotsea-source-${{ github.sha }}
+          path: /tmp/oneshotsea-source.tgz
+          compression-level: 0
+          retention-days: 1
+
       - name: Install native dependencies
         run: |
           sudo apt-get update

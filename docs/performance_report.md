@@ -299,6 +299,16 @@ and external wall from 57.905 to 49.860 seconds (1.16135x).  All 55 exact
 level projections and the final trace matched. Evidence is in
 `artifacts/local/p125-frobenius-window-20260801/result.json`.
 
+The same window applies to Frobenius eigenvalue recovery after observing that
+its production Element bases `x` and `f` have zero y-coordinate and remain in
+the polynomial subring. The general nonzero-y binary path is unchanged. An
+isolated reverse-order level-269 pair improved mean eigen recovery from 1.886
+to 1.653 seconds (1.14084x). A full reverse-order p125 pair improved mean SEA
+from 49.322 to 46.754 seconds (1.05493x) and eigen recovery from 17.681 to
+15.069 seconds (1.17333x); roots and BMSS were stable controls. All kernel
+projections, 55 exact level projections, and the final trace matched. Evidence
+is in `artifacts/local/p125-element-subring-window-20260801/result.json`.
+
 ### Classical-j comparison boundary
 
 The checked-in low-level tables show the expected footprint direction, but
@@ -528,6 +538,9 @@ yield.
 - The exact-cost polynomial window, quotient-ring differential boundary,
   operation counts, and reverse-order p125 pairs are in
   [the Frobenius-window artifact](../artifacts/local/p125-frobenius-window-20260801/result.json).
+- The closed polynomial-subring proof, general-Element fallback tests,
+  isolated eigen timing, and full p125 replay are in
+  [the Element-subring artifact](../artifacts/local/p125-element-subring-window-20260801/result.json).
 - The early-abort commands and full-cache extraction parameters are in
   [the CPU benchmark](benchmark_20260730.md).
 - AWS commands, instance identity, pricing, artifacts, and teardown evidence

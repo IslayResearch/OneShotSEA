@@ -116,6 +116,22 @@ authority where that tree was subsequently extended.
   not outcome evidence. The exact-cost Frobenius-window arithmetic changes the
   build identity, so its successor begins at 146 rather than loading this
   checkpoint.
+- The exact-cost polynomial-window production identity was commit
+  `85d289a72b94b00002a3acfe93bffc0754223d0f`, executable SHA-256
+  `2adedf2e7bb69886ff3b6d586966577b57b87191868ac89dc67fed556b9aff23`,
+  schedule `55c31578d49d91ca9050fd3eba94c93f9bfdb170b818bf4a96dff718fdc04641`,
+  and range `[146,1000000)`. It durably processed indices 146--176 as 31
+  sound early rejections, including 13 full point counts, with zero heuristic
+  rejections and zero certificates. Its checkpoint is `next_index=177`, CRC64
+  `1056740c16f1fee6`; checkpoint, progress, log, and launch-script SHA-256
+  values are
+  `75f392dccd341d1bec2c8be9f93e3987330e181c53621edd0631b2af594252f5`,
+  `8e67d326fcf1336fd57f10d35c6b790cf85fad5bf4eb1b64070160733c5b708a`,
+  `8ec91acfeea740a0dfbbaab827a4e9b012ad2b9f46ad108449806d169e4c30f7`,
+  and `f1f86f0a07d2cb955d4ca458ad2901ce6a17312015d80038d5ffff210635a099`.
+  The pinned binary is mode 0555 at `work/oneshotsea-85d289a`. The
+  polynomial-subring Element delegation changes the build identity, so its
+  successor begins at 177 rather than loading this checkpoint.
 
 The filtered artifacts were extended after `docs/benchmark_20260731.md` was
 written.  Their current authoritative digests are:
@@ -280,10 +296,10 @@ reduction and no pre-policy checkpoint can be resumed under it.
 
 ## Next local action
 
-Authenticated production identities have advanced through index 145. The
-modulus-176/deferred-normalization build stopped cleanly at `next_index=146`
-for a bounded arithmetic A/B. Start the exact-cost Frobenius-window X1(11)
-point-four identity at global index 146 after its clean test, commit, and push
+Authenticated production identities have advanced through index 176. The
+exact-cost polynomial-window build stopped cleanly at `next_index=177` for a
+bounded arithmetic A/B. Start the polynomial-subring Element-window X1(11)
+point-four identity at global index 177 after its clean test, commit, and push
 gates; its new build identity means the old checkpoint is evidence, not
 resumable state.
 The held-out scheduling A/B found the measured
@@ -298,7 +314,7 @@ mkdir work/p125/search-NEXT
 /usr/bin/time -l ./build/oneshotsea search \
   --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 \
   --seed 202607300000 \
-  --range-start 146 --range-end 1000000 \
+  --range-start 177 --range-end 1000000 \
   --worker-id 0 --worker-count 1 \
   --curve-family x1-11 --x1-require-point4 1 \
   --max-level 401 --trace-cap 16 --curve-threads 10 --sea-threads 1 \

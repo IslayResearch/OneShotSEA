@@ -207,6 +207,35 @@ Element element_pow(Element base, mpz_class exponent) {
     if (exponent < 0) {
         throw std::invalid_argument("negative quotient-ring exponent");
     }
+    // Every production Frobenius call starts with x or f in the polynomial
+    // subring (v=0), and this property is closed under exponentiation.  Route
+    // that exact case through Poly::powmod so it inherits the exact-cost
+    // unsigned window without building an Element table full of zero v parts.
+    // Rewrap through element() to preserve canonical behavior for every
+    // quotient, including the zero ring defined by a constant modulus.
+    if (base.v.is_zero()) {
+        return element(
+            *base.ring,
+            powmod(base.u, exponent, base.ring->modulus),
+            Poly(*base.ring->field));
+    }
+    Element result = constant(*base.ring, 1);
+    while (exponent > 0) {
+        if (mpz_odd_p(exponent.get_mpz_t()) != 0) {
+            result = element_mul(result, base);
+        }
+        exponent >>= 1;
+        if (exponent > 0) {
+            base = element_square(base);
+        }
+    }
+    return result;
+}
+
+Element element_pow_binary_reference(Element base, mpz_class exponent) {
+    if (exponent < 0) {
+        throw std::invalid_argument("negative quotient-ring exponent");
+    }
     Element result = constant(*base.ring, 1);
     while (exponent > 0) {
         if (mpz_odd_p(exponent.get_mpz_t()) != 0) {
@@ -548,6 +577,17 @@ std::optional<std::uint64_t> try_eigenvalue_mitm(
 }
 
 }  // namespace
+
+bool quotient_element_pow_paths_agree_for_testing(
+    const Poly& modulus, const Poly& curve_rhs, const Poly& u,
+    const Poly& v, const mpz_class& exponent) {
+    const Field& field = modulus.field();
+    const QuotientRing ring{&field, modulus, mod(curve_rhs, modulus)};
+    const Element base = element(ring, u, v);
+    const Element selected = element_pow(base, exponent);
+    const Element binary = element_pow_binary_reference(base, exponent);
+    return element_equal(selected, binary);
+}
 
 Poly division_polynomial_reference(const Curve& curve, std::uint64_t ell) {
     if (curve.is_singular()) {

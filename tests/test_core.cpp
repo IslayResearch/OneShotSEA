@@ -316,6 +316,76 @@ void test_polynomial() {
     check(zero_pow_modulus_rejected,
           "sliding-window powmod preserves zero-modulus rejection at exponent zero");
 
+    // The production Frobenius bases x and f have v=0 in
+    // F_p[x]/(h)[y]/(y^2-curve_rhs). Verify that routing this closed subring
+    // through Poly::powmod matches the retained binary Element loop even when
+    // h is reducible and non-square-free. A nonzero-v base covers the
+    // untouched general-Element fallback.
+    const oneshotsea::Poly quotient_curve_rhs(field, {3, 2, 0, 1});
+    const oneshotsea::Poly quotient_u(field, {77, 4, 93, 6, 81});
+    const oneshotsea::Poly quotient_zero_v(field);
+    const oneshotsea::Poly quotient_nonzero_v(field, {5, 72, 11, 9});
+    for (unsigned long exponent = 0U; exponent <= 256U; ++exponent) {
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_zero_v, exponent),
+              "v-zero Element window matches binary on short exponents");
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_nonzero_v, exponent),
+              "general Element fallback matches binary on short exponents");
+    }
+    for (const mpz_class& exponent :
+         std::vector<mpz_class>{p125, (p125 - 1) / 2, p125 * p125,
+                                (p125 * p125 - 1) / 2}) {
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_zero_v, exponent),
+              "v-zero Element window matches binary on target exponents");
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_nonzero_v, exponent),
+              "general Element fallback matches binary on target exponents");
+    }
+    const mpz_class sparse_exponent =
+        (mpz_class(1) << 257) + (mpz_class(1) << 129);
+    check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+              repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+              quotient_zero_v, sparse_exponent),
+          "v-zero Element window handles long internal and trailing zero runs");
+    const oneshotsea::Field target_exponent_field(p125);
+    for (std::uint64_t sample = 0U; sample < 32U; ++sample) {
+        const mpz_class exponent = oneshotsea::deterministic_residue(
+            target_exponent_field, UINT64_C(0x656c656d706f7772), sample,
+            UINT64_C(0x703132356578706f));
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_zero_v, exponent),
+              "v-zero Element window matches binary on random target exponent");
+        check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_nonzero_v, exponent),
+              "general Element fallback matches binary on random target exponent");
+    }
+    check(oneshotsea::quotient_element_pow_paths_agree_for_testing(
+              constant_modulus, quotient_curve_rhs, quotient_u,
+              quotient_zero_v, 0) &&
+              oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                  constant_modulus, quotient_curve_rhs, quotient_u,
+                  quotient_zero_v, p125),
+          "Element subring delegation preserves zero-ring behavior");
+    bool negative_element_pow_rejected = false;
+    try {
+        static_cast<void>(
+            oneshotsea::quotient_element_pow_paths_agree_for_testing(
+                repeated_factor_modulus, quotient_curve_rhs, quotient_u,
+                quotient_zero_v, -1));
+    } catch (const std::invalid_argument&) {
+        negative_element_pow_rejected = true;
+    }
+    check(negative_element_pow_rejected,
+          "Element subring delegation rejects a negative exponent");
+
     const oneshotsea::Poly temporary_field_poly(oneshotsea::Field(101), {1, 2});
     check(temporary_field_poly.evaluate(3) == 7,
           "polynomial owns a temporary field context");

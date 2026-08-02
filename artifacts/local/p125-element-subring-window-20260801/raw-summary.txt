@@ -1,0 +1,35 @@
+Controlled reverse-order polynomial-subring Element exponentiation benchmarks
+Production was paused at authenticated next_index 177; no search cursor advanced.
+
+Isolated p125 index-17 Weber level 269
+Invocation: /usr/bin/time -l BENCHMARK
+baseline_1 roots_us=1242615 bmss_us=669162 eigen_us=1879046 real_seconds=4.46 projection=84:193:134,109:193:134
+windowed_1 roots_us=1250546 bmss_us=674595 eigen_us=1651629 real_seconds=4.24 projection=84:193:134,109:193:134
+windowed_2 roots_us=1257053 bmss_us=674700 eigen_us=1654166 real_seconds=4.04 projection=84:193:134,109:193:134
+baseline_2 roots_us=1255165 bmss_us=670452 eigen_us=1892335 real_seconds=4.26 projection=84:193:134,109:193:134
+isolated_eigen_mean_baseline_us=1885690.5
+isolated_eigen_mean_windowed_us=1652897.5
+isolated_eigen_speedup=1.1408393442424591
+
+Full p125 index-17 retained-source SEA through level 401
+Invocation: /usr/bin/time -l BENCHMARK 17 known
+baseline_1 elapsed_us=49277992 roots_us=24053795 bmss_us=7441954 eigen_us=17655043 real_seconds=50.11
+windowed_1 elapsed_us=46771497 roots_us=24097598 bmss_us=7471189 eigen_us=15075146 real_seconds=47.62
+windowed_2 elapsed_us=46737307 roots_us=24095274 bmss_us=7451149 eigen_us=15063228 real_seconds=47.25
+baseline_2 elapsed_us=49367005 roots_us=24080353 bmss_us=7451615 eigen_us=17707138 real_seconds=49.88
+full_elapsed_mean_baseline_us=49322498.5
+full_elapsed_mean_windowed_us=46754402
+full_elapsed_speedup=1.0549273734695612
+full_eigen_mean_baseline_us=17681090.5
+full_eigen_mean_windowed_us=15069187
+full_eigen_speedup=1.1733274329929013
+full_external_real_mean_baseline_seconds=49.995
+full_external_real_mean_windowed_seconds=47.435
+full_external_real_speedup=1.0539685885949195
+
+Every isolated invocation emitted the same two kernel eigenvalue/trace/degree
+records. Every full invocation emitted 55 levels, one final trace, and the
+same exact projection. All ell values, exact/empty classifications, trace
+residues, exact moduli, candidate counts, and final trace matched byte-for-byte
+after the timing prefix. The macOS time wrapper's post-run sysctl warning is
+harmless; runner steady-clock elapsed_us is primary.

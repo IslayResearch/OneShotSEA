@@ -194,6 +194,14 @@ evaluations. Diagnostic cap-one replays preserved three independent PARI
 traces and replaced final Weber levels 263/277/379 with 257/269/373. See the
 [deferred-suffix audit](../artifacts/local/p125-cap-one-direct-tail-20260803/README.md).
 
+A paired same-code p125 run then compared threshold zero with threshold two on
+the same four curves. Five cached suffix evaluations reduced smoothness inputs
+from 46 curve/twist orders to 8 and resolved all three multi-trace sets to the
+independent PARI traces. Summed smoothness time fell from 70.458 to 38.058
+seconds and the non-randomized summed per-curve total fell 7.17%. The
+deterministic avoided work is the primary result; see the [pre-smooth
+audit](../artifacts/local/p125-pre-smooth-direct-tail-20260803/README.md).
+
 The nondefault strategy and trusted cache digest are schedule-bound, so a
 direct-first checkpoint cannot resume as Weber-first or under another cache.
 Direct-first start/curve JSON reports `sea_strategy`, direct-first

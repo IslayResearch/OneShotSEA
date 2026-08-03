@@ -57,6 +57,7 @@ while independent point counters are used only as validation oracles.
 | Sound cap-16 screening | A measured 20-level prefix completed four fixed screenings, including one curve on which Weber-only exhausted its usable levels; every set contained the independent PARI trace. [Four-curve cohort](artifacts/local/p125-direct-first-cohort-20260803/README.md) |
 | Certified cap-one completion | The difficult cohort curve stopped at the certified effective singleton at `ell=379`, recovered the PARI trace, and reached sound smoothness screening. [Singleton audit](artifacts/local/p125-certified-atkin-singleton-20260803/README.md) |
 | Deferred direct suffix | Levels 89/97 were absent from four ordinary p125 rejections, but cap-one replays preserved all three independent traces and shortened Weber continuation. [Deferred-suffix audit](artifacts/local/p125-cap-one-direct-tail-20260803/README.md) |
+| Pre-smooth suffix promotion | On the same four curves, five cached suffix evaluations reduced smoothness inputs from 46 orders to 8, resolved every multi-trace set to the independent PARI trace, and reduced the single-run summed total by 7.17%. [Pre-smooth A/B](artifacts/local/p125-pre-smooth-direct-tail-20260803/README.md) |
 | Bounded Atkin combiner | A 240-record differential A/B was identical while improving direct evaluation by 10.96x and peak RSS by 28.71x. [Atkin MITM audit](artifacts/local/p125-direct-atkin-mitm-20260803/README.md) |
 
 These results validate the implementation path and its proof-state composition.

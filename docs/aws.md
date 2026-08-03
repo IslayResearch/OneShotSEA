@@ -210,6 +210,9 @@ is a measured p125 policy input, not an automatic or asymptotically universal
 schedule. Its bounded four-curve no-charge check and deterministic cap-one
 replay are retained under
 [`artifacts/local/p125-cap-one-direct-tail-20260803`](../artifacts/local/p125-cap-one-direct-tail-20260803).
+The threshold-two paired run, exact-trace comparison, and timing scope are
+retained under
+[`artifacts/local/p125-pre-smooth-direct-tail-20260803`](../artifacts/local/p125-pre-smooth-direct-tail-20260803).
 
 Always fetch artifacts before teardown, then terminate and confirm the final
 state:

@@ -1,0 +1,95 @@
+{
+  "schema": "oneshotsea.p125-pre-smooth-direct-tail.v1",
+  "implementation": {
+    "commit": "6601389fb87866c68f435974a4056e24c0261935",
+    "tree": "4d782b51deb1b873949b0922b79498b882d1b8a0",
+    "policy": "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-cap-one-tail-pre-smooth-v5"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416,
+    "seed": "202607300000",
+    "indices": ["2000001", "2000002", "2000003", "2000004"],
+    "curve_family": "x1-27",
+    "require_point_four": true,
+    "trace_cap": 16,
+    "maximum_weber_level": 401
+  },
+  "direct_policy": {
+    "early_levels": [7, 5, 11, 13, 19, 17, 23, 29, 31, 37, 41, 43, 47, 53, 67, 71, 79, 61, 73, 59],
+    "cap_one_tail_levels": [89, 97],
+    "cap_one_tail_count": 2,
+    "promoted_min_trace_count": 2,
+    "maximum_prime_candidates": 10000000,
+    "maximum_x_candidates_per_surface": 1000000,
+    "sea_threads": 1,
+    "cache_resident_bytes": 1000000000,
+    "cache_max_file_bytes": 1000000000
+  },
+  "authenticated_inputs": {
+    "direct_context_sha256": "a459dc7732e0a8924f3dcce15bd640c5a72f594d403bf117d0fa45c6b3805625",
+    "direct_context_file_bytes": 150799468,
+    "direct_context_count": 22,
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "weber_table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5"
+  },
+  "runs": {
+    "baseline": {
+      "pre_smooth_tail_min_traces": 0,
+      "search_schedule_sha256": "429cb6036e4e2412a5d545aa5a39d97ce539f8f8e1aa150ba96fc80da0592cbd",
+      "records": "raw/baseline.ndjson",
+      "records_sha256": "c0e9e555fa0723c66638c6ebdf8c3b9719d39dfbe4dc98ab0305e29c5471cb35",
+      "initial_trace_counts": [1, 13, 4, 5],
+      "final_trace_counts": [1, 13, 4, 5],
+      "smooth_orders": 46,
+      "direct_level_evaluations": 80,
+      "timings_us": {
+        "smoothness": 70457780,
+        "sea": 310318486,
+        "direct_first": 37506981,
+        "total": 440662585
+      }
+    },
+    "promoted": {
+      "pre_smooth_tail_min_traces": 2,
+      "search_schedule_sha256": "c542232bf07b3528edb88aa6a9c8e09193d6fcb7d8c8a9b9bea903dcaacf14ad",
+      "records": "raw/promoted.ndjson",
+      "records_sha256": "7d4e755856725bec037ebbe5b85e8c8126c3cdb3f0c4bd74f44eea2911b6ee41",
+      "initial_trace_counts": [1, 13, 4, 5],
+      "final_trace_counts": [1, 1, 1, 1],
+      "smooth_orders": 8,
+      "direct_level_evaluations": 85,
+      "timings_us": {
+        "smoothness": 38058045,
+        "sea": 313700587,
+        "direct_first": 47699595,
+        "total": 409083953
+      }
+    }
+  },
+  "comparison": {
+    "extra_direct_level_evaluations": 5,
+    "avoided_smooth_orders": 38,
+    "smoothness_us_reduction": 32399735,
+    "smoothness_reduction_percent": 45.98460950657259,
+    "total_us_reduction": 31578632,
+    "observed_total_reduction_percent": 7.166170461238501,
+    "timing_order": ["promoted", "baseline"],
+    "randomized": false
+  },
+  "independent_point_counts": {
+    "system": "PARI/GP 2.17.4",
+    "path": "artifacts/local/p125-direct-first-cohort-20260803/raw/pari-point-counts.txt",
+    "sha256": "3f7b1849862acdf40a4cc58b98efd10181923e17f664bfb2f9e15e9427683e53"
+  },
+  "claims": {
+    "same_initial_trace_sets": true,
+    "promoted_exact_traces_match_independent_counts": true,
+    "all_rejections_sound": true,
+    "certificate_found": false,
+    "production_yield_measured": false,
+    "general_speedup_claimed": false,
+    "cm_crossover_established": false,
+    "asymptotic_exponent_changed": false
+  }
+}

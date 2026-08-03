@@ -146,7 +146,9 @@ re-enumerated at cap N and screened normally. The suffix is attempted at most
 once and never weakens the certified constraints. The suffix boundary and
 threshold are checkpoint-bound. A suffix must leave at least one early level;
 zero preserves the full-schedule first pass, and a nonzero threshold requires a
-nonzero suffix.
+nonzero suffix. The retained p125 threshold-two A/B reduced submitted orders
+from 46 to 8 for five additional cached level evaluations; see the [pre-smooth
+audit](../artifacts/local/p125-pre-smooth-direct-tail-20260803/README.md).
 
 Generation and load reject files above 4 GiB by default. Larger expected
 artifacts require the explicit

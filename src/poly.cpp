@@ -49,6 +49,7 @@ struct PowmodPlan {
     unsigned int maximum_odd_power = 0U;
     std::vector<PowmodWindowStep> steps;
     std::size_t trailing_squarings = 0U;
+    std::size_t execution_operation_count = 0U;
     std::size_t operation_count = 0U;
 };
 
@@ -100,10 +101,12 @@ PowmodPlan powmod_plan_for_width(const mpz_class& exponent,
     }
     plan.trailing_squarings = pending_zero_squarings;
 
-    plan.operation_count = plan.trailing_squarings + plan.steps.size();
+    plan.execution_operation_count =
+        plan.trailing_squarings + plan.steps.size();
     for (const PowmodWindowStep& step : plan.steps) {
-        plan.operation_count += step.squarings;
+        plan.execution_operation_count += step.squarings;
     }
+    plan.operation_count = plan.execution_operation_count;
     if (plan.maximum_odd_power > 1U) {
         // One square for base^2, then one multiply for every odd table entry.
         plan.operation_count +=
@@ -121,6 +124,37 @@ PowmodPlan make_powmod_plan(const mpz_class& exponent) {
         // Exact operation-count selection prevents table setup from regressing
         // sparse or small arbitrary exponents. Ties retain the smaller table.
         if (candidate.operation_count < best.operation_count) {
+            best = std::move(candidate);
+        }
+    }
+    return best;
+}
+
+PowmodPlan make_x_powmod_plan(const mpz_class& exponent,
+                              std::size_t modulus_degree) {
+    PowmodPlan best = powmod_plan_for_width(exponent, 1U);
+    if (exponent == 0 || modulus_degree <= 1U) {
+        return best;
+    }
+
+    // For base X, every X^k with k < deg(modulus) is already its canonical
+    // quotient representative.  Such odd-power tables require no quotient
+    // multiplication at all, so select on the execution chain alone.  It is
+    // sufficient to test through bit_width(deg(modulus)-1)+1: any genuinely
+    // wider odd window has its leading bit at or beyond the modulus degree.
+    unsigned int maximum_window_bits = 1U;
+    for (std::size_t bound = modulus_degree - 1U; bound != 0U; bound >>= 1U) {
+        ++maximum_window_bits;
+    }
+    for (unsigned int width = 2U; width <= maximum_window_bits; ++width) {
+        PowmodPlan candidate = powmod_plan_for_width(exponent, width);
+        if (candidate.maximum_odd_power >= modulus_degree) {
+            continue;
+        }
+        // Ties retain the narrower window and therefore the smaller exact
+        // monomial table.
+        if (candidate.execution_operation_count <
+            best.execution_operation_count) {
             best = std::move(candidate);
         }
     }
@@ -834,15 +868,31 @@ void PolyModContext::reduce_coefficients(
 namespace {
 
 Poly apply_powmod_plan(const Poly& base, const PowmodPlan& plan,
-                       const PolyModContext& context) {
+                       const PolyModContext& context,
+                       bool direct_x_monomials = false) {
     if (plan.exponent_is_zero) {
         return Poly::constant(base.field(), 1);
     }
     std::vector<Poly> odd_powers;
     odd_powers.reserve(
         static_cast<std::size_t>((plan.maximum_odd_power + 1U) / 2U));
-    odd_powers.push_back(base);
-    if (plan.maximum_odd_power > 1U) {
+    if (direct_x_monomials) {
+        if (plan.maximum_odd_power >=
+            static_cast<unsigned int>(context.modulus().degree())) {
+            throw std::logic_error(
+                "direct X power table exceeds the quotient degree");
+        }
+        for (unsigned int odd = 1U; odd <= plan.maximum_odd_power;
+             odd += 2U) {
+            std::vector<mpz_class> coefficients(
+                static_cast<std::size_t>(odd) + 1U, 0);
+            coefficients[odd] = 1;
+            odd_powers.emplace_back(base.field(), std::move(coefficients));
+        }
+    } else {
+        odd_powers.push_back(base);
+    }
+    if (!direct_x_monomials && plan.maximum_odd_power > 1U) {
         const Poly base_squared = context.square(base);
         for (unsigned int odd = 3U; odd <= plan.maximum_odd_power; odd += 2U) {
             odd_powers.push_back(
@@ -878,6 +928,16 @@ Poly PolyModContext::pow(Poly base, mpz_class exponent) const {
         throw std::invalid_argument("negative polynomial exponent");
     }
     base = reduce(base);
+    const bool base_is_quotient_x =
+        modulus_.degree() > 1 && base.degree() == 1 &&
+        base.coefficient(0U) == 0 && base.coefficient(1U) == 1;
+    if (base_is_quotient_x) {
+        return apply_powmod_plan(
+            base,
+            make_x_powmod_plan(
+                exponent, static_cast<std::size_t>(modulus_.degree())),
+            *this, true);
+    }
     return apply_powmod_plan(base, make_powmod_plan(exponent), *this);
 }
 

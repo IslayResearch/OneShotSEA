@@ -327,6 +327,17 @@ void test_polynomial() {
                   binary_powmod_reference(pow_base, exponent, pow_modulus)),
               "sliding-window powmod matches binary for short exponents");
     }
+    const oneshotsea::Poly x_window_base = oneshotsea::Poly::x(field);
+    const oneshotsea::Poly x_window_modulus(
+        field, {91, 4, 82, 17, 63, 25, 7, 9, 3, 1});
+    for (unsigned long exponent = 0U; exponent <= 1024U; ++exponent) {
+        check(oneshotsea::equal(
+                  oneshotsea::powmod(
+                      x_window_base, exponent, x_window_modulus),
+                  binary_powmod_reference(
+                      x_window_base, exponent, x_window_modulus)),
+              "direct X-monomial window matches binary for short exponents");
+    }
     const mpz_class p125 = target_prime();
     for (const mpz_class& exponent :
          std::vector<mpz_class>{p125, (p125 - 1) / 2, p125 * p125,
@@ -360,6 +371,20 @@ void test_polynomial() {
               binary_powmod_reference(high_degree_pow_base, p125,
                                       high_degree_pow_modulus)),
           "sliding-window powmod matches binary in a degree-65 p125 quotient");
+
+    std::vector<mpz_class> frobenius_modulus_coefficients =
+        dense_polynomial(
+            p125_field, 91U, UINT64_C(0x66726f62656e6975))
+            .coefficients();
+    frobenius_modulus_coefficients.back() = 1;
+    const oneshotsea::Poly frobenius_modulus(
+        p125_field, std::move(frobenius_modulus_coefficients));
+    const oneshotsea::Poly frobenius_x = oneshotsea::Poly::x(p125_field);
+    check(oneshotsea::equal(
+              oneshotsea::powmod(frobenius_x, p125, frobenius_modulus),
+              binary_powmod_reference(
+                  frobenius_x, p125, frobenius_modulus)),
+          "direct X-monomial window matches binary at p125 level 89");
     const oneshotsea::Poly high_degree_composition_outer =
         dense_polynomial(p125_field, 81U, UINT64_C(0x636f6d706f757465));
     const oneshotsea::PolyModContext high_degree_composition_context(

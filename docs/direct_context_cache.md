@@ -109,6 +109,26 @@ Then add both cache options to the otherwise identical search configuration:
   --classical-direct-context-max-file-bytes 8589934592
 ```
 
+This cached schedule may also be tried before Weber tables:
+
+```sh
+./build/oneshotsea search \
+  ...existing search arguments... \
+  --sea-strategy direct-first \
+  --classical-direct-levels 7,11,13 \
+  --classical-direct-context-cache runs/p125/direct-7-11-13.ctx \
+  --classical-direct-context-sha256 TRUSTED_SHA256 \
+  --classical-direct-context-max-file-bytes 8589934592
+```
+
+`direct-first` requires the authenticated cache; it cannot silently prepare
+or rebuild contexts. It begins with only the exact generator-family trace
+prior. A complete result follows the normal sound smoothness and singleton
+certificate gates. Exhaustion discards the direct constraint state and
+restarts the unchanged Weber-first path, while any cache or evaluation error
+propagates as a hard failure. The strategy and digest are checkpoint-bound.
+Omitting `--sea-strategy` keeps the byte-compatible Weber-first default.
+
 Generation and load reject files above 4 GiB by default. Larger expected
 artifacts require the explicit
 `--classical-direct-context-max-file-bytes N` admission ceiling on both the

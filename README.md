@@ -129,6 +129,15 @@ digest obtained through a trusted channel:
   --classical-direct-context-max-file-bytes 8589934592
 ```
 
+Add `--sea-strategy direct-first` to try those authenticated cached levels
+from the exact curve-family trace prior before loading Weber levels. This
+nondefault policy requires the cache and a nonempty level list. A complete
+direct trace set uses the ordinary sound smoothness and certificate gates; an
+incomplete set is discarded before the unchanged Weber-first path restarts.
+Cache/authentication/evaluation errors remain hard failures. The strategy and
+cache digest are checkpoint-bound, while omitting the option preserves the
+existing Weber-first schedule identity.
+
 Do not derive the trusted digest from the untrusted artifact at load time. The
 loader checks the whole-file digest, deterministic metadata, per-level
 segments, mathematical witnesses, canonical matrices, interpolation
@@ -252,6 +261,8 @@ unbounded asymptotic heuristic.
   encoding, streaming publication, authenticated indexing, and lazy loading.
 - [`src/sea.cpp`](src/sea.cpp): direct-level classification and retained-state
   consumption.
+- [`src/trace.cpp`](src/trace.cpp): exact factored Atkin CRT counting and
+  bounded meet-in-the-middle enumeration.
 - [`src/early_abort.cpp`](src/early_abort.cpp): exact smooth-part rejection.
 - [`src/search_pipeline.cpp`](src/search_pipeline.cpp): search integration,
   concurrency, checkpoint identity, and telemetry.
@@ -265,6 +276,7 @@ Detailed contracts:
 - [Compact prepared contexts](docs/direct_context_compaction.md)
 - [Authenticated context cache](docs/direct_context_cache.md)
 - [Complete p125 validation](docs/p125_direct_trace_validation.md)
+- [Factored Atkin constraints](docs/direct_atkin_mitm.md)
 - [Asymptotic scope and evidence](docs/asymptotic_scope.md)
 - [Search integration](docs/search_pipeline.md)
 

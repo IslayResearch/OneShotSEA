@@ -8,11 +8,16 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+import audit_p125_topology as topology_audit  # noqa: E402
+import audit_runpod_search as runpod_audit  # noqa: E402
+
 BINARY = Path(
     os.environ.get("ONESHOTSEA_BINARY", ROOT / "build" / "oneshotsea")
 )
@@ -312,6 +317,7 @@ class CliTests(unittest.TestCase):
             records = [json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual(records[0]["schema"], "oneshotsea.search-start.v1")
             self.assertEqual(records[0]["curve_family"], "weber-f")
+            self.assertNotIn("sea_strategy", records[0])
             self.assertEqual(len(records[0]["smooth_cache_sha256"]), 64)
             self.assertEqual(len(records[0]["table_manifest_sha256"]), 64)
             self.assertEqual(len(records[0]["verifier_sha256"]), 64)
@@ -494,6 +500,12 @@ class CliTests(unittest.TestCase):
                 record for record in records
                 if record["schema"] == "oneshotsea.search-curve.v1"
             )
+            self.assertNotIn("sea_strategy", curve)
+            self.assertNotIn("direct_first", curve)
+            self.assertNotIn("direct_first", curve["timings_us"])
+            self.assertNotIn(
+                "direct_first_fallback", curve["timings_us"],
+            )
             self.assertEqual(curve["sea_passes"], "2")
             self.assertEqual(curve["sea_levels"], "1")
             self.assertEqual(curve["initial_trace_count"], "10")
@@ -643,6 +655,148 @@ class CliTests(unittest.TestCase):
                 int(summary["matrix_coefficients"]) * 8,
             )
 
+            direct_first = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 4,
+                "--range-start", 1,
+                "--range-end", 2,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 5,
+                "--trace-cap", 1,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "direct-first-smooth.cache",
+                "--checkpoint", root / "direct-first-checkpoint.json",
+                "--certificate-out", root / "direct-first-certificate.txt",
+                "--sea-strategy", "direct-first",
+                "--classical-direct-levels", "7,11",
+                "--classical-direct-context-cache", cache,
+                "--classical-direct-context-sha256", digest,
+                "--classical-direct-context-max-file-bytes",
+                max_file_bytes,
+                "--sea-threads", 2,
+                "--max-curves", 1,
+            )
+            self.assertEqual(
+                direct_first.returncode, 0, direct_first.stderr,
+            )
+            direct_records = [
+                json.loads(line)
+                for line in direct_first.stdout.splitlines()
+            ]
+            self.assertEqual(direct_records[0]["sea_strategy"],
+                             "direct-first")
+            direct_curve = next(
+                record for record in direct_records
+                if record["schema"] == "oneshotsea.search-curve.v1"
+            )
+            self.assertEqual(direct_curve["sea_strategy"], "direct-first")
+            self.assertEqual(
+                direct_curve["direct_first"],
+                {"attempts": "1", "completions": "1", "fallbacks": "0"},
+            )
+            self.assertEqual(direct_curve["sea_passes"], "0")
+            self.assertGreater(
+                int(direct_curve["timings_us"]["direct_first"]), 0,
+            )
+            self.assertEqual(
+                direct_curve["timings_us"]["direct_first_fallback"], "0",
+            )
+
+            strict_default = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 4,
+                "--range-start", 3,
+                "--range-end", 4,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 11,
+                "--trace-cap", 16,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "strict-default-smooth.cache",
+                "--checkpoint", root / "strict-default-checkpoint.json",
+                "--certificate-out", root / "strict-default-certificate.txt",
+                "--assembly-attempts", 1,
+                "--sea-level-telemetry", 0,
+                "--max-curves", 1,
+            )
+            self.assertEqual(
+                strict_default.returncode, 0, strict_default.stderr,
+            )
+            strict_default_records = [
+                json.loads(line)
+                for line in strict_default.stdout.splitlines()
+            ]
+            strict_default_curve = next(
+                record for record in strict_default_records
+                if record["schema"] == "oneshotsea.search-curve.v1"
+            )
+            self.assertEqual(
+                strict_default_curve["status"],
+                "certificate_assembly_failed",
+            )
+            runpod_audit._validate_curve_record(
+                strict_default_curve, "real default record", False, False,
+            )
+            topology_audit._validate_record(
+                strict_default_curve, "real default record",
+            )
+
+            strict_direct = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 4,
+                "--range-start", 3,
+                "--range-end", 4,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 11,
+                "--trace-cap", 1,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "strict-direct-smooth.cache",
+                "--checkpoint", root / "strict-direct-checkpoint.json",
+                "--certificate-out", root / "strict-direct-certificate.txt",
+                "--assembly-attempts", 1,
+                "--sea-level-telemetry", 0,
+                "--sea-strategy", "direct-first",
+                "--classical-direct-levels", "7,11",
+                "--classical-direct-context-cache", cache,
+                "--classical-direct-context-sha256", digest,
+                "--classical-direct-context-max-file-bytes",
+                max_file_bytes,
+                "--sea-threads", 2,
+                "--max-curves", 1,
+            )
+            self.assertEqual(
+                strict_direct.returncode, 0, strict_direct.stderr,
+            )
+            strict_direct_records = [
+                json.loads(line)
+                for line in strict_direct.stdout.splitlines()
+            ]
+            strict_direct_curve = next(
+                record for record in strict_direct_records
+                if record["schema"] == "oneshotsea.search-curve.v1"
+            )
+            self.assertEqual(
+                strict_direct_curve["status"],
+                "certificate_assembly_failed",
+            )
+            self.assertEqual(
+                strict_direct_curve["sea_strategy"], "direct-first",
+            )
+            with self.assertRaises(runpod_audit.AuditError):
+                runpod_audit._validate_curve_record(
+                    strict_direct_curve, "real direct-first record", False,
+                    False,
+                )
+            with self.assertRaises(topology_audit.AuditError):
+                topology_audit._validate_record(
+                    strict_direct_curve, "real direct-first record",
+                )
+
             smooth_digest = start["smooth_cache_sha256"]
             mismatched_limit_resume = self.run_cli(
                 "search",
@@ -750,6 +904,16 @@ class CliTests(unittest.TestCase):
                 "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
                 "--classical-direct-levels", "7,11",
                 "--classical-direct-context-cache", cache,
+            )
+
+            self.assert_rejected(
+                "search", "--p", 101, "--seed", 4,
+                "--sea-strategy", "direct-first",
+                "--classical-direct-levels", "7,11",
+            )
+            self.assert_rejected(
+                "search", "--p", 101, "--seed", 4,
+                "--sea-strategy", "unknown",
             )
 
             resident_without_cache = self.run_cli(

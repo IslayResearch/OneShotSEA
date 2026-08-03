@@ -237,7 +237,7 @@ void usage() {
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
         << "  oneshotsea prepare-classical-direct-context --p P --classical-direct-levels L1,L2,... --output PATH [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-max-file-bytes N] [--sea-threads N]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST [--classical-direct-context-max-file-bytes N] [--classical-direct-cache-resident-bytes N]] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--sea-strategy weber-first|direct-first] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST [--classical-direct-context-max-file-bytes N] [--classical-direct-cache-resident-bytes N]] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -446,6 +446,18 @@ int main(int argc, char** argv) {
                 throw std::invalid_argument(
                     "--x1-require-point4 requires an X1 curve family");
             }
+            const std::string sea_strategy = optional_string(
+                options, "sea-strategy", "weber-first");
+            if (sea_strategy == "weber-first") {
+                config.sea_strategy =
+                    oneshotsea::SearchSeaStrategy::weber_first;
+            } else if (sea_strategy == "direct-first") {
+                config.sea_strategy =
+                    oneshotsea::SearchSeaStrategy::direct_first;
+            } else {
+                throw std::invalid_argument(
+                    "--sea-strategy must be weber-first or direct-first");
+            }
             config.table_directory = required(options, "table-dir");
             config.max_level = required_u64(options, "max-level");
             const std::uint64_t trace_cap = optional_u64(
@@ -559,6 +571,12 @@ int main(int argc, char** argv) {
                 }
                 config.expected_classical_direct_context_sha256 =
                     *direct_context_sha;
+            }
+            if (config.sea_strategy ==
+                    oneshotsea::SearchSeaStrategy::direct_first &&
+                !has_direct_context_path) {
+                throw std::invalid_argument(
+                    "--sea-strategy direct-first requires an authenticated classical direct context cache");
             }
             config.assembly_attempts =
                 static_cast<std::size_t>(assembly_attempts);
@@ -761,7 +779,15 @@ int main(int argc, char** argv) {
                       << "\",\"curve_family\":\""
                       << oneshotsea::search_curve_family_name(
                              config.curve_family)
-                      << "\",\"worker_id\":\"" << worker_id
+                      << '"';
+            if (config.sea_strategy ==
+                oneshotsea::SearchSeaStrategy::direct_first) {
+                std::cout << ",\"sea_strategy\":\""
+                          << oneshotsea::search_sea_strategy_name(
+                                 config.sea_strategy)
+                          << '"';
+            }
+            std::cout << ",\"worker_id\":\"" << worker_id
                       << "\",\"worker_count\":\"" << worker_count
                       << "\",\"range_start\":\"" << identity.range.first
                       << "\",\"range_end\":\"" << identity.range.end

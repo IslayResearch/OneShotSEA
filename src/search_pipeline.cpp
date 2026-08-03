@@ -336,6 +336,19 @@ void validate_config(const SearchPipelineConfig& config,
         throw std::invalid_argument("invalid SEA/search resource limit");
     }
     validate_classical_direct_config(config);
+    switch (config.sea_strategy) {
+        case SearchSeaStrategy::weber_first:
+            break;
+        case SearchSeaStrategy::direct_first:
+            if (config.classical_direct_levels.empty() ||
+                config.expected_classical_direct_context_sha256.empty()) {
+                throw std::invalid_argument(
+                    "direct-first SEA requires an authenticated cached classical direct schedule");
+            }
+            break;
+        default:
+            throw std::invalid_argument("unknown SEA search strategy");
+    }
     switch (config.curve_family) {
         case SearchCurveFamily::weber_f:
             if (config.x1_require_point_four) {
@@ -930,6 +943,16 @@ const char* search_curve_family_name(SearchCurveFamily family) {
     throw std::logic_error("unknown search curve family");
 }
 
+const char* search_sea_strategy_name(SearchSeaStrategy strategy) {
+    switch (strategy) {
+        case SearchSeaStrategy::weber_first:
+            return "weber-first";
+        case SearchSeaStrategy::direct_first:
+            return "direct-first";
+    }
+    throw std::logic_error("unknown SEA search strategy");
+}
+
 bool verify_with_canonical_voneshot(
     const MontgomeryCertificate& certificate,
     const std::filesystem::path& verifier,
@@ -1087,6 +1110,7 @@ static SearchCurveReport process_search_curve_impl(
     const Clock::time_point total_start = Clock::now();
     SearchCurveReport report;
     report.global_index = global_index;
+    report.sea_strategy = config.sea_strategy;
     const auto extract_curve_twist = [&](std::span<const mpz_class> traces) {
         return smooth_coordinator
                    ? smooth_coordinator->extract_curve_twist(traces)
@@ -1144,6 +1168,22 @@ static SearchCurveReport process_search_curve_impl(
     }
     report.timings.generation_us = elapsed_us(stage_start);
 
+    enum class SeaExecutionPhase : std::uint8_t {
+        ordinary,
+        direct_first,
+        direct_first_fallback,
+    };
+    SeaExecutionPhase sea_execution_phase = SeaExecutionPhase::ordinary;
+    const auto record_sea_elapsed = [&](std::uint64_t elapsed) {
+        report.timings.sea_us += elapsed;
+        if (sea_execution_phase == SeaExecutionPhase::direct_first) {
+            report.timings.direct_first_us += elapsed;
+        } else if (sea_execution_phase ==
+                   SeaExecutionPhase::direct_first_fallback) {
+            report.timings.direct_first_fallback_us += elapsed;
+        }
+    };
+
     auto run_sea = [&](std::size_t trace_cap) {
         stage_start = Clock::now();
         const std::size_t pass = report.sea_passes + 1U;
@@ -1183,7 +1223,7 @@ static SearchCurveReport process_search_curve_impl(
             pair.curve, config.table_directory.string(), config.max_level,
             trace_cap, progress, config.sea_threads, true, true, {},
             trace_prior, pair.weber_f);
-        report.timings.sea_us += elapsed_us(stage_start);
+        record_sea_elapsed(elapsed_us(stage_start));
         ++report.sea_passes;
         report.sea_levels += result.levels.size();
         report.exact_sea_levels += exact_level_count(result);
@@ -1214,7 +1254,7 @@ static SearchCurveReport process_search_curve_impl(
             };
         extend_weber_sea_with_schoof_fallback(
             pair.curve, result, trace_cap, progress);
-        report.timings.sea_us += elapsed_us(stage_start);
+        record_sea_elapsed(elapsed_us(stage_start));
         report.final_exact_trace_candidate_count =
             result.constraints.candidate_count();
         report.final_trace_candidate_count =
@@ -1265,19 +1305,47 @@ static SearchCurveReport process_search_curve_impl(
                 config.classical_direct_maximum_x_candidates_per_surface,
                 progress);
         }
-        report.timings.sea_us += elapsed_us(stage_start);
+        record_sea_elapsed(elapsed_us(stage_start));
         report.final_exact_trace_candidate_count =
             result.constraints.candidate_count();
         report.final_trace_candidate_count =
             result.effective_constraints.candidate_count();
     };
 
-    WeberSeaResult sea = run_sea(config.early_trace_cap);
-    const bool early_weber_fit_cap = sea.traces.has_value();
+    const auto prior_only_sea_state = [&]() {
+        TraceConstraints initial(config.prime);
+        if (trace_prior.has_value()) {
+            initial.refine_exact(trace_prior->modulus(),
+                                 trace_prior->residue());
+        }
+        return WeberSeaResult{
+            initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+    };
+
+    bool initial_weber_pass_ran = false;
+    bool initial_weber_fit_cap = false;
+    WeberSeaResult sea = [&]() {
+        if (config.sea_strategy == SearchSeaStrategy::direct_first) {
+            ++report.direct_first_attempts;
+            sea_execution_phase = SeaExecutionPhase::direct_first;
+            WeberSeaResult direct = prior_only_sea_state();
+            extend_classical_direct(direct, config.early_trace_cap);
+            if (direct.traces.has_value()) {
+                ++report.direct_first_completions;
+                return direct;
+            }
+            ++report.direct_first_fallbacks;
+            sea_execution_phase = SeaExecutionPhase::direct_first_fallback;
+        }
+        initial_weber_pass_ran = true;
+        WeberSeaResult weber = run_sea(config.early_trace_cap);
+        initial_weber_fit_cap = weber.traces.has_value();
+        return weber;
+    }();
     const bool no_rational_weber_lift =
-        sea.compatible_source_lifts.empty() && sea.levels.empty();
-    if (no_rational_weber_lift &&
-        config.classical_direct_levels.empty()) {
+        initial_weber_pass_ran && sea.compatible_source_lifts.empty() &&
+        sea.levels.empty();
+    if (no_rational_weber_lift && config.classical_direct_levels.empty()) {
         report.status = SearchCurveStatus::no_rational_weber_lift;
         report.outcome = {CurveTerminalStage::rejected_sea, false, false};
         report.timings.total_us = elapsed_us(total_start);
@@ -1335,14 +1403,37 @@ static SearchCurveReport process_search_curve_impl(
             // consulting the optional direct tail.  Otherwise the first
             // Weber pass exhausted its tables and the retained direct state
             // is the only state that should be extended.
-            if (early_weber_fit_cap) {
-                sea = run_sea(1U);
-            }
-            if (!sea.traces.has_value()) {
+            if (config.sea_strategy == SearchSeaStrategy::direct_first &&
+                !initial_weber_pass_ran) {
+                ++report.direct_first_attempts;
+                sea_execution_phase = SeaExecutionPhase::direct_first;
                 extend_classical_direct(sea, 1U);
-            }
-            if (!sea.traces.has_value() && config.enable_schoof_fallback) {
-                extend_schoof(sea, 1U);
+                if (sea.traces.has_value()) {
+                    ++report.direct_first_completions;
+                } else {
+                    ++report.direct_first_fallbacks;
+                    sea_execution_phase =
+                        SeaExecutionPhase::direct_first_fallback;
+                    sea = run_sea(1U);
+                    if (!sea.traces.has_value()) {
+                        extend_classical_direct(sea, 1U);
+                    }
+                    if (!sea.traces.has_value() &&
+                        config.enable_schoof_fallback) {
+                        extend_schoof(sea, 1U);
+                    }
+                }
+            } else {
+                if (initial_weber_fit_cap) {
+                    sea = run_sea(1U);
+                }
+                if (!sea.traces.has_value()) {
+                    extend_classical_direct(sea, 1U);
+                }
+                if (!sea.traces.has_value() &&
+                    config.enable_schoof_fallback) {
+                    extend_schoof(sea, 1U);
+                }
             }
         } else if (config.enable_schoof_fallback) {
             // Retain every authenticated Weber/Atkin residue and extend the
@@ -1655,6 +1746,7 @@ SearchPipelineRunResult run_search_pipeline(
         SearchCurveReport recovered;
         recovered.global_index =
             bound_index;
+        recovered.sea_strategy = config.sea_strategy;
         recovered.status = SearchCurveStatus::verified_certificate;
         recovered.outcome = {
             CurveTerminalStage::verified_certificate_found, true, true};
@@ -1983,18 +2075,26 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << report.sea_passes << "\",\"sea_levels\":\""
            << report.sea_levels << "\",\"exact_sea_levels\":\""
            << report.exact_sea_levels << "\",\"atkin_sea_levels\":\""
-           << report.atkin_sea_levels;
+           << report.atkin_sea_levels << '"';
+    if (report.sea_strategy == SearchSeaStrategy::direct_first) {
+        output << ",\"sea_strategy\":\""
+               << search_sea_strategy_name(report.sea_strategy)
+               << "\",\"direct_first\":{\"attempts\":\""
+               << report.direct_first_attempts << "\",\"completions\":\""
+               << report.direct_first_completions << "\",\"fallbacks\":\""
+               << report.direct_first_fallbacks << "\"}";
+    }
     if (include_classical_direct) {
-        output << "\",\"classical_direct_passes\":\""
+        output << ",\"classical_direct_passes\":\""
                << report.classical_direct_passes
                << "\",\"classical_direct_level_count\":\""
                << report.classical_direct_levels.size()
                << "\",\"exact_classical_direct_levels\":\""
                << exact_classical_direct_levels
                << "\",\"atkin_classical_direct_levels\":\""
-               << atkin_classical_direct_levels;
+               << atkin_classical_direct_levels << '"';
     }
-    output << "\",\"schoof_fallback_level_count\":\""
+    output << ",\"schoof_fallback_level_count\":\""
            << report.schoof_fallback_levels.size()
            << "\",\"initial_trace_count\":\""
            << report.initial_trace_count << '"';
@@ -2015,8 +2115,14 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << "\",\"canonical_rejections\":\""
            << report.canonical_rejections << "\",\"timings_us\":{"
            << "\"generation\":\"" << report.timings.generation_us
-           << "\",\"sea\":\"" << report.timings.sea_us
-           << "\",\"smoothness\":\"" << report.timings.smoothness_us
+           << "\",\"sea\":\"" << report.timings.sea_us;
+    if (report.sea_strategy == SearchSeaStrategy::direct_first) {
+        output << "\",\"direct_first\":\""
+               << report.timings.direct_first_us
+               << "\",\"direct_first_fallback\":\""
+               << report.timings.direct_first_fallback_us;
+    }
+    output << "\",\"smoothness\":\"" << report.timings.smoothness_us
            << "\",\"candidate\":\"" << report.timings.candidate_us
            << "\",\"assembly\":\"" << report.timings.assembly_us
            << "\",\"verifier\":\"" << report.timings.verifier_us
@@ -2348,6 +2454,10 @@ std::string search_schedule_sha256(
                       ? kRareSchoofFallbackPolicy
                       : "disabled")
               << '\n';
+    if (config.sea_strategy == SearchSeaStrategy::direct_first) {
+        canonical
+            << "sea_strategy=authenticated-direct-prior-then-discarded-state-weber-fallback-v1\n";
+    }
     if (!config.classical_direct_levels.empty()) {
         canonical << "classical_direct_tail="
                   << kClassicalDirectSeaPolicy << '\n'

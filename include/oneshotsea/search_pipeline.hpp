@@ -26,6 +26,13 @@ enum class SearchCurveFamily : std::uint8_t {
 
 const char* search_curve_family_name(SearchCurveFamily family);
 
+enum class SearchSeaStrategy : std::uint8_t {
+    weber_first,
+    direct_first,
+};
+
+const char* search_sea_strategy_name(SearchSeaStrategy strategy);
+
 // Semantic configuration of the deterministic production search.  The
 // Sound early rejection always requires a complete trace set and exact
 // n^4-smooth parts. A separately labeled opt-in policy may retire a curve
@@ -45,6 +52,12 @@ struct SearchPipelineConfig {
     // twist order, so 64 traces fill the search CLI's 128-order default.  A
     // larger cap can make an early exact screen slower than finishing SEA.
     std::size_t early_trace_cap = 64;
+    // The published default exhausts authenticated Weber tables before the
+    // optional direct tail. Direct-first instead starts from only the exact
+    // family trace prior and an authenticated cached direct schedule. If that
+    // state cannot complete the requested trace cap, it is discarded before
+    // restarting the ordinary Weber-first path.
+    SearchSeaStrategy sea_strategy = SearchSeaStrategy::weber_first;
     // Opt into the fixed retained-state exact-Schoof tail after all configured
     // Weber levels fail to fit the requested trace cap. This is semantic and
     // is bound into the resumable schedule identity.
@@ -107,6 +120,8 @@ const char* search_curve_status_name(SearchCurveStatus status);
 struct SearchCurveTimings {
     std::uint64_t generation_us = 0;
     std::uint64_t sea_us = 0;
+    std::uint64_t direct_first_us = 0;
+    std::uint64_t direct_first_fallback_us = 0;
     std::uint64_t smoothness_us = 0;
     std::uint64_t candidate_us = 0;
     std::uint64_t assembly_us = 0;
@@ -177,6 +192,10 @@ struct SearchCurveReport {
     std::uint64_t rejected_generator_samples = 0;
     std::optional<std::uint64_t> trace_prior_modulus;
     std::optional<std::uint64_t> trace_prior_residue;
+    SearchSeaStrategy sea_strategy = SearchSeaStrategy::weber_first;
+    std::size_t direct_first_attempts = 0;
+    std::size_t direct_first_completions = 0;
+    std::size_t direct_first_fallbacks = 0;
     std::size_t sea_passes = 0;
     std::size_t sea_levels = 0;
     std::size_t exact_sea_levels = 0;

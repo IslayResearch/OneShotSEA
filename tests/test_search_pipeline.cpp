@@ -269,6 +269,70 @@ oneshotsea::SearchPipelineConfig small_config() {
     return config;
 }
 
+struct CachedDirectRun {
+    oneshotsea::SearchCurveReport report;
+    oneshotsea::SearchIdentity identity;
+    std::string direct_cache_sha256;
+};
+
+CachedDirectRun run_one_cached_direct_search(
+    oneshotsea::SearchPipelineConfig config, std::uint64_t index,
+    const std::filesystem::path& directory, const std::string& label) {
+    config.sea_strategy = oneshotsea::SearchSeaStrategy::direct_first;
+    config.sea_threads = 1U;
+    const std::filesystem::path direct_cache =
+        directory / (label + ".direct.ctx");
+    auto prepared = oneshotsea::make_classical_direct_sea_context(
+        oneshotsea::Field(config.prime), config.classical_direct_levels,
+        config.classical_direct_maximum_prime_candidates,
+        config.classical_direct_maximum_x_candidates_per_surface,
+        config.sea_threads);
+    const std::string direct_sha =
+        oneshotsea::save_classical_direct_context_cache(
+            prepared, direct_cache);
+    auto cached = oneshotsea::load_classical_direct_context_cache(
+        oneshotsea::Field(config.prime), config.classical_direct_levels,
+        config.classical_direct_maximum_prime_candidates,
+        config.classical_direct_maximum_x_candidates_per_surface,
+        config.sea_threads, direct_cache, direct_sha);
+    config.expected_classical_direct_context_sha256 = direct_sha;
+
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime,
+                                             {.thread_count = 1U});
+    const std::filesystem::path smooth_cache =
+        directory / (label + ".smooth.cache");
+    smooth.save(smooth_cache);
+    const std::string smooth_sha = oneshotsea::sha256_file(smooth_cache);
+    const std::string verifier_sha =
+        oneshotsea::sha256_file(config.canonical_verifier);
+    const oneshotsea::SearchIdentity identity =
+        oneshotsea::make_search_identity(
+            config, {index, index + 1U}, 0U, 1U, smooth_sha, verifier_sha,
+            "direct-first-search-test-v1");
+    config.expected_schedule_sha256 = identity.schedule_sha256;
+    config.expected_smooth_cache_sha256 = smooth_sha;
+    config.expected_table_manifest_sha256 = identity.table_manifest_sha256;
+    config.expected_verifier_sha256 = verifier_sha;
+
+    oneshotsea::SearchState state(identity);
+    oneshotsea::SearchPipelineRunOptions options;
+    options.max_curves = 1U;
+    options.checkpoint_path = directory / (label + ".checkpoint");
+    options.progress_path = directory / (label + ".ndjson");
+    options.certificate_path = directory / (label + ".certificate");
+    options.classical_direct_context = &cached;
+    std::optional<oneshotsea::SearchCurveReport> report;
+    const auto result = oneshotsea::run_search_pipeline(
+        config, smooth, state, options,
+        [&](const oneshotsea::SearchCurveReport& current,
+            const oneshotsea::SearchState&) { report = current; },
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(result.curves_processed == 1U && report.has_value(),
+          "cached direct-first fixture completes exactly one curve");
+    return {*report, identity, direct_sha};
+}
+
 void test_small_prime_resume_and_canonical_verification() {
     TemporaryDirectory temporary;
     const std::filesystem::path smooth_cache =
@@ -506,8 +570,10 @@ void test_search_uses_retained_schoof_fallback_without_second_sea_pass() {
                   std::string::npos &&
               report_json.find("\"schoof_fallback_levels\":[{") !=
                   std::string::npos &&
-              report_json.find("classical_direct") == std::string::npos,
-          "search telemetry retains compact exact-Schoof evidence and legacy default fields");
+              report_json.find("classical_direct") == std::string::npos &&
+              report_json.find("sea_strategy") == std::string::npos &&
+              report_json.find("direct_first") == std::string::npos,
+          "search telemetry retains byte-compatible default fields and compact exact-Schoof evidence");
 }
 
 void test_search_uses_classical_direct_tail_after_weber_completion() {
@@ -930,6 +996,219 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
               unexpected_cache_state.next_index() == 1U &&
               wrong_resource_state.next_index() == 1U,
           "direct-cache injection is digest-bound, resource-checked, and fails before cursor mutation");
+}
+
+void test_checkpoint_bound_direct_first_strategy() {
+    TemporaryDirectory temporary;
+    oneshotsea::SearchPipelineConfig completion_config = small_config();
+    completion_config.max_level = 5U;
+    completion_config.early_trace_cap = 1U;
+    completion_config.classical_direct_levels = {7U, 11U};
+    const CachedDirectRun completion = run_one_cached_direct_search(
+        completion_config, 1U, temporary.path(), "completion");
+    const oneshotsea::ExactSmoothEngine completion_smooth =
+        oneshotsea::ExactSmoothEngine::build(completion_config.prime,
+                                             {.thread_count = 1U});
+    const auto generated_completion = oneshotsea::process_search_curve(
+        completion_config, completion_smooth, 1U,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(completion.report.direct_first_attempts == 1U &&
+              completion.report.direct_first_completions == 1U &&
+              completion.report.direct_first_fallbacks == 0U &&
+              completion.report.sea_passes == 0U &&
+              !completion.report.classical_direct_levels.empty() &&
+              !generated_completion.classical_direct_levels.empty() &&
+              completion.report.classical_direct_levels.front().ell ==
+                  generated_completion.classical_direct_levels.front().ell &&
+              completion.report.classical_direct_levels.front()
+                      .trace_residue ==
+                  generated_completion.classical_direct_levels.front()
+                      .trace_residue &&
+              completion.report.status == generated_completion.status &&
+              completion.report.exact_trace ==
+                  generated_completion.exact_trace,
+          "cached direct-first completion matches freshly generated direct evidence and terminal semantics");
+
+    oneshotsea::SearchPipelineConfig fallback_config = small_config();
+    fallback_config.early_trace_cap = 1U;
+    fallback_config.classical_direct_levels = {5U};
+    const CachedDirectRun fallback = run_one_cached_direct_search(
+        fallback_config, 1U, temporary.path(), "fallback");
+    const oneshotsea::ExactSmoothEngine fallback_smooth =
+        oneshotsea::ExactSmoothEngine::build(fallback_config.prime,
+                                             {.thread_count = 1U});
+    const auto generated_weber = oneshotsea::process_search_curve(
+        fallback_config, fallback_smooth, 1U,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(fallback.report.sea_strategy ==
+                  oneshotsea::SearchSeaStrategy::direct_first &&
+              fallback.report.direct_first_attempts == 1U &&
+              fallback.report.direct_first_completions == 0U &&
+              fallback.report.direct_first_fallbacks == 1U &&
+              fallback.report.timings.direct_first_us != 0U &&
+              fallback.report.timings.direct_first_fallback_us != 0U &&
+              fallback.report.sea_passes != 0U &&
+              fallback.report.status == generated_weber.status &&
+              fallback.report.outcome.terminal_stage ==
+                  generated_weber.outcome.terminal_stage &&
+              fallback.report.outcome.full_point_count_completed ==
+                  generated_weber.outcome.full_point_count_completed &&
+              fallback.report.outcome.reached_smoothness_testing ==
+                  generated_weber.outcome.reached_smoothness_testing &&
+              fallback.report.exact_trace == generated_weber.exact_trace,
+          "inconclusive cached direct state is discarded before a semantically equivalent Weber-first restart");
+
+    oneshotsea::SearchPipelineConfig direct_identity_config = fallback_config;
+    direct_identity_config.sea_threads = 1U;
+    direct_identity_config.sea_strategy =
+        oneshotsea::SearchSeaStrategy::direct_first;
+    direct_identity_config.expected_classical_direct_context_sha256 =
+        fallback.direct_cache_sha256;
+    const std::string digest(64U, 'e');
+    const auto direct_identity = oneshotsea::make_search_identity(
+        direct_identity_config, {1U, 2U}, 0U, 1U, digest, digest,
+        "direct-first-identity-test-v1");
+    direct_identity_config.sea_strategy =
+        oneshotsea::SearchSeaStrategy::weber_first;
+    const auto weber_identity = oneshotsea::make_search_identity(
+        direct_identity_config, {1U, 2U}, 0U, 1U, digest, digest,
+        "direct-first-identity-test-v1");
+    const std::filesystem::path checkpoint =
+        temporary.path() / "direct-identity.checkpoint";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(direct_identity), checkpoint);
+    bool rejected_cross_resume = false;
+    try {
+        (void)oneshotsea::load_search_checkpoint(checkpoint, weber_identity);
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        rejected_cross_resume = true;
+    }
+    oneshotsea::SearchPipelineConfig empty_direct = fallback_config;
+    empty_direct.sea_strategy = oneshotsea::SearchSeaStrategy::direct_first;
+    bool rejected_empty_direct = false;
+    try {
+        (void)oneshotsea::make_search_identity(
+            empty_direct, {1U, 2U}, 0U, 1U, digest, digest,
+            "direct-first-empty-test-v1");
+    } catch (const std::invalid_argument&) {
+        rejected_empty_direct = true;
+    }
+    check(direct_identity.schedule_sha256 !=
+                  weber_identity.schedule_sha256 &&
+              rejected_cross_resume && rejected_empty_direct,
+          "direct-first is nondefault, checkpoint-bound, and requires an authenticated nonempty direct schedule");
+
+    const std::string fallback_json = oneshotsea::search_curve_report_json(
+        fallback.report, oneshotsea::SearchState(fallback.identity), false);
+    check(fallback_json.find("\"sea_strategy\":\"direct-first\"") !=
+                  std::string::npos &&
+              fallback_json.find(
+                  "\"direct_first\":{\"attempts\":\"1\",\"completions\":\"0\",\"fallbacks\":\"1\"}") !=
+                  std::string::npos &&
+              fallback_json.find("\"direct_first_fallback\":\"") !=
+                  std::string::npos,
+          "curve telemetry distinguishes direct-first exhaustion and fallback timing");
+
+    for (const auto& fixture : {
+             std::pair<std::uint64_t, std::uint64_t>{157U, 7U},
+             std::pair<std::uint64_t, std::uint64_t>{397U, 0U}}) {
+        oneshotsea::SearchPipelineConfig config = small_config();
+        config.prime = mpz_class(std::to_string(fixture.first));
+        config.seed = UINT64_C(0x7821058d55e0f265);
+        config.curve_family = oneshotsea::SearchCurveFamily::x1_11;
+        config.x1_require_point_four = fixture.first == 157U;
+        config.early_trace_cap = 1U;
+        config.classical_direct_levels = {5U};
+        const CachedDirectRun direct = run_one_cached_direct_search(
+            config, fixture.second, temporary.path(),
+            "x1-" + std::to_string(fixture.first));
+        const auto generated = oneshotsea::deterministic_x1_11_search_curve(
+            config.prime, config.seed, fixture.second,
+            config.x1_require_point_four);
+        const mpz_class curve_trace =
+            config.prime + 1 - oneshotsea::count_points_bruteforce(
+                                   generated.sample->pair.curve);
+        check(direct.report.direct_first_attempts == 1U &&
+                  direct.report.direct_first_completions == 1U &&
+                  direct.report.direct_first_fallbacks == 0U &&
+                  direct.report.sea_passes == 0U &&
+                  direct.report.exact_trace ==
+                      std::optional<mpz_class>(curve_trace),
+              "direct-first applies the selected X1 family prior to the counted curve, not to its selection side");
+    }
+
+    oneshotsea::SearchPipelineConfig tamper_config = small_config();
+    tamper_config.early_trace_cap = 1U;
+    tamper_config.classical_direct_levels = {5U};
+    tamper_config.sea_strategy = oneshotsea::SearchSeaStrategy::direct_first;
+    tamper_config.sea_threads = 1U;
+    const std::filesystem::path tamper_cache =
+        temporary.path() / "tampered.direct.ctx";
+    auto tamper_prepared = oneshotsea::make_classical_direct_sea_context(
+        oneshotsea::Field(tamper_config.prime),
+        tamper_config.classical_direct_levels,
+        tamper_config.classical_direct_maximum_prime_candidates,
+        tamper_config.classical_direct_maximum_x_candidates_per_surface,
+        tamper_config.sea_threads);
+    const std::string tamper_sha =
+        oneshotsea::save_classical_direct_context_cache(
+            tamper_prepared, tamper_cache);
+    auto tampered = oneshotsea::load_classical_direct_context_cache(
+        oneshotsea::Field(tamper_config.prime),
+        tamper_config.classical_direct_levels,
+        tamper_config.classical_direct_maximum_prime_candidates,
+        tamper_config.classical_direct_maximum_x_candidates_per_surface,
+        tamper_config.sea_threads, tamper_cache, tamper_sha);
+    tamper_config.expected_classical_direct_context_sha256 = tamper_sha;
+    {
+        std::fstream file(tamper_cache,
+                          std::ios::in | std::ios::out | std::ios::binary);
+        check(static_cast<bool>(file), "open direct cache for deferred tamper");
+        file.seekg(-1, std::ios::end);
+        char byte = 0;
+        file.read(&byte, 1);
+        file.seekp(-1, std::ios::end);
+        byte = static_cast<char>(static_cast<unsigned char>(byte) ^ 1U);
+        file.write(&byte, 1);
+    }
+    const oneshotsea::ExactSmoothEngine tamper_smooth =
+        oneshotsea::ExactSmoothEngine::build(tamper_config.prime,
+                                             {.thread_count = 1U});
+    const std::filesystem::path tamper_smooth_cache =
+        temporary.path() / "tampered.smooth.cache";
+    tamper_smooth.save(tamper_smooth_cache);
+    const std::string smooth_sha =
+        oneshotsea::sha256_file(tamper_smooth_cache);
+    const std::string verifier_sha =
+        oneshotsea::sha256_file(tamper_config.canonical_verifier);
+    const auto tamper_identity = oneshotsea::make_search_identity(
+        tamper_config, {1U, 2U}, 0U, 1U, smooth_sha, verifier_sha,
+        "direct-first-tamper-test-v1");
+    tamper_config.expected_schedule_sha256 =
+        tamper_identity.schedule_sha256;
+    tamper_config.expected_smooth_cache_sha256 = smooth_sha;
+    tamper_config.expected_table_manifest_sha256 =
+        tamper_identity.table_manifest_sha256;
+    tamper_config.expected_verifier_sha256 = verifier_sha;
+    oneshotsea::SearchState tamper_state(tamper_identity);
+    oneshotsea::SearchPipelineRunOptions tamper_options;
+    tamper_options.max_curves = 1U;
+    tamper_options.checkpoint_path = temporary.path() / "tampered.checkpoint";
+    tamper_options.progress_path = temporary.path() / "tampered.ndjson";
+    tamper_options.certificate_path = temporary.path() / "tampered.cert";
+    tamper_options.classical_direct_context = &tampered;
+    bool propagated_tamper = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            tamper_config, tamper_smooth, tamper_state, tamper_options, {},
+            [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    } catch (const std::runtime_error&) {
+        propagated_tamper = true;
+    }
+    check(propagated_tamper && tamper_state.next_index() == 1U &&
+              !std::filesystem::exists(tamper_options.checkpoint_path) &&
+              !std::filesystem::exists(tamper_options.progress_path),
+          "direct-first propagates deferred cache tamper without fallback or durable cursor mutation");
 }
 
 void test_parallel_curve_ordering_and_shared_checkpoint() {
@@ -2018,6 +2297,7 @@ int main() {
         test_direct_tail_preserves_remaining_weber_levels();
         test_pipeline_prepares_direct_contexts_once_per_run();
         test_pipeline_reuses_authenticated_direct_context_cache();
+        test_checkpoint_bound_direct_first_strategy();
         std::cout << "search pipeline tests passed\n";
         return 0;
     } catch (const std::exception& error) {

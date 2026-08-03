@@ -126,6 +126,36 @@ implementation limit, never a heuristic or mathematical rejection. Direct
 SEA runs before `--schoof-fallback 1`; the fallback sees and checks the same
 retained state.
 
+Search order is a separate semantic choice. The default
+`--sea-strategy weber-first` retains the published behavior and exact default
+schedule bytes: authenticate and consume Weber tables first, then consult the
+optional direct tail. `--sea-strategy direct-first` is available only with a
+nonempty direct schedule and both authenticated context-cache options. It
+starts from the generated curve's exact family trace prior and evaluates the
+cached direct levels toward the requested trace cap. This remains a point
+count of `pair.curve`; an X1 generator's selected curve/twist side changes the
+sign of the validated prior, not which curve is counted.
+
+Only a complete bounded direct trace set may enter the exact smoothness
+screen, which still checks both curve and twist orders. A surviving
+multi-trace set continues the same direct state at the exact cap-one gate. If
+the direct schedule is inconclusive at either gate, every mathematical part
+of that direct state is discarded and the ordinary Weber-first path restarts
+from the family prior. Direct-cache authentication, lazy-materialization, or
+mathematical exceptions are hard operational failures and never trigger this
+fallback. Thus incomplete direct constraints cannot be merged into or trusted
+by the Weber path, and a cap-N trace set cannot leak through the singleton
+certificate gate.
+
+The nondefault strategy and trusted cache digest are schedule-bound, so a
+direct-first checkpoint cannot resume as Weber-first or under another cache.
+Direct-first start/curve JSON reports `sea_strategy`, direct-first
+attempt/completion/fallback counters, and separate `timings_us.direct_first` and
+`timings_us.direct_first_fallback` fields; `timings_us.sea` remains their
+inclusive SEA total. Weber-first deliberately omits all of those new keys so
+the strict `oneshotsea.search-start.v1` and `oneshotsea.search-curve.v1`
+field sets remain byte-compatible with existing production auditors.
+
 The current RunPod and AWS launchers and the strict retained-run auditor do
 not admit the direct schedule/cache options or the standalone direct-level schema.
 Consequently this tail must remain disabled in remote production runs until

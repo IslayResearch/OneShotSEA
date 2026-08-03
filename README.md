@@ -1,59 +1,59 @@
-# OneShotSEA — direct classical-j SEA checkpoint
+# OneShotSEA — direct classical-`j` SEA
 
-This branch is the implementation checkpoint for removing OneShotSEA's finite
-modular-polynomial-table dependency.  It constructs the two polynomials needed
-by one classical SEA level directly in the target field:
+This branch implements on-demand modular-polynomial specialization for SEA. For
+an input curve invariant `j` and prime level `ell`, it constructs exactly the
+two target-field polynomials used by the point counter:
 
 ```text
 Phi_ell(j,Y)       and       partial Phi_ell(X,Y) / partial X at X=j.
 ```
 
-The producer uses explicit CRT and isogeny-volcano techniques.  It does not
-call PARI/GP, Magma, Sage, or another SEA implementation, and it never builds
-or loads the full target-level bivariate modular polynomial.  The surrounding
-repository still contains the established table-backed search; this README is
-about the direct-SEA work added on this branch.
+It uses explicit CRT, class polynomials, isogeny volcanoes, and Vélu quotients;
+it does not call PARI/GP, Magma, Sage, or another SEA implementation, and it
+does not load the full target-level bivariate classical modular polynomial.
 
-## Branch status
+The purpose of this checkpoint is narrower than the repository's historical
+table-backed search: establish that direct classical-`j` specialization is
+correct, practical beyond 400 bits, reusable across curves, and safe to feed
+into the real retained-trace and early-abort path.
 
-Working now:
+## Current result
 
-- A callback-free classical-`j` producer derives its own ring-class
-  polynomials, selects witnessed auxiliary primes, authenticates complete CM
-  isogeny surfaces, and performs exact centered CRT reconstruction under a
-  proved coefficient bound.
-- The resulting specialization feeds the real SEA retained-trace path.  Root
-  levels produce exact Elkies residues through normalized codomain recovery,
-  BMSS validation, and Frobenius eigenvalues; no-root levels produce certified
-  Atkin factor-degree constraints.
-- Search can append an opt-in direct tail after its authenticated table-backed
-  levels and can reject curves early using the retained trace state.
-- Curve-independent level preparation is immutable, bounded-parallel, and
-  reusable across curves.  Its compact representation retains exactly two
-  `(ell+2) x (ell+2)` `uint64_t` interpolation matrices per CRT prime.
+Implemented on this branch:
+
+- A callback-free direct producer derives its ring-class polynomials, selects
+  witnessed auxiliary primes, authenticates complete CM isogeny surfaces, and
+  performs centered CRT reconstruction under a proved coefficient bound.
+- Exact Elkies levels pass through normalized-codomain recovery, BMSS
+  validation, and Frobenius eigenvalue recovery. No-root levels produce
+  certified Atkin constraints.
+- Prepared level contexts are immutable, bounded-parallel, persistable, and
+  reusable across curves. The compact form stores exactly two
+  `(ell+2) x (ell+2)` `uint64_t` matrices per CRT prime.
 - The preparation hot path proves a rational `E[ell]` basis, enumerates the
-  projective line exactly once, and computes all quotient coefficients with
-  batched Vélu sums in a checked 64-bit Montgomery field.  It does not build
-  transient kernel polynomials when only codomain invariants are retained.
-- Prepared contexts can be persisted in a portable, atomically published
-  cache and shared across restarts or worker shards.  Loading requires an
-  external trusted SHA-256, revalidates the mathematical structure, and binds
-  the digest into checkpoint identity.
-- Differential, Schoof, corruption, cap-exhaustion, concurrency, checkpoint,
-  sanitizer, and CLI tests exercise the new path.
+  projective line once, batches Vélu sums, and uses a checked 64-bit Montgomery
+  field for auxiliary arithmetic.
+- Local search can append explicitly selected direct levels to the retained
+  SEA state and apply the existing sound early-abort screen.
+- A one-context-at-a-time run completed the trace of a fixed 416-bit p125
+  X1(27) curve through `ell=271`. All 30 direct residues agreed with the
+  authenticated table-backed reference and reconstructed the same unique
+  signed trace.
 
-Not completed yet:
+Still open:
 
-- a direct level schedule sufficient to finish the 416-bit `p125` trace;
-- an end-to-end certificate for `nextprime(10^125)` or a `p130` run;
-- direct Weber specialization, cloud-launcher admission, or an unbounded
-  auxiliary-prime implementation; and
-- a measured end-to-end crossover against the CM search.
+- choosing a production, curve-independent direct-level schedule by measured
+  cost and expected information yield;
+- producing an end-to-end one-shot certificate for `nextprime(10^125)` or a
+  p130 target;
+- lifting the 64-bit auxiliary-prime restriction and implementing direct
+  Weber specialization; and
+- measuring certificate yield and the crossover against the CM search.
 
-In short: this branch establishes and integrates the direct specialization
-primitive; it is not a large-prime certificate announcement.
+This is therefore a complete direct point-counting checkpoint for one real
+416-bit curve, not a large-prime certificate announcement.
 
-## Build and run the focused checks
+## Build and smoke test
 
 The native build requires a C++20 compiler and GMP.
 
@@ -68,17 +68,33 @@ The native build requires a C++20 compiler and GMP.
   test-cli
 ```
 
-`/usr/bin/make test-all` runs the repository-wide suite.  Magma is optional
-and is used only as an independent test oracle:
+`/usr/bin/make test-all` runs the repository-wide suite. Magma is optional and
+is used only as an independent test oracle when `MAGMA=/path/to/magma` is set.
+
+For a short p125 direct-path check:
 
 ```sh
-MAGMA=/path/to/magma /usr/bin/make test-all
+/usr/bin/make -j4 build/validate_p125_direct_trace
+./build/validate_p125_direct_trace --threads 4 5 23 29 31 37
 ```
 
-## Run a direct SEA tail
+An explicit partial schedule exits successfully with `complete:false`. The
+full default validation is:
 
-Pass a strictly increasing list of distinct primes greater than three to a
-normal local search command:
+```sh
+./build/validate_p125_direct_trace --threads 4
+```
+
+The retained four-thread run took 1,203.9 seconds of preparation and 59.8
+seconds of curve evaluation, about 21.1 minutes total. Its largest single
+context payload was 614,118,960 bytes; contexts are discarded between levels.
+See [the complete p125 validation](docs/p125_direct_trace_validation.md) for
+the curve identity, full residue list, timings, and independence limits.
+
+## Use the direct path in search
+
+Direct levels are opt-in and must be distinct increasing primes greater than
+three:
 
 ```sh
 ./build/oneshotsea search \
@@ -89,12 +105,11 @@ normal local search command:
   --classical-direct-max-x-candidates 1000000
 ```
 
-The level schedule and execution caps are part of the checkpoint digest.  Cap
-exhaustion is an implementation limit, not a mathematical rejection.  These
-options are currently admitted by the local CLI, not the cloud launcher.
+The schedule and caps are bound into checkpoint identity. Cap exhaustion is
+reported as an implementation limit, never as a mathematical rejection. The
+local CLI admits these options; the cloud launcher does not yet do so.
 
-Preparation dominates the current direct implementation at larger levels.  A
-context can therefore be prepared once and authenticated on later runs:
+Because preparation is curve-independent, a context can be prepared once:
 
 ```sh
 ./build/oneshotsea prepare-classical-direct-context \
@@ -104,8 +119,7 @@ context can therefore be prepared once and authenticated on later runs:
   --output runs/direct-7-11.ctx
 ```
 
-Record the SHA-256 emitted by that command and supply both cache options to the
-matching search:
+Record the emitted SHA-256 and provide both options to a matching search:
 
 ```sh
 --classical-direct-context-cache runs/direct-7-11.ctx \
@@ -113,110 +127,102 @@ matching search:
 ```
 
 The digest must come from a trusted preparation step, not from the received
-artifact itself.  The exact format and failure behavior are documented in
-[the direct-context cache contract](docs/direct_context_cache.md).
+artifact. The format and validation rules are in
+[the context-cache contract](docs/direct_context_cache.md).
 
-## Reproduce the p125 level measurements
+## What the validation establishes
 
-The focused harness prepares one direct level, evaluates two distinct
-`j`-invariants, validates the residues independently with Schoof, and reports
-payload size and peak RSS:
+The complete p125 run is a differential test between two ways of supplying an
+SEA level:
 
-```sh
-/usr/bin/make build/benchmark_p125_classical_direct
-./build/benchmark_p125_classical_direct --threads 4 13
-./build/benchmark_p125_classical_direct --threads 4 29
-```
+1. the branch's explicit-CRT/isogeny-volcano specialization; and
+2. the repository's authenticated table-backed specialization.
 
-On the retained same-host optimized runs with four preparation workers, level
-29 prepared in 0.326 seconds.  Its persisted 1.17 MB context loaded in 33.9 ms;
-the two independently checked exact residues remained `23 mod 29` and
-`12 mod 29`.  Higher preparation-only brackets were 5.08 seconds and 35.65 MB
-at level 101, and 28.40 seconds and 124.99 MB at level 157.  The level-29,
-level-101, and level-157 context SHA-256 values are byte-identical to contexts
-made before the arithmetic optimization, providing a deterministic
-coefficient-level differential in addition to the level-29 Schoof checks.
+Each direct result is committed before comparison. The X1(27) group prior
+independently constrains the sign, and separate Schoof checks cover two p125
+level-29 residues. The two full paths nevertheless share downstream
+BMSS/Frobenius and trace-constraint code, and the completing level schedule was
+selected using the table-backed oracle. The run is strong implementation
+evidence, not a formally independent proof of every layer.
 
-The retained pre-basis same-binary level-29 preparation took 19.97 seconds;
-the current result is about 61x faster.  A retained intermediate level-101
-build took 33.82 seconds, about 6.7x the current time.  These are local
-engineering brackets, not crossover or certificate-yield measurements, and
-they still do not constitute a complete p125 point count.  Raw historical
-brackets and their limitations are recorded in
-[the compaction note](docs/direct_context_compaction.md) and
-[the cache note](docs/direct_context_cache.md).
+Direct level construction fails closed unless it verifies the CM surface,
+enumerates all `ell+1` cyclic quotients, checks horizontal-edge counts and
+interpolation identities, and exceeds the CRT height bound. Cache loading
+rechecks mathematical structure and requires an externally trusted digest.
 
-## Correctness and asymptotic claim
+## Scaling claim
 
-A direct level is admitted only after the implementation has checked a
-complete square-free CM surface, enumerated all `ell+1` cyclic quotients,
-verified the expected horizontal-edge count and interpolation identities, and
-exceeded a proved CRT height bound.  Inconsistent witnesses and exhausted
-execution caps fail closed.
+The `p^(1/8+o(1))` figure is the heuristic number of curves needed to find an
+order with the smooth divisor required by the one-shot certificate. It is not
+the measured cost of this point counter. SEA contributes only a
+polynomial-in-`log p` factor under the usual small-level and prime-selection
+assumptions, so it is absorbed into the `o(1)` term.
 
-The intended one-shot search heuristic remains `p^(1/8+o(1))`: finding a curve
-whose order supports a short certificate is expected to take that many trials,
-while SEA point counting should cost only factors polynomial in `log p` under
-the standard small-Elkies-prime heuristic.  The direct producer removes the
-finite target-level table dependency that prevented that asymptotic story from
-being literal.
+This branch preserves that intended shape, but does not yet prove it for
+unbounded inputs. In particular, auxiliary arithmetic is restricted to
+64-bit primes, the practical fixed-`v` selector is heuristic, and production
+level scheduling has not been validated. Compact contexts improve a large
+polynomial factor—from retained `O(K ell^3)` field elements to exactly
+`2 K (ell+2)^2` 64-bit coefficients—but do not change the outer search
+exponent. Sound early abort lowers average work per rejected curve; it does
+not improve the heuristic number of curves.
 
-This branch does **not** yet establish the end-to-end asymptotic claim.  Its
-auxiliary primes are restricted to proved 64-bit values, fixed-`v` selection is
-heuristic, and the preparation cost of a p125-completing level schedule has not
-been demonstrated.  Compact contexts improve retained storage from
-`O(K ell^3)` field elements to exactly `2 K (ell+2)^2` 64-bit coefficients;
-that changes an important polynomial factor, not the outer `p^(1/8+o(1))`
-search exponent.
+The comparison with a `p^(1/4+o(1))` CM search and a crossover near 400 bits
+also remains a heuristic engineering hypothesis, not a result of the p125
+trace run. See [asymptotic scope and evidence](docs/asymptotic_scope.md) for
+the claim decomposition and the measurements still needed.
 
-## What an expert review can confirm
+## Why expert review is worthwhile now
 
-This is worth reviewing now because the novel producer is connected to the
-real search and emits evidence that can be checked independently at 416 bits.
-A mathematical review can validate the trust boundary before larger-level
-scheduling and performance work harden the current interfaces.  The
-highest-value questions are:
+The novel producer is no longer an isolated scaffold: it feeds the real SEA
+consumer, has completed a 416-bit trace, has deterministic context artifacts,
+and exposes narrow proof obligations. Drew's review can now confirm whether
+the mathematical boundary is sound before scheduling and performance work
+turn these interfaces into production assumptions.
+
+The highest-value review questions are:
 
 1. Are the suitable-order and auxiliary-prime predicates sufficient?
 2. Do the ring-class resultants and CM-surface checks admit exactly the
    intended surface?
 3. Are Vélu enumeration, interpolation normalization, and the coefficient
    height bound correct?
-4. Does Elkies/Atkin evidence enter the retained trace state without creating
-   an unsound early rejection?
-5. Does the authenticated context cache preserve the same proof obligations
-   as fresh construction?
+4. Do Elkies and Atkin records enter retained state without permitting an
+   unsound early rejection?
+5. Does cached-context authentication preserve the proof obligations of fresh
+   construction?
 
-A positive review would confirm that this is a sound foundation for the
-intended direct-SEA search.  It would not, by itself, confirm the crossover
-estimate, certificate-yield heuristic, or completion of the p125 objective.
+A positive review would validate the direct-SEA foundation. It would not by
+itself validate certificate yield, the CM crossover, or the unbounded
+asymptotic claim.
 
 ## Review map
 
 - [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp): suitable orders,
-  auxiliary-prime witnesses, coefficient bounds, and CRT.
-- [`src/class_polynomial.cpp`](src/class_polynomial.cpp): exact three-power
-  ring-class polynomials.
+  auxiliary-prime witnesses, height bounds, and CRT.
+- [`src/class_polynomial.cpp`](src/class_polynomial.cpp): three-power
+  ring-class polynomial construction.
 - [`src/prime_isogeny.cpp`](src/prime_isogeny.cpp): auxiliary-field arithmetic,
   rational kernels, and Vélu quotients.
-- [`src/cm_surface.cpp`](src/cm_surface.cpp): CM-surface authentication,
+- [`src/cm_surface.cpp`](src/cm_surface.cpp): surface authentication,
   interpolation, and compact prepared contexts.
 - [`src/direct_context_cache.cpp`](src/direct_context_cache.cpp): portable
   encoding, atomic publication, authenticated loading, and revalidation.
-- [`src/sea.cpp`](src/sea.cpp): direct levels and Elkies/Atkin retained-state
-  consumption.
+- [`src/sea.cpp`](src/sea.cpp): direct levels and retained-state consumption.
+- [`src/early_abort.cpp`](src/early_abort.cpp): exact smooth-part rejection.
 - [`src/search_pipeline.cpp`](src/search_pipeline.cpp): local integration,
   concurrency, checkpoint identity, and telemetry.
-- [`tools/benchmark_p125_classical_direct.cpp`](tools/benchmark_p125_classical_direct.cpp):
-  the checked p125 level harness.
+- [`tools/validate_p125_direct_trace.cpp`](tools/validate_p125_direct_trace.cpp):
+  complete p125 trace harness.
 
 Detailed contracts:
 
 - [Explicit-CRT producer](docs/explicit_crt_producer.md)
+- [Direct-specialization trust boundary](docs/direct_specialization_boundary.md)
 - [Compact prepared contexts](docs/direct_context_compaction.md)
 - [Authenticated context cache](docs/direct_context_cache.md)
-- [Direct-specialization trust boundary](docs/direct_specialization_boundary.md)
-- [SEA proof obligations](docs/sea_design.md)
+- [Complete p125 validation](docs/p125_direct_trace_validation.md)
+- [Asymptotic scope and evidence](docs/asymptotic_scope.md)
 - [Search integration](docs/search_pipeline.md)
 
 ## Algorithm references

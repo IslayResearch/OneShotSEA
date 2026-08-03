@@ -90,6 +90,12 @@ $(BUILD_DIR)/benchmark_p125_classical_direct: \
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
 		$(LDFLAGS) $(LDLIBS) -o $@
 
+$(BUILD_DIR)/validate_p125_direct_trace: \
+		tools/validate_p125_direct_trace.cpp \
+		$(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
 $(BUILD_DIR)/test_smooth: tests/test_smooth.c $(BUILD_DIR)/smooth.o
 	$(CC) $(CPPFLAGS) -Ithird_party/oneshot_fast_ecpp $(OPENMP_CPPFLAGS) \
 		$(CFLAGS) -Wall -Wextra -Werror $^ $(LDFLAGS) $(OPENMP_LDFLAGS) \

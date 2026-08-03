@@ -17,6 +17,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import audit_runpod_search as search_audit  # noqa: E402
+import audit_search_coverage as coverage_audit  # noqa: E402
 
 
 COMMIT = "a" * 40
@@ -548,6 +549,40 @@ class RunPodSearchAuditTests(unittest.TestCase):
                 check=False, capture_output=True, text=True)
             self.assertNotEqual(missing.returncode, 0)
 
+    def test_profile_admits_workspace_sibling_deployment_but_not_broad_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            root, profile, _ = self._fixture(directory)
+            value = json.loads(profile.read_text())
+            value["remote_root"] = "/workspace/OneShotSEA"
+            value["working_directory"] = "/workspace/OneShotSEA-deadbeef"
+            value["executable_path"] = "/workspace/OneShotSEA-deadbeef/build/oneshotsea"
+            value["option_policy"]["--table-dir"] = \
+                "/workspace/OneShotSEA-deadbeef/data/modpoly/weber_f"
+            value["option_policy"]["--smooth-cache"] = \
+                "/workspace/OneShotSEA/caches/p125.cache"
+            self._write_json(profile, value)
+            parsed, _ = search_audit._profile(profile, root)
+            self.assertEqual(parsed["remote_root"], "/workspace/OneShotSEA")
+
+            value["remote_root"] = "/workspace"
+            self._write_json(profile, value)
+            with self.assertRaisesRegex(search_audit.AuditError, "unsafe parent"):
+                search_audit._profile(profile, root)
+
+    def test_attempt_start_may_follow_manifest_by_one_second(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "attempts.jsonl"
+            self._write_jsonl(path, [
+                {"event": "start", "utc": self._utc(101), "epoch": 101},
+                {"event": "end", "utc": self._utc(102), "epoch": 102,
+                 "status": 0},
+            ])
+            attempts = search_audit._attempts(path, "worker-1", self._utc(100))
+            self.assertEqual(attempts[0]["start_epoch"], 101)
+            with self.assertRaisesRegex(search_audit.AuditError, "within 60 seconds"):
+                search_audit._attempts(path, "worker-1", self._utc(40))
+
     def test_actual_probe_and_797_timeout_with_external_profiles(self):
         roots = [
             ROOT / "artifacts/runpod/p125-runpod-cpu16-probe-20260802b/ohfo3hbov7ot8v",
@@ -562,6 +597,21 @@ class RunPodSearchAuditTests(unittest.TestCase):
             self.assertEqual(results[0]["outcome"]["completed_global_index_count"], 30)
             self.assertEqual(results[1]["outcome"]["completed_global_index_count"], 797)
             self.assertEqual(results[1]["resources"]["attempt_exit_statuses"], [[124]])
+
+    def test_retained_partial_dual_epoch_matches_external_profile_and_result(self):
+        parent = ROOT / "artifacts/runpod/p125-production-dual8-550815e-20260803a"
+        root = parent / "ohfo3hbov7ot8v"
+        profile = parent / "audit-profile.json"
+        retained = json.loads((parent / "audit-result.json").read_text())
+        recomputed = self._audit(root, profile)
+        self.assertEqual(recomputed, retained)
+        self.assertTrue(recomputed["accepted"])
+        self.assertEqual(recomputed["outcome"]["completed_global_index_count"], 546)
+        self.assertEqual(recomputed["outcome"]["remaining_intervals"], [
+            {"start": 1001373, "end": 1001551},
+        ])
+        self.assertEqual(recomputed["outcome"]["counters"]["rejected_heuristic"], 0)
+        self.assertEqual(recomputed["outcome"]["certificates"], [])
 
     def test_command_wrapper_option_path_and_identity_rehash_attacks(self):
         mutators = []
@@ -722,6 +772,33 @@ class RunPodSearchAuditTests(unittest.TestCase):
             self.assertFalse(zero["accepted"])
             self.assertFalse(zero["declared_outcome_gate"]["checks"]["minimum_completed_count"])
 
+    def test_first_curve_timeout_without_durable_state_is_authenticated(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            root, profile, _ = self._fixture(
+                directory, end=101, wall_limit=10,
+                worker_attempts=[[124]], worker_segments=[[[]]])
+            worker = root / "worker-0"
+            (worker / "progress.jsonl").unlink()
+            (worker / "checkpoint.json").unlink()
+            self._checksum(root)
+
+            result = self._audit(root, profile)
+            self.assertTrue(result["accepted"])
+            self.assertEqual(result["outcome"]["completed_intervals"], [])
+            self.assertEqual(result["outcome"]["remaining_intervals"], [
+                {"start": 100, "end": 101},
+            ])
+            self.assertIsNone(result["workers"][0]["progress_sha256"])
+            self.assertIsNone(result["workers"][0]["checkpoint_sha256"])
+
+            (worker / "progress.jsonl").write_text("", encoding="utf-8")
+            self._checksum(root)
+            with self.assertRaisesRegex(
+                search_audit.AuditError, "unexpected file layout|only one of"
+            ):
+                self._audit(root, profile)
+
     def test_certificate_requires_local_pinned_verifier_and_rejects_invalid(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -873,6 +950,105 @@ class RunPodSearchAuditTests(unittest.TestCase):
                 expected_cache_sha256=CACHE, expected_global_start=100,
                 expected_global_end=104, expected_worker_count=1)
             self.assertTrue(legacy["accepted"])
+
+
+class SearchCoverageAuditTests(unittest.TestCase):
+    def _ledger(self):
+        topology_path = Path(
+            "artifacts/runpod/p125-topology-gate-550815e-20260803a/result.json")
+        main_path = Path(
+            "artifacts/runpod/p125-production-dual8-550815e-20260803a/audit-result.json")
+        topology = json.loads((ROOT / topology_path).read_text())
+        main = json.loads((ROOT / main_path).read_text())
+        identity = {
+            name: topology["immutable_identity"][name]
+            for name in coverage_audit.IDENTITY_FIELDS
+        }
+        return {
+            "schema": coverage_audit.LEDGER_SCHEMA,
+            "identity": identity,
+            "contiguous_start": 1000827,
+            "expected_first_gap": 1001373,
+            "sources": [
+                {
+                    "label": "topology", "kind": "topology_audit",
+                    "path": topology_path.as_posix(),
+                    "sha256": hashlib.sha256((ROOT / topology_path).read_bytes()).hexdigest(),
+                    "schedule_sha256": topology["immutable_identity"]["schedule_sha256"],
+                },
+                {
+                    "label": "main", "kind": "runpod_search_audit",
+                    "path": main_path.as_posix(),
+                    "sha256": hashlib.sha256((ROOT / main_path).read_bytes()).hexdigest(),
+                    "schedule_sha256": main["identity"]["schedule_sha256"],
+                },
+            ],
+            "intentional_overlaps": [{
+                "sources": ["main", "topology"],
+                "start": 1000827, "end": 1000955,
+                "reason": "production epoch repeated the accepted topology ranges",
+            }],
+        }
+
+    def _write(self, path, value):
+        path.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
+
+    def test_retained_exact_identity_overlap_is_explicit_and_counted_once(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "ledger.json"
+            self._write(path, self._ledger())
+            result = coverage_audit.audit(path)
+            self.assertTrue(result["accepted"])
+            self.assertEqual(result["first_gap"], 1001373)
+            self.assertEqual(result["total_assigned_count"], 674)
+            self.assertEqual(result["unique_completed_count"], 546)
+            self.assertEqual(result["duplicate_assignment_count"], 128)
+            self.assertEqual(result["sources"][0]["fresh_count"], 128)
+            self.assertEqual(result["sources"][1]["fresh_count"], 418)
+
+    def test_declared_exact_recovery_schedule_can_share_coverage_identity(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            value = self._ledger()
+            recovery_path = Path(
+                "artifacts/runpod/"
+                "p125-recovery-1001373-batch7-550815e-20260803a/"
+                "audit-result.json")
+            recovery = json.loads((ROOT / recovery_path).read_text())
+            value["sources"].append({
+                "label": "recovery-timeout", "kind": "runpod_search_audit",
+                "path": recovery_path.as_posix(),
+                "sha256": hashlib.sha256(
+                    (ROOT / recovery_path).read_bytes()).hexdigest(),
+                "schedule_sha256": recovery["identity"]["schedule_sha256"],
+            })
+            path = Path(temporary) / "ledger.json"
+            self._write(path, value)
+            result = coverage_audit.audit(path)
+            self.assertTrue(result["accepted"])
+            self.assertEqual(len(result["schedule_sha256s"]), 2)
+            self.assertEqual(result["sources"][-1]["assigned_count"], 0)
+
+    def test_undeclared_overlap_identity_drift_and_hash_drift_fail(self):
+        for attack in ("overlap", "identity", "hash", "schedule"):
+            with self.subTest(attack=attack), tempfile.TemporaryDirectory() as temporary:
+                value = self._ledger()
+                if attack == "overlap":
+                    value["intentional_overlaps"] = []
+                elif attack == "identity":
+                    value["identity"]["seed"] = str(int(value["identity"]["seed"]) + 1)
+                else:
+                    if attack == "hash":
+                        value["sources"][0]["sha256"] = "0" * 64
+                    else:
+                        value["sources"][0]["schedule_sha256"] = "0" * 64
+                path = Path(temporary) / "ledger.json"
+                self._write(path, value)
+                with self.assertRaises(coverage_audit.AuditError):
+                    coverage_audit.audit(path)
+
+    def test_python38_grammar(self):
+        source = (ROOT / "tools/audit_search_coverage.py").read_text()
+        ast.parse(source, filename="audit_search_coverage.py", feature_version=(3, 8))
 
 
 if __name__ == "__main__":

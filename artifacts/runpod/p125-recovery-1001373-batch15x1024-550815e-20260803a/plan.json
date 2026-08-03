@@ -1,0 +1,36 @@
+{
+  "schema": "oneshotsea.runpod-production-plan.v1",
+  "created_utc": "2026-08-03T04:38:30Z",
+  "run_id": "p125-recovery-1001373-batch15x1024-550815e-20260803a",
+  "run_kind": "production",
+  "launch_condition": "p125-recovery-1001373-batch7-550815e-20260803a reaches its 3600-second wall limit without advancing index 1001373",
+  "pod_id": "ohfo3hbov7ot8v",
+  "recorded_hourly_rate_usd": 0.643,
+  "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+  "seed": "202607300000",
+  "global_range": {"start": "1001373", "end": "1001374", "count": "1"},
+  "workers": [{"worker_id": 0, "assigned_start": "1001373", "assigned_end": "1001374", "max_curves": 1, "curve_threads": 1}],
+  "wall_time_limit_seconds": 3600,
+  "incremental_search_cost_ceiling_usd": 0.643,
+  "resource_delta_from_predecessor": {
+    "smooth_threads": {"from": 7, "to": 15},
+    "smooth_max_batch": {"from": 128, "to": 1024},
+    "smooth_root_auxiliary_bytes": {"from": 134217728, "to": 536870912},
+    "reason": "the complete 3795-trace recovery is dominated by repeated exact-smooth scan chunks; the main dual workers are quiescent and the pod has 64 GB"
+  },
+  "immutable_identity": {
+    "deployment_commit": "550815e0013361f5eee4cdb6b044f5cec1a9ae2c",
+    "binary_sha256": "550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+    "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5"
+  },
+  "policy": {
+    "curve_family": "x1-27", "x1_require_point4": true,
+    "max_level": 401, "trace_cap": 4096, "schoof_fallback": true,
+    "skip_incomplete_curves": false, "sea_threads_per_curve": 1,
+    "smooth_coordinators": 1, "smooth_threads": 15,
+    "smooth_max_batch": 1024, "smooth_root_auxiliary_bytes": 536870912,
+    "sea_level_telemetry": false, "checkpoint_every": 1
+  }
+}

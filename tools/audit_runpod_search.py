@@ -468,10 +468,19 @@ def _profile(path: Path, root: Path) -> Tuple[Dict[str, Any], str]:
     if policy["--curve-family"] not in ("weber-f", "x1-11", "x1-27"):
         raise AuditError("audit profile curve family is invalid")
     remote_root = _remote_path(value["remote_root"], "audit profile remote_root")
-    _remote_child(value["working_directory"], remote_root, "working directory")
-    _remote_child(value["executable_path"], remote_root, "executable path")
-    _remote_child(policy["--table-dir"], remote_root, "table directory")
-    _remote_child(policy["--smooth-cache"], remote_root, "smooth cache")
+    # RUNPOD_REMOTE_ROOT owns durable run artifacts, while immutable deployment
+    # snapshots are intentionally published as sibling directories below the
+    # same workspace parent (for example OneShotSEA and OneShotSEA-<commit>).
+    # Pin every exact path in the external profile, but admit only that common
+    # non-root parent rather than incorrectly requiring the deploy snapshot to
+    # be nested inside the mutable run root.
+    workspace_root = remote_root.parent
+    if workspace_root == PurePosixPath("/"):
+        raise AuditError("audit profile remote root has an unsafe parent")
+    _remote_child(value["working_directory"], workspace_root, "working directory")
+    _remote_child(value["executable_path"], workspace_root, "executable path")
+    _remote_child(policy["--table-dir"], workspace_root, "table directory")
+    _remote_child(policy["--smooth-cache"], workspace_root, "smooth cache")
     statuses = value.get("expected_attempt_statuses")
     if not isinstance(statuses, list) or len(statuses) != worker_count:
         raise AuditError("audit profile expected_attempt_statuses has wrong length")
@@ -825,6 +834,7 @@ def _attempts(path: Path, label: str, started_utc: Any) -> List[Dict[str, Any]]:
         raise AuditError("{} must contain completed start/end attempt pairs".format(label))
     attempts = []  # type: List[Dict[str, Any]]
     previous_end = None  # type: Optional[int]
+    manifest_started_epoch = _utc_epoch(started_utc, label + " manifest start UTC")
     for position in range(0, len(values), 2):
         start, end = values[position:position + 2]
         if start.get("event") != "start" or end.get("event") != "end":
@@ -844,8 +854,12 @@ def _attempts(path: Path, label: str, started_utc: Any) -> List[Dict[str, Any]]:
             previous_end is not None and start_epoch < previous_end
         ):
             raise AuditError("{} attempts overlap or have nonpositive duration".format(label))
-        if not attempts and start.get("utc") != started_utc:
-            raise AuditError("{} manifest and first attempt start UTC differ".format(label))
+        if not attempts and not (
+            manifest_started_epoch <= start_epoch <= manifest_started_epoch + 60
+        ):
+            raise AuditError(
+                "{} first attempt does not start within 60 seconds of the manifest".format(label)
+            )
         attempts.append({
             "start_utc": start["utc"], "end_utc": end["utc"],
             "start_epoch": start_epoch, "end_epoch": end_epoch,
@@ -1921,10 +1935,15 @@ def _worker_profile(
     actual_names = {path.name for path in directory.iterdir()}
     mandatory_names = {
         "manifest.json", "command.sh", "attempts.jsonl", "resource-usage.txt",
-        "worker.log", "progress.jsonl", "checkpoint.json",
+        "worker.log",
     }
+    durable_state_names = {"progress.jsonl", "checkpoint.json"}
     certificate_names = {"certificate.txt", "certificate.txt.meta.json"}
-    if actual_names not in (mandatory_names, mandatory_names | certificate_names):
+    if actual_names not in (
+        mandatory_names,
+        mandatory_names | durable_state_names,
+        mandatory_names | durable_state_names | certificate_names,
+    ):
         raise AuditError("{} has an unexpected file layout".format(label))
     if any(not path.is_file() or path.is_symlink() for path in directory.iterdir()):
         raise AuditError("{} contains a non-regular entry".format(label))
@@ -2025,15 +2044,36 @@ def _worker_profile(
         "build_id": build_id,
     }
     progress_path = directory / "progress.jsonl"
-    progress = _load_jsonl(progress_path, label + " progress")
+    checkpoint_path = directory / "checkpoint.json"
+    progress_exists = progress_path.exists()
+    checkpoint_exists = checkpoint_path.exists()
+    if progress_exists != checkpoint_exists:
+        raise AuditError(
+            "{} has only one of progress.jsonl and checkpoint.json".format(label))
+    empty_timed_out_attempt = not progress_exists
+    if empty_timed_out_attempt and not all(
+        attempt["status"] == 124 for attempt in attempts
+    ):
+        raise AuditError(
+            "{} lacks durable search state outside an all-timeout attempt".format(label))
+    progress = (
+        [] if empty_timed_out_attempt
+        else _load_jsonl(progress_path, label + " progress")
+    )
     (computed_counters, next_index, certificate_records, transitions,
      metrics) = _record_progress(
         progress, label, assigned, identity,
         telemetry_enabled=profile["option_policy"]["--sea-level-telemetry"] == "1",
         heuristic_enabled=profile["option_policy"]["--skip-incomplete-curves"] == "1",
         include_details=True)
-    checkpoint, checkpoint_counters, checkpoint_sha = _checkpoint(
-        directory / "checkpoint.json", label)
+    if empty_timed_out_attempt:
+        checkpoint = dict(identity)
+        checkpoint["next_index"] = str(assigned["start"])
+        checkpoint_counters = dict(computed_counters)
+        checkpoint_sha = None
+    else:
+        checkpoint, checkpoint_counters, checkpoint_sha = _checkpoint(
+            checkpoint_path, label)
     checkpoint_identity = {
         "prime": profile["prime"], "seed": profile["seed"],
         "worker_id": str(worker_id), "worker_count": str(worker_count),
@@ -2074,7 +2114,8 @@ def _worker_profile(
         "command_sha256": command_sha,
         "normalized_command_sha256": _canonical_sha256(argv),
         "manifest_sha256": _sha256_file(manifest_path),
-        "progress_sha256": _sha256_file(progress_path),
+        "progress_sha256": (
+            None if empty_timed_out_attempt else _sha256_file(progress_path)),
         "checkpoint_sha256": checkpoint_sha,
         "resource_usage_sha256": _sha256_file(directory / "resource-usage.txt"),
         "attempts_sha256": _sha256_file(directory / "attempts.jsonl"),
@@ -2422,6 +2463,7 @@ def _audit_profile_root(
                 {"start": worker["assigned_range"]["start"],
                  "end": worker["checkpoint_next_index"]}
                 for worker in workers
+                if worker["checkpoint_next_index"] > worker["assigned_range"]["start"]
             ],
             "remaining_intervals": [
                 {"start": worker["checkpoint_next_index"],

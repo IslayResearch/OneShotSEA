@@ -1,0 +1,9 @@
+{
+  "schema": "oneshotsea.runpod-production-plan-correction.v1",
+  "created_utc": "2026-08-03T04:47:00Z",
+  "plan_sha256": "a82b39da08630bb64545d78aee4e5d174827e4658c82154d9d8c9bb0677b86de",
+  "field": "immutable_identity.schedule_sha256",
+  "declared_value": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+  "correct_value": "84d0f0544f3ec7a15ccd357a7833a0bd635e6f732215db5d8303fbc91e4edf31",
+  "reason": "The prelaunch plan copied the trace-cap-16 main-run schedule digest. Search schedule identity includes trace_cap; this exact recovery uses trace-cap 4096. CPU batching fields do not affect the schedule digest. The retained plan is unchanged and this postlaunch correction is SHA-256-bound to it."
+}

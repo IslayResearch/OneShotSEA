@@ -24,6 +24,10 @@ constexpr std::uint64_t kSeed = UINT64_C(202607300000);
 constexpr std::uint64_t kGlobalIndex = UINT64_C(1000030);
 constexpr std::uint64_t kPrimeCandidateCap = UINT64_C(10000000);
 constexpr std::uint64_t kXCandidateCap = UINT64_C(1000000);
+constexpr std::string_view kFreshTimingScope =
+    "fresh_preparation_plus_evaluation";
+constexpr std::string_view kCachedTimingScope =
+    "cached_level_materialization_plus_evaluation_index_excluded";
 
 mpz_class target_prime() {
     return mpz_class(
@@ -72,6 +76,14 @@ std::uint64_t elapsed_us(Clock::time_point started) {
     return static_cast<std::uint64_t>(elapsed);
 }
 
+std::uint64_t checked_add_us(std::uint64_t left, std::uint64_t right,
+                             const char* label) {
+    if (right > std::numeric_limits<std::uint64_t>::max() - left) {
+        throw std::overflow_error(label);
+    }
+    return left + right;
+}
+
 oneshotsea::ExactTracePrior trace_prior(
     const mpz_class& prime, const oneshotsea::X127ProbeSample& sample) {
     if (sample.group_divisor == 0U) {
@@ -107,7 +119,7 @@ void print_level(
     const oneshotsea::ClassicalDirectSeaLevelRecord& record,
     std::uint64_t expected_residue, bool oracle_accepted,
     std::size_t matrix_payload_bytes, std::uint64_t preparation_us,
-    std::uint64_t total_us) {
+    std::uint64_t total_us, std::string_view timing_scope) {
     std::cout
         << "{\"schema\":\"oneshotsea.p125-direct-trace-level.v1\""
         << ",\"index\":\"" << index << "\""
@@ -142,7 +154,8 @@ void print_level(
         << matrix_payload_bytes << "\""
         << ",\"preparation_us\":\"" << preparation_us
         << "\",\"evaluation_us\":\"" << record.elapsed_us
-        << "\",\"total_us\":\"" << total_us << "\"}\n";
+        << "\",\"total_us\":\"" << total_us
+        << "\",\"timing_scope\":\"" << timing_scope << "\"}\n";
     std::cout.flush();
 }
 
@@ -206,9 +219,33 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
                 oneshotsea::load_classical_direct_context_cache(
                     field, levels, kPrimeCandidateCap, kXCandidateCap,
                     threads, cache_path, cache_sha256));
+        std::vector<std::uint64_t> cached_level_total_us;
+        cached_level_total_us.reserve(levels.size());
+        std::uint64_t previous_level_load_us = 0U;
         oneshotsea::extend_sea_with_prepared_classical_direct(
-            sample.pair.curve, state, *cached_context, 1U);
+            sample.pair.curve, state, *cached_context, 1U,
+            [&](const oneshotsea::ClassicalDirectSeaLevelRecord& record) {
+                const std::uint64_t current_level_load_us =
+                    cached_context->cached_level_load_us();
+                if (current_level_load_us < previous_level_load_us) {
+                    throw std::logic_error(
+                        "cached-level load timing moved backwards");
+                }
+                const std::uint64_t materialization_us =
+                    current_level_load_us - previous_level_load_us;
+                cached_level_total_us.push_back(checked_add_us(
+                    materialization_us, record.elapsed_us,
+                    "cached direct level total timing overflow"));
+                previous_level_load_us = current_level_load_us;
+            });
         cached_total_us = elapsed_us(started);
+        if (cached_level_total_us.size() !=
+                state.classical_direct_levels.size() ||
+            previous_level_load_us !=
+                cached_context->cached_level_load_us()) {
+            throw std::logic_error(
+                "cached direct level timing attribution is inconsistent");
+        }
         for (std::size_t index = 0U;
              index < state.classical_direct_levels.size(); ++index) {
             const auto& record = state.classical_direct_levels[index];
@@ -218,7 +255,8 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
                 oracle_accepts(record, state, expected_residue);
             print_level(index, record, expected_residue, accepted,
                         cached_context->interpolation_storage_bytes(index),
-                        0U, record.elapsed_us);
+                        0U, cached_level_total_us[index],
+                        kCachedTimingScope);
             if (!accepted) {
                 throw std::runtime_error(
                     "cached direct level contradicts the authenticated p125 reference trace");
@@ -252,7 +290,7 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
         const bool accepted = oracle_accepts(record, state, expected_residue);
         print_level(index, record, expected_residue, accepted,
                     context.interpolation_storage_bytes(),
-                    context.preparation_us(), total);
+                    context.preparation_us(), total, kFreshTimingScope);
         if (!accepted) {
             throw std::runtime_error(
                 "direct level contradicts the authenticated p125 reference trace");

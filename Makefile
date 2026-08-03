@@ -171,9 +171,22 @@ test-prime-isogeny: $(BUILD_DIR)/test_prime_isogeny
 test-cm-surface: $(BUILD_DIR)/test_cm_surface
 	./$(BUILD_DIR)/test_cm_surface
 
-test-p125-direct-trace: $(BUILD_DIR)/validate_p125_direct_trace
+test-p125-direct-trace: $(BUILD_DIR)/validate_p125_direct_trace $(BUILD_DIR)/oneshotsea
 	./$(BUILD_DIR)/validate_p125_direct_trace --threads 2 5 | \
-		python3 -c 'import json,sys; rows=[json.loads(line) for line in sys.stdin]; assert len(rows)==2; level,summary=rows; assert level["schema"]=="oneshotsea.p125-direct-trace-level.v1" and level["ell"]=="5" and level["exact"] and level["trace_residue"]=="3" and level["oracle_accepted"]; assert summary["schema"]=="oneshotsea.p125-direct-trace-summary.v1" and not summary["complete"] and not summary["oracle_match"] and summary["retained_levels"]=="1"'
+		python3 -c 'import json,sys; rows=[json.loads(line) for line in sys.stdin]; assert len(rows)==2; level,summary=rows; assert level["schema"]=="oneshotsea.p125-direct-trace-level.v1" and level["ell"]=="5" and level["exact"] and level["trace_residue"]=="3" and level["oracle_accepted"]; assert level["timing_scope"]=="fresh_preparation_plus_evaluation" and int(level["total_us"])>=int(level["preparation_us"])+int(level["evaluation_us"]); assert summary["schema"]=="oneshotsea.p125-direct-trace-summary.v1" and not summary["complete"] and not summary["oracle_match"] and summary["retained_levels"]=="1"'
+	@cache=$$(mktemp "$${TMPDIR:-/tmp}/oneshotsea-p125-direct-cache.XXXXXX"); \
+	prepared="$$cache.prepare.json"; trace="$$cache.trace.ndjson"; \
+	trap 'rm -f "$$cache" "$$prepared" "$$trace"' 0 1 2 15; \
+	prime=$$(python3 -c 'print(10**125+237)'); \
+	./$(BUILD_DIR)/oneshotsea prepare-classical-direct-context \
+		--p "$$prime" --classical-direct-levels 5 \
+		--classical-direct-max-prime-candidates 10000000 \
+		--classical-direct-max-x-candidates 1000000 --sea-threads 2 \
+		--output "$$cache" >"$$prepared"; \
+	digest=$$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$$prepared"); \
+	./$(BUILD_DIR)/validate_p125_direct_trace --threads 2 \
+		--cache "$$cache" --cache-sha256 "$$digest" 5 >"$$trace"; \
+	python3 -c 'import json,sys; rows=[json.loads(line) for line in open(sys.argv[1])]; assert len(rows)==2; level,summary=rows; cache=summary["cache"]; assert level["timing_scope"]=="cached_level_materialization_plus_evaluation_index_excluded" and level["preparation_us"]=="0"; assert cache["level_load_count"]=="1" and cache["final_resident_contexts"]=="0"; assert int(level["total_us"])==int(level["evaluation_us"])+int(cache["level_load_us"]); assert int(cache["total_us"])>=int(cache["index_load_us"])+int(level["total_us"])' "$$trace"
 
 test-poly-square: $(BUILD_DIR)/test_poly_square
 	./$(BUILD_DIR)/test_poly_square

@@ -114,9 +114,14 @@ the trusted digest and indexing time. Search summary telemetry reports
 per-level load count/time, and peak/final resident context counts. A completed
 run must report `final_cached_resident_contexts=0`.
 
-## Checked 416-bit restart bracket
+The fixed p125 validator labels every level with `timing_scope`. Fresh-level
+`total_us` covers preparation plus evaluation. Cached-level `total_us` covers
+that level's lazy materialization plus evaluation; whole-file indexing is
+excluded there and remains included in the cache summary's whole-run timing.
 
-The checked level benchmark accepts one authenticated cache:
+## Unretained 416-bit development restart bracket
+
+The level benchmark accepts one authenticated cache:
 
 ```sh
 /usr/bin/make build/benchmark_p125_classical_direct
@@ -127,8 +132,12 @@ The checked level benchmark accepts one authenticated cache:
   ELL
 ```
 
-Same-host measurements used the current compact implementation and four
-preparation workers. Schoof validation ran after all timed direct intervals.
+The following same-host development measurements used the compact
+implementation and four preparation workers. Schoof validation ran after all
+timed direct intervals. The raw command streams, source and binary identity,
+host description, and generated cache artifacts were not retained, so these
+numbers are directional engineering notes rather than release evidence or a
+reproducible benchmark result.
 
 | Level | Preparation to build artifact | Artifact bytes | Authenticated load | First curve after load | Distinct-`j` warm curve |
 |---:|---:|---:|---:|---:|---:|
@@ -148,10 +157,11 @@ precomputation shareable across worker shards. It changes neither direct SEA
 point-count complexity nor the conditional outer `p^(1/8+o(1))` search
 exponent.
 
-## Checked streaming brackets
+## Unretained streaming development brackets
 
-A combined p125 artifact for levels `29,101,157` was produced with four
-workers and the 10-million auxiliary-prime candidate cap:
+In the same unretained development session, a combined p125 artifact for
+levels `29,101,157` was produced with four workers and the 10-million
+auxiliary-prime candidate cap:
 
 ```text
 artifact bytes             161,818,556
@@ -189,7 +199,7 @@ The validator invocation was:
   29 101 157
 ```
 
-The lazy loader was also checked against retained p125 artifacts:
+Additional unretained same-host runs used temporary p125 cache artifacts:
 
 | Level | Logical matrix payload | Index/authenticate | Lazy loads | Peak resident contexts | Final resident contexts | Process peak RSS |
 |---:|---:|---:|---:|---:|---:|---:|
@@ -198,7 +208,18 @@ The lazy loader was also checked against retained p125 artifacts:
 
 Each bracket evaluated two distinct p125 `j`-invariants. The level-157 run
 exercised one Atkin/no-root and one exact curve. These are same-host memory and
-I/O brackets, not certificate-yield measurements.
+I/O development brackets, not retained validation or certificate-yield
+measurements.
+
+Promotion of any cache benchmark to retained release evidence requires a
+checksummed bundle containing the exact generation and consumption commands
+(target, ordered levels, both execution caps, and thread limits), raw
+stdout/stderr and external timing streams, source commit and tree, source and
+binary hashes, compiler/GMP/OS/hardware identity, cache size and SHA-256, and
+the independent correctness-validation output. The cache payload itself may
+be omitted only when the recorded canonical regeneration command reproduces
+the retained digest; the bundle must include a machine-auditable projection of
+the raw records.
 
 ## Current limits
 

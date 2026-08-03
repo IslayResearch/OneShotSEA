@@ -88,8 +88,65 @@ std::uint64_t multiply_mod_u64(std::uint64_t lhs, std::uint64_t rhs,
 
 std::uint64_t add_mod_u64(std::uint64_t lhs, std::uint64_t rhs,
                           std::uint64_t modulus) {
-    return static_cast<std::uint64_t>(
-        (static_cast<unsigned __int128>(lhs) + rhs) % modulus);
+    std::uint64_t sum = lhs + rhs;
+    if (sum < lhs || sum >= modulus) {
+        sum -= modulus;
+    }
+    return sum;
+}
+
+std::size_t unreduced_product_batch_size(std::uint64_t modulus,
+                                         std::size_t count) {
+    if (modulus < 2U || count == 0U) {
+        throw std::invalid_argument(
+            "modular dot product requires a modulus and nonempty vectors");
+    }
+    using Wide = unsigned __int128;
+    const Wide largest_residue = static_cast<Wide>(modulus - 1U);
+    const Wide largest_product = largest_residue * largest_residue;
+    const Wide largest_accumulator = ~static_cast<Wide>(0U);
+    // Every dot-product term is at most (modulus-1)^2.  Taking the exact
+    // quotient here proves that any batch of the returned size fits in one
+    // unsigned 128-bit accumulator; no wraparound is being used as a modular
+    // reduction shortcut.
+    const Wide capacity = largest_accumulator / largest_product;
+    if (capacity == 0U) {
+        throw std::logic_error(
+            "modular dot-product accumulator has no safe capacity");
+    }
+    return capacity >= static_cast<Wide>(count)
+        ? count
+        : static_cast<std::size_t>(capacity);
+}
+
+std::uint64_t dot_product_mod_u64(
+    const std::uint64_t* coefficients,
+    const std::vector<std::uint64_t>& values, std::size_t count,
+    std::uint64_t modulus, std::size_t batch_size) {
+    if (coefficients == nullptr || values.size() != count ||
+        batch_size == 0U || batch_size > count) {
+        throw std::invalid_argument(
+            "modular dot product received inconsistent dimensions");
+    }
+    using Wide = unsigned __int128;
+    std::uint64_t result = 0U;
+    for (std::size_t begin = 0U; begin < count; begin += batch_size) {
+        const std::size_t end =
+            begin + std::min(batch_size, count - begin);
+        Wide accumulator = 0U;
+        for (std::size_t index = begin; index < end; ++index) {
+            if (coefficients[index] >= modulus || values[index] >= modulus) {
+                throw std::logic_error(
+                    "modular dot product received a noncanonical residue");
+            }
+            accumulator += static_cast<Wide>(coefficients[index]) *
+                           values[index];
+        }
+        result = add_mod_u64(
+            result, static_cast<std::uint64_t>(accumulator % modulus),
+            modulus);
+    }
+    return result;
 }
 
 std::uint64_t power_mod_u64(std::uint64_t base, std::uint64_t exponent,
@@ -364,51 +421,59 @@ specialize_classical_from_compact_interpolation_matrices(
 
     std::vector<std::uint64_t> value_weights(count, 0U);
     std::vector<std::uint64_t> derivative_weights(count, 0U);
+    std::vector<std::uint64_t> derivative_powers(count, 0U);
+    for (std::size_t degree = 1U; degree < count; ++degree) {
+        derivative_powers[degree] = multiply_mod_u64(
+            static_cast<std::uint64_t>(degree) % modulus,
+            target_powers[degree - 1U], modulus);
+    }
+    const std::size_t batch_size =
+        unreduced_product_batch_size(modulus, count);
     for (std::size_t row = 0U; row < count; ++row) {
-        for (std::size_t degree = 0U; degree < count; ++degree) {
-            const std::uint64_t coefficient =
-                lagrange_coefficients[row * count + degree];
-            if (coefficient >= modulus) {
-                throw std::logic_error(
-                    "compact Lagrange coefficient is noncanonical");
-            }
-            value_weights[row] = add_mod_u64(
-                value_weights[row],
-                multiply_mod_u64(coefficient, target_powers[degree],
-                                 modulus),
-                modulus);
-            if (degree != 0U) {
-                const std::uint64_t differentiated = multiply_mod_u64(
-                    coefficient, static_cast<std::uint64_t>(degree),
-                    modulus);
-                derivative_weights[row] = add_mod_u64(
-                    derivative_weights[row],
-                    multiply_mod_u64(differentiated,
-                                     target_powers[degree - 1U], modulus),
-                    modulus);
-            }
-        }
+        const std::uint64_t* coefficients =
+            lagrange_coefficients.data() + row * count;
+        value_weights[row] = dot_product_mod_u64(
+            coefficients, target_powers, count, modulus, batch_size);
+        derivative_weights[row] = dot_product_mod_u64(
+            coefficients, derivative_powers, count, modulus, batch_size);
     }
 
     std::vector<std::uint64_t> value_u64(count, 0U);
     std::vector<std::uint64_t> derivative_u64(count, 0U);
-    for (std::size_t row = 0U; row < count; ++row) {
-        for (std::size_t y_degree = 0U; y_degree < count; ++y_degree) {
-            const std::uint64_t coefficient =
-                neighbor_coefficients[row * count + y_degree];
-            if (coefficient >= modulus) {
-                throw std::logic_error(
-                    "compact neighbor coefficient is noncanonical");
+    using Wide = unsigned __int128;
+    std::vector<Wide> value_accumulators(count, 0U);
+    std::vector<Wide> derivative_accumulators(count, 0U);
+    for (std::size_t begin = 0U; begin < count; begin += batch_size) {
+        const std::size_t end =
+            begin + std::min(batch_size, count - begin);
+        std::fill(value_accumulators.begin(), value_accumulators.end(), 0U);
+        std::fill(
+            derivative_accumulators.begin(),
+            derivative_accumulators.end(), 0U);
+        for (std::size_t row = begin; row < end; ++row) {
+            for (std::size_t y_degree = 0U; y_degree < count; ++y_degree) {
+                const std::uint64_t coefficient =
+                    neighbor_coefficients[row * count + y_degree];
+                if (coefficient >= modulus) {
+                    throw std::logic_error(
+                        "compact neighbor coefficient is noncanonical");
+                }
+                value_accumulators[y_degree] +=
+                    static_cast<Wide>(value_weights[row]) * coefficient;
+                derivative_accumulators[y_degree] +=
+                    static_cast<Wide>(derivative_weights[row]) * coefficient;
             }
+        }
+        for (std::size_t y_degree = 0U; y_degree < count; ++y_degree) {
             value_u64[y_degree] = add_mod_u64(
                 value_u64[y_degree],
-                multiply_mod_u64(value_weights[row], coefficient,
-                                 modulus),
+                static_cast<std::uint64_t>(
+                    value_accumulators[y_degree] % modulus),
                 modulus);
             derivative_u64[y_degree] = add_mod_u64(
                 derivative_u64[y_degree],
-                multiply_mod_u64(derivative_weights[row], coefficient,
-                                 modulus),
+                static_cast<std::uint64_t>(
+                    derivative_accumulators[y_degree] % modulus),
                 modulus);
         }
     }

@@ -799,6 +799,28 @@ class RunPodSearchAuditTests(unittest.TestCase):
             ):
                 self._audit(root, profile)
 
+    def test_nonempty_smooth_cohort_histograms_are_balanced(self):
+        path = ROOT / (
+            "artifacts/runpod/"
+            "p125-recovery-1001373-batch15x1024-550815e-20260803a/"
+            "ohfo3hbov7ot8v/worker-0/worker.log")
+        summary = json.loads(path.read_text().splitlines()[-1])
+        batch = summary["smooth_batch"]
+        parsed = search_audit._validate_smooth_batch(batch, "retained recovery")
+        self.assertEqual(parsed["submitted_orders"], 7590)
+        self.assertEqual(parsed["successful_cache_scan_chunks"], 8)
+
+        forged = json.loads(json.dumps(batch))
+        forged["cohorts"][0]["submitted_orders"] = "7589"
+        with self.assertRaisesRegex(search_audit.AuditError, "total differs"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
+        forged = json.loads(json.dumps(batch))
+        forged["cohorts"][0]["successful_scan_chunk_size_histogram"][1][
+            "scan_chunks"] = "6"
+        with self.assertRaisesRegex(search_audit.AuditError, "does not cover"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
     def test_certificate_requires_local_pinned_verifier_and_rejects_invalid(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -967,6 +989,11 @@ class SearchCoverageAuditTests(unittest.TestCase):
         return {
             "schema": coverage_audit.LEDGER_SCHEMA,
             "identity": identity,
+            "curve_index_identity": {
+                "schema": coverage_audit.CURVE_IDENTITY_SCHEMA,
+                "curve_family": "x1-27",
+                "x1_require_point_four": True,
+            },
             "contiguous_start": 1000827,
             "expected_first_gap": 1001373,
             "sources": [
@@ -975,12 +1002,21 @@ class SearchCoverageAuditTests(unittest.TestCase):
                     "path": topology_path.as_posix(),
                     "sha256": hashlib.sha256((ROOT / topology_path).read_bytes()).hexdigest(),
                     "schedule_sha256": topology["immutable_identity"]["schedule_sha256"],
+                    "bx_root": "artifacts/runpod/p125-topology-bx-550815e-20260803a/ohfo3hbov7ot8v",
+                    "ax_root": "artifacts/runpod/p125-topology-ax-550815e-20260803a/ohfo3hbov7ot8v",
+                    "ay_root": "artifacts/runpod/p125-topology-ay-550815e-20260803a/ohfo3hbov7ot8v",
+                    "by_root": "artifacts/runpod/p125-topology-by-550815e-20260803a/ohfo3hbov7ot8v",
+                    "build_provenance": "artifacts/runpod/p125-topology-gate-550815e-20260803a/build-provenance.json",
+                    "binary": "artifacts/runpod/p125-runpod-cpu16-replay-550815e-20260802a/ohfo3hbov7ot8v/binaries/candidate.bin",
+                    "source_repo": ".",
                 },
                 {
                     "label": "main", "kind": "runpod_search_audit",
                     "path": main_path.as_posix(),
                     "sha256": hashlib.sha256((ROOT / main_path).read_bytes()).hexdigest(),
                     "schedule_sha256": main["identity"]["schedule_sha256"],
+                    "audit_root": "artifacts/runpod/p125-production-dual8-550815e-20260803a/ohfo3hbov7ot8v",
+                    "audit_profile": "artifacts/runpod/p125-production-dual8-550815e-20260803a/audit-profile.json",
                 },
             ],
             "intentional_overlaps": [{
@@ -1020,6 +1056,14 @@ class SearchCoverageAuditTests(unittest.TestCase):
                 "sha256": hashlib.sha256(
                     (ROOT / recovery_path).read_bytes()).hexdigest(),
                 "schedule_sha256": recovery["identity"]["schedule_sha256"],
+                "audit_root": (
+                    "artifacts/runpod/"
+                    "p125-recovery-1001373-batch7-550815e-20260803a/"
+                    "ohfo3hbov7ot8v"),
+                "audit_profile": (
+                    "artifacts/runpod/"
+                    "p125-recovery-1001373-batch7-550815e-20260803a/"
+                    "audit-profile.json"),
             })
             path = Path(temporary) / "ledger.json"
             self._write(path, value)
@@ -1028,14 +1072,26 @@ class SearchCoverageAuditTests(unittest.TestCase):
             self.assertEqual(len(result["schedule_sha256s"]), 2)
             self.assertEqual(result["sources"][-1]["assigned_count"], 0)
 
+    def test_forged_retained_run_result_is_recomputed_and_rejected(self):
+        value = self._ledger()
+        source = value["sources"][1]
+        retained = json.loads((ROOT / source["path"]).read_text())
+        retained["outcome"]["completed_intervals"][1]["end"] = 1001551
+        with self.assertRaisesRegex(
+            coverage_audit.AuditError, "differs from recomputation"
+        ):
+            coverage_audit._recompute_run_source(source, retained, "forged-main")
+
     def test_undeclared_overlap_identity_drift_and_hash_drift_fail(self):
-        for attack in ("overlap", "identity", "hash", "schedule"):
+        for attack in ("overlap", "identity", "hash", "schedule", "curve"):
             with self.subTest(attack=attack), tempfile.TemporaryDirectory() as temporary:
                 value = self._ledger()
                 if attack == "overlap":
                     value["intentional_overlaps"] = []
                 elif attack == "identity":
                     value["identity"]["seed"] = str(int(value["identity"]["seed"]) + 1)
+                elif attack == "curve":
+                    value["curve_index_identity"]["curve_family"] = "weber-f"
                 else:
                     if attack == "hash":
                         value["sources"][0]["sha256"] = "0" * 64

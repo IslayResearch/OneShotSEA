@@ -1,0 +1,24 @@
+attempt_start utc=2026-08-03T04:44:22Z epoch=1785732262
+	Command being timed: "timeout --signal=TERM --kill-after=60 3600 /workspace/OneShotSEA-550815e/build/oneshotsea search --p 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237 --seed 202607300000 --range-start 1001373 --range-end 1001374 --worker-id 0 --worker-count 1 --max-level 401 --table-dir /workspace/OneShotSEA-550815e/data/modpoly/weber_f --smooth-cache /workspace/OneShotSEA/caches/p125.cache --smooth-cache-sha256 afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551 --checkpoint /workspace/OneShotSEA/runs/p125-recovery-1001373-batch15x1024-550815e-20260803a/worker-0/checkpoint.json --progress /workspace/OneShotSEA/runs/p125-recovery-1001373-batch15x1024-550815e-20260803a/worker-0/progress.jsonl --certificate-out /workspace/OneShotSEA/runs/p125-recovery-1001373-batch15x1024-550815e-20260803a/worker-0/certificate.txt --build-id git:550815e0013361f5eee4cdb6b044f5cec1a9ae2c+binary-sha256:550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737 --curve-family x1-27 --x1-require-point4 1 --curve-threads 1 --sea-level-telemetry 0 --schoof-fallback 1 --skip-incomplete-curves 0 --smooth-coordinators 1 --trace-cap 4096 --sea-threads 1 --smooth-threads 15 --smooth-max-batch 1024 --smooth-root-auxiliary-bytes 536870912 --smooth-build-segment-span 4000000000 --checkpoint-every 1 --assembly-attempts 400 --max-certificate-candidates 100000 --max-candidate-search-nodes 1000000 --max-curves 1"
+	User time (seconds): 7116.80
+	System time (seconds): 14.29
+	Percent of CPU this job got: 874%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 13:35.85
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 10551312
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 3752729
+	Voluntary context switches: 32380
+	Involuntary context switches: 11819
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 40
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

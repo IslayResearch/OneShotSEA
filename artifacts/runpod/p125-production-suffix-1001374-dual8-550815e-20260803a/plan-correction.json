@@ -1,0 +1,37 @@
+{
+  "schema": "oneshotsea.runpod-production-plan-correction.v1",
+  "created_utc": "2026-08-03T05:02:04Z",
+  "plan_sha256": "887d654261573960e6a7bd2fb946ecb1fd326e7c028e8ba20e9d8d3b249c38ef",
+  "corrections": [
+    {
+      "field": "launch_condition.required_recovery_run",
+      "declared_value": "p125-recovery-1001373-batch7-550815e-20260803a",
+      "correct_value": "p125-recovery-1001373-batch15x1024-550815e-20260803a",
+      "reason": "The batch-7 run timed out at cursor 1001373. The strict accepted batch15x1024 audit soundly completed index 1001373, advanced to 1001374, found zero certificates, and recorded zero heuristic rejections."
+    },
+    {
+      "field": "wall_time_limit_seconds",
+      "declared_value": 3000,
+      "correct_value": 3600,
+      "reason": "The retained dual-8 throughput implies 3166.75 seconds nominal for 177 curves and 3538.49 seconds at the conservative 90-percent per-worker projection."
+    },
+    {
+      "field": "incremental_search_cost_ceiling_usd",
+      "declared_value": 0.5358333333333334,
+      "correct_value": 0.643,
+      "reason": "One hour at the recorded 0.643 USD/hour pod rate."
+    },
+    {
+      "field": "incremental_operational_cost_ceiling_usd",
+      "declared_value": 0.6965833333333334,
+      "correct_value": 0.80375,
+      "reason": "One hour of search plus the unchanged 900-second fetch/stop margin."
+    }
+  ],
+  "unchanged": {
+    "global_range": {"start": "1001374", "end": "1001551", "count": "177"},
+    "worker_0": {"assigned_start": "1001374", "assigned_end": "1001463", "max_curves": 89},
+    "worker_1": {"assigned_start": "1001463", "assigned_end": "1001551", "max_curves": 88},
+    "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b"
+  }
+}

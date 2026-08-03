@@ -12,6 +12,9 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+import audit_p125_topology as topology_audit
+import audit_runpod_search as runpod_audit
+
 
 ROOT = Path(__file__).resolve().parents[1]
 LEDGER_SCHEMA = "oneshotsea.search-coverage-ledger.v1"
@@ -20,6 +23,10 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 IDENTITY_FIELDS = (
     "prime", "seed", "deployment_commit", "binary_sha256",
     "smooth_cache_sha256", "table_manifest_sha256",
+)
+CURVE_IDENTITY_SCHEMA = "oneshotsea.curve-index-identity.v1"
+PINNED_CANONICAL_VERIFIER = (
+    ROOT / "third_party" / "oneshot_primality_proofs" / "voneshot.py"
 )
 
 
@@ -77,18 +84,22 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _safe_source_path(raw: Any) -> Path:
+def _safe_repo_path(raw: Any, label: str) -> Path:
     if not isinstance(raw, str) or not raw or raw.startswith("/"):
-        raise AuditError("coverage source path is not a nonempty repository-relative path")
+        raise AuditError("{} is not a nonempty repository-relative path".format(label))
     relative = Path(raw)
     if ".." in relative.parts or relative.as_posix() != raw:
-        raise AuditError("coverage source path is not canonical")
+        raise AuditError("{} is not canonical".format(label))
     path = ROOT / relative
     try:
         path.resolve().relative_to(ROOT.resolve())
     except ValueError:
-        raise AuditError("coverage source escapes the repository")
+        raise AuditError("{} escapes the repository".format(label))
     return path
+
+
+def _safe_source_path(raw: Any) -> Path:
+    return _safe_repo_path(raw, "coverage source path")
 
 
 def _interval(value: Any, label: str) -> Tuple[int, int]:
@@ -148,6 +159,48 @@ def _schedule(value: Dict[str, Any], label: str) -> str:
     return schedule
 
 
+def _curve_identity(value: Any, label: str) -> Dict[str, Any]:
+    required = {"schema", "curve_family", "x1_require_point_four"}
+    if not isinstance(value, dict) or set(value) != required or (
+        value.get("schema") != CURVE_IDENTITY_SCHEMA
+    ):
+        raise AuditError("{} curve-index identity is malformed".format(label))
+    family = value.get("curve_family")
+    if family not in ("weber-f", "x1-11", "x1-27"):
+        raise AuditError("{} curve family is invalid".format(label))
+    point_four = value.get("x1_require_point_four")
+    if not isinstance(point_four, bool):
+        raise AuditError("{} point-four selector is not boolean".format(label))
+    return {
+        "schema": CURVE_IDENTITY_SCHEMA,
+        "curve_family": family,
+        "x1_require_point_four": point_four,
+    }
+
+
+def _profile_curve_identity(profile: Dict[str, Any], label: str) -> Dict[str, Any]:
+    policy = profile.get("option_policy")
+    if not isinstance(policy, dict):
+        raise AuditError("{} audit profile has no option policy".format(label))
+    selector = policy.get("--x1-require-point4")
+    if selector not in ("0", "1"):
+        raise AuditError("{} audit profile has an invalid point-four selector".format(label))
+    return _curve_identity({
+        "schema": CURVE_IDENTITY_SCHEMA,
+        "curve_family": policy.get("--curve-family"),
+        "x1_require_point_four": selector == "1",
+    }, label)
+
+
+def _topology_curve_identity() -> Dict[str, Any]:
+    options = topology_audit.FIXED_OPTIONS
+    return _curve_identity({
+        "schema": CURVE_IDENTITY_SCHEMA,
+        "curve_family": options.get("--curve-family"),
+        "x1_require_point_four": options.get("--x1-require-point4") == "1",
+    }, "topology auditor")
+
+
 def _extract_topology(value: Dict[str, Any], label: str) -> Tuple[Dict[str, str], str, List[Tuple[int, int]], int]:
     if value.get("schema") != "oneshotsea.p125-topology-audit.v1" or value.get("accepted") is not True:
         raise AuditError("{} is not an accepted topology audit".format(label))
@@ -201,6 +254,54 @@ def _extract_run_audit(value: Dict[str, Any], label: str) -> Tuple[Dict[str, str
     )
 
 
+def _source_directory(raw: Any, label: str) -> Path:
+    path = _safe_repo_path(raw, label)
+    if not path.is_dir() or path.is_symlink():
+        raise AuditError("{} is not a real directory".format(label))
+    return path
+
+
+def _recompute_run_source(
+    source: Dict[str, Any], retained: Dict[str, Any], label: str,
+) -> Dict[str, Any]:
+    root = _source_directory(source["audit_root"], label + " audit root")
+    profile_path = _safe_repo_path(source["audit_profile"], label + " audit profile")
+    try:
+        recomputed = runpod_audit.audit(
+            root, profile=profile_path,
+            canonical_verifier=PINNED_CANONICAL_VERIFIER,
+        )
+        profile, _profile_sha = runpod_audit._profile(profile_path, root)
+    except (runpod_audit.AuditError, OSError) as error:
+        raise AuditError("{} RunPod audit recomputation failed: {}".format(label, error))
+    if recomputed != retained:
+        raise AuditError("{} retained RunPod audit differs from recomputation".format(label))
+    return _profile_curve_identity(profile, label)
+
+
+def _recompute_topology_source(
+    source: Dict[str, Any], retained: Dict[str, Any], label: str,
+) -> Dict[str, Any]:
+    roots = [
+        _source_directory(source[name], "{} {}".format(label, name))
+        for name in ("bx_root", "ax_root", "ay_root", "by_root")
+    ]
+    build_provenance = _safe_repo_path(
+        source["build_provenance"], label + " build provenance")
+    binary = _safe_repo_path(source["binary"], label + " binary")
+    source_repo = _source_directory(source["source_repo"], label + " source repo")
+    try:
+        recomputed = topology_audit.audit(
+            roots[0], roots[1], roots[2], roots[3],
+            build_provenance, binary, source_repo,
+        )
+    except (topology_audit.AuditError, OSError) as error:
+        raise AuditError("{} topology audit recomputation failed: {}".format(label, error))
+    if recomputed != retained:
+        raise AuditError("{} retained topology audit differs from recomputation".format(label))
+    return _topology_curve_identity()
+
+
 def _intersection_count(interval: Tuple[int, int], covered: Sequence[Tuple[int, int]]) -> int:
     return sum(max(0, min(interval[1], end) - max(interval[0], start))
                for start, end in covered)
@@ -209,12 +310,14 @@ def _intersection_count(interval: Tuple[int, int], covered: Sequence[Tuple[int, 
 def audit(ledger_path: Path) -> Dict[str, Any]:
     ledger = _load_json(ledger_path, "coverage ledger")
     required = {
-        "schema", "identity", "contiguous_start", "expected_first_gap",
-        "sources", "intentional_overlaps",
+        "schema", "identity", "curve_index_identity", "contiguous_start",
+        "expected_first_gap", "sources", "intentional_overlaps",
     }
     if set(ledger) != required or ledger.get("schema") != LEDGER_SCHEMA:
         raise AuditError("coverage ledger has an unexpected schema or field set")
     wanted_identity = _identity(ledger["identity"], "coverage ledger")
+    wanted_curve_identity = _curve_identity(
+        ledger["curve_index_identity"], "coverage ledger")
     contiguous_start = _integer(ledger["contiguous_start"], "contiguous start")
     expected_first_gap = _integer(ledger["expected_first_gap"], "expected first gap")
     raw_sources = ledger["sources"]
@@ -225,9 +328,20 @@ def audit(ledger_path: Path) -> Dict[str, Any]:
     extracted: List[Dict[str, Any]] = []
     labels = set()
     for number, source in enumerate(raw_sources, 1):
-        if not isinstance(source, dict) or set(source) != {
-            "label", "kind", "path", "sha256", "schedule_sha256",
-        }:
+        if not isinstance(source, dict):
+            raise AuditError("coverage source {} has an unexpected field set".format(number))
+        base_fields = {"label", "kind", "path", "sha256", "schedule_sha256"}
+        kind = source.get("kind")
+        if kind == "topology_audit":
+            expected_fields = base_fields | {
+                "bx_root", "ax_root", "ay_root", "by_root",
+                "build_provenance", "binary", "source_repo",
+            }
+        elif kind == "runpod_search_audit":
+            expected_fields = base_fields | {"audit_root", "audit_profile"}
+        else:
+            raise AuditError("coverage source {} has unsupported kind".format(number))
+        if set(source) != expected_fields:
             raise AuditError("coverage source {} has an unexpected field set".format(number))
         label = source["label"]
         if not isinstance(label, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", label) or label in labels:
@@ -245,15 +359,17 @@ def audit(ledger_path: Path) -> Dict[str, Any]:
         if actual_sha != expected_sha:
             raise AuditError("coverage source {} SHA-256 mismatch".format(label))
         value = _load_json(path, "coverage source {}".format(label))
-        kind = source["kind"]
         if kind == "topology_audit":
+            curve_identity = _recompute_topology_source(source, value, label)
             identity, schedule, intervals, certificate_count = _extract_topology(value, label)
-        elif kind == "runpod_search_audit":
-            identity, schedule, intervals, certificate_count = _extract_run_audit(value, label)
         else:
-            raise AuditError("coverage source {} has unsupported kind".format(label))
+            curve_identity = _recompute_run_source(source, value, label)
+            identity, schedule, intervals, certificate_count = _extract_run_audit(value, label)
         if identity != wanted_identity:
             raise AuditError("coverage source {} has a different search identity".format(label))
+        if curve_identity != wanted_curve_identity:
+            raise AuditError(
+                "coverage source {} has a different curve-index identity".format(label))
         if schedule != expected_schedule:
             raise AuditError(
                 "coverage source {} has a different declared schedule".format(label))
@@ -332,6 +448,7 @@ def audit(ledger_path: Path) -> Dict[str, Any]:
     return {
         "schema": RESULT_SCHEMA, "accepted": True,
         "ledger_sha256": _sha256(ledger_path), "identity": wanted_identity,
+        "curve_index_identity": wanted_curve_identity,
         "schedule_sha256s": sorted({
             item["schedule_sha256"] for item in extracted
         }),

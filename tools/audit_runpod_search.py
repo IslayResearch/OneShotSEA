@@ -1561,6 +1561,26 @@ def _expected_start_profile(
 
 
 def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
+    def histogram_counts(raw: Any, histogram_label: str) -> Dict[int, int]:
+        if not isinstance(raw, list):
+            raise AuditError("{} is not an array".format(histogram_label))
+        counts = {}  # type: Dict[int, int]
+        previous_orders = -1
+        for number, item in enumerate(raw, 1):
+            if not isinstance(item, dict) or set(item) != {"orders", "scan_chunks"}:
+                raise AuditError(
+                    "{} item {} is malformed".format(histogram_label, number))
+            orders = _string_uint(
+                item["orders"], histogram_label + " orders", minimum=1)
+            chunks = _string_uint(
+                item["scan_chunks"], histogram_label + " chunks", minimum=1)
+            if orders <= previous_orders:
+                raise AuditError(
+                    "{} is not strictly ordered".format(histogram_label))
+            previous_orders = orders
+            counts[orders] = chunks
+        return counts
+
     required = {
         "enabled", "coordinator_count", "submitted_requests",
         "completed_requests", "failed_requests", "cancelled_requests",
@@ -1585,21 +1605,9 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
         parsed["cancelled_requests"])
     if terminal != parsed["submitted_requests"]:
         raise AuditError("{} smooth request counters do not balance".format(label))
-    histogram = value["successful_scan_chunk_size_histogram"]
-    if not isinstance(histogram, list):
-        raise AuditError("{} smooth histogram is not an array".format(label))
-    histogram_chunks = 0
-    previous_orders = -1
-    for number, item in enumerate(histogram, 1):
-        if not isinstance(item, dict) or set(item) != {"orders", "scan_chunks"}:
-            raise AuditError("{} smooth histogram item {} is malformed".format(label, number))
-        orders = _string_uint(item["orders"], label + " histogram orders", minimum=1)
-        chunks = _string_uint(item["scan_chunks"], label + " histogram chunks", minimum=1)
-        if orders <= previous_orders:
-            raise AuditError("{} smooth histogram is not strictly ordered".format(label))
-        previous_orders = orders
-        histogram_chunks += chunks
-    if histogram_chunks != parsed["successful_cache_scan_chunks"]:
+    histogram = histogram_counts(
+        value["successful_scan_chunk_size_histogram"], label + " smooth histogram")
+    if sum(histogram.values()) != parsed["successful_cache_scan_chunks"]:
         raise AuditError("{} smooth histogram does not cover scan chunks".format(label))
     cohorts = value["cohorts"]
     if not isinstance(cohorts, list) or len(cohorts) != parsed["coordinator_count"]:
@@ -1609,14 +1617,18 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
         "cancelled_requests", "coordinator_batches",
         "successful_cache_scan_chunks", "submitted_orders", "max_queued_requests",
         "max_requests_per_batch", "max_orders_per_successful_scan_chunk",
+        "successful_scan_chunk_size_histogram",
     }
+    parsed_cohorts = []  # type: List[Dict[str, int]]
+    cohort_histogram = {}  # type: Dict[int, int]
     for number, cohort in enumerate(cohorts):
         if not isinstance(cohort, dict) or set(cohort) != cohort_keys:
             raise AuditError("{} smooth cohort {} is malformed".format(label, number))
         parsed_cohort = {
             name: _string_uint(cohort[name], "{} cohort {} {}".format(label, number, name))
-            for name in cohort_keys
+            for name in cohort_keys - {"successful_scan_chunk_size_histogram"}
         }
+        parsed_cohorts.append(parsed_cohort)
         if parsed_cohort["index"] != number:
             raise AuditError("{} smooth cohort index differs".format(label))
         if parsed_cohort["submitted_requests"] != (
@@ -1624,6 +1636,32 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
             parsed_cohort["cancelled_requests"]
         ):
             raise AuditError("{} smooth cohort counters do not balance".format(label))
+        one_histogram = histogram_counts(
+            cohort["successful_scan_chunk_size_histogram"],
+            "{} smooth cohort {} histogram".format(label, number))
+        if sum(one_histogram.values()) != parsed_cohort["successful_cache_scan_chunks"]:
+            raise AuditError("{} smooth cohort histogram does not cover scan chunks".format(label))
+        for orders, chunks in one_histogram.items():
+            cohort_histogram[orders] = cohort_histogram.get(orders, 0) + chunks
+    additive = (
+        "submitted_requests", "completed_requests", "failed_requests",
+        "cancelled_requests", "coordinator_batches",
+        "successful_cache_scan_chunks", "submitted_orders",
+    )
+    for name in additive:
+        if sum(cohort[name] for cohort in parsed_cohorts) != parsed[name]:
+            raise AuditError("{} smooth cohort {} total differs".format(label, name))
+    maxima = {
+        "max_queued_requests_in_any_cohort": "max_queued_requests",
+        "max_requests_per_batch_in_any_cohort": "max_requests_per_batch",
+        "max_orders_per_successful_scan_chunk_in_any_cohort":
+            "max_orders_per_successful_scan_chunk",
+    }
+    for total_name, cohort_name in maxima.items():
+        if max((cohort[cohort_name] for cohort in parsed_cohorts), default=0) != parsed[total_name]:
+            raise AuditError("{} smooth cohort {} maximum differs".format(label, cohort_name))
+    if cohort_histogram != histogram:
+        raise AuditError("{} smooth cohort histograms differ from the total".format(label))
     return parsed
 
 

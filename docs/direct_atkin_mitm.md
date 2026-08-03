@@ -45,16 +45,26 @@ balanced, so the precise bound is in terms of the larger half list.
 
 The direct classical specialization only needs the common irreducible factor
 degree, not the factors. Full Cantor-Zassenhaus splitting has therefore been
-removed from this path. For square-free `f`, the implementation finds the
-smallest `r` for which `X^(p^r) = X mod f`. It then checks, for every prime
-`q | r`, that
+removed from this path. Let `n = deg(f)`. For square-free `f`, the
+implementation first requires `X^(p^n) = X mod f`. It then starts with
+`r = n` and removes every prime divisor `q` for as long as
+`X^(p^(r/q)) = X mod f`. Finally, for every prime `q | r`, it checks that
 
 `gcd(f, X^(p^(r/q)) - X) = 1`.
 
-The first identity proves that every irreducible factor degree divides `r`.
-The gcd checks exclude every proper divisor of `r`; square-freeness excludes
-multiplicity. Thus every factor has degree exactly `r`. Frobenius iteration
-reuses one `X^p mod f` map through baby-step/giant-step modular composition.
+The first identity proves that every irreducible factor degree divides `n`.
+The divisor-lattice reduction computes their least common multiple `r`; the
+gcd checks then exclude every proper divisor of `r`, and square-freeness
+excludes multiplicity. Thus every factor has degree exactly `r`.
+
+The implementation constructs `X^p mod f` once and obtains the maps for
+`1, 2, 4, ...` Frobenius iterations by modular self-composition. Each queried
+exponent is assembled in binary. This replaces the former linear walk through
+all `n` Frobenius iterates with `O(log n)` stored maps and
+`O(log^2 n)` modular compositions in the worst case, apart from polynomial and
+field bit costs. Here `n = ell + 1`, so this is a meaningful direct-SEA
+constant/polylogarithmic improvement; it does not alter the outer heuristic
+power of the one-shot curve search.
 
 ## Validation evidence
 
@@ -65,6 +75,14 @@ CRT combinations without materializing them. The factor-degree certificate is
 compared with exhaustive tiny-field factorization and constructed 416-bit
 products. Cold concurrent reads exercise every shared lazy-cache consumer, and
 the complete core suite passes under ASan, UBSan, and ThreadSanitizer.
+
+On the fixed 16-curve p125 high-level cohort (`ell = 29, 101, 157`), the
+divisor-lattice implementation preserved the exact/Atkin classifications and
+residues while reducing total level evaluation from 119.609468 seconds to
+49.418415 seconds (2.42x). The `ell = 157` aggregate fell from 93.526955
+seconds to 33.913631 seconds (2.76x). This measures the whole level consumer,
+not an isolated microbenchmark, and does not include curve generation or cache
+indexing.
 
 The retained fixed p125 cohort in
 [`artifacts/local/p125-direct-atkin-mitm-20260803`](../artifacts/local/p125-direct-atkin-mitm-20260803)

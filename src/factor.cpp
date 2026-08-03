@@ -24,6 +24,49 @@ struct DegreeComponent {
     unsigned int factor_degree;
 };
 
+class FrobeniusCompositionPowers {
+public:
+    FrobeniusCompositionPowers(const Poly& monic,
+                               unsigned int maximum_exponent)
+        : modular_(monic), x_(mod(Poly::x(monic.field()), monic)) {
+        if (maximum_exponent == 0U) {
+            return;
+        }
+        powers_.push_back(modular_.pow(
+            x_, monic.field().modulus()));
+        unsigned int represented_exponent = 1U;
+        while (represented_exponent <= maximum_exponent / 2U) {
+            powers_.push_back(modular_.compose(
+                powers_.back(), powers_.back()));
+            represented_exponent *= 2U;
+        }
+    }
+
+    const Poly& x() const { return x_; }
+
+    Poly iterate(unsigned int exponent) const {
+        Poly result = x_;
+        std::size_t bit = 0U;
+        while (exponent != 0U) {
+            if ((exponent & 1U) != 0U) {
+                if (bit >= powers_.size()) {
+                    throw std::logic_error(
+                        "Frobenius composition power table is incomplete");
+                }
+                result = modular_.compose(result, powers_[bit]);
+            }
+            exponent >>= 1U;
+            ++bit;
+        }
+        return result;
+    }
+
+private:
+    PolyModContext modular_;
+    Poly x_;
+    std::vector<Poly> powers_;
+};
+
 void require_probable_prime_field(const Poly& polynomial) {
     if (mpz_probab_prime_p(polynomial.field().modulus().get_mpz_t(), 25) == 0) {
         throw std::invalid_argument(
@@ -201,35 +244,6 @@ void equal_degree_factorization(const Poly& polynomial,
         "deterministic Cantor-Zassenhaus split attempt limit reached");
 }
 
-bool is_irreducible(const Poly& polynomial) {
-    if (polynomial.degree() <= 0) {
-        return false;
-    }
-    const Poly monic = polynomial.monic();
-    const Poly x_mod = mod(Poly::x(monic.field()), monic);
-    const PolyModContext modular(monic);
-    const Poly frobenius_map = modular.pow(
-        x_mod, monic.field().modulus());
-    Poly frobenius = x_mod;
-    for (int iteration = 1; iteration <= monic.degree(); ++iteration) {
-        frobenius = modular.compose(frobenius, frobenius_map);
-        if (iteration <= monic.degree() / 2 &&
-            !gcd(monic, sub(frobenius, x_mod)).is_one()) {
-            return false;
-        }
-    }
-    return equal(frobenius, x_mod);
-}
-
-bool polynomial_less(const Poly& lhs, const Poly& rhs) {
-    if (lhs.degree() != rhs.degree()) {
-        return lhs.degree() < rhs.degree();
-    }
-    return std::lexicographical_compare(
-        lhs.coefficients().begin(), lhs.coefficients().end(),
-        rhs.coefficients().begin(), rhs.coefficients().end());
-}
-
 std::vector<unsigned int> distinct_prime_divisors(unsigned int value) {
     std::vector<unsigned int> divisors;
     for (unsigned int divisor = 2U;
@@ -246,6 +260,35 @@ std::vector<unsigned int> distinct_prime_divisors(unsigned int value) {
         divisors.push_back(value);
     }
     return divisors;
+}
+
+bool is_irreducible(const Poly& polynomial) {
+    if (polynomial.degree() <= 0) {
+        return false;
+    }
+    const Poly monic = polynomial.monic();
+    const unsigned int degree = static_cast<unsigned int>(monic.degree());
+    const FrobeniusCompositionPowers frobenius(monic, degree);
+    if (!equal(frobenius.iterate(degree), frobenius.x())) {
+        return false;
+    }
+    for (const unsigned int prime : distinct_prime_divisors(degree)) {
+        if (!gcd(monic,
+                 sub(frobenius.iterate(degree / prime), frobenius.x()))
+                 .is_one()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool polynomial_less(const Poly& lhs, const Poly& rhs) {
+    if (lhs.degree() != rhs.degree()) {
+        return lhs.degree() < rhs.degree();
+    }
+    return std::lexicographical_compare(
+        lhs.coefficients().begin(), lhs.coefficients().end(),
+        rhs.coefficients().begin(), rhs.coefficients().end());
 }
 
 void validate_factorization(const Poly& input,
@@ -324,29 +367,34 @@ std::optional<unsigned int> uniform_irreducible_factor_degree(
         return std::nullopt;
     }
 
-    const Poly x_mod = mod(Poly::x(monic.field()), monic);
-    const PolyModContext modular(monic);
-    const Poly frobenius_map = modular.pow(
-        x_mod, monic.field().modulus());
     const unsigned int polynomial_degree =
         static_cast<unsigned int>(monic.degree());
-    std::vector<std::optional<Poly>> divisor_powers(
+    const FrobeniusCompositionPowers frobenius(
+        monic, polynomial_degree);
+    std::vector<std::optional<Poly>> cached_powers(
         static_cast<std::size_t>(polynomial_degree) + 1U);
-    Poly frobenius = x_mod;
-    unsigned int common_multiple = 0U;
-    for (unsigned int degree = 1U; degree <= polynomial_degree; ++degree) {
-        frobenius = modular.compose(frobenius, frobenius_map);
-        if (polynomial_degree % degree == 0U) {
-            divisor_powers[degree] = frobenius;
+    cached_powers[0U] = frobenius.x();
+    const auto power = [&](unsigned int exponent) -> const Poly& {
+        std::optional<Poly>& cached = cached_powers[exponent];
+        if (!cached.has_value()) {
+            cached = frobenius.iterate(exponent);
         }
-        if (equal(frobenius, x_mod)) {
-            common_multiple = degree;
-            break;
-        }
-    }
-    if (common_multiple == 0U ||
-        polynomial_degree % common_multiple != 0U) {
+        return *cached;
+    };
+
+    // If every irreducible factor has one degree r, then r divides deg(f),
+    // and X^(p^deg(f)) is X in the quotient.  Failure therefore rejects the
+    // uniform case without walking every intermediate Frobenius power.
+    if (!equal(power(polynomial_degree), frobenius.x())) {
         return std::nullopt;
+    }
+    unsigned int common_multiple = polynomial_degree;
+    for (const unsigned int prime :
+         distinct_prime_divisors(polynomial_degree)) {
+        while (common_multiple % prime == 0U &&
+               equal(power(common_multiple / prime), frobenius.x())) {
+            common_multiple /= prime;
+        }
     }
 
     // X^(p^r)-X vanishing modulo f proves every irreducible factor degree
@@ -356,11 +404,7 @@ std::optional<unsigned int> uniform_irreducible_factor_degree(
     for (const unsigned int prime :
          distinct_prime_divisors(common_multiple)) {
         const unsigned int proper = common_multiple / prime;
-        if (!divisor_powers[proper].has_value()) {
-            throw std::logic_error(
-                "uniform factor-degree proof lost a Frobenius divisor");
-        }
-        if (!gcd(monic, sub(*divisor_powers[proper], x_mod)).is_one()) {
+        if (!gcd(monic, sub(power(proper), frobenius.x())).is_one()) {
             return std::nullopt;
         }
     }

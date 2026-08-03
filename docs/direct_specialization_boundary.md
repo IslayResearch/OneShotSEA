@@ -97,6 +97,14 @@ The 416-bit `p125` fixture additionally reconstructs both level-7 channels
 from 37 witnessed primes and obtains the same exact residue 5 from its two
 Elkies roots.
 
+For a no-root specialization,
+`classical_atkin_constraint_reference(curve,specialization)` requires
+square-freeness and one common irreducible-factor degree before deriving the
+projective order and trace-residue set.  The `F_193,j=4,ell=7` fixture agrees
+exactly with the authenticated full-table classifier.  This is the negative
+classification for which coefficient provenance and CRT coverage are part of
+the soundness boundary.
+
 `specialize_weber_from_cm_surfaces` validates a split Weber surface class
 polynomial, uses small Weber relations other than the target level to connect
 the complete surface and floor torsors, and requires the two floor components

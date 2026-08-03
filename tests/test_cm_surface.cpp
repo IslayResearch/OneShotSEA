@@ -1,3 +1,4 @@
+#include "oneshotsea/atkin.hpp"
 #include "oneshotsea/cm_surface.hpp"
 #include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
@@ -193,6 +194,30 @@ void test_three_power_class_polynomial() {
                       wrong_source, reconstructed.specialization));
           }),
           "classical specialization consumer rejects a different source curve");
+
+    const oneshotsea::Curve atkin_curve =
+        oneshotsea::short_weierstrass_curve_from_j(target_field, 4);
+    const auto atkin_reconstructed =
+        oneshotsea::reconstruct_classical_specialization_from_cm(
+            order, target_field, 4, 100000, 1000000);
+    const auto direct_atkin =
+        oneshotsea::classical_atkin_constraint_reference(
+            atkin_curve, atkin_reconstructed.specialization);
+    const auto table_atkin =
+        oneshotsea::classical_atkin_constraint_reference(atkin_curve, phi7);
+    check(!oneshotsea::elkies_trace_residue_bmss_specialized_reference(
+               atkin_curve, atkin_reconstructed.specialization).has_value() &&
+              direct_atkin.has_value() && table_atkin.has_value() &&
+              direct_atkin->projective_order ==
+                  table_atkin->projective_order &&
+              direct_atkin->trace_residues == table_atkin->trace_residues,
+          "direct no-root specialization yields the same certified Atkin constraint");
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::classical_atkin_constraint_reference(
+                      target_curve, atkin_reconstructed.specialization));
+          }),
+          "direct Atkin consumer rejects a mismatched source curve");
 
     const auto unrelated_order =
         oneshotsea::validate_sutherland_suitable_order(5, -71, 1);

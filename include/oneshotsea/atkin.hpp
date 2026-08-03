@@ -33,4 +33,10 @@ std::optional<AtkinConstraint> classical_atkin_constraint_reference(
     const Curve& curve,
     const SparseModularPolynomial& classical_modular_polynomial);
 
+// The same fail-closed factor-degree certification using an authenticated
+// directly reconstructed classical-j specialization.
+std::optional<AtkinConstraint> classical_atkin_constraint_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& classical_specialization);
+
 }  // namespace oneshotsea

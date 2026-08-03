@@ -289,6 +289,10 @@ consumer and returns the same positive trace residue as the full `Phi_7` path.
 The same complete path runs over the 416-bit `p125` field: 37 witnessed CRT
 primes reconstruct both channels coefficient for coefficient, and two Elkies
 roots yield the independently checked exact residue 5.
+An independent no-root fixture at `ell=7` reconstructs the specialization for
+`j=4` over `F_193`; its square-free equal-degree factors produce exactly the
+same Atkin projective order and admissible trace residues as the full-table
+classifier.  A specialization tied to another source curve is rejected.
 
 The target-level full-table adapters exist only as independent fixtures; they
 are not used by the native producers and cannot supply a production claim.

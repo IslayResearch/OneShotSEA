@@ -418,7 +418,9 @@ interpolates both classical residue channels without a target-level bivariate
 table.  The callback-free classical route is differentially validated through
 the final CRT specialization and positive BMSS/Frobenius trace residue at
 level 7, including a 37-prime reconstruction and residue 5 over the 416-bit
-`p125` field.  At level 5, a supplied Weber
+`p125` field.  A direct no-root level-7 specialization also yields the same
+certified Atkin trace set as the authenticated full-table classifier.  At
+level 5, a supplied Weber
 class polynomial and target-independent `Phi_37^f` relation connect the signed
 surface/floor torsors; exactly one relative sign yields `X^5Y^5=-1`, and both
 direct channels match the authenticated `Phi_5^f` oracle.  The classical

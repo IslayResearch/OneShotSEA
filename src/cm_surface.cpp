@@ -1,9 +1,12 @@
 #include "oneshotsea/cm_surface.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <exception>
 #include <limits>
 #include <optional>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 
 namespace oneshotsea {
@@ -331,7 +334,8 @@ CrtSpecializationResult reconstruct_classical_specialization_from_cm(
 ClassicalDirectLevelContext prepare_classical_direct_level_context(
     const SutherlandSuitableOrder& order, const Field& target_field,
     std::uint64_t maximum_prime_candidates,
-    std::uint64_t maximum_x_candidates_per_surface) {
+    std::uint64_t maximum_x_candidates_per_surface,
+    std::size_t worker_threads) {
     if (maximum_prime_candidates == 0U ||
         maximum_x_candidates_per_surface == 0U) {
         throw std::invalid_argument(
@@ -344,15 +348,76 @@ ClassicalDirectLevelContext prepare_classical_direct_level_context(
         select_sutherland_crt_primes(
             order, target_field.modulus(),
             coefficient_bound.absolute_bound(), maximum_prime_candidates);
+    if (witnesses.empty()) {
+        throw std::logic_error(
+            "classical direct context selected no CRT witnesses");
+    }
+    std::size_t resolved_threads = worker_threads;
+    if (resolved_threads == 0U) {
+        resolved_threads = static_cast<std::size_t>(
+            std::thread::hardware_concurrency());
+        if (resolved_threads == 0U) {
+            resolved_threads = 1U;
+        }
+    }
+    resolved_threads = std::min(resolved_threads, witnesses.size());
+
+    std::vector<std::optional<CmSurfaceEnumeration>> prepared(
+        witnesses.size());
+    std::vector<std::exception_ptr> failures(witnesses.size());
+    std::atomic<std::size_t> next_index{0U};
+    const auto worker = [&] {
+        for (;;) {
+            const std::size_t index =
+                next_index.fetch_add(1U, std::memory_order_relaxed);
+            if (index >= witnesses.size()) {
+                return;
+            }
+            try {
+                const SutherlandCrtPrime& witness = witnesses[index];
+                const ClassicalCmClassPolynomial class_polynomial =
+                    derive_three_power_class_polynomial_mod_prime(
+                        order, witness);
+                prepared[index].emplace(
+                    enumerate_cm_interpolation_surfaces_limited(
+                        order, witness, class_polynomial.polynomial(),
+                        maximum_x_candidates_per_surface,
+                        static_cast<std::size_t>(order.level()) + 2U));
+            } catch (...) {
+                failures[index] = std::current_exception();
+            }
+        }
+    };
+
+    std::vector<std::thread> workers;
+    workers.reserve(resolved_threads > 0U ? resolved_threads - 1U : 0U);
+    try {
+        for (std::size_t index = 1U; index < resolved_threads; ++index) {
+            workers.emplace_back(worker);
+        }
+    } catch (...) {
+        next_index.store(witnesses.size(), std::memory_order_relaxed);
+        for (std::thread& thread : workers) {
+            thread.join();
+        }
+        throw;
+    }
+    worker();
+    for (std::thread& thread : workers) {
+        thread.join();
+    }
+
     std::vector<CmSurfaceEnumeration> surfaces;
     surfaces.reserve(witnesses.size());
-    for (const SutherlandCrtPrime& witness : witnesses) {
-        const ClassicalCmClassPolynomial class_polynomial =
-            derive_three_power_class_polynomial_mod_prime(order, witness);
-        surfaces.push_back(enumerate_cm_interpolation_surfaces_limited(
-            order, witness, class_polynomial.polynomial(),
-            maximum_x_candidates_per_surface,
-            static_cast<std::size_t>(order.level()) + 2U));
+    for (std::size_t index = 0U; index < witnesses.size(); ++index) {
+        if (failures[index]) {
+            std::rethrow_exception(failures[index]);
+        }
+        if (!prepared[index].has_value()) {
+            throw std::logic_error(
+                "classical direct context worker produced no surface");
+        }
+        surfaces.push_back(std::move(*prepared[index]));
     }
     return ClassicalDirectLevelContext(
         order, target_field.modulus(), coefficient_bound.absolute_bound(),

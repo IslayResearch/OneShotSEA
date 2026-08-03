@@ -56,7 +56,8 @@ struct SearchPipelineConfig {
     std::uint64_t classical_direct_maximum_x_candidates_per_surface =
         1000000U;
     bool skip_incomplete_curves = false;
-    // Maximum concurrent modular-root jobs inside SEA. Zero selects the
+    // Maximum concurrent modular-root jobs inside table SEA and independent
+    // auxiliary-prime jobs during direct-level preparation. Zero selects the
     // available CPU concurrency. This is a resource setting and deliberately
     // does not alter the deterministic schedule/checkpoint identity.
     std::size_t sea_threads = 0;

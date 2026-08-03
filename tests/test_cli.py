@@ -515,6 +515,10 @@ class CliTests(unittest.TestCase):
                 int(summary["classical_direct_preparation"]["elapsed_us"]),
                 0,
             )
+            self.assertEqual(
+                summary["classical_direct_preparation"]["thread_limit"],
+                "0",
+            )
 
             digest = hashlib.sha256(
                 (root / "smooth.cache").read_bytes()

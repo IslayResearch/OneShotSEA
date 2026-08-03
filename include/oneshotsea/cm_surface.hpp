@@ -88,7 +88,7 @@ private:
     friend ClassicalDirectLevelContext
     prepare_classical_direct_level_context(
         const SutherlandSuitableOrder&, const Field&, std::uint64_t,
-        std::uint64_t);
+        std::uint64_t, std::size_t);
     friend CrtSpecializationResult
     reconstruct_classical_specialization_from_prepared_context(
         const ClassicalDirectLevelContext&, const Field&, const mpz_class&);
@@ -138,10 +138,15 @@ CrtSpecializationResult reconstruct_classical_specialization_from_cm(
     const mpz_class& source_j, std::uint64_t maximum_prime_candidates,
     std::uint64_t maximum_x_candidates_per_surface);
 
+// Independent CRT witnesses may be prepared concurrently. A zero worker
+// limit selects hardware concurrency (falling back to one); a positive value
+// is a strict ceiling, additionally capped by the witness count. The returned
+// witness and surface order is independent of scheduling.
 ClassicalDirectLevelContext prepare_classical_direct_level_context(
     const SutherlandSuitableOrder& order, const Field& target_field,
     std::uint64_t maximum_prime_candidates,
-    std::uint64_t maximum_x_candidates_per_surface);
+    std::uint64_t maximum_x_candidates_per_surface,
+    std::size_t worker_threads = 1U);
 
 CrtSpecializationResult
 reconstruct_classical_specialization_from_prepared_context(

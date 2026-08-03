@@ -137,20 +137,28 @@ For a local multi-curve invocation, the target characteristic, ordered level
 list, and both caps are retained in one run-scoped context. Each level's
 curve-independent suitable order, witnessed CRT primes, class polynomials,
 and admitted CM surfaces are prepared lazily under a sticky once-only gate,
-then shared read-only across curve workers. Per-curve target-j interpolation,
-CRT combination, BMSS/Frobenius, and Atkin checks remain independent. A later
-level that no curve reaches is not prepared and cannot fail the run.
+then shared read-only across curve workers. Independent auxiliary-prime
+surfaces are prepared under the same `--sea-threads` resource ceiling used by
+the table path; zero selects hardware concurrency and the actual worker count
+is capped by the witness count. Indexed result slots and ordered failure replay
+preserve deterministic context bytes and deterministic failure selection.
+Per-curve target-j interpolation, CRT combination, BMSS/Frobenius, and Atkin
+checks remain independent. A later level that no curve reaches is not prepared
+and cannot fail the run.
 
 `oneshotsea.search-summary.v1` adds
-`classical_direct_preparation.context_count` and `elapsed_us` only when the
-direct schedule is configured. The elapsed value is the cumulative setup time
-for contexts actually prepared. Direct per-level timings exclude setup, while
-the enclosing curve `sea` wall time includes any first-use preparation or wait
-experienced by that worker. Benchmarks must therefore report the summary and
-per-curve values together; reduced warm-curve time alone is not a complete
-speedup claim. The checked 416-bit two-curve X1(27) fixture currently reports
-about 3.1 s of level-7/11 preparation, about 3.2 s for the cold evaluation,
-and about 0.10 s for the second evaluation using the same contexts.
+`classical_direct_preparation.context_count`, `elapsed_us`, and `thread_limit`
+only when the direct schedule is configured. The elapsed value is the
+cumulative setup time for contexts actually prepared. Direct per-level timings
+exclude setup, while the enclosing curve `sea` wall time includes any first-use
+preparation or wait experienced by that worker. Benchmarks must therefore
+report the summary and per-curve values together; reduced warm-curve time alone
+is not a complete speedup claim. On the checked 416-bit X1(27) fixture, a
+reverse-bracketed run
+measured 3.03--3.21 s of serial level-7/11 setup and 0.924--0.931 s with four
+preparation workers. The main cold evaluation took 0.969 s and the second
+curve using the same contexts 0.099 s. This is a bounded local regression, not
+a throughput distribution.
 
 Sound-only runs may instead opt into `--schoof-fallback 1`. After all
 authenticated Weber levels are exhausted without fitting the trace cap, this
@@ -337,11 +345,13 @@ retain memory telemetry and do not exceed the physical core count without a
 new bounded comparison.
 
 `--sea-threads N` bounds the number of concurrent modular-root jobs within
-each Weber SEA level.  Zero selects the host's reported hardware concurrency
-(falling back to one); a positive value is a strict ceiling and the actual
-worker count is also capped by the number of verified `f^24` source-lift
-orbits.  Long or distributed runs should set it explicitly so their resource
-use is reproducible.  The lower-level `sea-weber-count` command exposes
+each Weber SEA level and the number of independent auxiliary-prime jobs while
+preparing a classical direct level.  Zero selects the host's reported hardware
+concurrency (falling back to one); a positive value is a strict ceiling. The
+actual worker count is capped by the number of verified `f^24` source-lift
+orbits or direct CRT witnesses, respectively. Long or distributed runs should
+set it explicitly so their resource use is reproducible.  The lower-level
+`sea-weber-count` command exposes
 `--root-orbit-reuse 0|1` and `--conjugate-eigenvalue-reuse 0|1` for controlled
 ablations; production search always uses the verified-on, exact-fallback
 behavior.  Conjugate reuse derives `p/lambda mod ell` only after complete

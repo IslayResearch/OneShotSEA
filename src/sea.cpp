@@ -643,12 +643,14 @@ ClassicalDirectSeaContext& ClassicalDirectSeaContext::operator=(
 ClassicalDirectSeaContext::ClassicalDirectSeaContext(
     mpz_class target_modulus, std::vector<std::uint64_t> levels,
     std::uint64_t maximum_prime_candidates,
-    std::uint64_t maximum_x_candidates_per_surface)
+    std::uint64_t maximum_x_candidates_per_surface,
+    std::size_t preparation_threads)
     : target_modulus_(std::move(target_modulus)),
       levels_(std::move(levels)),
       maximum_prime_candidates_(maximum_prime_candidates),
       maximum_x_candidates_per_surface_(
-          maximum_x_candidates_per_surface) {
+          maximum_x_candidates_per_surface),
+      preparation_threads_(preparation_threads) {
     level_slots_.reserve(levels_.size());
     for (std::size_t index = 0U; index < levels_.size(); ++index) {
         level_slots_.push_back(std::make_unique<LevelSlot>());
@@ -658,7 +660,8 @@ ClassicalDirectSeaContext::ClassicalDirectSeaContext(
 ClassicalDirectSeaContext make_classical_direct_sea_context(
     const Field& target_field, const std::vector<std::uint64_t>& levels,
     std::uint64_t maximum_prime_candidates,
-    std::uint64_t maximum_x_candidates_per_surface) {
+    std::uint64_t maximum_x_candidates_per_surface,
+    std::size_t preparation_threads) {
     if (maximum_prime_candidates == 0U ||
         maximum_x_candidates_per_surface == 0U) {
         throw std::invalid_argument(
@@ -667,7 +670,7 @@ ClassicalDirectSeaContext make_classical_direct_sea_context(
     validate_classical_direct_levels(levels);
     return ClassicalDirectSeaContext(
         target_field.modulus(), levels, maximum_prime_candidates,
-        maximum_x_candidates_per_surface);
+        maximum_x_candidates_per_surface, preparation_threads);
 }
 
 const ClassicalDirectLevelContext&
@@ -689,11 +692,12 @@ ClassicalDirectSeaContext::level_context(std::size_t index) const {
                     prepare_classical_direct_level_context(
                         order, target_field,
                         maximum_prime_candidates_,
-                        maximum_x_candidates_per_surface_));
+                        maximum_x_candidates_per_surface_,
+                        preparation_threads_));
             const std::uint64_t duration = elapsed_us(start);
             slot.context = std::move(prepared);
             slot.preparation_us.store(duration,
-                                      std::memory_order_relaxed);
+                                      std::memory_order_release);
             slot.prepared.store(true, std::memory_order_release);
         } catch (...) {
             slot.failure = std::current_exception();

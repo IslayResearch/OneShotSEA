@@ -176,9 +176,9 @@ void extend_sea_with_classical_direct(
     const ClassicalDirectSeaProgress& progress = {});
 
 // Immutable, curve-independent preparation for one direct-SEA schedule.  The
-// target characteristic, ordered levels, and both bounded execution caps are
-// retained with the prepared level contexts so a search cannot substitute
-// work prepared under different schedule semantics.
+// target characteristic, ordered levels, both bounded execution caps, and the
+// resource-only preparation limit are retained with the prepared level
+// contexts so a search cannot substitute a mismatched run-scoped context.
 class ClassicalDirectSeaContext {
 public:
     ~ClassicalDirectSeaContext();
@@ -197,6 +197,9 @@ public:
     std::uint64_t maximum_x_candidates_per_surface() const {
         return maximum_x_candidates_per_surface_;
     }
+    std::size_t preparation_threads() const {
+        return preparation_threads_;
+    }
     std::size_t prepared_context_count() const;
     std::uint64_t preparation_us() const;
 
@@ -204,11 +207,12 @@ private:
     ClassicalDirectSeaContext(
         mpz_class target_modulus, std::vector<std::uint64_t> levels,
         std::uint64_t maximum_prime_candidates,
-        std::uint64_t maximum_x_candidates_per_surface);
+        std::uint64_t maximum_x_candidates_per_surface,
+        std::size_t preparation_threads);
 
     friend ClassicalDirectSeaContext make_classical_direct_sea_context(
         const Field&, const std::vector<std::uint64_t>&, std::uint64_t,
-        std::uint64_t);
+        std::uint64_t, std::size_t);
     friend void extend_sea_with_prepared_classical_direct(
         const Curve&, WeberSeaResult&, const ClassicalDirectSeaContext&,
         std::size_t, const ClassicalDirectSeaProgress&);
@@ -221,13 +225,15 @@ private:
     std::vector<std::uint64_t> levels_;
     std::uint64_t maximum_prime_candidates_;
     std::uint64_t maximum_x_candidates_per_surface_;
+    std::size_t preparation_threads_;
     std::vector<std::unique_ptr<LevelSlot>> level_slots_;
 };
 
 ClassicalDirectSeaContext make_classical_direct_sea_context(
     const Field& target_field, const std::vector<std::uint64_t>& levels,
     std::uint64_t maximum_prime_candidates,
-    std::uint64_t maximum_x_candidates_per_surface);
+    std::uint64_t maximum_x_candidates_per_surface,
+    std::size_t preparation_threads = 1U);
 
 // The same retained-state extension using a schedule-bound context prepared
 // once for this target characteristic. Search workers may share it read-only;

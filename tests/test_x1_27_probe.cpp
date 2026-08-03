@@ -3,6 +3,7 @@
 #include "oneshotsea/sea.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
@@ -186,9 +187,34 @@ int main() {
               target.sample->tate_curve.j_invariant(),
           "p125 Tate/Weber j identity");
 
+    const auto measure_direct_cold = [&](std::size_t preparation_threads) {
+        const auto context = oneshotsea::make_classical_direct_sea_context(
+            target.sample->pair.curve.field(), {7U, 11U}, 1000000U,
+            1000000U, preparation_threads);
+        oneshotsea::TraceConstraints initial(prime);
+        initial.refine_exact(432U, 14U);
+        oneshotsea::WeberSeaResult state{
+            initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+        const auto start = std::chrono::steady_clock::now();
+        oneshotsea::extend_sea_with_prepared_classical_direct(
+            target.sample->pair.curve, state, context, 64U);
+        const auto cold_us =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - start).count();
+        check(state.classical_direct_levels.size() == 2U &&
+                  state.classical_direct_levels[0].trace_residue == 3U &&
+                  state.classical_direct_levels[1].trace_residue == 5U &&
+                  context.prepared_context_count() == 2U,
+              "cold direct-preparation ablation preserves both p125 residues");
+        return std::array<std::uint64_t, 2>{
+            context.preparation_us(),
+            static_cast<std::uint64_t>(cold_us)};
+    };
+    const auto direct_serial_before = measure_direct_cold(1U);
+
     const auto direct_context = oneshotsea::make_classical_direct_sea_context(
         target.sample->pair.curve.field(), {7U, 11U}, 1000000U,
-        1000000U);
+        1000000U, 4U);
     oneshotsea::TraceConstraints direct_initial(prime);
     direct_initial.refine_exact(432U, 14U);
     oneshotsea::WeberSeaResult direct_state{
@@ -219,19 +245,56 @@ int main() {
                   target.sample->pair.curve, 11U) == 5U,
           "independent Schoof validates both p125 production direct residues");
 
+    oneshotsea::TraceConstraints repeated_direct_initial(prime);
+    repeated_direct_initial.refine_exact(432U, 14U);
+    oneshotsea::WeberSeaResult repeated_direct_state{
+        repeated_direct_initial, repeated_direct_initial, {}, {}, {}, {},
+        std::nullopt, {}};
+    const auto direct_same_curve_warm_start =
+        std::chrono::steady_clock::now();
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        target.sample->pair.curve, repeated_direct_state,
+        direct_context, 64U);
+    const auto direct_same_curve_warm_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() -
+            direct_same_curve_warm_start).count();
+    check(repeated_direct_state.classical_direct_levels.size() ==
+                  direct_state.classical_direct_levels.size() &&
+              repeated_direct_state.constraints.modulus() ==
+                  direct_state.constraints.modulus(),
+          "warm same-curve direct replay preserves the retained exact state");
+    for (std::size_t index = 0U;
+         index < direct_state.classical_direct_levels.size(); ++index) {
+        check(repeated_direct_state.classical_direct_levels[index].exact ==
+                      direct_state.classical_direct_levels[index].exact &&
+                  repeated_direct_state.classical_direct_levels[index]
+                          .trace_residue ==
+                      direct_state.classical_direct_levels[index]
+                          .trace_residue &&
+                  repeated_direct_state.classical_direct_levels[index]
+                          .atkin_projective_order ==
+                      direct_state.classical_direct_levels[index]
+                          .atkin_projective_order,
+              "warm same-curve direct replay preserves each exact/Atkin result");
+    }
+
     oneshotsea::TraceConstraints twist_direct_initial(prime);
     twist_direct_initial.refine_exact(432U, 418U);
     oneshotsea::WeberSeaResult twist_direct_state{
         twist_direct_initial, twist_direct_initial, {}, {}, {}, {},
         std::nullopt, {}};
-    const auto direct_warm_start = std::chrono::steady_clock::now();
+    const auto direct_second_curve_warm_start =
+        std::chrono::steady_clock::now();
     oneshotsea::extend_sea_with_prepared_classical_direct(
         target_twist.sample->pair.curve, twist_direct_state,
         direct_context, 64U);
-    const auto direct_warm_us =
+    const auto direct_second_curve_warm_us =
         std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - direct_warm_start).count();
+            std::chrono::steady_clock::now() -
+            direct_second_curve_warm_start).count();
     check(direct_context.prepared_context_count() == 2U &&
+              direct_context.preparation_threads() == 4U &&
               direct_context.preparation_us() != 0U &&
               twist_direct_state.classical_direct_levels.size() == 2U &&
               twist_direct_state.effective_constraints.modulus() == 33264 &&
@@ -257,6 +320,8 @@ int main() {
                   "warm prepared Atkin set contains the independent Schoof residue");
         }
     }
+    const auto direct_parallel_after = measure_direct_cold(4U);
+    const auto direct_serial_after = measure_direct_cold(1U);
 
     std::cout << "ok x1-27 probe small_p=" << small_prime
               << " small_us=" << small_us
@@ -267,7 +332,24 @@ int main() {
               << " p125_x1_points=" << target.counters.x1_points
               << " direct_preparation_us="
               << direct_context.preparation_us()
+              << " direct_preparation_threads="
+              << direct_context.preparation_threads()
               << " direct_cold_us=" << direct_first_us
-              << " direct_warm_us=" << direct_warm_us << '\n';
+              << " direct_serial_preparation_us="
+              << direct_serial_before[0] << ','
+              << direct_serial_after[0]
+              << " direct_serial_cold_us="
+              << direct_serial_before[1] << ','
+              << direct_serial_after[1]
+              << " direct_parallel_preparation_us="
+              << direct_context.preparation_us() << ','
+              << direct_parallel_after[0]
+              << " direct_parallel_cold_us="
+              << direct_first_us << ','
+              << direct_parallel_after[1]
+              << " direct_same_curve_warm_us="
+              << direct_same_curve_warm_us
+              << " direct_second_curve_warm_us="
+              << direct_second_curve_warm_us << '\n';
     return 0;
 }

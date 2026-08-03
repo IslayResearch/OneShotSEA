@@ -696,6 +696,8 @@ int main(int argc, char** argv) {
                           << result.classical_direct_context_count
                           << "\",\"elapsed_us\":\""
                           << result.classical_direct_preparation_us
+                          << "\",\"thread_limit\":\""
+                          << config.sea_threads
                           << "\"}";
             }
             std::cout

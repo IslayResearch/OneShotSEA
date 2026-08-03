@@ -321,6 +321,9 @@ void test_prepared_classical_context_equivalence() {
     const auto order = oneshotsea::derive_three_power_suitable_order(7);
     const auto context = oneshotsea::prepare_classical_direct_level_context(
         order, field, 100000U, 1000000U);
+    const auto parallel_context =
+        oneshotsea::prepare_classical_direct_level_context(
+            order, field, 100000U, 1000000U, 4U);
     check(context.level() == 7U && context.target_modulus() == 193 &&
               context.order_discriminant() == order.discriminant() &&
               context.class_number() == order.class_number() &&
@@ -335,6 +338,9 @@ void test_prepared_classical_context_equivalence() {
         const auto prepared =
             oneshotsea::reconstruct_classical_specialization_from_prepared_context(
                 context, field, invariant);
+        const auto parallel =
+            oneshotsea::reconstruct_classical_specialization_from_prepared_context(
+                parallel_context, field, invariant);
         check(prepared.prime_count == one_off.prime_count &&
                   prepared.crt_product == one_off.crt_product &&
                   prepared.coefficient_abs_bound ==
@@ -345,6 +351,16 @@ void test_prepared_classical_context_equivalence() {
                       prepared.specialization.x_derivative(),
                       one_off.specialization.x_derivative()),
               "prepared context reproduces both one-off specialization channels for each target j");
+        check(parallel.prime_count == prepared.prime_count &&
+                  parallel.crt_product == prepared.crt_product &&
+                  parallel.coefficient_abs_bound ==
+                      prepared.coefficient_abs_bound &&
+                  oneshotsea::equal(parallel.specialization.value(),
+                                    prepared.specialization.value()) &&
+                  oneshotsea::equal(
+                      parallel.specialization.x_derivative(),
+                      prepared.specialization.x_derivative()),
+              "parallel preparation preserves deterministic CRT metadata and both specialization channels");
     }
 
     const oneshotsea::Curve elkies_curve =
@@ -423,7 +439,7 @@ void test_prepared_classical_context_equivalence() {
 
     const auto concurrent_context =
         oneshotsea::make_classical_direct_sea_context(
-            field, {7U}, 100000U, 1000000U);
+            field, {7U}, 100000U, 1000000U, 4U);
     std::vector<std::future<bool>> concurrent;
     for (std::size_t index = 0U; index < 4U; ++index) {
         concurrent.push_back(std::async(
@@ -447,8 +463,24 @@ void test_prepared_classical_context_equivalence() {
               "concurrent prepared direct SEA reconstruction stays complete");
     }
     check(concurrent_context.prepared_context_count() == 1U &&
+              concurrent_context.preparation_threads() == 4U &&
               concurrent_context.preparation_us() != 0U,
           "concurrent workers share one sticky direct-level preparation");
+
+    const auto preparation_failure = [&](std::size_t worker_threads) {
+        try {
+            static_cast<void>(
+                oneshotsea::prepare_classical_direct_level_context(
+                    order, field, 100000U, 1U, worker_threads));
+        } catch (const std::exception& error) {
+            return std::string(error.what());
+        }
+        return std::string();
+    };
+    const std::string serial_failure = preparation_failure(1U);
+    const std::string parallel_failure = preparation_failure(4U);
+    check(!serial_failure.empty() && parallel_failure == serial_failure,
+          "parallel preparation reports the same lowest-index surface failure as serial preparation");
 
     const oneshotsea::Field wrong_field(197);
     check(rejects([&] {

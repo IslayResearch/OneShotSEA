@@ -3,9 +3,11 @@
 Status: the classical `j` path is implemented end to end for the suitable
 family `D=-7*3^(2n)`, including internally derived class polynomials, both
 residue channels, the proved height, and exact CRT.  It is differentially
-tested through `ell=7`.  The signed Weber conversion is implemented at one
-auxiliary prime, but Weber class-polynomial/relation authentication and the
-proved Weber height bound are not implemented.
+tested against authenticated classical tables through `ell=7` and against an
+independent Schoof residue at `ell=11` on the 416-bit target. The signed Weber
+conversion is implemented at one auxiliary prime, but Weber
+class-polynomial/relation authentication and the proved Weber height bound are
+not implemented.
 
 ## Purpose
 

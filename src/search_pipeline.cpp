@@ -1053,9 +1053,11 @@ static SearchCurveReport process_search_curve_impl(
             prepared_classical_direct_context
                     ->maximum_x_candidates_per_surface() !=
                 config
-                    .classical_direct_maximum_x_candidates_per_surface) {
+                    .classical_direct_maximum_x_candidates_per_surface ||
+            prepared_classical_direct_context->preparation_threads() !=
+                config.sea_threads) {
             throw std::invalid_argument(
-                "prepared classical direct context does not match the search target, schedule, or caps");
+                "prepared classical direct context does not match the search target, schedule, caps, or resource limits");
         }
     }
     if (smooth_coordinator &&
@@ -1632,7 +1634,8 @@ SearchPipelineRunResult run_search_pipeline(
                     Field(config.prime), config.classical_direct_levels,
                     config.classical_direct_maximum_prime_candidates,
                     config
-                        .classical_direct_maximum_x_candidates_per_surface));
+                        .classical_direct_maximum_x_candidates_per_surface,
+                    config.sea_threads));
     }
     std::mutex verifier_mutex;
     const CanonicalCertificateVerifier serialized_verifier =

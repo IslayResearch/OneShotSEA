@@ -818,32 +818,56 @@ void ClassicalDirectSeaContext::retain_cached_context(
         return;
     }
     LevelSlot& slot = *level_slots_[index];
-    if (slot.retained_cached_context &&
-        slot.retained_cached_context.get() != context.get()) {
-        throw std::logic_error(
-            "classical direct cache retained two instances of one level");
-    }
-    telemetry.retained_lru.remove(index);
-    telemetry.retained_lru.push_front(index);
-    if (!slot.retained_cached_context) {
+    auto entry = std::find(telemetry.retained_lru.begin(),
+                           telemetry.retained_lru.end(), index);
+    if (slot.retained_cached_context) {
+        if (slot.retained_cached_context.get() != context.get() ||
+            entry == telemetry.retained_lru.end()) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU lost synchronization");
+        }
+        auto after = entry;
+        ++after;
+        if (std::find(after, telemetry.retained_lru.end(), index) !=
+            telemetry.retained_lru.end()) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU contains a duplicate level");
+        }
+        // Same-list splice is allocation-free, so an existing retained
+        // payload cannot lose its only eviction node on allocation failure.
+        telemetry.retained_lru.splice(
+            telemetry.retained_lru.begin(), telemetry.retained_lru, entry);
+    } else {
+        if (entry != telemetry.retained_lru.end()) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU lost synchronization");
+        }
         const std::size_t bytes = interpolation_storage_bytes(index);
         if (bytes > std::numeric_limits<std::size_t>::max() -
                         telemetry.retained_payload_bytes ||
             telemetry.retained_context_count ==
                 std::numeric_limits<std::size_t>::max()) {
-            telemetry.retained_lru.pop_front();
             throw std::overflow_error(
                 "classical direct retained-cache telemetry overflow");
         }
+        // This is the only allocating mutation. If it throws, the retained
+        // pointer and all counters remain unchanged.
+        telemetry.retained_lru.push_front(index);
         slot.retained_cached_context = context;
         telemetry.retained_payload_bytes += bytes;
         ++telemetry.retained_context_count;
     }
     while (telemetry.retained_payload_bytes >
-               telemetry.residency_budget_bytes &&
-           !telemetry.retained_lru.empty()) {
+           telemetry.residency_budget_bytes) {
+        if (telemetry.retained_lru.empty()) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU lost synchronization");
+        }
         const std::size_t victim = telemetry.retained_lru.back();
-        telemetry.retained_lru.pop_back();
+        if (victim >= level_slots_.size()) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU contains an invalid level");
+        }
         LevelSlot& victim_slot = *level_slots_[victim];
         if (!victim_slot.retained_cached_context ||
             telemetry.retained_context_count == 0U) {
@@ -855,14 +879,15 @@ void ClassicalDirectSeaContext::retain_cached_context(
             throw std::logic_error(
                 "classical direct retained-cache byte count underflow");
         }
-        victim_slot.retained_cached_context.reset();
-        telemetry.retained_payload_bytes -= victim_bytes;
-        --telemetry.retained_context_count;
         if (telemetry.eviction_count ==
             std::numeric_limits<std::uint64_t>::max()) {
             throw std::overflow_error(
                 "classical direct retained-cache eviction count overflow");
         }
+        telemetry.retained_lru.pop_back();
+        victim_slot.retained_cached_context.reset();
+        telemetry.retained_payload_bytes -= victim_bytes;
+        --telemetry.retained_context_count;
         ++telemetry.eviction_count;
     }
     telemetry.peak_retained_payload_bytes = std::max(
@@ -1019,11 +1044,16 @@ void ClassicalDirectSeaContext::set_cached_context_residency_budget_bytes(
     }
     CacheTelemetry& telemetry = *cache_telemetry_;
     const std::lock_guard<std::mutex> lock(telemetry.residency_mutex);
-    telemetry.residency_budget_bytes = bytes;
-    while (telemetry.retained_payload_bytes > bytes &&
-           !telemetry.retained_lru.empty()) {
+    while (telemetry.retained_payload_bytes > bytes) {
+        if (telemetry.retained_lru.empty()) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU lost synchronization");
+        }
         const std::size_t victim = telemetry.retained_lru.back();
-        telemetry.retained_lru.pop_back();
+        if (victim >= level_slots_.size()) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU contains an invalid level");
+        }
         LevelSlot& victim_slot = *level_slots_[victim];
         if (!victim_slot.retained_cached_context ||
             telemetry.retained_context_count == 0U) {
@@ -1035,16 +1065,18 @@ void ClassicalDirectSeaContext::set_cached_context_residency_budget_bytes(
             throw std::logic_error(
                 "classical direct retained-cache byte count underflow");
         }
-        victim_slot.retained_cached_context.reset();
-        telemetry.retained_payload_bytes -= victim_bytes;
-        --telemetry.retained_context_count;
         if (telemetry.eviction_count ==
             std::numeric_limits<std::uint64_t>::max()) {
             throw std::overflow_error(
                 "classical direct retained-cache eviction count overflow");
         }
+        telemetry.retained_lru.pop_back();
+        victim_slot.retained_cached_context.reset();
+        telemetry.retained_payload_bytes -= victim_bytes;
+        --telemetry.retained_context_count;
         ++telemetry.eviction_count;
     }
+    telemetry.residency_budget_bytes = bytes;
 }
 
 std::size_t

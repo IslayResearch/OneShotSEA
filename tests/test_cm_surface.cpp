@@ -779,26 +779,65 @@ void test_classical_direct_context_cache() {
     auto lru = oneshotsea::load_classical_direct_context_cache(
         field, lru_levels, prime_cap, x_cap, 1U, lru_cache,
         lru_build.sha256);
+    const std::size_t level7_payload =
+        lru.interpolation_storage_bytes(0U);
     const std::size_t level11_payload =
         lru.interpolation_storage_bytes(1U);
-    check(level11_payload > lru.interpolation_storage_bytes(0U),
+    const std::size_t both_payload =
+        lru.interpolation_storage_bytes();
+    check(level11_payload > level7_payload &&
+              both_payload == level7_payload + level11_payload,
           "LRU fixture has a larger second level");
-    lru.set_cached_context_residency_budget_bytes(level11_payload);
-    for (std::size_t iteration = 0U; iteration < 2U; ++iteration) {
-        oneshotsea::TraceConstraints lru_initial(field.modulus());
-        oneshotsea::WeberSeaResult lru_state{
-            lru_initial, lru_initial, {}, {}, {}, {}, std::nullopt, {}};
-        oneshotsea::extend_sea_with_prepared_classical_direct(
-            curve, lru_state, lru, 1U);
-        check(lru_state.classical_direct_levels.size() == 2U,
-              "LRU fixture reaches both direct levels");
-    }
-    check(lru.cached_level_load_count() == 4U &&
+    lru.set_cached_context_residency_budget_bytes(both_payload);
+    oneshotsea::TraceConstraints first_lru_initial(field.modulus());
+    oneshotsea::WeberSeaResult first_lru_state{
+        first_lru_initial, first_lru_initial, {}, {}, {}, {},
+        std::nullopt, {}};
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        curve, first_lru_state, lru, 1U);
+    check(first_lru_state.classical_direct_levels.size() == 2U &&
+              lru.cached_level_load_count() == 2U &&
+              lru.cached_resident_context_count() == 2U &&
+              lru.cached_retained_context_count() == 2U &&
+              lru.cached_retained_payload_bytes() == both_payload &&
+              lru.peak_cached_retained_payload_bytes() == both_payload &&
+              lru.cached_context_eviction_count() == 0U,
+          "a full residency budget retains both direct levels");
+
+    oneshotsea::TraceConstraints second_lru_initial(field.modulus());
+    oneshotsea::WeberSeaResult second_lru_state{
+        second_lru_initial, second_lru_initial, {}, {}, {}, {},
+        std::nullopt, {}};
+    std::size_t lru_progress_count = 0U;
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        curve, second_lru_state, lru, 1U,
+        [&](const oneshotsea::ClassicalDirectSeaLevelRecord& record) {
+            if (lru_progress_count == 0U) {
+                check(record.ell == 7U,
+                      "LRU recency fixture reaches level seven first");
+                lru.set_cached_context_residency_budget_bytes(
+                    level11_payload);
+                check(lru.cached_resident_context_count() == 1U &&
+                          lru.cached_retained_context_count() == 1U &&
+                          lru.cached_retained_payload_bytes() ==
+                              level7_payload &&
+                          lru.cached_context_eviction_count() == 1U,
+                      "a level-seven hit becomes most recent before budget eviction");
+            } else {
+                check(record.ell == 11U,
+                      "LRU recency fixture reaches level eleven second");
+            }
+            ++lru_progress_count;
+        });
+    check(second_lru_state.classical_direct_levels.size() == 2U &&
+              lru_progress_count == 2U &&
+              lru.cached_level_load_count() == 3U &&
+              lru.cached_resident_context_count() == 1U &&
               lru.cached_retained_context_count() == 1U &&
               lru.cached_retained_payload_bytes() == level11_payload &&
-              lru.peak_cached_retained_payload_bytes() == level11_payload &&
-              lru.cached_context_eviction_count() == 3U,
-          "bounded LRU evicts in deterministic least-recently-used order across repeated schedules");
+              lru.peak_cached_retained_payload_bytes() == both_payload &&
+              lru.cached_context_eviction_count() == 2U,
+          "bounded LRU moves hits without allocation and evicts in recency order");
 
     const std::filesystem::path duplicate =
         temporary.path() / "direct-duplicate.ctx";

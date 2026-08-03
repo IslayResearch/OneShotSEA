@@ -60,3 +60,7 @@ mkdir -p "$OUT"
   -o "$OUT/verify_p125_hybrid_trace"
 
 "$OUT/verify_p125_hybrid_trace"
+
+GP=${GP:-gp}
+"$GP" -q -f -s 2000000000 \
+  "$REPO/artifacts/local/p125-direct-first-hybrid-20260803/point_count.gp"

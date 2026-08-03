@@ -32,9 +32,14 @@ Weber path to cap one. It obtained the same trace with one exact and one
 effective candidate after 71 levels. This is a separate producer differential,
 not an independent mathematical oracle: it shares the downstream SEA code.
 
-An attempted local Magma point count did not start computation because the
-local launcher entered an uninterruptible filesystem wait. No Magma agreement
-is claimed for this particular curve.
+PARI/GP 2.17.4 independently evaluated `ellcard` on the exact curve and
+returned the same trace in 19.010 seconds. PARI is used only as an offline
+oracle here; neither the direct producer nor the production search invokes it.
+The retained GP script first verifies that the modulus is prime.
+
+An earlier local Magma attempt did not start computation because its launcher
+entered an uninterruptible filesystem wait. No Magma agreement is claimed for
+this particular curve; the successful independent result is the PARI count.
 
 ## Provenance and reproduction
 
@@ -42,6 +47,8 @@ is claimed for this particular curve.
 - Implementation tree: `3fa9ca8dee861c561f629dda48f4aafaf750e3c8`
 - Search binary SHA-256:
   `aba34a1186b5b09a7649da2ab2f4b5af0e3439f6f19730b059d38efa76d14279`
+- PARI/GP executable SHA-256:
+  `cb8372f5159eb8c42f823479bcb0d4e096e149751a6cf59421d1dbf03f9d9dee`
 - Direct-cache SHA-256:
   `b31c858c5398d7b284ad7b003ce4647211de8dec0412421f90ed226f2926ecfd`
 - Smooth-cache SHA-256:
@@ -53,10 +60,10 @@ The raw records preserve the operator-supplied build label
 `local:4b646cd-hybrid-ab`; that label is descriptive and is not the source
 identity. The commit, tree, and executable digest above are authoritative.
 
-Run `python3 audit.py` to authenticate the retained files and rederive the comparison.
-`commands.sh` records the equivalent commands and required external cache
-paths. The 5 GiB smooth cache, direct cache, Weber tables, and binaries are not
-duplicated in this small bundle.
+Run `python3 audit.py` to authenticate the retained files and rederive the
+comparison. `commands.sh` records the equivalent commands, independent PARI
+invocation, and required external cache paths. The 5 GiB smooth cache, direct
+cache, Weber tables, and binaries are not duplicated in this small bundle.
 
 ## Scope
 

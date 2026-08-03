@@ -90,6 +90,15 @@ struct ClassicalDirectSeaLevelRecord {
     std::uint64_t elapsed_us;
 };
 
+// Retained SEA constraints are valid only for the exact short-Weierstrass
+// model that produced them.  Binding both normalized coefficients (rather
+// than only j) distinguishes quadratic twists, whose traces have opposite
+// signs despite sharing the same invariant.
+struct SeaCurveModelBinding {
+    mpz_class a;
+    mpz_class b;
+};
+
 struct WeberSeaResult {
     // The exact caller prior, when present, followed by exact Elkies residues.
     // These remain the final unique-trace gate.
@@ -104,7 +113,13 @@ struct WeberSeaResult {
     std::vector<mpz_class> compatible_source_lifts;
     std::optional<std::vector<mpz_class>> traces;
     std::vector<ClassicalDirectSeaLevelRecord> classical_direct_levels;
+    std::optional<SeaCurveModelBinding> curve_model_binding = std::nullopt;
 };
+
+// Library-created states attach curve_model_binding before retaining any
+// curve-specific evidence. A caller that manually seeds exact or Atkin
+// constraints must attach the same binding; direct/Schoof extensions accept
+// an unbound aggregate only while it is still the pristine universal state.
 
 using WeberSeaProgress = std::function<void(const WeberSeaLevelRecord&)>;
 using SchoofFallbackProgress =
@@ -139,12 +154,14 @@ std::vector<std::uint64_t> expected_information_per_cost_order(
 // A known_source_lift is an optional generator witness: it must already be
 // normalized, nonzero, unramified/nonexceptional, and map to the curve's
 // exact j-invariant. Invalid witnesses are rejected rather than silently
-// falling back to lift discovery.  A retained_state, when supplied, is copied
-// and extended transactionally at the level boundary: exact/direct Atkin
-// moduli and previously attempted Weber levels are skipped, while compatible
-// Weber source lifts are discovered before the first new table level.  This
-// permits an incomplete authenticated direct pass to continue through the
-// table schedule without discarding certified trace constraints.
+// falling back to lift discovery.  A retained_state, when supplied, must be
+// bound to the curve's exact normalized short-Weierstrass coefficients. It is
+// then copied and extended transactionally at the level boundary:
+// exact/direct Atkin moduli and previously attempted Weber levels are skipped,
+// while compatible Weber source lifts are discovered before the first new
+// table level. This permits an incomplete authenticated direct pass to
+// continue through the table schedule without discarding certified trace
+// constraints.
 WeberSeaResult run_weber_sea_reference(
     const Curve& curve, const std::string& table_directory,
     std::uint64_t max_level, std::size_t trace_cap,

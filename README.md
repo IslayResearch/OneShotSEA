@@ -44,6 +44,9 @@ Implemented pieces:
   search and checkpoint identity.
 - A `direct-first` search policy. Incomplete direct work is retained when the
   search continues through Weber levels; already-covered levels are skipped.
+  Retained constraints are bound to the exact curve coefficients, including
+  across the cap-N to cap-one transition, so same-`j` twists cannot share
+  trace state.
 - Exact smooth-part early rejection. Exhausting a resource cap is reported as
   an implementation limit and is never treated as a mathematical rejection.
 
@@ -61,8 +64,9 @@ Two retained p125 results exercise the implementation at 416 bits:
 2. A fixed-curve direct-first A/B used 15 cached direct levels, retained their
    4 exact and 11 Atkin constraints, and needed 50 Weber levels rather than 70.
    SEA time fell from 44.952 s to 34.660 s (1.297x), while total curve time fell
-   from 71.263 s to 62.309 s (1.144x). A separate table-backed cap-one run
-   reconstructed the same unique trace. See the
+   from 71.263 s to 62.309 s (1.144x). A separate table-backed cap-one run and
+   an independent PARI/GP 2.17.4 `ellcard` count both reconstructed the same
+   unique trace. See the
    [hybrid A/B evidence](artifacts/local/p125-direct-first-hybrid-20260803/README.md).
 
 The Atkin meet-in-the-middle work also has a 240-record controlled A/B: direct

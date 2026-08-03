@@ -1322,7 +1322,8 @@ static SearchCurveReport process_search_curve_impl(
                                  trace_prior->residue());
         }
         return WeberSeaResult{
-            initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+            initial, initial, {}, {}, {}, {}, std::nullopt, {},
+            SeaCurveModelBinding{pair.curve.a(), pair.curve.b()}};
     };
 
     bool initial_weber_pass_ran = false;
@@ -1422,7 +1423,7 @@ static SearchCurveReport process_search_curve_impl(
                     ++report.direct_first_fallbacks;
                     sea_execution_phase =
                         SeaExecutionPhase::direct_first_fallback;
-                    sea = run_sea(1U, nullptr);
+                    sea = run_sea(1U, &sea);
                     if (!sea.traces.has_value()) {
                         extend_classical_direct(sea, 1U);
                     }

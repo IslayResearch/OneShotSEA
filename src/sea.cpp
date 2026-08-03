@@ -71,6 +71,41 @@ bool completion_fits_cap(const WeberSeaResult& result, std::size_t cap) {
         : count_fits_cap(result.effective_constraints.candidate_count(), cap);
 }
 
+SeaCurveModelBinding curve_model_binding(const Curve& curve) {
+    return {curve.a(), curve.b()};
+}
+
+bool curve_model_matches(const SeaCurveModelBinding& binding,
+                         const Curve& curve) {
+    return binding.a == curve.a() && binding.b == curve.b();
+}
+
+bool is_pristine_unbound_state(const WeberSeaResult& result) {
+    return result.constraints.modulus() == 1 &&
+        result.effective_constraints.modulus() == 1 &&
+        result.atkin_constraints.empty() && result.levels.empty() &&
+        result.schoof_fallback_levels.empty() &&
+        result.compatible_source_lifts.empty() && !result.traces.has_value() &&
+        result.classical_direct_levels.empty();
+}
+
+void validate_extendable_curve_binding(const WeberSeaResult& result,
+                                       const Curve& curve,
+                                       const char* label) {
+    if (result.curve_model_binding.has_value() &&
+        !curve_model_matches(*result.curve_model_binding, curve)) {
+        throw std::invalid_argument(
+            std::string(label) +
+            " state belongs to a different curve model");
+    }
+    if (!result.curve_model_binding.has_value() &&
+        !is_pristine_unbound_state(result)) {
+        throw std::invalid_argument(
+            std::string(label) +
+            " state has curve-specific evidence but no curve-model binding");
+    }
+}
+
 std::optional<std::vector<mpz_class>> enumerate_completed(
     const WeberSeaResult& result, std::size_t cap);
 
@@ -102,6 +137,8 @@ void extend_classical_direct_impl(
         throw std::invalid_argument(
             "classical direct SEA state belongs to a different field");
     }
+    validate_extendable_curve_binding(result, curve,
+                                      "classical direct SEA");
     if (trace_cap == 0U) {
         throw std::invalid_argument(
             "classical direct SEA received a zero trace cap");
@@ -113,6 +150,7 @@ void extend_classical_direct_impl(
     }
     validate_classical_direct_levels(levels);
     if (completion_fits_cap(result, trace_cap)) {
+        result.curve_model_binding = curve_model_binding(curve);
         result.traces = enumerate_completed(result, trace_cap);
         return;
     }
@@ -204,6 +242,7 @@ void extend_classical_direct_impl(
         result.effective_constraints = std::move(next_effective);
         result.atkin_constraints = std::move(next_atkin);
         result.classical_direct_levels = std::move(next_levels);
+        result.curve_model_binding = curve_model_binding(curve);
         result.traces.reset();
         committed_level = true;
         if (completion_fits_cap(result, trace_cap)) {
@@ -221,6 +260,7 @@ void extend_classical_direct_impl(
         completion_fits_cap(result, trace_cap)) {
         result.traces = enumerate_completed(result, trace_cap);
     }
+    result.curve_model_binding = curve_model_binding(curve);
 }
 
 std::optional<std::vector<mpz_class>> enumerate_completed(
@@ -431,13 +471,19 @@ WeberSeaResult run_weber_sea_reference(
         ? *retained_state
         : WeberSeaResult{
               initial_constraints, initial_constraints, {}, {}, {}, {},
-              std::nullopt, {}};
+              std::nullopt, {}, curve_model_binding(curve)};
     if (result.constraints.prime() != curve.field().modulus() ||
         result.effective_constraints.prime() != curve.field().modulus() ||
         result.constraints.candidate_count() == 0 ||
         result.effective_constraints.candidate_count() == 0) {
         throw std::invalid_argument(
             "retained Weber SEA state is empty or belongs to a different field");
+    }
+    if (retained_state &&
+        (!result.curve_model_binding.has_value() ||
+         !curve_model_matches(*result.curve_model_binding, curve))) {
+        throw std::invalid_argument(
+            "retained Weber SEA state is unbound or belongs to a different curve model");
     }
     if (trace_prior.has_value()) {
         const mpz_class prior_modulus(
@@ -604,6 +650,7 @@ void extend_weber_sea_with_schoof_fallback(
         throw std::invalid_argument(
             "Schoof fallback state belongs to a different field");
     }
+    validate_extendable_curve_binding(result, curve, "Schoof fallback");
     if (trace_cap == 0U) {
         throw std::invalid_argument("Schoof fallback trace cap must be positive");
     }
@@ -614,6 +661,7 @@ void extend_weber_sea_with_schoof_fallback(
     }
 
     if (completion_fits_cap(result, trace_cap)) {
+        result.curve_model_binding = curve_model_binding(curve);
         result.traces = enumerate_completed(result, trace_cap);
         return;
     }
@@ -647,6 +695,7 @@ void extend_weber_sea_with_schoof_fallback(
         result.constraints = std::move(next_exact);
         result.effective_constraints = std::move(next_effective);
         result.schoof_fallback_levels = std::move(next_levels);
+        result.curve_model_binding = curve_model_binding(curve);
         result.traces.reset();
         committed_level = true;
         if (completion_fits_cap(result, trace_cap)) {
@@ -663,6 +712,7 @@ void extend_weber_sea_with_schoof_fallback(
     if (!result.traces.has_value() && completion_fits_cap(result, trace_cap)) {
         result.traces = enumerate_completed(result, trace_cap);
     }
+    result.curve_model_binding = curve_model_binding(curve);
 }
 
 void extend_sea_with_classical_direct(

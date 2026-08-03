@@ -145,7 +145,11 @@ retained state at the exact cap-one gate. If
 the direct schedule is inconclusive at either gate, the ordinary Weber pass
 continues its retained exact and independently certified Atkin constraints.
 It skips every modulus already owned by the direct state and every previously
-attempted Weber level. Direct-cache authentication, lazy-materialization, or
+attempted Weber level. The retained state is bound to the exact normalized
+short-Weierstrass coefficients, not merely to the characteristic or
+`j`-invariant, so a different curve or same-`j` quadratic twist is rejected
+before any constraint or source lift is reused. Direct-cache authentication,
+lazy-materialization, or
 mathematical exceptions are hard operational failures and never trigger this
 continuation. A cap-N enumeration is cleared before cap-one continuation, so
 a multi-trace set still cannot leak through the singleton certificate gate.

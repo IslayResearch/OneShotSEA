@@ -11,7 +11,20 @@ int main() {
     constexpr std::uint64_t index = UINT64_C(2000000);
     auto generated = oneshotsea::deterministic_x1_27_search_curve(
         prime, seed, index, true);
+    if (!generated.sample.has_value()) {
+        std::cerr << "the pinned X1(27) target was not regenerated\n";
+        return 2;
+    }
     const auto& sample = *generated.sample;
+    const mpz_class expected_a(
+        "71767066679186603923921770935567842539817966722958413189905128110444348984023454005578926582733725886104879149565268081093352");
+    const mpz_class expected_b(
+        "14511377786124402615947847290378561693211977815305608793270085406962899322682302670385951055155817257403252766376845387395489");
+    if (sample.pair.curve.a() != expected_a ||
+        sample.pair.curve.b() != expected_b) {
+        std::cerr << "the regenerated curve does not match the pinned model\n";
+        return 3;
+    }
     const std::uint64_t divisor = sample.group_divisor;
     const std::uint64_t p_plus_one =
         (mpz_fdiv_ui(prime.get_mpz_t(), divisor) + 1U) % divisor;
@@ -26,15 +39,21 @@ int main() {
         true, true, {}, prior, sample.pair.weber_f);
     const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now() - start).count();
-    std::cout << "trace=";
-    if (result.traces && result.traces->size() == 1U) {
-        std::cout << result.traces->front();
-    } else {
-        std::cout << "incomplete";
+    if (!result.traces || result.traces->size() != 1U) {
+        std::cerr << "the table-backed point count did not complete\n";
+        return 4;
     }
-    std::cout << " exact_candidates=" << result.constraints.candidate_count()
-              << " effective_candidates="
-              << result.effective_constraints.candidate_count()
-              << " levels=" << result.levels.size()
-              << " elapsed_us=" << elapsed << '\n';
+    std::cout << "schema=oneshotsea.native-table-backed-cap-one.v1\n"
+              << "prime=" << prime << '\n'
+              << "seed=" << seed << '\n'
+              << "index=" << index << '\n'
+              << "a=" << sample.pair.curve.a() << '\n'
+              << "b=" << sample.pair.curve.b() << '\n'
+              << "trace=" << result.traces->front() << '\n'
+              << "exact_candidates="
+              << result.constraints.candidate_count() << '\n'
+              << "effective_candidates="
+              << result.effective_constraints.candidate_count() << '\n'
+              << "levels=" << result.levels.size() << '\n'
+              << "elapsed_us=" << elapsed << '\n';
 }

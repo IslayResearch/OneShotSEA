@@ -194,7 +194,10 @@ int main() {
         oneshotsea::TraceConstraints initial(prime);
         initial.refine_exact(432U, 14U);
         oneshotsea::WeberSeaResult state{
-            initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+            initial, initial, {}, {}, {}, {}, std::nullopt, {},
+            oneshotsea::SeaCurveModelBinding{
+                target.sample->pair.curve.a(),
+                target.sample->pair.curve.b()}};
         const auto start = std::chrono::steady_clock::now();
         oneshotsea::extend_sea_with_prepared_classical_direct(
             target.sample->pair.curve, state, context, 64U);
@@ -218,7 +221,9 @@ int main() {
     oneshotsea::TraceConstraints direct_initial(prime);
     direct_initial.refine_exact(432U, 14U);
     oneshotsea::WeberSeaResult direct_state{
-        direct_initial, direct_initial, {}, {}, {}, {}, std::nullopt, {}};
+        direct_initial, direct_initial, {}, {}, {}, {}, std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{
+            target.sample->pair.curve.a(), target.sample->pair.curve.b()}};
     const auto direct_first_start = std::chrono::steady_clock::now();
     oneshotsea::extend_sea_with_prepared_classical_direct(
         target.sample->pair.curve, direct_state, direct_context, 64U);
@@ -249,7 +254,9 @@ int main() {
     repeated_direct_initial.refine_exact(432U, 14U);
     oneshotsea::WeberSeaResult repeated_direct_state{
         repeated_direct_initial, repeated_direct_initial, {}, {}, {}, {},
-        std::nullopt, {}};
+        std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{
+            target.sample->pair.curve.a(), target.sample->pair.curve.b()}};
     const auto direct_same_curve_warm_start =
         std::chrono::steady_clock::now();
     oneshotsea::extend_sea_with_prepared_classical_direct(
@@ -283,7 +290,10 @@ int main() {
     twist_direct_initial.refine_exact(432U, 418U);
     oneshotsea::WeberSeaResult twist_direct_state{
         twist_direct_initial, twist_direct_initial, {}, {}, {}, {},
-        std::nullopt, {}};
+        std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{
+            target_twist.sample->pair.curve.a(),
+            target_twist.sample->pair.curve.b()}};
     const auto direct_second_curve_warm_start =
         std::chrono::steady_clock::now();
     oneshotsea::extend_sea_with_prepared_classical_direct(

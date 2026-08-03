@@ -1037,6 +1037,27 @@ void test_checkpoint_bound_direct_first_strategy() {
                   generated_completion.exact_trace,
           "cached direct-first completion matches freshly generated direct evidence and terminal semantics");
 
+    oneshotsea::SearchPipelineConfig cap_transition_config = small_config();
+    cap_transition_config.early_trace_cap = 16U;
+    cap_transition_config.classical_direct_levels = {7U};
+    const CachedDirectRun cap_transition = run_one_cached_direct_search(
+        cap_transition_config, 1U, temporary.path(), "cap-transition");
+    check(cap_transition.report.direct_first_attempts == 2U &&
+              cap_transition.report.direct_first_completions == 1U &&
+              cap_transition.report.direct_first_fallbacks == 1U &&
+              cap_transition.report.sea_passes == 1U &&
+              cap_transition.report.classical_direct_levels.size() == 1U &&
+              !cap_transition.report.sea_level_timings.empty() &&
+              std::none_of(
+                  cap_transition.report.sea_level_timings.begin(),
+                  cap_transition.report.sea_level_timings.end(),
+                  [](const oneshotsea::SearchSeaLevelTiming& level) {
+                      return level.ell == 7U;
+                  }) &&
+              cap_transition.report.sea_level_timings.front()
+                      .constraint_modulus % 7 == 0,
+          "direct-first cap-N completion retains its direct evidence through the cap-one Weber fallback");
+
     oneshotsea::SearchPipelineConfig fallback_config = small_config();
     fallback_config.early_trace_cap = 1U;
     fallback_config.classical_direct_levels = {5U};

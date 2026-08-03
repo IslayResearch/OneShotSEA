@@ -44,6 +44,19 @@ bool rejects(Function&& function) {
     }
 }
 
+template <class Function>
+bool rejects_invalid_argument_containing(Function&& function,
+                                         const std::string& fragment) {
+    try {
+        function();
+        return false;
+    } catch (const std::invalid_argument& error) {
+        return std::string(error.what()).find(fragment) != std::string::npos;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
 class TemporaryDirectory {
 public:
     TemporaryDirectory() {
@@ -446,13 +459,25 @@ void test_prepared_classical_context_equivalence() {
     complete_initial.refine_exact(
         101U, mpz_fdiv_ui(elkies_trace.get_mpz_t(), 101U));
     oneshotsea::WeberSeaResult already_complete{
-        complete_initial, complete_initial, {}, {}, {}, {}, std::nullopt, {}};
+        complete_initial, complete_initial, {}, {}, {}, {}, std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{
+            elkies_curve.a(), elkies_curve.b()}};
     oneshotsea::extend_sea_with_prepared_classical_direct(
         elkies_curve, already_complete, sea_context, 1U);
     check(already_complete.traces.has_value() &&
               already_complete.traces->size() == 1U &&
               sea_context.prepared_context_count() == 0U,
           "an already-complete retained state never prepares an unused direct level");
+
+    oneshotsea::WeberSeaResult unbound_complete{
+        complete_initial, complete_initial, {}, {}, {}, {}, std::nullopt, {}};
+    check(rejects_invalid_argument_containing([&] {
+              oneshotsea::extend_sea_with_prepared_classical_direct(
+                  elkies_curve, unbound_complete, sea_context, 1U);
+          }, "no curve-model binding") &&
+              !unbound_complete.traces.has_value() &&
+              !unbound_complete.curve_model_binding.has_value(),
+          "direct SEA rejects an unbound aggregate that already contains curve-specific constraints");
 
     for (const oneshotsea::Curve* curve : {&elkies_curve, &atkin_curve}) {
         oneshotsea::TraceConstraints initial(field.modulus());
@@ -1209,6 +1234,28 @@ void test_classical_direct_sea_runner() {
     check(atkin_state.traces.has_value(),
           "direct SEA Atkin constraint fits the requested complete trace cap");
 
+    mpz_class nonsquare = 2;
+    while (field.legendre(nonsquare) != -1) {
+        ++nonsquare;
+    }
+    const oneshotsea::Curve atkin_twist =
+        atkin_curve.quadratic_twist(nonsquare);
+    check(atkin_twist.j_invariant() == atkin_curve.j_invariant() &&
+              elkies_curve.j_invariant() != atkin_curve.j_invariant() &&
+              rejects_invalid_argument_containing([&] {
+              static_cast<void>(oneshotsea::run_weber_sea_reference(
+                  elkies_curve, "data/modpoly/weber_f", 11U, 1U, {},
+                  0U, true, true, {}, std::nullopt, std::nullopt,
+                  &atkin_state));
+          }, "different curve model") &&
+              rejects_invalid_argument_containing([&] {
+                  static_cast<void>(oneshotsea::run_weber_sea_reference(
+                      atkin_twist, "data/modpoly/weber_f", 11U, 1U,
+                      {}, 0U, true, true, {}, std::nullopt,
+                      std::nullopt, &atkin_state));
+              }, "different curve model"),
+          "retained SEA state rejects a different curve and its same-j quadratic twist");
+
     const auto pure_weber = oneshotsea::run_weber_sea_reference(
         atkin_curve, "data/modpoly/weber_f", 11U, 1U);
     const auto hybrid_weber = oneshotsea::run_weber_sea_reference(
@@ -1251,6 +1298,7 @@ void test_classical_direct_sea_runner() {
               callback_state.effective_constraints.modulus() == 1 &&
               callback_state.atkin_constraints.empty() &&
               callback_state.classical_direct_levels.empty() &&
+              !callback_state.curve_model_binding.has_value() &&
               !callback_state.traces.has_value(),
           "direct SEA progress failure leaves retained state transactionally unchanged");
     const auto callback_context =
@@ -1270,6 +1318,7 @@ void test_classical_direct_sea_runner() {
     oneshotsea::extend_sea_with_prepared_classical_direct(
         elkies_curve, callback_state, callback_context, 16U);
     check(callback_state.classical_direct_levels.size() == 1U &&
+              callback_state.curve_model_binding.has_value() &&
               callback_context.prepared_context_count() == 1U,
           "the same prepared context remains reusable after callback failure");
     check(rejects([&] {

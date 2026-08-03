@@ -1544,7 +1544,23 @@ void test_retained_state_schoof_fallback() {
         5U, 2U, {residue5, (residue5 + 1U) % 5U}};
     effective.refine(atkin.ell, atkin.trace_residues);
     oneshotsea::WeberSeaResult retained{
-        exact, effective, {atkin}, {}, {}, {}, std::nullopt, {}};
+        exact, effective, {atkin}, {}, {}, {}, std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{curve.a(), curve.b()}};
+
+    oneshotsea::WeberSeaResult unbound_retained = retained;
+    unbound_retained.curve_model_binding.reset();
+    bool rejected_unbound_retained = false;
+    try {
+        oneshotsea::extend_weber_sea_with_schoof_fallback(
+            curve, unbound_retained, 1U);
+    } catch (const std::invalid_argument& error) {
+        rejected_unbound_retained =
+            std::string(error.what()).find("no curve-model binding") !=
+            std::string::npos;
+    }
+    check(rejected_unbound_retained &&
+              !unbound_retained.curve_model_binding.has_value(),
+          "Schoof fallback rejects unbound retained curve-specific evidence");
 
     oneshotsea::extend_weber_sea_with_schoof_fallback(
         curve, retained, 1U);
@@ -1577,7 +1593,8 @@ void test_retained_state_schoof_fallback() {
     oneshotsea::TraceConstraints exact_three(prime);
     exact_three.refine_exact(3U, mpz_fdiv_ui(trace.get_mpz_t(), 3U));
     oneshotsea::WeberSeaResult skip_existing{
-        exact_three, exact_three, {}, {}, {}, {}, std::nullopt, {}};
+        exact_three, exact_three, {}, {}, {}, {}, std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{curve.a(), curve.b()}};
     oneshotsea::extend_weber_sea_with_schoof_fallback(
         curve, skip_existing, 1U);
     check(!skip_existing.schoof_fallback_levels.empty() &&
@@ -1638,7 +1655,9 @@ void test_retained_state_schoof_fallback() {
         tail_initial.refine_exact(ell, 0U);
     }
     oneshotsea::WeberSeaResult full_tail{
-        tail_initial, tail_initial, {}, {}, {}, {}, std::nullopt, {}};
+        tail_initial, tail_initial, {}, {}, {}, {}, std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{
+            tail_curve.a(), tail_curve.b()}};
     oneshotsea::extend_weber_sea_with_schoof_fallback(
         tail_curve, full_tail, 1U);
     check(full_tail.traces.has_value() &&
@@ -1659,7 +1678,8 @@ void test_retained_state_schoof_fallback() {
         conflicting.ell, conflicting.trace_residues);
     oneshotsea::WeberSeaResult conflict{
         conflict_exact, conflict_effective, {conflicting}, {}, {}, {},
-        std::nullopt, {}};
+        std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{curve.a(), curve.b()}};
     const mpz_class conflict_exact_modulus =
         conflict.constraints.modulus();
     const mpz_class conflict_effective_modulus =

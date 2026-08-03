@@ -93,10 +93,20 @@
     "exact_trace_candidates": 1,
     "effective_trace_candidates": 1,
     "weber_levels": 71,
-    "elapsed_us": 72916607,
-    "verifier_source_sha256": "7c8b3fe495fcc2d7ce8e8c40a1a88adc2f3e2ddd23213cf3cf281b41db0b45a8",
-    "verifier_binary_sha256": "ce227b09387cf71c35fd9fe6a99e8164169492547194d63f17df1d5c3efc7805",
+    "elapsed_us": 59903487,
+    "verifier_source_sha256": "dc8aa4abf5ef2cdaeaf7bf4baae3fbcccc57c4ac7ee2ec8fb02219da1f3656f9",
+    "verifier_binary_sha256": "bbc9b5e8bb95b7371db9b3809a5f93d0e9f78a14d1787da5f102ad064ff4bbee",
     "independence_limit": "separate table-backed producer, shared downstream SEA implementation"
+  },
+  "independent_pari_point_count": {
+    "pari_version": "2.17.4",
+    "executable_sha256": "cb8372f5159eb8c42f823479bcb0d4e096e149751a6cf59421d1dbf03f9d9dee",
+    "prime_check": true,
+    "order": "99999999999999999999999999999999999999999999999999999999999999973006157620433949548564015333394559687845153398687399484824160",
+    "trace": "26993842379566050451435984666605440312154846601312600515176078",
+    "elapsed_ms": 19010,
+    "agrees_with_hybrid_trace": true,
+    "production_dependency": false
   },
   "magma_attempt": {
     "status": "no_result",
@@ -106,6 +116,7 @@
   "claim_scope": {
     "fixed_curve_latency_comparison": true,
     "retained_state_composition_exercised": true,
+    "independent_exact_point_count": true,
     "multi_curve_throughput": false,
     "certificate_found": false,
     "certificate_yield_measured": false,

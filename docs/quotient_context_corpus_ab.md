@@ -84,6 +84,9 @@ The A/B establishes a level-dependent crossover:
 - this is directionally consistent with the previously retained level-409
   single-level result, where eigenvalue recovery improved 1.24286x.
 
+Across the two gates, all 24 complete mathematical projections matched their
+paired context-off and context-on runs byte-for-byte.
+
 Production should keep context reuse enabled.  The result does **not** justify
 claiming a 1.86% full-search throughput gain: it excludes the 5.4 GB exact
 smoothness scan, checkpoint publication, candidate assembly, and certificate

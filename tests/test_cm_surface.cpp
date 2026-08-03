@@ -1,10 +1,14 @@
 #include "oneshotsea/atkin.hpp"
 #include "oneshotsea/cm_surface.hpp"
+#include "oneshotsea/early_abort.hpp"
 #include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
+#include "oneshotsea/schoof.hpp"
+#include "oneshotsea/sea.hpp"
 #include "oneshotsea/weber.hpp"
 #include "oneshotsea/weber_cm_surface.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -274,6 +278,157 @@ void test_p125_classical_direct_path() {
               oneshotsea::linear_roots(
                   reconstructed.specialization.value()).size() == 2U,
           "p125 direct Phi_7 specialization yields the independently validated trace residue 5");
+
+    oneshotsea::TraceConstraints initial(field.modulus());
+    oneshotsea::WeberSeaResult direct_sea{
+        initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+    oneshotsea::extend_sea_with_classical_direct(
+        curve, direct_sea, {5U, 7U, 11U}, 64U, 1000000U, 1000000U);
+    const auto phi5 = oneshotsea::SparseModularPolynomial::load(
+        5, "data/modpoly/j/phi_5.txt");
+    const auto table_trace5 =
+        oneshotsea::elkies_trace_residue_bmss_reference(curve, phi5);
+    const auto schoof_trace11 =
+        oneshotsea::schoof_trace_mod_ell(curve, 11U);
+    check(direct_sea.classical_direct_levels.size() == 3U &&
+              direct_sea.classical_direct_levels[0].ell == 5U &&
+              direct_sea.classical_direct_levels[0].exact &&
+              direct_sea.classical_direct_levels[0].trace_residue == 3U &&
+              direct_sea.classical_direct_levels[0].auxiliary_prime_count ==
+                  34U &&
+              direct_sea.classical_direct_levels[1].ell == 7U &&
+              direct_sea.classical_direct_levels[1].exact &&
+              direct_sea.classical_direct_levels[1].trace_residue == 5U &&
+              direct_sea.classical_direct_levels[1].auxiliary_prime_count ==
+                  37U &&
+              direct_sea.classical_direct_levels[2].ell == 11U &&
+              direct_sea.classical_direct_levels[2].exact &&
+              direct_sea.classical_direct_levels[2].trace_residue == 10U &&
+              direct_sea.classical_direct_levels[2].auxiliary_prime_count ==
+                  43U &&
+              direct_sea.constraints.modulus() == 385 &&
+              direct_sea.effective_constraints.modulus() == 385 &&
+              table_trace5 == 3U && schoof_trace11 == 10U &&
+              !direct_sea.traces.has_value(),
+          "p125 direct SEA runner retains three exact levels without claiming completion");
+}
+
+void test_classical_direct_sea_runner() {
+    const oneshotsea::Field field(193);
+    const oneshotsea::Curve elkies_curve =
+        oneshotsea::short_weierstrass_curve_from_j(field, 20);
+    const mpz_class elkies_trace =
+        field.modulus() + 1 -
+        oneshotsea::count_points_bruteforce(elkies_curve);
+    oneshotsea::TraceConstraints initial(field.modulus());
+    oneshotsea::WeberSeaResult elkies_state{
+        initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+    oneshotsea::extend_sea_with_classical_direct(
+        elkies_curve, elkies_state, {7U}, 16U, 100000U, 1000000U);
+    check(elkies_state.classical_direct_levels.size() == 1U &&
+              elkies_state.classical_direct_levels.front().exact &&
+              elkies_state.classical_direct_levels.front().trace_residue ==
+                  mpz_fdiv_ui(elkies_trace.get_mpz_t(), 7U) &&
+              elkies_state.traces.has_value() &&
+              elkies_state.traces->size() <= 16U &&
+              std::find(elkies_state.traces->begin(),
+                        elkies_state.traces->end(), elkies_trace) !=
+                  elkies_state.traces->end(),
+          "direct SEA exact level produces a complete bounded trace set containing the true trace");
+
+    oneshotsea::extend_sea_with_classical_direct(
+        elkies_curve, elkies_state, {7U}, 1U, 100000U, 1000000U);
+    check(!elkies_state.traces.has_value() &&
+              elkies_state.classical_direct_levels.size() == 1U,
+          "no-op direct extension clears a stale cap-N trace enumeration at the exact cap-one gate");
+    oneshotsea::extend_sea_with_classical_direct(
+        elkies_curve, elkies_state, {7U, 11U}, 1U, 100000U, 1000000U);
+    check(elkies_state.classical_direct_levels.size() == 2U &&
+              elkies_state.classical_direct_levels.back().ell == 11U,
+          "direct SEA extends retained state with only the next missing level");
+    const auto& level11 = elkies_state.classical_direct_levels.back();
+    if (level11.exact) {
+        check(level11.trace_residue ==
+                  mpz_fdiv_ui(elkies_trace.get_mpz_t(), 11U),
+              "direct level-11 exact residue agrees with brute force");
+    } else if (level11.atkin_projective_order.has_value()) {
+        const auto found = std::find_if(
+            elkies_state.atkin_constraints.begin(),
+            elkies_state.atkin_constraints.end(),
+            [](const oneshotsea::AtkinConstraint& constraint) {
+                return constraint.ell == 11U;
+            });
+        check(found != elkies_state.atkin_constraints.end() &&
+                  std::find(found->trace_residues.begin(),
+                            found->trace_residues.end(),
+                            mpz_fdiv_ui(elkies_trace.get_mpz_t(), 11U)) !=
+                      found->trace_residues.end(),
+              "direct level-11 Atkin set contains the brute-force trace residue");
+    }
+
+    const oneshotsea::Curve atkin_curve =
+        oneshotsea::short_weierstrass_curve_from_j(field, 4);
+    const mpz_class atkin_trace =
+        field.modulus() + 1 -
+        oneshotsea::count_points_bruteforce(atkin_curve);
+    oneshotsea::TraceConstraints atkin_initial(field.modulus());
+    oneshotsea::WeberSeaResult atkin_state{
+        atkin_initial, atkin_initial, {}, {}, {}, {}, std::nullopt, {}};
+    oneshotsea::extend_sea_with_classical_direct(
+        atkin_curve, atkin_state, {7U}, 16U, 100000U, 1000000U);
+    check(atkin_state.classical_direct_levels.size() == 1U &&
+              !atkin_state.classical_direct_levels.front().exact,
+          "direct SEA runner records the no-root level as nonexact");
+    check(atkin_state.classical_direct_levels.front()
+                  .atkin_projective_order.has_value() &&
+              atkin_state.atkin_constraints.size() == 1U,
+          "direct SEA runner retains certified Atkin evidence");
+    check(std::find(atkin_state.atkin_constraints.front()
+                        .trace_residues.begin(),
+                    atkin_state.atkin_constraints.front()
+                        .trace_residues.end(),
+                    mpz_fdiv_ui(atkin_trace.get_mpz_t(), 7U)) !=
+              atkin_state.atkin_constraints.front().trace_residues.end(),
+          "direct SEA Atkin set contains the brute-force trace residue");
+    check(atkin_state.traces.has_value(),
+          "direct SEA Atkin constraint fits the requested complete trace cap");
+    const auto screen = oneshotsea::screen_order_candidates(
+        atkin_state.effective_constraints, 16U, 1000,
+        [](const mpz_class& order) {
+            return oneshotsea::ExactN4SmoothPart{
+                oneshotsea::trial_smooth_part(order, 1000U)};
+        });
+    check(screen.has_value() && screen->rejects_curve(),
+          "sound early-abort interface consumes the complete direct Atkin trace set");
+
+    oneshotsea::TraceConstraints callback_initial(field.modulus());
+    oneshotsea::WeberSeaResult callback_state{
+        callback_initial, callback_initial, {}, {}, {}, {}, std::nullopt, {}};
+    check(rejects([&] {
+              oneshotsea::extend_sea_with_classical_direct(
+                  elkies_curve, callback_state, {7U}, 16U, 100000U,
+                  1000000U,
+                  [](const oneshotsea::ClassicalDirectSeaLevelRecord&) {
+                      throw std::runtime_error("forced callback failure");
+                  });
+          }) &&
+              callback_state.constraints.modulus() == 1 &&
+              callback_state.effective_constraints.modulus() == 1 &&
+              callback_state.atkin_constraints.empty() &&
+              callback_state.classical_direct_levels.empty() &&
+              !callback_state.traces.has_value(),
+          "direct SEA progress failure leaves retained state transactionally unchanged");
+    check(rejects([&] {
+              oneshotsea::extend_sea_with_classical_direct(
+                  elkies_curve, callback_state, {7U, 5U}, 16U,
+                  100000U, 1000000U);
+          }) &&
+              rejects([&] {
+                  oneshotsea::extend_sea_with_classical_direct(
+                      elkies_curve, callback_state, {9U}, 16U,
+                      100000U, 1000000U);
+              }),
+          "direct SEA rejects unsorted and composite level schedules");
 }
 
 void test_minus_71_surface() {
@@ -530,6 +685,7 @@ void test_minus_71_surface() {
 int main() {
     try {
         test_three_power_class_polynomial();
+        test_classical_direct_sea_runner();
         test_p125_classical_direct_path();
         test_minus_71_surface();
         std::cout << "CM interpolation surface tests: ok\n";

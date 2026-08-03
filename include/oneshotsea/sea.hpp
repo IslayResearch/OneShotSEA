@@ -69,6 +69,23 @@ struct SchoofFallbackLevelRecord {
     std::uint64_t elapsed_us;
 };
 
+struct ClassicalDirectSeaLevelRecord {
+    std::uint64_t ell;
+    bool exact;
+    std::optional<std::uint64_t> trace_residue;
+    mpz_class order_discriminant;
+    std::uint64_t class_number;
+    std::size_t auxiliary_prime_count;
+    std::size_t elkies_kernel_count;
+    mpz_class exact_modulus;
+    mpz_class constraint_modulus;
+    mpz_class exact_trace_candidate_count;
+    mpz_class trace_candidate_count;
+    std::optional<std::uint64_t> atkin_projective_order;
+    std::size_t atkin_residue_count;
+    std::uint64_t elapsed_us;
+};
+
 struct WeberSeaResult {
     // The exact caller prior, when present, followed by exact Elkies residues.
     // These remain the final unique-trace gate.
@@ -82,11 +99,14 @@ struct WeberSeaResult {
     std::vector<SchoofFallbackLevelRecord> schoof_fallback_levels;
     std::vector<mpz_class> compatible_source_lifts;
     std::optional<std::vector<mpz_class>> traces;
+    std::vector<ClassicalDirectSeaLevelRecord> classical_direct_levels;
 };
 
 using WeberSeaProgress = std::function<void(const WeberSeaLevelRecord&)>;
 using SchoofFallbackProgress =
     std::function<void(const SchoofFallbackLevelRecord&)>;
+using ClassicalDirectSeaProgress =
+    std::function<void(const ClassicalDirectSeaLevelRecord&)>;
 
 // Benchmark-only scheduling input.  information_units may use any fixed
 // scale (for example measured microbits of trace-candidate reduction), while
@@ -135,5 +155,20 @@ WeberSeaResult run_weber_sea_reference(
 void extend_weber_sea_with_schoof_fallback(
     const Curve& curve, WeberSeaResult& result, std::size_t trace_cap,
     const SchoofFallbackProgress& progress = {});
+
+// Extend retained SEA constraints with callback-free classical direct
+// evaluations at the requested strictly increasing prime levels.  Each level
+// derives its D=-7*3^(2n) order and HCP state internally.  Positive roots are
+// admitted only through BMSS/Frobenius exact residues; square-free no-root
+// specializations contribute only certified Atkin sets.  Completion for
+// trace_cap>1 uses the effective exact+Atkin state, while trace_cap=1 still
+// requires exact residues.  State updates and progress callbacks are
+// transactional per level.
+void extend_sea_with_classical_direct(
+    const Curve& curve, WeberSeaResult& result,
+    const std::vector<std::uint64_t>& levels, std::size_t trace_cap,
+    std::uint64_t maximum_prime_candidates,
+    std::uint64_t maximum_x_candidates_per_surface,
+    const ClassicalDirectSeaProgress& progress = {});
 
 }  // namespace oneshotsea

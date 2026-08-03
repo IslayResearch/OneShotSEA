@@ -1,6 +1,7 @@
 #include "oneshotsea/sea.hpp"
 
 #include "oneshotsea/atkin.hpp"
+#include "oneshotsea/cm_surface.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/poly.hpp"
 #include "oneshotsea/schoof.hpp"
@@ -34,6 +35,22 @@ bool is_prime(std::uint64_t value) {
         }
     }
     return true;
+}
+
+void validate_classical_direct_levels(
+    const std::vector<std::uint64_t>& levels) {
+    if (!std::is_sorted(levels.begin(), levels.end()) ||
+        std::adjacent_find(levels.begin(), levels.end()) != levels.end()) {
+        throw std::invalid_argument(
+            "classical direct levels must be strictly increasing");
+    }
+    for (const std::uint64_t ell : levels) {
+        if (ell <= 3U || ell > std::numeric_limits<unsigned>::max() ||
+            !is_prime(ell)) {
+            throw std::invalid_argument(
+                "classical direct schedule contains an invalid level");
+        }
+    }
 }
 
 bool count_fits_cap(const mpz_class& count, std::size_t cap) {
@@ -254,7 +271,7 @@ WeberSeaResult run_weber_sea_reference(
     }
     WeberSeaResult result{
         initial_constraints, initial_constraints, {}, {}, {},
-        std::move(source_lifts), std::nullopt};
+        std::move(source_lifts), std::nullopt, {}};
     if (result.compatible_source_lifts.empty()) {
         return result;
     }
@@ -419,6 +436,139 @@ void extend_weber_sea_with_schoof_fallback(
         result.traces.reset();
     }
     if (!result.traces.has_value() && completion_fits_cap(result, trace_cap)) {
+        result.traces = enumerate_completed(result, trace_cap);
+    }
+}
+
+void extend_sea_with_classical_direct(
+    const Curve& curve, WeberSeaResult& result,
+    const std::vector<std::uint64_t>& levels, std::size_t trace_cap,
+    std::uint64_t maximum_prime_candidates,
+    std::uint64_t maximum_x_candidates_per_surface,
+    const ClassicalDirectSeaProgress& progress) {
+    if (curve.is_singular()) {
+        throw std::invalid_argument(
+            "classical direct SEA requires a nonsingular curve");
+    }
+    if (curve.field().modulus() != result.constraints.prime() ||
+        curve.field().modulus() != result.effective_constraints.prime()) {
+        throw std::invalid_argument(
+            "classical direct SEA state belongs to a different field");
+    }
+    if (trace_cap == 0U || maximum_prime_candidates == 0U ||
+        maximum_x_candidates_per_surface == 0U) {
+        throw std::invalid_argument(
+            "classical direct SEA received a zero execution cap");
+    }
+    if (result.constraints.candidate_count() == 0 ||
+        result.effective_constraints.candidate_count() == 0) {
+        throw std::invalid_argument(
+            "classical direct SEA requires nonempty retained constraints");
+    }
+    validate_classical_direct_levels(levels);
+    if (completion_fits_cap(result, trace_cap)) {
+        result.traces = enumerate_completed(result, trace_cap);
+        return;
+    }
+
+    bool committed_level = false;
+    for (const std::uint64_t ell : levels) {
+        const mpz_class ell_integer(std::to_string(ell));
+        const bool already_attempted = std::any_of(
+            result.classical_direct_levels.begin(),
+            result.classical_direct_levels.end(),
+            [ell](const ClassicalDirectSeaLevelRecord& level) {
+                return level.ell == ell;
+            });
+        if (result.effective_constraints.modulus() % ell_integer == 0 ||
+            already_attempted) {
+            continue;
+        }
+        const Clock::time_point start = Clock::now();
+        const SutherlandSuitableOrder order =
+            derive_three_power_suitable_order(static_cast<unsigned>(ell));
+        const CrtSpecializationResult specialization =
+            reconstruct_classical_specialization_from_cm(
+                order, curve.field(), curve.j_invariant(),
+                maximum_prime_candidates,
+                maximum_x_candidates_per_surface);
+        const std::vector<ElkiesKernelResult> kernels =
+            elkies_kernels_bmss_specialized_reference(
+                curve, specialization.specialization);
+        std::optional<std::uint64_t> residue;
+        std::optional<AtkinConstraint> atkin;
+        if (!kernels.empty()) {
+            residue = kernels.front().trace_residue;
+            if (std::any_of(
+                    kernels.begin(), kernels.end(),
+                    [&residue](const ElkiesKernelResult& kernel) {
+                        return kernel.trace_residue != *residue;
+                    })) {
+                throw std::logic_error(
+                    "classical direct level produced inconsistent exact residues");
+            }
+        } else {
+            atkin = classical_atkin_constraint_reference(
+                curve, specialization.specialization);
+        }
+
+        TraceConstraints next_exact = result.constraints;
+        TraceConstraints next_effective = result.effective_constraints;
+        std::vector<AtkinConstraint> next_atkin = result.atkin_constraints;
+        if (residue.has_value()) {
+            next_exact.refine_exact(ell, *residue);
+            next_effective.refine_exact(ell, *residue);
+        } else if (atkin.has_value()) {
+            next_effective.refine(ell, atkin->trace_residues);
+            if (next_effective.candidate_count() == 0) {
+                throw std::runtime_error(
+                    "classical direct Atkin evidence eliminated the Hasse interval");
+            }
+            next_atkin.push_back(*atkin);
+        }
+        ClassicalDirectSeaLevelRecord level{
+            ell,
+            residue.has_value(),
+            residue,
+            order.discriminant(),
+            order.class_number(),
+            specialization.prime_count,
+            kernels.size(),
+            next_exact.modulus(),
+            next_effective.modulus(),
+            next_exact.candidate_count(),
+            next_effective.candidate_count(),
+            atkin.has_value()
+                ? std::optional<std::uint64_t>(atkin->projective_order)
+                : std::nullopt,
+            atkin.has_value() ? atkin->trace_residues.size() : 0U,
+            elapsed_us(start),
+        };
+        std::vector<ClassicalDirectSeaLevelRecord> next_levels =
+            result.classical_direct_levels;
+        next_levels.push_back(level);
+        if (progress) {
+            progress(level);
+        }
+        result.constraints = std::move(next_exact);
+        result.effective_constraints = std::move(next_effective);
+        result.atkin_constraints = std::move(next_atkin);
+        result.classical_direct_levels = std::move(next_levels);
+        result.traces.reset();
+        committed_level = true;
+        if (completion_fits_cap(result, trace_cap)) {
+            result.traces = enumerate_completed(result, trace_cap);
+            break;
+        }
+    }
+    if (!committed_level) {
+        // A prior cap-N enumeration is not a cap-1 completion.  When every
+        // requested direct level is already retained, do not leak that stale
+        // multi-trace result through a normal no-op extension.
+        result.traces.reset();
+    }
+    if (!result.traces.has_value() &&
+        completion_fits_cap(result, trace_cap)) {
         result.traces = enumerate_completed(result, trace_cap);
     }
 }

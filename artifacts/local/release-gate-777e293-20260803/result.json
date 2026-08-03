@@ -1,0 +1,50 @@
+{
+  "schema": "oneshotsea.clean-checkout-release-gate.v1",
+  "source": {
+    "commit": "777e293786ace30a3b8fec025d90875267f98ea4",
+    "tree": "b964a59a0744236574c00c94088e286be16be3a1",
+    "subject": "Record bounded p125 epoch launch",
+    "tracked_worktree_clean": true
+  },
+  "full_gate": {
+    "command": "/usr/bin/time -p env MAGMA='/Users/agent/Documents/Codex/t24-search/private/magma-local/install/magma' /usr/bin/make test-all",
+    "exit_status": 0,
+    "outcome": "pass",
+    "real_seconds": 171.80,
+    "user_seconds": 130.80,
+    "system_seconds": 11.60
+  },
+  "sanitizer_gate": {
+    "command": "/usr/bin/time -p /usr/bin/make BUILD_DIR=build-release-asan CXXFLAGS='-O1 -g -std=c++20 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -fsanitize=address,undefined -fno-omit-frame-pointer' CFLAGS='-O1 -g -std=c11 -fsanitize=address,undefined -fno-omit-frame-pointer' LDFLAGS='-L/opt/homebrew/opt/gmp/lib -fsanitize=address,undefined' test-direct-modpoly test-cm-surface test-search-pipeline test-cli test-x1-27-probe",
+    "exit_status": 0,
+    "outcome": "pass",
+    "diagnostics": [],
+    "real_seconds": 135.59,
+    "user_seconds": 136.45,
+    "system_seconds": 3.14
+  },
+  "environment": {
+    "os": "macOS 26.5.1 (25F80)",
+    "kernel": "Darwin 25.5.0 arm64",
+    "hardware": "Mac mini Mac16,10, Apple M4, 10 cores, 16 GB",
+    "cxx": "Apple clang 21.0.0 (clang-2100.1.1.101)",
+    "python": "Python 3.9.6",
+    "magma_version": "2.29-1",
+    "magma_sha256": "e62e9d7098bbc60525acea1527b1b514873410147ec5583c1a26768650f8cff8",
+    "canonical_verifier_sha256": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666"
+  },
+  "outputs": {
+    "oneshotsea_sha256": "fe9a4d4e7aae29ee1fd6271abf919b749609667bdea5e9a90b39dcdc1d776a70",
+    "liboneshotsea_a_sha256": "c1c05148856e05a815d5f6420fd23e1a0f19305d5d8ee5323eacacd205693a9c"
+  },
+  "passed_gates": [
+    "native correctness and search suites",
+    "retained performance, production, suffix, and coverage audits",
+    "canonical verifier and vendor checks",
+    "eight live Magma differential tests",
+    "RunPod operational contracts",
+    "AWS bounds, cost-tag, partition, and immutable-worker contracts",
+    "targeted AddressSanitizer and UndefinedBehaviorSanitizer suites"
+  ],
+  "production_identity_unchanged": true
+}

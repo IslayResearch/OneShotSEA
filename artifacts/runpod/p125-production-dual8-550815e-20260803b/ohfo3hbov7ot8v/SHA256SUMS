@@ -1,0 +1,15 @@
+cca2b09ed1aca50c41bfe31387f6a887b684e54b09b0eae609e35843c3e11d57  ./fetch-metadata.json
+0e2072ef397cccc1a89d3d93641ec9ee8f5a81933c74bb5b35a0010acb143e9a  ./worker-0/checkpoint.json
+46d08ec8db0de832c51ec89a94e77ccb3d3c3884a7181b60df22e4c1d01db7f8  ./worker-0/progress.jsonl
+551e07f6fd20f94de4200d264be8e4f51a72e7a5bbf0159f14bf8d63dc5372df  ./worker-0/worker.log
+96053d19ed3f1c9a4811ed6521162b03442deb78484ffb49f55aa1024cf6f0cc  ./worker-0/manifest.json
+7e545628e4f3697bbbbae60cdd9860b0a9a906e54d471cd43d2ef5c20d060301  ./worker-0/command.sh
+05a8d98fcbad9cf2e360a9eb612237f64d03536e209e4fb9f6948de205560166  ./worker-0/attempts.jsonl
+6f798a376910239bfe38308577bf38d70a6cdb4f17d08feea42e36c65289d55f  ./worker-0/resource-usage.txt
+18f225f06bf51b0ed063d289e5c9f4e4d9573c4be9f71347380aa5e1cd6e455b  ./worker-1/checkpoint.json
+7192cc61366cb95bbd1db45b4c94cdf99bf874f5cbc44b8a0af9d07794464a63  ./worker-1/progress.jsonl
+9a5db0266d44de8de607c4c1b2b1c7d77f4c71b2c4ce06b7ac73066c832f6854  ./worker-1/worker.log
+06485fdc2a25e8448799047dd6497068863365a64273a2d638d54a7c968a0008  ./worker-1/manifest.json
+3ea24a549d6f8b4dfe341e7ca47e7ea343947a180b02fb2029355c6e37450bb3  ./worker-1/command.sh
+ab1bd8e2d0fcfebd0872502b04629017b37385e98f1d7d2c1ce28f6669bf4aff  ./worker-1/attempts.jsonl
+79cd95ffabd7ec478e736c72cc6a8b680eedfdd4d225e49e318efc287247afc6  ./worker-1/resource-usage.txt

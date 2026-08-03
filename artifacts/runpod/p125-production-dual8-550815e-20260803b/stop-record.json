@@ -1,0 +1,23 @@
+{
+  "schema": "oneshotsea.runpod-stop-record.v1",
+  "recorded_utc": "2026-08-03T09:01:03Z",
+  "run_id": "p125-production-dual8-550815e-20260803b",
+  "pod_id": "ohfo3hbov7ot8v",
+  "action": "stopped",
+  "observed_console_rate_usd_per_hour": 0.0,
+  "recorded_running_rate_usd_per_hour": 0.643,
+  "fetched_before_stop": true,
+  "fetched_at_utc": "2026-08-03T08:56:09Z",
+  "latest_worker_end_utc": "2026-08-03T08:55:34Z",
+  "first_worker_start_utc": "2026-08-03T05:51:27Z",
+  "prior_paid_epoch_end_utc": "2026-08-03T05:47:36Z",
+  "estimate": {
+    "first_launch_through_stop_observation_seconds": 11376,
+    "first_launch_through_stop_observation_usd": 2.03188,
+    "prior_epoch_end_through_stop_observation_seconds": 11607,
+    "prior_epoch_end_through_stop_observation_usd": 2.073139166667,
+    "planned_prior_epoch_end_through_fetch_stop_ceiling_usd": 2.790084166667,
+    "within_planned_ceiling": true
+  },
+  "estimate_note": "Conservative upper bound through the first observation of $0.00/hr; authoritative charges require RunPod billing export."
+}

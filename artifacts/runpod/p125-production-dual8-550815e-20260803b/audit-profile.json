@@ -1,0 +1,78 @@
+{
+  "schema": "oneshotsea.runpod-search-audit-profile.v1",
+  "run_id": "p125-production-dual8-550815e-20260803b",
+  "run_kind": "production",
+  "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+  "seed": "202607300000",
+  "deployment_commit": "550815e0013361f5eee4cdb6b044f5cec1a9ae2c",
+  "binary_sha256": "550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737",
+  "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+  "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+  "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+  "verifier_sha256": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+  "python_executable": "/usr/bin/python3.8",
+  "python_sha256": "298a9e830ed52f36c299427565485d717d1ce0179c0597cc16560513eb780b06",
+  "remote_root": "/workspace/OneShotSEA",
+  "working_directory": "/workspace/OneShotSEA-550815e",
+  "executable_path": "/workspace/OneShotSEA-550815e/build/oneshotsea",
+  "worker_count": 2,
+  "global_range": {
+    "start": "1001551",
+    "end": "1002275",
+    "count": "724"
+  },
+  "wall_time_limit_seconds": 14400,
+  "option_policy": {
+    "--max-level": "401",
+    "--table-dir": "/workspace/OneShotSEA-550815e/data/modpoly/weber_f",
+    "--smooth-cache": "/workspace/OneShotSEA/caches/p125.cache",
+    "--curve-family": "x1-27",
+    "--x1-require-point4": "1",
+    "--curve-threads": "8",
+    "--sea-level-telemetry": "0",
+    "--schoof-fallback": "1",
+    "--skip-incomplete-curves": "0",
+    "--smooth-coordinators": "0",
+    "--checkpoint-every": "1",
+    "--trace-cap": "16",
+    "--sea-threads": "1",
+    "--smooth-threads": "1",
+    "--smooth-max-batch": "128",
+    "--smooth-root-auxiliary-bytes": "134217728",
+    "--smooth-build-segment-span": "4000000000",
+    "--assembly-attempts": "400",
+    "--max-certificate-candidates": "100000",
+    "--max-candidate-search-nodes": "1000000"
+  },
+  "allow_resume": false,
+  "allow_timeout_124": false,
+  "expected_attempt_statuses": [
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ],
+  "expected_checkpoint_next_indices": [
+    1001913,
+    1002275
+  ],
+  "minimum_completed_count": 724,
+  "expected_counters": {
+    "curves_attempted": 724,
+    "rejected_invalid_curve": 0,
+    "rejected_sea": 0,
+    "rejected_sound_early_abort": 724,
+    "rejected_heuristic": 0,
+    "rejected_certificate_assembly": 0,
+    "completed_without_certificate": 0,
+    "full_point_counts_completed": 405,
+    "candidates_reaching_smoothness": 724,
+    "certificates_found": 0
+  },
+  "minimum_aggregate_curves_per_hour": 201.0,
+  "maximum_worker_rss_bytes": 12884901888,
+  "maximum_swaps_sum": 0,
+  "require_all_assigned_ranges_exhausted": true
+}

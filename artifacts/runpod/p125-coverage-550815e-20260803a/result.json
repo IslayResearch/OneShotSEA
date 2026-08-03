@@ -8,7 +8,7 @@
     "x1_require_point_four": true
   },
   "duplicate_assignment_count": 128,
-  "first_gap": 1001551,
+  "first_gap": 1002275,
   "identity": {
     "binary_sha256": "550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737",
     "deployment_commit": "550815e0013361f5eee4cdb6b044f5cec1a9ae2c",
@@ -29,7 +29,7 @@
       "start": 1000827
     }
   ],
-  "ledger_sha256": "78071591e3a4435c6a252b57526abd140dcbf7df2e68a6ef6e82b51b2e6fd289",
+  "ledger_sha256": "014fe866f8a1f70af94b7cff55714b40cff9e0ad42307da7f13bfe7bbbd2c68c",
   "schedule_sha256s": [
     "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
     "84d0f0544f3ec7a15ccd357a7833a0bd635e6f732215db5d8303fbc91e4edf31"
@@ -115,13 +115,34 @@
       "path": "artifacts/runpod/p125-production-suffix-1001374-dual8-550815e-20260803a/audit-result.json",
       "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
       "sha256": "af9377d89533feeb4bd58646863b170379d47e09355dc239a502fd3493c01410"
+    },
+    {
+      "assigned_count": 724,
+      "certificate_count": 0,
+      "duplicate_count": 0,
+      "fresh_count": 724,
+      "intervals": [
+        {
+          "end": 1001913,
+          "start": 1001551
+        },
+        {
+          "end": 1002275,
+          "start": 1001913
+        }
+      ],
+      "kind": "runpod_search_audit",
+      "label": "next",
+      "path": "artifacts/runpod/p125-production-dual8-550815e-20260803b/audit-result.json",
+      "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+      "sha256": "206279dbe4d35218e791d0873033076b923b67062320587e58fc2d68f75f0c1a"
     }
   ],
-  "total_assigned_count": 852,
-  "unique_completed_count": 724,
+  "total_assigned_count": 1576,
+  "unique_completed_count": 1448,
   "unique_intervals": [
     {
-      "end": 1001551,
+      "end": 1002275,
       "start": 1000827
     }
   ]

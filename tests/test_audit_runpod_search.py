@@ -1212,16 +1212,16 @@ class SearchCoverageAuditTests(unittest.TestCase):
             self.assertEqual(result["sources"][0]["fresh_count"], 128)
             self.assertEqual(result["sources"][1]["fresh_count"], 418)
 
-    def test_retained_coverage_through_suffix_recomputes_exactly(self):
+    def test_retained_coverage_through_next_epoch_recomputes_exactly(self):
         parent = ROOT / "artifacts/runpod/p125-coverage-550815e-20260803a"
         ledger = parent / "ledger.json"
         retained = json.loads((parent / "result.json").read_text())
         recomputed = coverage_audit.audit(ledger)
         self.assertEqual(recomputed, retained)
         self.assertTrue(recomputed["accepted"])
-        self.assertEqual(recomputed["first_gap"], 1001551)
-        self.assertEqual(recomputed["total_assigned_count"], 852)
-        self.assertEqual(recomputed["unique_completed_count"], 724)
+        self.assertEqual(recomputed["first_gap"], 1002275)
+        self.assertEqual(recomputed["total_assigned_count"], 1576)
+        self.assertEqual(recomputed["unique_completed_count"], 1448)
         self.assertEqual(recomputed["duplicate_assignment_count"], 128)
         self.assertEqual(recomputed["certificate_count"], 0)
 

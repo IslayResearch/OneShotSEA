@@ -355,7 +355,9 @@ int run(const Options& options) {
         oneshotsea::TraceConstraints initial(options.prime);
         initial.refine_exact(prior.modulus(), prior.residue());
         oneshotsea::WeberSeaResult state{
-            initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+            initial, initial, {}, {}, {}, {}, std::nullopt, {},
+            oneshotsea::SeaCurveModelBinding{
+                sample.pair.curve.a(), sample.pair.curve.b()}};
         std::uint64_t previous_load_count =
             context.cached_level_load_count();
         std::uint64_t previous_load_us = context.cached_level_load_us();

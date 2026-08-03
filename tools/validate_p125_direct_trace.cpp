@@ -208,7 +208,9 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
     oneshotsea::TraceConstraints initial(prime);
     initial.refine_exact(prior.modulus(), prior.residue());
     oneshotsea::WeberSeaResult state{
-        initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+        initial, initial, {}, {}, {}, {}, std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{
+            sample.pair.curve.a(), sample.pair.curve.b()}};
 
     std::unique_ptr<oneshotsea::ClassicalDirectSeaContext> cached_context;
     std::uint64_t cached_total_us = 0U;

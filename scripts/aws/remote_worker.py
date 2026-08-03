@@ -90,6 +90,7 @@ def parser() -> argparse.ArgumentParser:
         default="weber-first",
     )
     result.add_argument("--classical-direct-levels")
+    result.add_argument("--classical-direct-cap-one-tail-count", type=int)
     result.add_argument("--classical-direct-max-prime-candidates", type=int)
     result.add_argument("--classical-direct-max-x-candidates", type=int)
     result.add_argument("--classical-direct-context-cache", type=Path)
@@ -172,6 +173,7 @@ def main() -> int:
 
     direct_values = (
         args.classical_direct_levels,
+        args.classical_direct_cap_one_tail_count,
         args.classical_direct_max_prime_candidates,
         args.classical_direct_max_x_candidates,
         args.classical_direct_context_cache,
@@ -202,6 +204,14 @@ def main() -> int:
                 for divisor in range(2, math.isqrt(value) + 1)
             ):
                 fail("direct levels must be distinct primes greater than three")
+        assert args.classical_direct_cap_one_tail_count is not None
+        if not 0 <= args.classical_direct_cap_one_tail_count < len(direct_levels):
+            fail("the classical direct cap-one tail must leave a nonempty prefix")
+        if (
+            args.classical_direct_cap_one_tail_count != 0
+            and (args.trace_cap if args.trace_cap is not None else 64) <= 1
+        ):
+            fail("the classical direct cap-one tail requires trace-cap greater than one")
         direct_positive = (
             ("classical-direct-max-prime-candidates",
              args.classical_direct_max_prime_candidates),
@@ -383,6 +393,8 @@ def main() -> int:
         direct_argv = [
             "--sea-strategy", "direct-first",
             "--classical-direct-levels", args.classical_direct_levels,
+            "--classical-direct-cap-one-tail-count",
+            str(args.classical_direct_cap_one_tail_count),
             "--classical-direct-max-prime-candidates",
             str(args.classical_direct_max_prime_candidates),
             "--classical-direct-max-x-candidates",

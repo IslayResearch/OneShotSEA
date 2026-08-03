@@ -478,9 +478,12 @@ class CliTests(unittest.TestCase):
             start = records[0]
             self.assertEqual(
                 start["classical_direct"]["policy"],
-                "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-v3",
+                "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-cap-one-tail-v4",
             )
             self.assertEqual(start["classical_direct"]["levels"], ["7", "11"])
+            self.assertEqual(
+                start["classical_direct"]["cap_one_tail_count"], "0",
+            )
             self.assertEqual(
                 start["classical_direct"]["maximum_prime_candidates"],
                 "1000000",
@@ -664,13 +667,14 @@ class CliTests(unittest.TestCase):
                 "--worker-id", 0,
                 "--worker-count", 1,
                 "--max-level", 5,
-                "--trace-cap", 1,
+                "--trace-cap", 4,
                 "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
                 "--smooth-cache", root / "direct-first-smooth.cache",
                 "--checkpoint", root / "direct-first-checkpoint.json",
                 "--certificate-out", root / "direct-first-certificate.txt",
                 "--sea-strategy", "direct-first",
                 "--classical-direct-levels", "7,11",
+                "--classical-direct-cap-one-tail-count", 1,
                 "--classical-direct-context-cache", cache,
                 "--classical-direct-context-sha256", digest,
                 "--classical-direct-context-max-file-bytes",
@@ -687,6 +691,21 @@ class CliTests(unittest.TestCase):
             ]
             self.assertEqual(direct_records[0]["sea_strategy"],
                              "direct-first")
+            self.assertEqual(
+                direct_records[0]["classical_direct"]
+                    ["cap_one_tail_count"],
+                "1",
+            )
+            live_direct_levels = [
+                record for record in direct_records
+                if record["schema"] ==
+                "oneshotsea.search-classical-direct-level.v1"
+            ]
+            self.assertEqual(
+                [(record["pass"], record["ell"])
+                 for record in live_direct_levels],
+                [("1", "7"), ("2", "11")],
+            )
             direct_curve = next(
                 record for record in direct_records
                 if record["schema"] == "oneshotsea.search-curve.v1"
@@ -694,14 +713,39 @@ class CliTests(unittest.TestCase):
             self.assertEqual(direct_curve["sea_strategy"], "direct-first")
             self.assertEqual(
                 direct_curve["direct_first"],
-                {"attempts": "1", "completions": "1", "fallbacks": "0"},
+                {"attempts": "2", "completions": "2", "fallbacks": "0"},
             )
             self.assertEqual(direct_curve["sea_passes"], "0")
+            self.assertEqual(
+                [(level["pass"], level["ell"])
+                 for level in direct_curve["classical_direct_levels"]],
+                [("1", "7"), ("2", "11")],
+            )
             self.assertGreater(
                 int(direct_curve["timings_us"]["direct_first"]), 0,
             )
             self.assertEqual(
                 direct_curve["timings_us"]["direct_first_fallback"], "0",
+            )
+
+            invalid_tail_common = (
+                "search", "--p", 101, "--seed", 4,
+                "--max-level", 5,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--sea-strategy", "direct-first",
+                "--classical-direct-levels", "7,11",
+                "--classical-direct-context-cache", cache,
+                "--classical-direct-context-sha256", digest,
+            )
+            self.assert_rejected(
+                *invalid_tail_common,
+                "--trace-cap", 16,
+                "--classical-direct-cap-one-tail-count", 2,
+            )
+            self.assert_rejected(
+                *invalid_tail_common,
+                "--trace-cap", 1,
+                "--classical-direct-cap-one-tail-count", 1,
             )
 
             strict_default = self.run_cli(

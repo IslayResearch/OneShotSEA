@@ -524,6 +524,34 @@ void test_prepared_classical_context_equivalence() {
               sea_context.preparation_us() != 0U,
           "prepared SEA schedule constructs one level lazily and reuses it across curves");
 
+    const auto prefix_context =
+        oneshotsea::make_classical_direct_sea_context(
+            field, {7U, 11U}, 100000U, 1000000U);
+    oneshotsea::TraceConstraints prefix_initial(field.modulus());
+    oneshotsea::WeberSeaResult prefix_state{
+        prefix_initial, prefix_initial, {}, {}, {}, {}, std::nullopt, {}};
+    oneshotsea::extend_sea_with_prepared_classical_direct_prefix(
+        elkies_curve, prefix_state, prefix_context, 1U, 16U);
+    check(prefix_state.classical_direct_levels.size() == 1U &&
+              prefix_state.classical_direct_levels.front().ell == 7U &&
+              prefix_state.traces.has_value() &&
+              prefix_state.traces->size() > 1U &&
+              prefix_context.prepared_context_count() == 1U,
+          "prepared prefix evaluates only the declared early schedule");
+    oneshotsea::extend_sea_with_prepared_classical_direct_prefix(
+        elkies_curve, prefix_state, prefix_context, 2U, 1U);
+    check(prefix_state.classical_direct_levels.size() == 2U &&
+              prefix_state.classical_direct_levels.back().ell == 11U &&
+              !prefix_state.traces.has_value() &&
+              prefix_context.prepared_context_count() == 2U,
+          "a larger prepared prefix retains early evidence, evaluates only its suffix, and clears a stale cap-N enumeration");
+    check(rejects_invalid_argument_containing([&] {
+              oneshotsea::extend_sea_with_prepared_classical_direct_prefix(
+                  elkies_curve, prefix_state, prefix_context, 3U, 1U);
+          }, "prefix exceeds") &&
+              prefix_state.classical_direct_levels.size() == 2U,
+          "prepared prefix rejects an out-of-schedule boundary before state mutation");
+
     const auto concurrent_context =
         oneshotsea::make_classical_direct_sea_context(
             field, {7U}, 100000U, 1000000U, 4U);

@@ -22,7 +22,7 @@ namespace oneshotsea {
 inline constexpr char kRareSchoofFallbackPolicy[] =
     "retained-state-exact-schoof-3,5,7,11,13,17,19,23,29,31,37-v2";
 inline constexpr char kClassicalDirectSeaPolicy[] =
-    "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-v3";
+    "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-cap-one-tail-v4";
 
 // A caller-supplied exact congruence for the Frobenius trace. The modulus may
 // be composite, but must fit uint64, be coprime to the field characteristic,
@@ -265,6 +265,9 @@ private:
     friend void extend_sea_with_prepared_classical_direct(
         const Curve&, WeberSeaResult&, const ClassicalDirectSeaContext&,
         std::size_t, const ClassicalDirectSeaProgress&);
+    friend void extend_sea_with_prepared_classical_direct_prefix(
+        const Curve&, WeberSeaResult&, const ClassicalDirectSeaContext&,
+        std::size_t, std::size_t, const ClassicalDirectSeaProgress&);
     friend class DirectContextCacheCodec;
 
     struct LevelSlot;
@@ -310,6 +313,16 @@ void extend_sea_with_prepared_classical_direct(
     const Curve& curve, WeberSeaResult& result,
     const ClassicalDirectSeaContext& context,
     std::size_t trace_cap,
+    const ClassicalDirectSeaProgress& progress = {});
+
+// Evaluate only the first level_count entries of a schedule-bound prepared
+// context. A later call with a larger prefix retains and extends the same
+// certified state. Search uses this to defer measured direct levels until a
+// cap-N smoothness survivor needs the stricter unique-trace gate.
+void extend_sea_with_prepared_classical_direct_prefix(
+    const Curve& curve, WeberSeaResult& result,
+    const ClassicalDirectSeaContext& context,
+    std::size_t level_count, std::size_t trace_cap,
     const ClassicalDirectSeaProgress& progress = {});
 
 }  // namespace oneshotsea

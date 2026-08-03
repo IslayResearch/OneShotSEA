@@ -1220,14 +1220,30 @@ void extend_sea_with_prepared_classical_direct(
     const ClassicalDirectSeaContext& context,
     std::size_t trace_cap,
     const ClassicalDirectSeaProgress& progress) {
+    extend_sea_with_prepared_classical_direct_prefix(
+        curve, result, context, context.levels_.size(), trace_cap, progress);
+}
+
+void extend_sea_with_prepared_classical_direct_prefix(
+    const Curve& curve, WeberSeaResult& result,
+    const ClassicalDirectSeaContext& context,
+    std::size_t level_count, std::size_t trace_cap,
+    const ClassicalDirectSeaProgress& progress) {
     if (context.target_modulus_ != curve.field().modulus() ||
         context.levels_.size() != context.level_slots_.size()) {
         throw std::invalid_argument(
             "prepared classical direct SEA context belongs to another field or is incomplete");
     }
+    if (level_count > context.levels_.size()) {
+        throw std::invalid_argument(
+            "prepared classical direct SEA prefix exceeds its schedule");
+    }
+    const std::vector<std::uint64_t> levels(
+        context.levels_.begin(),
+        context.levels_.begin() + static_cast<std::ptrdiff_t>(level_count));
     std::shared_ptr<const ClassicalDirectLevelContext> active_context;
     extend_classical_direct_impl(
-        curve, result, context.levels_, trace_cap,
+        curve, result, levels, trace_cap,
         [&](std::size_t level_index) {
             active_context = context.level_context(level_index);
         },

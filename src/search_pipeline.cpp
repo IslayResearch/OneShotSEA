@@ -226,7 +226,7 @@ private:
             0x391c0cb3U, 0x4ed8aa4aU, 0x5b9cca4fU, 0x682e6ff3U,
             0x748f82eeU, 0x78a5636fU, 0x84c87814U, 0x8cc70208U,
             0x90befffaU, 0xa4506cebU, 0xbef9a3f7U, 0xc67178f2U,
-        };
+            };
         std::array<std::uint32_t, 64> words{};
         for (std::size_t index = 0; index < 16U; ++index) {
             words[index] = load_be(block + 4U * index);
@@ -318,6 +318,21 @@ void validate_classical_direct_config(const SearchPipelineConfig& config) {
          config.classical_direct_maximum_x_candidates_per_surface == 0U)) {
         throw std::invalid_argument(
             "classical direct SEA execution caps must be positive");
+    }
+    if (config.classical_direct_cap_one_tail_count != 0U) {
+        if (config.sea_strategy != SearchSeaStrategy::direct_first) {
+            throw std::invalid_argument(
+                "a cap-one classical direct tail requires direct-first SEA");
+        }
+        if (config.early_trace_cap <= 1U) {
+            throw std::invalid_argument(
+                "a cap-one classical direct tail requires an early trace cap greater than one");
+        }
+        if (config.classical_direct_cap_one_tail_count >=
+            config.classical_direct_levels.size()) {
+            throw std::invalid_argument(
+                "the cap-one classical direct tail must leave a nonempty early schedule prefix");
+        }
     }
 }
 
@@ -1266,7 +1281,12 @@ static SearchCurveReport process_search_curve_impl(
 
     std::size_t classical_direct_pass = 0U;
     auto extend_classical_direct = [&](WeberSeaResult& result,
-                                       std::size_t trace_cap) {
+                                       std::size_t trace_cap,
+                                       std::size_t level_count) {
+        if (level_count > config.classical_direct_levels.size()) {
+            throw std::logic_error(
+                "classical direct prefix exceeds the configured schedule");
+        }
         stage_start = Clock::now();
         ++classical_direct_pass;
         ++report.classical_direct_passes;
@@ -1294,16 +1314,19 @@ static SearchCurveReport process_search_curve_impl(
                         global_index,
                         report.classical_direct_levels.back());
                 }
-            };
+        };
         if (prepared_classical_direct_context) {
-            extend_sea_with_prepared_classical_direct(
+            extend_sea_with_prepared_classical_direct_prefix(
                 pair.curve, result,
-                *prepared_classical_direct_context, trace_cap,
+                *prepared_classical_direct_context, level_count, trace_cap,
                 progress);
         } else {
+            const std::vector<std::uint64_t> levels(
+                config.classical_direct_levels.begin(),
+                config.classical_direct_levels.begin() +
+                    static_cast<std::ptrdiff_t>(level_count));
             extend_sea_with_classical_direct(
-                pair.curve, result, config.classical_direct_levels,
-                trace_cap,
+                pair.curve, result, levels, trace_cap,
                 config.classical_direct_maximum_prime_candidates,
                 config.classical_direct_maximum_x_candidates_per_surface,
                 progress);
@@ -1328,12 +1351,17 @@ static SearchCurveReport process_search_curve_impl(
 
     bool initial_weber_pass_ran = false;
     bool initial_weber_fit_cap = false;
+    const std::size_t classical_direct_early_level_count =
+        config.classical_direct_levels.size() -
+        config.classical_direct_cap_one_tail_count;
     WeberSeaResult sea = [&]() {
         if (config.sea_strategy == SearchSeaStrategy::direct_first) {
             ++report.direct_first_attempts;
             sea_execution_phase = SeaExecutionPhase::direct_first;
             WeberSeaResult direct = prior_only_sea_state();
-            extend_classical_direct(direct, config.early_trace_cap);
+            extend_classical_direct(
+                direct, config.early_trace_cap,
+                classical_direct_early_level_count);
             if (direct.traces.has_value()) {
                 ++report.direct_first_completions;
                 return direct;
@@ -1362,7 +1390,11 @@ static SearchCurveReport process_search_curve_impl(
     }
     if (!sea.traces.has_value() &&
         !config.classical_direct_levels.empty()) {
-        extend_classical_direct(sea, config.early_trace_cap);
+        extend_classical_direct(
+            sea, config.early_trace_cap,
+            config.sea_strategy == SearchSeaStrategy::direct_first
+                ? classical_direct_early_level_count
+                : config.classical_direct_levels.size());
     }
     if (!sea.traces.has_value() && config.enable_schoof_fallback) {
         extend_schoof(sea, config.early_trace_cap);
@@ -1406,17 +1438,42 @@ static SearchCurveReport process_search_curve_impl(
         // The early enumeration was complete, so the rejection above was
         // sound.  A survivor must now meet the stricter unique-trace gate.
         if (!config.classical_direct_levels.empty()) {
-            // If the bounded Weber pass itself produced the complete early
-            // set, it may have stopped before exhausting the authenticated
-            // table schedule.  Run the ordinary cap-one Weber pass before
-            // consulting the optional direct tail.  Otherwise the first
-            // Weber pass exhausted its tables and the retained direct state
-            // is the only state that should be extended.
             if (config.sea_strategy == SearchSeaStrategy::direct_first &&
+                config.classical_direct_cap_one_tail_count != 0U) {
+                // The cap-N set has already survived sound smoothness
+                // screening. Only now materialize the measured suffix, before
+                // paying for additional Weber levels at the unique-trace cap.
+                ++report.direct_first_attempts;
+                sea_execution_phase = SeaExecutionPhase::direct_first;
+                extend_classical_direct(
+                    sea, 1U, config.classical_direct_levels.size());
+                if (sea.traces.has_value()) {
+                    ++report.direct_first_completions;
+                } else {
+                    ++report.direct_first_fallbacks;
+                    sea_execution_phase =
+                        SeaExecutionPhase::direct_first_fallback;
+                    if (!initial_weber_pass_ran || initial_weber_fit_cap) {
+                        sea = run_sea(1U, &sea);
+                    }
+                    if (!sea.traces.has_value() &&
+                        config.enable_schoof_fallback) {
+                        extend_schoof(sea, 1U);
+                    }
+                }
+            // Without a deferred suffix, preserve the original direct-first
+            // cap-one continuation order. If the bounded Weber pass itself
+            // produced the complete early set, it may have stopped before
+            // exhausting the authenticated table schedule. Otherwise the
+            // first Weber pass exhausted its tables and only retained direct
+            // or Schoof evidence can extend the state.
+            } else if (
+                config.sea_strategy == SearchSeaStrategy::direct_first &&
                 !initial_weber_pass_ran) {
                 ++report.direct_first_attempts;
                 sea_execution_phase = SeaExecutionPhase::direct_first;
-                extend_classical_direct(sea, 1U);
+                extend_classical_direct(
+                    sea, 1U, config.classical_direct_levels.size());
                 if (sea.traces.has_value()) {
                     ++report.direct_first_completions;
                 } else {
@@ -1425,7 +1482,9 @@ static SearchCurveReport process_search_curve_impl(
                         SeaExecutionPhase::direct_first_fallback;
                     sea = run_sea(1U, &sea);
                     if (!sea.traces.has_value()) {
-                        extend_classical_direct(sea, 1U);
+                        extend_classical_direct(
+                            sea, 1U,
+                            config.classical_direct_levels.size());
                     }
                     if (!sea.traces.has_value() &&
                         config.enable_schoof_fallback) {
@@ -1440,7 +1499,8 @@ static SearchCurveReport process_search_curve_impl(
                         : run_sea(1U, nullptr);
                 }
                 if (!sea.traces.has_value()) {
-                    extend_classical_direct(sea, 1U);
+                    extend_classical_direct(
+                        sea, 1U, config.classical_direct_levels.size());
                 }
                 if (!sea.traces.has_value() &&
                     config.enable_schoof_fallback) {
@@ -2482,6 +2542,8 @@ std::string search_schedule_sha256(
             canonical << config.classical_direct_levels[index];
         }
         canonical << '\n'
+                  << "classical_direct_cap_one_tail_count="
+                  << config.classical_direct_cap_one_tail_count << '\n'
                   << "classical_direct_maximum_prime_candidates="
                   << config.classical_direct_maximum_prime_candidates << '\n'
                   << "classical_direct_maximum_x_candidates_per_surface="

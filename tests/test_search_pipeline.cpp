@@ -1058,6 +1058,72 @@ void test_checkpoint_bound_direct_first_strategy() {
                       .constraint_modulus % 7 == 0,
           "direct-first cap-N completion retains its direct evidence through the cap-one Weber fallback");
 
+    oneshotsea::SearchPipelineConfig cap_one_tail_config = small_config();
+    cap_one_tail_config.early_trace_cap = 4U;
+    cap_one_tail_config.classical_direct_levels = {7U, 11U};
+    cap_one_tail_config.classical_direct_cap_one_tail_count = 1U;
+    cap_one_tail_config.sea_strategy =
+        oneshotsea::SearchSeaStrategy::direct_first;
+    cap_one_tail_config.sea_threads = 1U;
+    const CachedDirectRun cap_one_tail = run_one_cached_direct_search(
+        cap_one_tail_config, 1U, temporary.path(), "cap-one-tail");
+    check(cap_one_tail.report.direct_first_attempts == 2U &&
+              cap_one_tail.report.direct_first_completions == 2U &&
+              cap_one_tail.report.direct_first_fallbacks == 0U &&
+              cap_one_tail.report.sea_passes == 0U &&
+              cap_one_tail.report.classical_direct_passes == 2U &&
+              cap_one_tail.report.classical_direct_levels.size() == 2U &&
+              cap_one_tail.report.classical_direct_levels[0].pass == 1U &&
+              cap_one_tail.report.classical_direct_levels[0].ell == 7U &&
+              cap_one_tail.report.classical_direct_levels[1].pass == 2U &&
+              cap_one_tail.report.classical_direct_levels[1].ell == 11U &&
+              cap_one_tail.report.exact_trace ==
+                  cap_transition.report.exact_trace,
+          "cap-one direct suffix is deferred until a cap-N smooth survivor and completes before Weber continuation");
+
+    oneshotsea::SearchPipelineConfig no_tail_identity_config =
+        cap_one_tail_config;
+    cap_one_tail_config.expected_classical_direct_context_sha256 =
+        cap_one_tail.direct_cache_sha256;
+    no_tail_identity_config.expected_classical_direct_context_sha256 =
+        cap_one_tail.direct_cache_sha256;
+    no_tail_identity_config.classical_direct_cap_one_tail_count = 0U;
+    const std::string tail_identity_digest(64U, 'f');
+    const auto cap_one_tail_identity = oneshotsea::make_search_identity(
+        cap_one_tail_config, {1U, 2U}, 0U, 1U, tail_identity_digest,
+        tail_identity_digest, "cap-one-tail-identity-test-v1");
+    const auto no_tail_identity = oneshotsea::make_search_identity(
+        no_tail_identity_config, {1U, 2U}, 0U, 1U,
+        tail_identity_digest, tail_identity_digest,
+        "cap-one-tail-identity-test-v1");
+    check(cap_one_tail_identity.schedule_sha256 !=
+              no_tail_identity.schedule_sha256,
+          "cap-one direct suffix boundary is bound into checkpoint identity");
+
+    const auto rejects_tail_config = [&](oneshotsea::SearchPipelineConfig value) {
+        try {
+            (void)oneshotsea::make_search_identity(
+                value, {1U, 2U}, 0U, 1U, tail_identity_digest,
+                tail_identity_digest, "invalid-cap-one-tail-test-v1");
+            return false;
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+    };
+    oneshotsea::SearchPipelineConfig whole_schedule_tail =
+        cap_one_tail_config;
+    whole_schedule_tail.classical_direct_cap_one_tail_count = 2U;
+    oneshotsea::SearchPipelineConfig cap_one_without_early_screen =
+        cap_one_tail_config;
+    cap_one_without_early_screen.early_trace_cap = 1U;
+    oneshotsea::SearchPipelineConfig weber_first_tail = cap_one_tail_config;
+    weber_first_tail.sea_strategy =
+        oneshotsea::SearchSeaStrategy::weber_first;
+    check(rejects_tail_config(whole_schedule_tail) &&
+              rejects_tail_config(cap_one_without_early_screen) &&
+              rejects_tail_config(weber_first_tail),
+          "cap-one direct suffix requires direct-first, cap-N screening, and a nonempty early prefix");
+
     oneshotsea::SearchPipelineConfig fallback_config = small_config();
     fallback_config.early_trace_cap = 1U;
     fallback_config.classical_direct_levels = {5U};

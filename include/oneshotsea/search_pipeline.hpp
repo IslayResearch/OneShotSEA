@@ -53,21 +53,28 @@ struct SearchPipelineConfig {
     // larger cap can make an early exact screen slower than finishing SEA.
     std::size_t early_trace_cap = 64;
     // The published default exhausts authenticated Weber tables before the
-    // optional direct tail. Direct-first instead starts from only the exact
-    // family trace prior and an authenticated cached direct schedule. If that
-    // state cannot complete the requested trace cap, the ordinary Weber pass
-    // continues the same certified constraints and skips duplicate levels.
+    // optional direct schedule. Direct-first instead starts from only the
+    // exact family trace prior and an authenticated cached direct schedule.
+    // If that state cannot complete the requested trace cap, the ordinary
+    // Weber pass continues the same certified constraints and skips duplicate
+    // levels.
     SearchSeaStrategy sea_strategy = SearchSeaStrategy::weber_first;
     // Opt into the fixed retained-state exact-Schoof tail after all configured
     // Weber levels fail to fit the requested trace cap. This is semantic and
     // is bound into the resumable schedule identity.
     bool enable_schoof_fallback = false;
-    // Optional callback-free classical-j direct SEA tail, evaluated after the
-    // authenticated Weber schedule and before exact Schoof fallback.  The
-    // ordered, distinct prime list and both failure caps are semantic and
-    // are bound into the resumable schedule identity.  An empty list retains
-    // the published table-backed behavior.
+    // Optional callback-free classical-j direct SEA schedule. The ordered,
+    // distinct prime list and both failure caps are semantic and are bound
+    // into the resumable schedule identity. An empty list retains the
+    // published table-backed behavior.
     std::vector<std::uint64_t> classical_direct_levels;
+    // In direct-first mode, defer this many levels from the end of the ordered
+    // schedule until a complete cap-N trace set has survived smoothness and
+    // needs the unique-trace gate. This prevents measured late direct levels
+    // from being charged to ordinary sound cap-N rejections. Zero preserves
+    // the full-schedule first pass. A nonzero value is semantic, requires an
+    // early_trace_cap greater than one, and must leave a nonempty early prefix.
+    std::size_t classical_direct_cap_one_tail_count = 0U;
     std::uint64_t classical_direct_maximum_prime_candidates = 1000000U;
     std::uint64_t classical_direct_maximum_x_candidates_per_surface =
         1000000U;

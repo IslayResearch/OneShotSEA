@@ -20,6 +20,7 @@ curve_family='weber-f'
 x1_require_point4=0
 sea_strategy='weber-first'
 classical_direct_levels=''
+classical_direct_cap_one_tail_count=0
 classical_direct_maximum_prime_candidates=1000000
 classical_direct_maximum_x_candidates=1000000
 classical_direct_context_cache=''
@@ -27,6 +28,7 @@ classical_direct_context_sha256=''
 classical_direct_context_max_file_bytes=4294967296
 classical_direct_cache_resident_bytes=0
 direct_option_seen=0
+trace_cap=''
 curve_threads=1
 sea_level_telemetry=1
 schoof_fallback=0
@@ -56,6 +58,8 @@ Options:
   --x1-require-point4 0|1             Require validated X1 point of order four
   --sea-strategy STRATEGY             weber-first or direct-first
   --classical-direct-levels CSV       Ordered direct-level schedule
+  --classical-direct-cap-one-tail-count N
+                                        Deferred suffix used only after cap-N screening
   --classical-direct-max-prime-candidates N
   --classical-direct-max-x-candidates N
   --classical-direct-context-cache PATH
@@ -141,6 +145,9 @@ while (( $# )); do
       shift 2 ;;
     --classical-direct-levels)
       classical_direct_levels="${2:-}"; direct_option_seen=1; shift 2 ;;
+    --classical-direct-cap-one-tail-count)
+      classical_direct_cap_one_tail_count="${2:-}"
+      direct_option_seen=1; shift 2 ;;
     --classical-direct-max-prime-candidates)
       classical_direct_maximum_prime_candidates="${2:-}"
       direct_option_seen=1; shift 2 ;;
@@ -177,7 +184,9 @@ while (( $# )); do
     --max-curves)
       max_curves="${2:-}"; append_positive_uint_option max-curves "$max_curves"; shift 2 ;;
     --checkpoint-every) append_positive_uint_option checkpoint-every "${2:-}"; shift 2 ;;
-    --trace-cap) append_positive_uint_option trace-cap "${2:-}"; shift 2 ;;
+    --trace-cap)
+      trace_cap="${2:-}"
+      append_positive_uint_option trace-cap "$trace_cap"; shift 2 ;;
     --smooth-threads) append_uint_option smooth-threads "${2:-}"; shift 2 ;;
     --smooth-max-batch) append_positive_uint_option smooth-max-batch "${2:-}"; shift 2 ;;
     --smooth-root-auxiliary-bytes) append_positive_uint_option smooth-root-auxiliary-bytes "${2:-}"; shift 2 ;;
@@ -214,6 +223,8 @@ fi
 require_cmd python3
 validate_positive_uint classical-direct-max-prime-candidates \
   "$classical_direct_maximum_prime_candidates"
+validate_uint classical-direct-cap-one-tail-count \
+  "$classical_direct_cap_one_tail_count"
 validate_positive_uint classical-direct-max-x-candidates \
   "$classical_direct_maximum_x_candidates"
 validate_positive_uint classical-direct-context-max-file-bytes \
@@ -229,23 +240,31 @@ if [[ "$sea_strategy" == direct-first ]]; then
     die '--sea-strategy direct-first requires --classical-direct-context-cache'
   [[ "$classical_direct_context_sha256" =~ ^[0-9a-f]{64}$ ]] ||
     die '--sea-strategy direct-first requires a trusted direct-cache SHA-256'
-  if ! python3 - "$classical_direct_levels" <<'PY'
+  if ! python3 - "$classical_direct_levels" \
+      "$classical_direct_cap_one_tail_count" <<'PY'
 import math
 import re
 import sys
 
-text = sys.argv[1]
+text, tail_text = sys.argv[1:]
 if not re.fullmatch(r"[1-9][0-9]*(?:,[1-9][0-9]*)*", text):
     raise SystemExit(1)
 values = [int(value) for value in text.split(",")]
+tail = int(tail_text)
 if len(values) != len(set(values)) or any(value > (1 << 32) - 1 for value in values):
+    raise SystemExit(1)
+if tail < 0 or tail >= len(values):
     raise SystemExit(1)
 for value in values:
     if value <= 3 or any(value % divisor == 0 for divisor in range(2, math.isqrt(value) + 1)):
         raise SystemExit(1)
 PY
   then
-    die 'classical-direct-levels must be ordered distinct canonical decimal primes greater than three'
+    die 'classical direct levels must be ordered distinct primes and the cap-one tail must leave a nonempty prefix'
+  fi
+  if (( 10#$classical_direct_cap_one_tail_count != 0 )) &&
+      [[ "$trace_cap" =~ ^0*1$ ]]; then
+    die '--classical-direct-cap-one-tail-count requires --trace-cap greater than one'
   fi
 else
   (( direct_option_seen == 0 )) ||
@@ -319,6 +338,8 @@ if [[ "$sea_strategy" == direct-first ]]; then
   remote_args+=(
     --sea-strategy direct-first
     --classical-direct-levels "$classical_direct_levels"
+    --classical-direct-cap-one-tail-count \
+      "$classical_direct_cap_one_tail_count"
     --classical-direct-max-prime-candidates \
       "$classical_direct_maximum_prime_candidates"
     --classical-direct-max-x-candidates \

@@ -1,0 +1,28 @@
+{
+  "schema": "oneshotsea.p125-direct-cache-builds.v1",
+  "mid8": {
+    "levels": [61, 67, 71, 73, 79, 83, 89, 97],
+    "maximum_prime_candidates": 10000000,
+    "maximum_x_candidates_per_surface": 1000000,
+    "thread_limit": 1,
+    "max_file_bytes": 1000000000,
+    "preparation_us": 143375718,
+    "elapsed_us": 144920889,
+    "matrix_payload_bytes": 140567632,
+    "file_bytes": 140599516,
+    "sha256": "b4543589450c429516c95c5de575be853b6d5e7b5a4cdaabfdcf119a4b15d450"
+  },
+  "selected20": {
+    "levels": [7, 5, 11, 13, 19, 17, 23, 29, 31, 37, 41, 43, 47, 53, 67, 71, 79, 61, 73, 59],
+    "maximum_prime_candidates": 10000000,
+    "maximum_x_candidates_per_surface": 1000000,
+    "thread_limit": 1,
+    "max_file_bytes": 1000000000,
+    "preparation_us": 122128920,
+    "elapsed_us": 123334646,
+    "matrix_payload_bytes": 94555776,
+    "file_bytes": 94601556,
+    "sha256": "d9848275c04d77c5a40f96eb06f113100ebc7a1b3ac0bc6c15d207677be41a53"
+  },
+  "retention": "cache files are external authenticated inputs and are not duplicated in this bundle"
+}

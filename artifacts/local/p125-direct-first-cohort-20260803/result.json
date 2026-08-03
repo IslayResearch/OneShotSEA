@@ -1,0 +1,142 @@
+{
+  "schema": "oneshotsea.p125-direct-first-cohort.v1",
+  "date": "2026-08-03",
+  "implementation_commit": "8a9a08317eefb5e27246c5decea27adc8e1c2962",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416,
+    "seed": "202607300000",
+    "range_start": "2000001",
+    "range_end": "2000005",
+    "curve_family": "x1-27",
+    "require_point4": true,
+    "sea_threads": 1,
+    "curve_threads": 1
+  },
+  "authenticated_inputs": {
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "weber_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "low15_cache_sha256": "b31c858c5398d7b284ad7b003ce4647211de8dec0412421f90ed226f2926ecfd",
+    "mid8_cache_sha256": "b4543589450c429516c95c5de575be853b6d5e7b5a4cdaabfdcf119a4b15d450",
+    "selected20_cache_sha256": "d9848275c04d77c5a40f96eb06f113100ebc7a1b3ac0bc6c15d207677be41a53"
+  },
+  "cap64_matched_cohort": {
+    "weber_first": {
+      "sea_us": 131095410,
+      "total_us": 205949199,
+      "weber_levels": 245,
+      "sound_rejections": 4
+    },
+    "low15_direct_first": {
+      "sea_us": 121318986,
+      "total_us": 163926039,
+      "weber_levels": 176,
+      "direct_levels": 60,
+      "direct_us": 4615368,
+      "sound_rejections": 4
+    },
+    "sea_speedup": 1.0805844519669823,
+    "sea_reduction_percent": 7.457487642015842,
+    "weber_levels_saved": 69,
+    "total_time_claimed": false,
+    "total_time_nonclaim_reason": "second-arm smooth-cache warmth"
+  },
+  "cap16_coverage": {
+    "weber_first": {
+      "statuses": [
+        "sound_smoothness_reject",
+        "sound_smoothness_reject",
+        "sound_smoothness_reject",
+        "sea_level_limit"
+      ],
+      "weber_levels": [55, 57, 59, 77],
+      "effective_candidates": [1, 1, 1, 64],
+      "cursor_complete": false,
+      "next_index": "2000004"
+    },
+    "low15_direct_first": {
+      "statuses": [
+        "sound_smoothness_reject",
+        "sound_smoothness_reject",
+        "sound_smoothness_reject",
+        "sound_smoothness_reject"
+      ],
+      "weber_levels": [38, 39, 42, 58],
+      "direct_levels_per_curve": 15,
+      "effective_candidates": [6, 1, 1, 2],
+      "cursor_complete": true
+    },
+    "selected20_direct_first": {
+      "statuses": [
+        "sound_smoothness_reject",
+        "sound_smoothness_reject",
+        "sound_smoothness_reject",
+        "sound_smoothness_reject"
+      ],
+      "weber_levels": [33, 33, 35, 52],
+      "direct_levels_per_curve": 20,
+      "effective_candidates": [1, 13, 4, 5],
+      "cursor_complete": true,
+      "weber_levels_saved_vs_low15": 24,
+      "net_direct_plus_weber_level_reduction_vs_low15": 4
+    }
+  },
+  "selected_schedule": {
+    "levels": [7, 5, 11, 13, 19, 17, 23, 29, 31, 37, 41, 43, 47, 53, 67, 71, 79, 61, 73, 59],
+    "added_mid_levels": [67, 71, 79, 61, 73],
+    "excluded_mid_levels": [83, 89, 97],
+    "added_expected_information_bits_per_curve": 21.800910375,
+    "added_warm_evaluation_us_per_curve": 2776751.875,
+    "cache_bytes": 94601556,
+    "matrix_payload_bytes": 94555776,
+    "preparation_us": 122128920,
+    "elapsed_us": 123334646
+  },
+  "paired_thermal_control_index_2000003": {
+    "selected_a": {
+      "generation_us": 2428114,
+      "direct_us": 5145512,
+      "weber_continuation_us": 31619920,
+      "sea_us": 36765432
+    },
+    "low": {
+      "generation_us": 2407764,
+      "direct_us": 2582720,
+      "weber_continuation_us": 37639762,
+      "sea_us": 40222482
+    },
+    "selected_b": {
+      "generation_us": 2433365,
+      "direct_us": 6343829,
+      "weber_continuation_us": 32843500,
+      "sea_us": 39187329
+    },
+    "maximum_generation_spread_percent": 1.0632686592207543,
+    "mean_selected_sea_us": 37976380.5,
+    "low_over_mean_selected_sea_speedup": 1.0591446965305185,
+    "claim_scope": "one curve bracketed thermal control, not throughput confidence interval"
+  },
+  "independent_pari": {
+    "version": "2.17.4",
+    "executable_sha256": "cb8372f5159eb8c42f823479bcb0d4e096e149751a6cf59421d1dbf03f9d9dee",
+    "signed_traces": {
+      "2000001": "-498621923547174620050105080065695461058932825132695425058035790",
+      "2000002": "312744557074493258005540218670034986285435355679693042023392238",
+      "2000003": "-252845884365417830567895303231394093497235790636298489485509474",
+      "2000004": "432966650303160993124127306120296021107647349914430129038843294"
+    },
+    "native_selected_candidate_counts": [1, 13, 4, 5],
+    "all_traces_present": true,
+    "all_native_singletons_agree": true,
+    "production_dependency": false
+  },
+  "claim_scope": {
+    "bounded_cohort": true,
+    "sound_level_limit_recovery": true,
+    "independent_exact_point_counts": true,
+    "certificate_found": false,
+    "certificate_yield_measured": false,
+    "cm_crossover_measured": false,
+    "asymptotic_exponent_proved": false
+  }
+}

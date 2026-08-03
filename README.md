@@ -55,7 +55,7 @@ a production direct-level schedule automatically.
 
 ## Current evidence
 
-Two retained p125 results exercise the implementation at 416 bits:
+Four retained p125 results exercise the implementation at 416 bits:
 
 1. A 30-level direct run through `ell=271` reconstructed a unique trace. Every
    direct residue agreed with the authenticated table-backed route, and an
@@ -68,14 +68,23 @@ Two retained p125 results exercise the implementation at 416 bits:
    an independent PARI/GP 2.17.4 `ellcard` count both reconstructed the same
    unique trace. See the
    [hybrid A/B evidence](artifacts/local/p125-direct-first-hybrid-20260803/README.md).
+3. A four-curve cap-16 cohort found a coverage benefit, not only a timing
+   benefit. Weber-only exhausted all 77 usable levels on one curve with 64
+   candidates and failed closed. A measured 20-level direct-first schedule
+   completed all four sound screenings with candidate counts 1, 13, 4, and 5.
+   Exact PARI counts of the generated curve models lie in every retained set.
+   The matched cap-64 cohort reduced aggregate SEA time by 1.081x; a bracketed
+   same-curve cap-16 check measured 1.059x. See the
+   [four-curve cohort evidence](artifacts/local/p125-direct-first-cohort-20260803/README.md).
+4. The Atkin meet-in-the-middle work has a 240-record controlled A/B: direct
+   evaluation improved by 10.96x and peak RSS by 28.71x with identical
+   results. See the
+   [Atkin performance evidence](artifacts/local/p125-direct-atkin-mitm-20260803/README.md).
 
-The Atkin meet-in-the-middle work also has a 240-record controlled A/B: direct
-evaluation improved by 10.96x and peak RSS by 28.71x with identical results.
-See the [Atkin performance evidence](artifacts/local/p125-direct-atkin-mitm-20260803/README.md).
-
-These are implementation and differential-validation results. The hybrid A/B
-is one fixed curve, not a certificate-yield study, and its common Weber
-downstream is not an independent mathematical oracle.
+These are implementation, coverage, and differential-validation results—not a
+certificate-yield study. The common Weber downstream is not an independent
+mathematical oracle; the retained PARI/Magma point counts are the independent
+exact checks.
 
 ## Build and validate
 

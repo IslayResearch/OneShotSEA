@@ -541,8 +541,12 @@ def _validate_layout(root: Path, worker_count: int, label: str) -> None:
                 )
             )
         command = directory / "command.sh"
-        if command.stat().st_mode & 0o777 != 0o700:
-            raise AuditError("{} worker-{} command.sh is not mode 0700".format(label, worker_id))
+        command_mode = command.stat().st_mode & 0o777
+        if command_mode not in {0o700, 0o755}:
+            raise AuditError(
+                "{} worker-{} command.sh is neither private mode 0700 nor "
+                "Git-normalized mode 0755".format(label, worker_id)
+            )
 
 
 def _run(

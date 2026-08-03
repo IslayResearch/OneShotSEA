@@ -631,6 +631,19 @@ class TopologyAuditTests(unittest.TestCase):
             with self.assertRaisesRegex(topology.AuditError, "fetch metadata run_id"):
                 self._audit(roots, provenance)
 
+    def test_accepts_git_normalized_command_mode_but_rejects_other_modes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            roots, provenance = self._fixture(Path(temporary))
+            for root in roots.values():
+                for command in root.glob("worker-*/command.sh"):
+                    command.chmod(0o755)
+            self._audit(roots, provenance)
+
+            command = roots["bx"] / "worker-0/command.sh"
+            command.chmod(0o777)
+            with self.assertRaisesRegex(topology.AuditError, "Git-normalized mode"):
+                self._audit(roots, provenance)
+
     def test_rejects_malformed_progress_heuristics_and_log_drift(self):
         for attack in ("index-only", "heuristic", "garbage", "certificate"):
             with self.subTest(attack=attack), tempfile.TemporaryDirectory() as temporary:

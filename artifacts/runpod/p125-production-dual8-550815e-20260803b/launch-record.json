@@ -1,0 +1,56 @@
+{
+  "schema": "oneshotsea.runpod-production-launch.v1",
+  "recorded_utc": "2026-08-03T05:58:37Z",
+  "run_id": "p125-production-dual8-550815e-20260803b",
+  "pod_id": "ohfo3hbov7ot8v",
+  "plan_sha256": "472947810f96f324c7ce79b9c89db3c6b9dac09fd15e7fde9038f02d382bb262",
+  "launch_condition_evidence": {
+    "suffix_audit": "artifacts/runpod/p125-production-suffix-1001374-dual8-550815e-20260803a/audit-result.json",
+    "suffix_audit_sha256": "af9377d89533feeb4bd58646863b170379d47e09355dc239a502fd3493c01410",
+    "accepted": true,
+    "checkpoint_next_indices": [1001463, 1001551],
+    "all_assigned_ranges_exhausted": true,
+    "certificates_found": 0,
+    "rejected_heuristic": 0,
+    "aggregate_curves_per_hour": 239.7056721313942,
+    "maximum_worker_rss_bytes": 10804559872,
+    "swaps_sum": 0
+  },
+  "preflight": {
+    "deployment_directory": "/workspace/OneShotSEA-550815e",
+    "deployment_commit": "550815e0013361f5eee4cdb6b044f5cec1a9ae2c",
+    "binary_sha256": "550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "active_search_processes_before_launch": 0,
+    "swap_bytes": 0
+  },
+  "workers": [
+    {
+      "worker_id": 0,
+      "assigned_start": 1001551,
+      "assigned_end": 1001913,
+      "launched_utc": "2026-08-03T05:51:27Z",
+      "launched_epoch": 1785736287
+    },
+    {
+      "worker_id": 1,
+      "assigned_start": 1001913,
+      "assigned_end": 1002275,
+      "launched_utc": "2026-08-03T05:51:54Z",
+      "launched_epoch": 1785736314
+    }
+  ],
+  "actual_launch_skew_seconds": 27,
+  "maximum_launch_skew_seconds": 30,
+  "first_launch_to_stop_deadline_seconds": 15390,
+  "absolute_fetch_stop_deadline_utc": "2026-08-03T10:07:57Z",
+  "cost_awareness": {
+    "recorded_hourly_rate_usd": 0.643,
+    "prior_suffix_last_end_utc": "2026-08-03T05:47:36Z",
+    "prelaunch_idle_seconds": 231,
+    "prelaunch_idle_estimated_cost_usd": 0.04125916666666667,
+    "plan_incremental_operational_cost_ceiling_usd": 2.748825,
+    "suffix_end_through_fetch_stop_cost_ceiling_usd": 2.790084166666667,
+    "classification": "fixed-pod-rate estimate; authoritative charges require RunPod billing export"
+  }
+}

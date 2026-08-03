@@ -1,5 +1,8 @@
 #include "oneshotsea/schoof.hpp"
 #include "oneshotsea/sea.hpp"
+#if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
+#include "oneshotsea/direct_context_cache.hpp"
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -112,6 +115,10 @@ int main(int argc, char** argv) {
     try {
         std::size_t threads = 4U;
         std::vector<std::uint64_t> levels;
+#if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
+        std::string cache_path;
+        std::string cache_sha256;
+#endif
         for (int index = 1; index < argc; ++index) {
             const std::string argument(argv[index]);
             if (argument == "--threads") {
@@ -129,6 +136,24 @@ int main(int argc, char** argv) {
                 threads = static_cast<std::size_t>(parsed);
                 continue;
             }
+#if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
+            if (argument == "--cache") {
+                if (++index >= argc) {
+                    throw std::invalid_argument(
+                        "--cache requires a path");
+                }
+                cache_path = argv[index];
+                continue;
+            }
+            if (argument == "--cache-sha256") {
+                if (++index >= argc) {
+                    throw std::invalid_argument(
+                        "--cache-sha256 requires a digest");
+                }
+                cache_sha256 = argv[index];
+                continue;
+            }
+#endif
             const std::uint64_t level = parse_u64(argument, "SEA level");
             if (level <= 3U ||
                 level > std::numeric_limits<unsigned>::max() ||
@@ -140,9 +165,17 @@ int main(int argc, char** argv) {
         }
         if (levels.empty()) {
             std::cerr << "usage: benchmark_p125_classical_direct "
-                         "[--threads N] ELL...\n";
+                         "[--threads N] [--cache PATH "
+                         "--cache-sha256 DIGEST] ELL...\n";
             return 2;
         }
+#if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
+        if (cache_path.empty() != cache_sha256.empty() ||
+            (!cache_path.empty() && levels.size() != 1U)) {
+            throw std::invalid_argument(
+                "cache path and digest require exactly one benchmark level");
+        }
+#endif
 
         const mpz_class prime(
             "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237");
@@ -156,8 +189,18 @@ int main(int argc, char** argv) {
             oneshotsea::short_weierstrass_curve_from_j(field, warm_j);
 
         for (const std::uint64_t ell : levels) {
-            const auto context = oneshotsea::make_classical_direct_sea_context(
-                field, {ell}, 10000000U, 1000000U, threads);
+#if defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
+            const auto context =
+                oneshotsea::make_classical_direct_sea_context(
+                    field, {ell}, 10000000U, 1000000U, threads);
+#else
+            const auto context = cache_path.empty()
+                ? oneshotsea::make_classical_direct_sea_context(
+                      field, {ell}, 10000000U, 1000000U, threads)
+                : oneshotsea::load_classical_direct_context_cache(
+                      field, {ell}, 10000000U, 1000000U, threads,
+                      cache_path, cache_sha256);
+#endif
             const Clock::time_point cold_start = Clock::now();
             const oneshotsea::WeberSeaResult cold =
                 evaluate(cold_curve, context);
@@ -181,6 +224,14 @@ int main(int argc, char** argv) {
                 << ",\"ell\":\"" << ell << "\""
                 << ",\"thread_limit\":\"" << threads << "\""
                 << ",\"preparation_us\":\"" << context.preparation_us()
+#if defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
+                << "\",\"cache_loaded\":false"
+                << ",\"cache_load_us\":\"0"
+#else
+                << "\",\"cache_loaded\":"
+                << (context.loaded_from_cache() ? "true" : "false")
+                << ",\"cache_load_us\":\"" << context.cache_load_us()
+#endif
                 << "\",\"cold_us\":\"" << cold_us
                 << "\",\"warm_distinct_j_us\":\"" << warm_us
                 << "\",\"validation_us\":\"" << validation_us

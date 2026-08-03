@@ -21,7 +21,7 @@ endif
 
 BUILD_DIR := build
 LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/direct_modpoly.cpp src/class_polynomial.cpp src/prime_isogeny.cpp src/cm_surface.cpp src/weber_cm_surface.cpp src/trace.cpp src/atkin.cpp src/weber_table_trust.cpp \
-	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/isogeny.cpp src/weber.cpp src/sea.cpp \
+	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/isogeny.cpp src/weber.cpp src/sea.cpp src/direct_context_cache.cpp \
 	src/smooth_cache.cpp src/smooth_bounded.cpp src/integrity.cpp src/exact_smooth.cpp src/factor.cpp src/search_checkpoint.cpp src/certificate.cpp \
 	src/weber_curve_generator.cpp src/x1_11_probe.cpp src/x1_27_probe.cpp \
 	src/search_pipeline.cpp

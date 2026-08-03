@@ -34,6 +34,9 @@ the alternative CM curve-search algorithm.
   `(ell+2) x (ell+2)` interpolation matrices per auxiliary prime remain. Their
   canonical residues are stored as `uint64_t` and evaluated with exact
   128-bit modular products.
+- A portable, atomically published context cache for sharing those compact
+  matrices across process restarts and worker shards. Reuse requires an
+  external trusted SHA-256 that is bound into the checkpoint schedule.
 - Independent differential, Schoof, corruption, cap-exhaustion, concurrency,
   and checkpoint tests.
 
@@ -70,8 +73,8 @@ MAGMA=/path/to/magma /usr/bin/make test-all
 
 ## Exercise the direct search tail
 
-Pass a strictly increasing list of distinct primes greater than three to a
-normal local search command:
+For one process, pass a strictly increasing list of distinct primes greater
+than three to a normal local search command:
 
 ```sh
 ./build/oneshotsea search \
@@ -86,6 +89,28 @@ The level list and execution caps are included in the checkpoint schedule
 digest. Cap exhaustion is reported as an implementation limit, never as a
 mathematical rejection. The direct options are currently admitted only by the
 local CLI.
+
+To avoid repeating curve-independent preparation after a restart, first build
+one complete authenticated context artifact:
+
+```sh
+./build/oneshotsea prepare-classical-direct-context \
+  --p P \
+  --classical-direct-levels 7,11 \
+  --sea-threads 4 \
+  --output runs/direct-7-11.ctx
+```
+
+Record the SHA-256 printed by that command, then add these options to the
+matching search:
+
+```sh
+--classical-direct-context-cache runs/direct-7-11.ctx \
+--classical-direct-context-sha256 TRUSTED_SHA256
+```
+
+Do not derive `TRUSTED_SHA256` from an untrusted received artifact; it is the
+authenticity anchor. See [the direct-context cache contract](docs/direct_context_cache.md).
 
 ## Reproduce the focused benchmark
 
@@ -159,6 +184,9 @@ has already been demonstrated.
   rational kernels, and Vélu quotients.
 - [`src/cm_surface.cpp`](src/cm_surface.cpp): CM-surface authentication,
   interpolation, and compact prepared contexts.
+- [`src/direct_context_cache.cpp`](src/direct_context_cache.cpp): portable
+  context encoding, atomic publication, authenticated loading, and structural
+  revalidation.
 - [`src/sea.cpp`](src/sea.cpp): prepared direct levels and Elkies/Atkin
   retained-state consumption.
 - [`src/search_pipeline.cpp`](src/search_pipeline.cpp): local search
@@ -170,6 +198,7 @@ Detailed contracts and evidence:
 
 - [Explicit-CRT producer](docs/explicit_crt_producer.md)
 - [Compact context design and benchmark](docs/direct_context_compaction.md)
+- [Authenticated context cache and restart benchmark](docs/direct_context_cache.md)
 - [Direct-specialization trust boundary](docs/direct_specialization_boundary.md)
 - [SEA proof obligations](docs/sea_design.md)
 - [Search integration and operations](docs/search_pipeline.md)

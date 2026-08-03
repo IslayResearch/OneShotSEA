@@ -15,6 +15,8 @@
 
 namespace oneshotsea {
 
+class ClassicalDirectSeaContext;
+
 enum class SearchCurveFamily : std::uint8_t {
     weber_f,
     x1_11,
@@ -75,6 +77,10 @@ struct SearchPipelineConfig {
     std::string expected_table_manifest_sha256;
     std::string expected_verifier_sha256;
     std::string expected_python_sha256;
+    // Nonempty only when the run consumes a prebuilt direct-context cache.
+    // The trusted digest is included in the resumable schedule identity and
+    // must match the injected immutable context supplied in the run options.
+    std::string expected_classical_direct_context_sha256;
 };
 
 enum class SearchCurveStatus : std::uint8_t {
@@ -254,6 +260,10 @@ struct SearchPipelineRunOptions {
     // Level telemetry is diagnostic and never advances the checkpoint.
     SearchSeaLevelCallback sea_level_callback;
     SearchClassicalDirectLevelCallback classical_direct_level_callback;
+    // Optional externally authenticated, fully materialized direct context.
+    // Ownership remains with the caller for the duration of the run. When
+    // supplied, expected_classical_direct_context_sha256 must be nonempty.
+    const ClassicalDirectSeaContext* classical_direct_context = nullptr;
 };
 
 struct ExactSmoothBatchPoolTelemetry {
@@ -293,6 +303,8 @@ struct SearchPipelineRunResult {
     // excludes witness metadata, vector headers, and allocator overhead.
     std::size_t classical_direct_interpolation_coefficient_count = 0U;
     std::size_t classical_direct_interpolation_storage_bytes = 0U;
+    bool classical_direct_context_cache_loaded = false;
+    std::uint64_t classical_direct_context_cache_load_us = 0U;
     // True only when this invocation actually constructed the resource-only
     // cross-curve exact-smooth coordinator pool.
     bool smooth_batch_coordinator_enabled = false;

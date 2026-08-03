@@ -163,6 +163,12 @@ auxiliary prime is proved 64-bit; exact `unsigned __int128` products implement
 the warm modular arithmetic. The compact representation changes neither
 interpolation order nor CRT residues.
 
+The complete compact schedule may be serialized only through the versioned
+portable format described in
+[`direct_context_cache.md`](direct_context_cache.md). Reuse requires a trusted
+whole-file SHA-256; the loader re-derives this producer's order, coefficient
+bound, and deterministic witness sequence before admitting matrix bytes.
+
 The raw-polynomial overload remains for isolated fixtures, but the complete
 classical entry point cannot receive it.  It generates the opaque object for
 each witnessed prime and immediately feeds it to the checked surface overload.

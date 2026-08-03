@@ -100,5 +100,8 @@ aggregation checks are retained in the
 
 This changes a polynomial memory factor and materially improves multi-level
 feasibility, but it does not change the conditional outer
-`p^(1/8+o(1))` curve-search exponent. Persisting authenticated compact matrices
-across process restarts remains separate work.
+`p^(1/8+o(1))` curve-search exponent. The compact matrices can now be
+atomically persisted and reused with an external SHA-256 trust anchor; see
+[the authenticated direct-context cache](direct_context_cache.md). That
+removes repeated process-start preparation but likewise does not change the
+outer exponent.

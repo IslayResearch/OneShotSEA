@@ -102,6 +102,7 @@ private:
     friend CrtSpecializationResult
     reconstruct_classical_specialization_from_prepared_context(
         const ClassicalDirectLevelContext&, const Field&, const mpz_class&);
+    friend class DirectContextCacheCodec;
 
     SutherlandSuitableOrder order_;
     mpz_class target_modulus_;

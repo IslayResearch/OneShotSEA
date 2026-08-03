@@ -402,6 +402,14 @@ void validate_config(const SearchPipelineConfig& config,
         validate_digest(config.expected_python_sha256,
                         "expected Python digest");
     }
+    if (!config.expected_classical_direct_context_sha256.empty()) {
+        validate_digest(config.expected_classical_direct_context_sha256,
+                        "expected classical direct context digest");
+        if (config.classical_direct_levels.empty()) {
+            throw std::invalid_argument(
+                "a classical direct context digest requires a direct schedule");
+        }
+    }
 }
 
 std::size_t exact_level_count(const WeberSeaResult& result) {
@@ -1497,6 +1505,10 @@ SearchCurveReport process_search_curve(
     const ExactSmoothBatchCoordinator* smooth_coordinator,
     const SearchClassicalDirectLevelCallback&
         classical_direct_level_callback) {
+    if (!config.expected_classical_direct_context_sha256.empty()) {
+        throw std::invalid_argument(
+            "process_search_curve cannot consume a schedule-bound direct context cache; use run_search_pipeline");
+    }
     return process_search_curve_impl(
         config, smooth_engine, global_index, injected_verifier,
         sea_level_callback, smooth_coordinator,
@@ -1559,6 +1571,32 @@ SearchPipelineRunResult run_search_pipeline(
     if (options.smooth_coordinator_count > options.curve_threads) {
         throw std::invalid_argument(
             "smooth coordinator count must not exceed curve thread count");
+    }
+    const bool expects_direct_cache =
+        !config.expected_classical_direct_context_sha256.empty();
+    const bool supplied_direct_cache =
+        options.classical_direct_context != nullptr;
+    if (expects_direct_cache != supplied_direct_cache) {
+        throw std::invalid_argument(
+            "authenticated classical direct context digest and injected cache must be supplied together");
+    }
+    if (supplied_direct_cache) {
+        const ClassicalDirectSeaContext& supplied =
+            *options.classical_direct_context;
+        if (!supplied.loaded_from_cache() ||
+            supplied.target_modulus() != config.prime ||
+            supplied.levels() != config.classical_direct_levels ||
+            supplied.maximum_prime_candidates() !=
+                config.classical_direct_maximum_prime_candidates ||
+            supplied.maximum_x_candidates_per_surface() !=
+                config
+                    .classical_direct_maximum_x_candidates_per_surface ||
+            supplied.preparation_threads() != config.sea_threads ||
+            supplied.prepared_context_count() !=
+                supplied.levels().size()) {
+            throw std::invalid_argument(
+                "injected classical direct context cache does not match the target, schedule, caps, or resource limit");
+        }
     }
     require_distinct_pipeline_paths(options);
     SearchPipelineRunResult result;
@@ -1625,10 +1663,13 @@ SearchPipelineRunResult run_search_pipeline(
             "checkpoint records a certificate but its durable artifact is missing");
     }
     std::unique_ptr<ClassicalDirectSeaContext>
-        prepared_classical_direct_context;
+        owned_classical_direct_context;
+    const ClassicalDirectSeaContext* prepared_classical_direct_context =
+        options.classical_direct_context;
     if (!state.complete() && options.max_curves != 0U &&
-        !config.classical_direct_levels.empty()) {
-        prepared_classical_direct_context =
+        !config.classical_direct_levels.empty() &&
+        prepared_classical_direct_context == nullptr) {
+        owned_classical_direct_context =
             std::make_unique<ClassicalDirectSeaContext>(
                 make_classical_direct_sea_context(
                     Field(config.prime), config.classical_direct_levels,
@@ -1636,6 +1677,8 @@ SearchPipelineRunResult run_search_pipeline(
                     config
                         .classical_direct_maximum_x_candidates_per_surface,
                     config.sea_threads));
+        prepared_classical_direct_context =
+            owned_classical_direct_context.get();
     }
     std::mutex verifier_mutex;
     const CanonicalCertificateVerifier serialized_verifier =
@@ -1719,7 +1762,7 @@ SearchPipelineRunResult run_search_pipeline(
                             serialized_sea_level_callback,
                             smooth_coordinator,
                             serialized_classical_direct_level_callback,
-                            prepared_classical_direct_context.get());
+                            prepared_classical_direct_context);
                     }));
             }
         };
@@ -1832,6 +1875,10 @@ SearchPipelineRunResult run_search_pipeline(
         result.classical_direct_interpolation_storage_bytes =
             prepared_classical_direct_context
                 ->interpolation_storage_bytes();
+        result.classical_direct_context_cache_loaded =
+            prepared_classical_direct_context->loaded_from_cache();
+        result.classical_direct_context_cache_load_us =
+            prepared_classical_direct_context->cache_load_us();
     }
     result.exhausted_assigned_range = state.complete();
     return result;
@@ -2280,6 +2327,11 @@ std::string search_schedule_sha256(
                   << "classical_direct_maximum_x_candidates_per_surface="
                   << config.classical_direct_maximum_x_candidates_per_surface
                   << '\n';
+        if (!config.expected_classical_direct_context_sha256.empty()) {
+            canonical << "classical_direct_context_sha256="
+                      << config.expected_classical_direct_context_sha256
+                      << '\n';
+        }
     }
     canonical << "heuristic_rejection="
               << (config.skip_incomplete_curves ? "incomplete-only"

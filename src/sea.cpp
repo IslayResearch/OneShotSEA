@@ -681,6 +681,9 @@ ClassicalDirectSeaContext::level_context(std::size_t index) const {
     }
     LevelSlot& slot = *level_slots_[index];
     std::call_once(slot.once, [&] {
+        if (slot.context) {
+            return;
+        }
         const Clock::time_point start = Clock::now();
         try {
             const Field target_field(target_modulus_);
@@ -711,6 +714,26 @@ ClassicalDirectSeaContext::level_context(std::size_t index) const {
             "classical direct SEA level preparation produced no context");
     }
     return *slot.context;
+}
+
+void ClassicalDirectSeaContext::install_cached_contexts(
+    std::vector<std::unique_ptr<ClassicalDirectLevelContext>> contexts,
+    std::uint64_t load_us) {
+    if (contexts.size() != level_slots_.size() || loaded_from_cache_) {
+        throw std::logic_error(
+            "classical direct cache does not match an empty schedule context");
+    }
+    for (std::size_t index = 0U; index < contexts.size(); ++index) {
+        if (!contexts[index] || level_slots_[index]->context ||
+            level_slots_[index]->prepared.load(std::memory_order_acquire)) {
+            throw std::logic_error(
+                "classical direct cache contains a missing or duplicate level context");
+        }
+        level_slots_[index]->context = std::move(contexts[index]);
+        level_slots_[index]->prepared.store(true, std::memory_order_release);
+    }
+    cache_load_us_ = load_us;
+    loaded_from_cache_ = true;
 }
 
 std::size_t ClassicalDirectSeaContext::prepared_context_count() const {

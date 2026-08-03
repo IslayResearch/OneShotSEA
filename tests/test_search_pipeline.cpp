@@ -1,4 +1,5 @@
 #include "oneshotsea/search_pipeline.hpp"
+#include "oneshotsea/direct_context_cache.hpp"
 #include "oneshotsea/weber_table_trust.hpp"
 #include "oneshotsea/x1_11_probe.hpp"
 #include "oneshotsea/x1_27_probe.hpp"
@@ -751,6 +752,135 @@ void test_pipeline_prepares_direct_contexts_once_per_run() {
               !std::filesystem::exists(capped_options.checkpoint_path) &&
               !std::filesystem::exists(capped_options.progress_path),
           "direct-context preparation cap failure leaves the durable curve cursor untouched");
+}
+
+void test_pipeline_reuses_authenticated_direct_context_cache() {
+    TemporaryDirectory temporary;
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.max_level = 5U;
+    config.early_trace_cap = 16U;
+    config.classical_direct_levels = {7U};
+    config.skip_incomplete_curves = true;
+    config.sea_threads = 3U;
+
+    const std::filesystem::path direct_cache =
+        temporary.path() / "classical-direct.ctx";
+    auto prepared = oneshotsea::make_classical_direct_sea_context(
+        oneshotsea::Field(config.prime), config.classical_direct_levels,
+        config.classical_direct_maximum_prime_candidates,
+        config.classical_direct_maximum_x_candidates_per_surface,
+        config.sea_threads);
+    const std::string direct_sha =
+        oneshotsea::save_classical_direct_context_cache(
+            prepared, direct_cache);
+    auto cached = oneshotsea::load_classical_direct_context_cache(
+        oneshotsea::Field(config.prime), config.classical_direct_levels,
+        config.classical_direct_maximum_prime_candidates,
+        config.classical_direct_maximum_x_candidates_per_surface,
+        config.sea_threads, direct_cache, direct_sha);
+    config.expected_classical_direct_context_sha256 = direct_sha;
+
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime,
+                                             {.thread_count = 1});
+    const std::filesystem::path smooth_cache =
+        temporary.path() / "cached-direct-smooth.cache";
+    smooth.save(smooth_cache);
+    const std::string smooth_sha = oneshotsea::sha256_file(smooth_cache);
+    const std::string verifier_sha =
+        oneshotsea::sha256_file(config.canonical_verifier);
+    const oneshotsea::SearchIdentity identity =
+        oneshotsea::make_search_identity(
+            config, {1U, 2U}, 0U, 1U, smooth_sha, verifier_sha,
+            "cached-direct-pipeline-test-v1");
+    config.expected_schedule_sha256 = identity.schedule_sha256;
+    config.expected_smooth_cache_sha256 = smooth_sha;
+    config.expected_table_manifest_sha256 =
+        identity.table_manifest_sha256;
+    config.expected_verifier_sha256 = verifier_sha;
+
+    oneshotsea::SearchState state(identity);
+    oneshotsea::SearchPipelineRunOptions options;
+    options.max_curves = 1U;
+    options.checkpoint_path = temporary.path() / "cached.checkpoint";
+    options.progress_path = temporary.path() / "cached.ndjson";
+    options.certificate_path = temporary.path() / "cached.cert";
+    options.classical_direct_context = &cached;
+    const oneshotsea::SearchPipelineRunResult result =
+        oneshotsea::run_search_pipeline(
+            config, smooth, state, options, {},
+            [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(result.curves_processed == 1U &&
+              result.classical_direct_context_cache_loaded &&
+              result.classical_direct_context_cache_load_us ==
+                  cached.cache_load_us() &&
+              result.classical_direct_context_count == 1U &&
+              result.classical_direct_preparation_us == 0U &&
+              result.classical_direct_interpolation_coefficient_count != 0U,
+          "search consumes an authenticated direct cache without rebuilding its level context");
+
+    oneshotsea::SearchPipelineRunOptions no_cache_options;
+    oneshotsea::SearchState missing_cache_state(identity);
+    bool rejected_missing_cache = false;
+    try {
+        static_cast<void>(oneshotsea::run_search_pipeline(
+            config, smooth, missing_cache_state, no_cache_options, {},
+            [](const oneshotsea::MontgomeryCertificate&) { return false; }));
+    } catch (const std::invalid_argument&) {
+        rejected_missing_cache = true;
+    }
+
+    oneshotsea::SearchPipelineConfig uncached = config;
+    uncached.expected_schedule_sha256.clear();
+    uncached.expected_smooth_cache_sha256.clear();
+    uncached.expected_table_manifest_sha256.clear();
+    uncached.expected_verifier_sha256.clear();
+    uncached.expected_classical_direct_context_sha256.clear();
+    const oneshotsea::SearchIdentity uncached_identity =
+        oneshotsea::make_search_identity(
+            uncached, {1U, 2U}, 0U, 1U, smooth_sha, verifier_sha,
+            "cached-direct-pipeline-test-v1");
+    uncached.expected_schedule_sha256 = uncached_identity.schedule_sha256;
+    uncached.expected_smooth_cache_sha256 = smooth_sha;
+    uncached.expected_table_manifest_sha256 =
+        uncached_identity.table_manifest_sha256;
+    uncached.expected_verifier_sha256 = verifier_sha;
+    oneshotsea::SearchState unexpected_cache_state(uncached_identity);
+    oneshotsea::SearchPipelineRunOptions unexpected_cache_options;
+    unexpected_cache_options.classical_direct_context = &cached;
+    bool rejected_unbound_cache = false;
+    try {
+        static_cast<void>(oneshotsea::run_search_pipeline(
+            uncached, smooth, unexpected_cache_state,
+            unexpected_cache_options, {},
+            [](const oneshotsea::MontgomeryCertificate&) { return false; }));
+    } catch (const std::invalid_argument&) {
+        rejected_unbound_cache = true;
+    }
+
+    auto wrong_resource = oneshotsea::load_classical_direct_context_cache(
+        oneshotsea::Field(config.prime), config.classical_direct_levels,
+        config.classical_direct_maximum_prime_candidates,
+        config.classical_direct_maximum_x_candidates_per_surface,
+        1U, direct_cache, direct_sha);
+    oneshotsea::SearchState wrong_resource_state(identity);
+    oneshotsea::SearchPipelineRunOptions wrong_resource_options;
+    wrong_resource_options.classical_direct_context = &wrong_resource;
+    bool rejected_wrong_resource = false;
+    try {
+        static_cast<void>(oneshotsea::run_search_pipeline(
+            config, smooth, wrong_resource_state, wrong_resource_options, {},
+            [](const oneshotsea::MontgomeryCertificate&) { return false; }));
+    } catch (const std::invalid_argument&) {
+        rejected_wrong_resource = true;
+    }
+    check(rejected_missing_cache && rejected_unbound_cache &&
+              rejected_wrong_resource &&
+              identity.schedule_sha256 != uncached_identity.schedule_sha256 &&
+              missing_cache_state.next_index() == 1U &&
+              unexpected_cache_state.next_index() == 1U &&
+              wrong_resource_state.next_index() == 1U,
+          "direct-cache injection is digest-bound, resource-checked, and fails before cursor mutation");
 }
 
 void test_parallel_curve_ordering_and_shared_checkpoint() {
@@ -1838,6 +1968,7 @@ int main() {
         test_search_uses_classical_direct_tail_after_weber_completion();
         test_direct_tail_preserves_remaining_weber_levels();
         test_pipeline_prepares_direct_contexts_once_per_run();
+        test_pipeline_reuses_authenticated_direct_context_cache();
         std::cout << "search pipeline tests passed\n";
         return 0;
     } catch (const std::exception& error) {

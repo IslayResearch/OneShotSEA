@@ -1,20 +1,28 @@
 #include "oneshotsea/atkin.hpp"
 #include "oneshotsea/cm_surface.hpp"
+#include "oneshotsea/direct_context_cache.hpp"
 #include "oneshotsea/early_abort.hpp"
 #include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/schoof.hpp"
 #include "oneshotsea/sea.hpp"
+#include "oneshotsea/integrity.hpp"
 #include "oneshotsea/weber.hpp"
 #include "oneshotsea/weber_cm_surface.hpp"
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <future>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include <unistd.h>
 
 namespace {
 
@@ -33,6 +41,30 @@ bool rejects(Function&& function) {
         return true;
     }
 }
+
+class TemporaryDirectory {
+public:
+    TemporaryDirectory() {
+        const auto stamp = std::chrono::steady_clock::now()
+                               .time_since_epoch()
+                               .count();
+        path_ = std::filesystem::temp_directory_path() /
+            ("oneshotsea-direct-context-" +
+             std::to_string(static_cast<long long>(::getpid())) + "-" +
+             std::to_string(stamp));
+        std::filesystem::create_directory(path_);
+    }
+
+    ~TemporaryDirectory() {
+        std::error_code ignored;
+        std::filesystem::remove_all(path_, ignored);
+    }
+
+    const std::filesystem::path& path() const { return path_; }
+
+private:
+    std::filesystem::path path_;
+};
 
 mpz_class target_prime() {
     return oneshotsea::parse_integer(
@@ -539,6 +571,174 @@ void test_prepared_classical_context_equivalence() {
           "prepared SEA target mismatch fails before mutating retained state");
 }
 
+void test_classical_direct_context_cache() {
+    TemporaryDirectory temporary;
+    const oneshotsea::Field field(193);
+    const std::vector<std::uint64_t> levels{7U};
+    constexpr std::uint64_t prime_cap = 100000U;
+    constexpr std::uint64_t x_cap = 1000000U;
+    auto source = oneshotsea::make_classical_direct_sea_context(
+        field, levels, prime_cap, x_cap, 2U);
+    const std::filesystem::path cache = temporary.path() / "direct.ctx";
+    const std::string digest =
+        oneshotsea::save_classical_direct_context_cache(source, cache);
+    check(oneshotsea::is_lower_sha256(digest) &&
+              digest == oneshotsea::sha256_file(cache) &&
+              source.prepared_context_count() == levels.size() &&
+              source.interpolation_coefficient_count() != 0U,
+          "direct-context cache materializes every level and returns its trust anchor");
+
+    auto loaded = oneshotsea::load_classical_direct_context_cache(
+        field, levels, prime_cap, x_cap, 3U, cache, digest);
+    check(loaded.loaded_from_cache() && loaded.preparation_threads() == 3U &&
+              loaded.prepared_context_count() == levels.size() &&
+              loaded.preparation_us() == 0U &&
+              loaded.interpolation_coefficient_count() ==
+                  source.interpolation_coefficient_count() &&
+              loaded.interpolation_storage_bytes() ==
+                  source.interpolation_storage_bytes(),
+          "authenticated direct-context load preserves compact schedule metadata without re-preparation");
+
+    oneshotsea::TraceConstraints initial(field.modulus());
+    oneshotsea::WeberSeaResult cached_state{
+        initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+    const oneshotsea::Curve curve =
+        oneshotsea::short_weierstrass_curve_from_j(field, 20);
+    const mpz_class curve_trace =
+        field.modulus() + 1 - oneshotsea::count_points_bruteforce(curve);
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        curve, cached_state, loaded, 16U);
+    check(cached_state.classical_direct_levels.size() == 1U &&
+              cached_state.classical_direct_levels.front().exact &&
+              cached_state.classical_direct_levels.front().trace_residue ==
+                  mpz_fdiv_ui(curve_trace.get_mpz_t(), 7U) &&
+              cached_state.classical_direct_levels.front()
+                      .auxiliary_prime_count != 0U,
+          "reloaded compact matrices preserve independently checkable SEA semantics");
+
+    std::vector<std::future<bool>> concurrent;
+    for (std::size_t index = 0U; index < 4U; ++index) {
+        concurrent.push_back(std::async(
+            std::launch::async, [&, index] {
+                const mpz_class invariant = index % 2U == 0U ? 20 : 4;
+                oneshotsea::TraceConstraints thread_initial(field.modulus());
+                oneshotsea::WeberSeaResult state{
+                    thread_initial, thread_initial, {}, {}, {}, {},
+                    std::nullopt, {}};
+                const oneshotsea::Curve thread_curve =
+                    oneshotsea::short_weierstrass_curve_from_j(
+                        field, invariant);
+                oneshotsea::extend_sea_with_prepared_classical_direct(
+                    thread_curve, state, loaded, 16U);
+                return state.classical_direct_levels.size() == 1U;
+            }));
+    }
+    for (std::future<bool>& future : concurrent) {
+        check(future.get(),
+              "reloaded direct context remains immutable under concurrent reuse");
+    }
+
+    const std::filesystem::path duplicate =
+        temporary.path() / "direct-duplicate.ctx";
+    const std::string duplicate_digest =
+        oneshotsea::save_classical_direct_context_cache(loaded, duplicate);
+    check(duplicate_digest == digest,
+          "direct-context encoding is deterministic across prepare/load/save cycles");
+
+    const std::filesystem::path raced =
+        temporary.path() / "direct-raced.ctx";
+    auto first_writer = std::async(std::launch::async, [&] {
+        return oneshotsea::save_classical_direct_context_cache(
+            loaded, raced);
+    });
+    auto second_writer = std::async(std::launch::async, [&] {
+        return oneshotsea::save_classical_direct_context_cache(
+            loaded, raced);
+    });
+    const std::string first_digest = first_writer.get();
+    const std::string second_digest = second_writer.get();
+    auto raced_load = oneshotsea::load_classical_direct_context_cache(
+        field, levels, prime_cap, x_cap, 1U, raced, digest);
+    check(first_digest == digest && second_digest == digest &&
+              oneshotsea::sha256_file(raced) == digest &&
+              raced_load.loaded_from_cache(),
+          "concurrent deterministic publishers leave one complete authenticated direct cache");
+
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::load_classical_direct_context_cache(
+                      field, levels, prime_cap, x_cap, 1U, cache,
+                      std::string(64U, '0')));
+          }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::load_classical_direct_context_cache(
+                          oneshotsea::Field(197), levels, prime_cap, x_cap,
+                          1U, cache, digest));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::load_classical_direct_context_cache(
+                          field, levels, prime_cap - 1U, x_cap, 1U, cache,
+                          digest));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::load_classical_direct_context_cache(
+                          field, {7U, 11U}, prime_cap, x_cap, 1U, cache,
+                          digest));
+              }),
+          "direct-context cache rejects digest, target, cap, and schedule substitution");
+
+    const std::filesystem::path corrupted =
+        temporary.path() / "direct-corrupted.ctx";
+    std::filesystem::copy_file(cache, corrupted);
+    {
+        std::fstream file(corrupted,
+                          std::ios::binary | std::ios::in | std::ios::out);
+        file.seekg(-1, std::ios::end);
+        char byte = 0;
+        file.read(&byte, 1);
+        byte = static_cast<char>(
+            static_cast<unsigned char>(byte) ^ 0x01U);
+        file.seekp(-1, std::ios::end);
+        file.write(&byte, 1);
+    }
+    const std::string corrupted_digest =
+        oneshotsea::sha256_file(corrupted);
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::load_classical_direct_context_cache(
+                      field, levels, prime_cap, x_cap, 1U, corrupted,
+                      corrupted_digest));
+          }),
+          "direct-context cache rejects corruption even when its transport digest is recomputed");
+
+    const std::filesystem::path truncated =
+        temporary.path() / "direct-truncated.ctx";
+    std::filesystem::copy_file(cache, truncated);
+    std::filesystem::resize_file(
+        truncated, std::filesystem::file_size(truncated) - 1U);
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::load_classical_direct_context_cache(
+                      field, levels, prime_cap, x_cap, 1U, truncated,
+                      oneshotsea::sha256_file(truncated)));
+          }),
+          "direct-context cache rejects truncated payloads transactionally");
+
+    oneshotsea::ClassicalDirectContextCacheLimits tiny;
+    tiny.max_file_bytes =
+        oneshotsea::kClassicalDirectContextCacheHeaderBytes;
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::save_classical_direct_context_cache(
+                      source, cache, tiny));
+          }) &&
+              oneshotsea::sha256_file(cache) == digest,
+          "failed direct-cache publication leaves the existing trusted artifact unchanged");
+}
+
 void test_classical_direct_sea_runner() {
     const oneshotsea::Field field(193);
     const oneshotsea::Curve elkies_curve =
@@ -932,6 +1132,7 @@ int main() {
         test_three_power_class_polynomial();
         test_classical_direct_sea_runner();
         test_prepared_classical_context_equivalence();
+        test_classical_direct_context_cache();
         test_p125_classical_direct_path();
         test_minus_71_surface();
         std::cout << "CM interpolation surface tests: ok\n";

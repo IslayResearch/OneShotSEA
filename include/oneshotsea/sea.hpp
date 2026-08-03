@@ -204,6 +204,8 @@ public:
     std::uint64_t preparation_us() const;
     std::size_t interpolation_coefficient_count() const;
     std::size_t interpolation_storage_bytes() const;
+    bool loaded_from_cache() const { return loaded_from_cache_; }
+    std::uint64_t cache_load_us() const { return cache_load_us_; }
 
 private:
     ClassicalDirectSeaContext(
@@ -218,10 +220,14 @@ private:
     friend void extend_sea_with_prepared_classical_direct(
         const Curve&, WeberSeaResult&, const ClassicalDirectSeaContext&,
         std::size_t, const ClassicalDirectSeaProgress&);
+    friend class DirectContextCacheCodec;
 
     struct LevelSlot;
     const ClassicalDirectLevelContext& level_context(
         std::size_t index) const;
+    void install_cached_contexts(
+        std::vector<std::unique_ptr<ClassicalDirectLevelContext>> contexts,
+        std::uint64_t load_us);
 
     mpz_class target_modulus_;
     std::vector<std::uint64_t> levels_;
@@ -229,6 +235,8 @@ private:
     std::uint64_t maximum_x_candidates_per_surface_;
     std::size_t preparation_threads_;
     std::vector<std::unique_ptr<LevelSlot>> level_slots_;
+    bool loaded_from_cache_ = false;
+    std::uint64_t cache_load_us_ = 0U;
 };
 
 ClassicalDirectSeaContext make_classical_direct_sea_context(

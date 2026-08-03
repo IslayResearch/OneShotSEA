@@ -1,4 +1,5 @@
 #include "oneshotsea/curve.hpp"
+#include "oneshotsea/direct_context_cache.hpp"
 #include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/search_pipeline.hpp"
@@ -15,6 +16,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -189,7 +191,7 @@ void require_distinct_output_paths(
         for (std::size_t right = 0; right < left; ++right) {
             if (oneshotsea::paths_alias(paths[left], paths[right])) {
                 throw std::invalid_argument(
-                    "smooth cache, checkpoint, progress, certificate, and metadata paths must be distinct");
+                    "search cache and output artifact paths must be distinct");
             }
         }
     }
@@ -234,7 +236,8 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea prepare-classical-direct-context --p P --classical-direct-levels L1,L2,... --output PATH [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--sea-threads N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -344,6 +347,67 @@ int main(int argc, char** argv) {
             std::cout << "}\n";
             return 0;
         }
+        if (command == "prepare-classical-direct-context") {
+            const mpz_class prime =
+                oneshotsea::parse_integer(required(options, "p"));
+            const std::vector<std::uint64_t> levels = optional_u64_list(
+                options, "classical-direct-levels");
+            if (levels.empty()) {
+                throw std::invalid_argument(
+                    "--classical-direct-levels is required and must be nonempty");
+            }
+            const std::uint64_t maximum_prime_candidates = optional_u64(
+                options, "classical-direct-max-prime-candidates", 1000000U);
+            const std::uint64_t maximum_x_candidates = optional_u64(
+                options, "classical-direct-max-x-candidates", 1000000U);
+            const std::uint64_t sea_threads = optional_u64(
+                options, "sea-threads", 0U);
+            if (sea_threads > std::numeric_limits<std::size_t>::max()) {
+                throw std::invalid_argument("--sea-threads is out of range");
+            }
+            const std::filesystem::path output =
+                required(options, "output");
+            ensure_parent_directory(output);
+            oneshotsea::ClassicalDirectSeaContext context =
+                oneshotsea::make_classical_direct_sea_context(
+                    oneshotsea::Field(prime), levels,
+                    maximum_prime_candidates, maximum_x_candidates,
+                    static_cast<std::size_t>(sea_threads));
+            const auto start = std::chrono::steady_clock::now();
+            const std::string digest =
+                oneshotsea::save_classical_direct_context_cache(
+                    context, output);
+            const auto elapsed = std::chrono::duration_cast<
+                std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - start).count();
+            std::cout
+                << "{\"schema\":\"oneshotsea.classical-direct-context.v1\""
+                << ",\"prime\":\"" << prime << "\",\"levels\":[";
+            for (std::size_t index = 0U; index < levels.size(); ++index) {
+                if (index != 0U) {
+                    std::cout << ',';
+                }
+                std::cout << '"' << levels[index] << '"';
+            }
+            std::cout << "],\"maximum_prime_candidates\":\""
+                      << maximum_prime_candidates
+                      << "\",\"maximum_x_candidates_per_surface\":\""
+                      << maximum_x_candidates
+                      << "\",\"thread_limit\":\"" << sea_threads
+                      << "\",\"context_count\":\""
+                      << context.prepared_context_count()
+                      << "\",\"preparation_us\":\""
+                      << context.preparation_us()
+                      << "\",\"elapsed_us\":\"" << elapsed
+                      << "\",\"matrix_coefficients\":\""
+                      << context.interpolation_coefficient_count()
+                      << "\",\"matrix_payload_bytes\":\""
+                      << context.interpolation_storage_bytes()
+                      << "\",\"file_bytes\":\""
+                      << std::filesystem::file_size(output)
+                      << "\",\"sha256\":\"" << digest << "\"}\n";
+            return 0;
+        }
         if (command == "search") {
             oneshotsea::SearchPipelineConfig config;
             config.prime = oneshotsea::parse_integer(required(options, "p"));
@@ -435,6 +499,32 @@ int main(int argc, char** argv) {
             config.enable_schoof_fallback = schoof_fallback != 0U;
             config.skip_incomplete_curves = skip_incomplete_curves != 0U;
             config.sea_threads = static_cast<std::size_t>(sea_threads);
+            const bool has_direct_context_path =
+                options.contains("classical-direct-context-cache");
+            const bool has_direct_context_digest =
+                options.contains("classical-direct-context-sha256");
+            if (has_direct_context_path != has_direct_context_digest) {
+                throw std::invalid_argument(
+                    "--classical-direct-context-cache and --classical-direct-context-sha256 must be supplied together");
+            }
+            std::optional<std::filesystem::path> direct_context_path;
+            std::optional<std::string> direct_context_sha;
+            if (has_direct_context_path) {
+                if (config.classical_direct_levels.empty()) {
+                    throw std::invalid_argument(
+                        "a classical direct context cache requires --classical-direct-levels");
+                }
+                direct_context_path = required(
+                    options, "classical-direct-context-cache");
+                direct_context_sha = required(
+                    options, "classical-direct-context-sha256");
+                if (!oneshotsea::is_lower_sha256(*direct_context_sha)) {
+                    throw std::invalid_argument(
+                        "--classical-direct-context-sha256 must be a trusted lowercase SHA-256 digest");
+                }
+                config.expected_classical_direct_context_sha256 =
+                    *direct_context_sha;
+            }
             config.assembly_attempts =
                 static_cast<std::size_t>(assembly_attempts);
             config.max_certificate_candidates =
@@ -474,9 +564,13 @@ int main(int argc, char** argv) {
                 options, "certificate-out", checkpoint.string() + ".certificate");
             const std::filesystem::path certificate_metadata =
                 certificate_output.string() + ".meta.json";
-            require_distinct_output_paths({
+            std::vector<std::filesystem::path> search_paths{
                 smooth_cache, checkpoint, progress, certificate_output,
-                certificate_metadata});
+                certificate_metadata};
+            if (direct_context_path.has_value()) {
+                search_paths.push_back(*direct_context_path);
+            }
+            require_distinct_output_paths(search_paths);
             const bool cache_preexisted =
                 std::filesystem::is_regular_file(smooth_cache);
             std::optional<std::string> trusted_existing_cache_sha;
@@ -544,6 +638,20 @@ int main(int argc, char** argv) {
                 throw std::runtime_error(
                     "pinned canonical voneshot.py digest mismatch");
             }
+            std::unique_ptr<oneshotsea::ClassicalDirectSeaContext>
+                direct_context;
+            if (direct_context_path.has_value()) {
+                direct_context = std::make_unique<
+                    oneshotsea::ClassicalDirectSeaContext>(
+                    oneshotsea::load_classical_direct_context_cache(
+                        oneshotsea::Field(config.prime),
+                        config.classical_direct_levels,
+                        config.classical_direct_maximum_prime_candidates,
+                        config
+                            .classical_direct_maximum_x_candidates_per_surface,
+                        config.sea_threads, *direct_context_path,
+                        *direct_context_sha));
+            }
             std::string build_id = optional_string(options, "build-id", "");
             if (build_id.empty()) {
                 const std::string executable_sha =
@@ -585,6 +693,7 @@ int main(int argc, char** argv) {
             run_options.checkpoint_path = checkpoint;
             run_options.progress_path = progress;
             run_options.certificate_path = certificate_output;
+            run_options.classical_direct_context = direct_context.get();
             const bool sea_level_telemetry = sea_level_telemetry_value != 0U;
             run_options.include_sea_level_timings = sea_level_telemetry;
             if (sea_level_telemetry) {
@@ -645,7 +754,14 @@ int main(int argc, char** argv) {
                           << "\",\"maximum_x_candidates_per_surface\":\""
                           << config
                                  .classical_direct_maximum_x_candidates_per_surface
-                          << "\"}";
+                          << '"';
+                if (direct_context_sha.has_value()) {
+                    std::cout << ",\"context_cache_sha256\":\""
+                              << *direct_context_sha
+                              << "\",\"context_cache_load_us\":\""
+                              << direct_context->cache_load_us() << '"';
+                }
+                std::cout << '}';
             }
             std::cout << ",\"resources\":{\"smooth_threads\":\""
                       << smooth_threads << "\",\"smooth_max_batch\":\""
@@ -704,6 +820,12 @@ int main(int argc, char** argv) {
                           << "\",\"matrix_payload_bytes\":\""
                           << result
                                  .classical_direct_interpolation_storage_bytes
+                          << "\",\"cache_loaded\":"
+                          << (result.classical_direct_context_cache_loaded
+                                  ? "true"
+                                  : "false")
+                          << ",\"cache_load_us\":\""
+                          << result.classical_direct_context_cache_load_us
                           << "\"}";
             }
             std::cout

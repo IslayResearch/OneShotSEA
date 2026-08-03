@@ -39,4 +39,12 @@ std::optional<AtkinConstraint> classical_atkin_constraint_reference(
     const Curve& curve,
     const ModularPolynomialSpecialization& classical_specialization);
 
+// The same direct classifier using complete root evidence already produced by
+// the Elkies attempt. On a no-root level, its retained X^p image seeds the
+// factor-degree certificate and avoids a duplicate exponentiation.
+std::optional<AtkinConstraint> classical_atkin_constraint_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& classical_specialization,
+    const CertifiedLinearRoots& roots);
+
 }  // namespace oneshotsea

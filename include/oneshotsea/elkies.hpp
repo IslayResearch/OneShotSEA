@@ -97,6 +97,14 @@ std::vector<ElkiesKernelResult> elkies_kernels_bmss_specialized_reference(
     const Curve& curve,
     const ModularPolynomialSpecialization& specialization);
 
+// The same consumer using complete roots already certified for the
+// specialization polynomial. This lets a subsequent no-root Atkin classifier
+// reuse the retained Frobenius image without weakening root completeness.
+std::vector<ElkiesKernelResult> elkies_kernels_bmss_specialized_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& specialization,
+    const CertifiedLinearRoots& roots);
+
 std::optional<std::uint64_t>
 elkies_trace_residue_bmss_specialized_reference(
     const Curve& curve,

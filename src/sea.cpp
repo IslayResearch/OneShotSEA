@@ -179,9 +179,12 @@ void extend_classical_direct_impl(
             throw std::logic_error(
                 "classical direct evaluator returned inconsistent metadata");
         }
+        const CertifiedLinearRoots root_evidence = certify_linear_roots(
+            evaluation.specialization.specialization);
         const std::vector<ElkiesKernelResult> kernels =
             elkies_kernels_bmss_specialized_reference(
-                curve, evaluation.specialization.specialization);
+                curve, evaluation.specialization.specialization,
+                root_evidence);
         std::optional<std::uint64_t> residue;
         std::optional<AtkinConstraint> atkin;
         if (!kernels.empty()) {
@@ -196,7 +199,8 @@ void extend_classical_direct_impl(
             }
         } else {
             atkin = classical_atkin_constraint_reference(
-                curve, evaluation.specialization.specialization);
+                curve, evaluation.specialization.specialization,
+                root_evidence);
         }
 
         TraceConstraints next_exact = result.constraints;

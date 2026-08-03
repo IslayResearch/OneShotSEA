@@ -40,4 +40,9 @@ std::vector<IrreducibleFactor> factor_polynomial(const Poly& polynomial);
 std::optional<unsigned int> uniform_irreducible_factor_degree(
     const Poly& polynomial);
 
+// The same certificate while reusing the already validated X^p image retained
+// by a complete rational-root computation for this exact polynomial.
+std::optional<unsigned int> uniform_irreducible_factor_degree(
+    const CertifiedLinearRoots& roots);
+
 }  // namespace oneshotsea

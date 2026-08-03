@@ -2,6 +2,7 @@
 
 #include "oneshotsea/poly.hpp"
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -31,18 +32,27 @@ public:
 
     unsigned level() const { return level_; }
     const mpz_class& source_x() const { return source_x_; }
-    const Poly& value() const { return value_; }
+    const Poly& value() const { return *value_; }
     const Poly& x_derivative() const { return x_derivative_; }
     const Poly& y_derivative() const { return y_derivative_; }
     BivariateEvaluation evaluate_with_derivatives(const mpz_class& y) const;
 
 private:
+    friend CertifiedLinearRoots certify_linear_roots(
+        const ModularPolynomialSpecialization& specialization);
+
     unsigned level_;
     mpz_class source_x_;
-    Poly value_;
+    std::shared_ptr<const Poly> value_;
     Poly x_derivative_;
     Poly y_derivative_;
 };
+
+// Certify roots while sharing the specialization's immutable polynomial.
+// This avoids a deep coefficient copy and keeps the certificate alive even if
+// the specialization object itself is moved.
+CertifiedLinearRoots certify_linear_roots(
+    const ModularPolynomialSpecialization& specialization);
 
 class SparseModularPolynomial {
 public:

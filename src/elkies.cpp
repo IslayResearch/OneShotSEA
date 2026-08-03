@@ -510,6 +510,24 @@ std::vector<ElkiesKernelResult> elkies_kernels_bmss_specialized_reference(
         throw std::invalid_argument(
             "classical specialization does not match a nonsingular curve");
     }
+    const CertifiedLinearRoots roots =
+        certify_linear_roots(specialization);
+    return elkies_kernels_bmss_specialized_reference(
+        curve, specialization, roots);
+}
+
+std::vector<ElkiesKernelResult> elkies_kernels_bmss_specialized_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& specialization,
+    const CertifiedLinearRoots& roots) {
+    if (curve.is_singular() ||
+        specialization.value().field().modulus() !=
+            curve.field().modulus() ||
+        specialization.source_x() != curve.j_invariant() ||
+        !equal(roots.polynomial(), specialization.value())) {
+        throw std::invalid_argument(
+            "classical specialization or root certificate does not match a nonsingular curve");
+    }
     const std::uint64_t ell = specialization.level();
     const mpz_class ell_integer(std::to_string(ell));
     if (ell < 3U || (ell & 1U) == 0U ||
@@ -520,10 +538,8 @@ std::vector<ElkiesKernelResult> elkies_kernels_bmss_specialized_reference(
             "classical specialization requires a valid SEA level");
     }
 
-    const std::vector<mpz_class> neighbors =
-        linear_roots(specialization.value());
     std::vector<ElkiesKernelResult> results;
-    for (const mpz_class& neighbor : neighbors) {
+    for (const mpz_class& neighbor : roots.roots()) {
         Curve codomain = curve;
         try {
             codomain = normalized_codomain_from_classical_specialization(

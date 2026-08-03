@@ -141,9 +141,18 @@ void test_classical_factor_degrees() {
                 if (!std::binary_search(coarse.begin(), coarse.end(), residue)) {
                     continue;
                 }
-                const auto factors = oneshotsea::factor_polynomial(
+                const oneshotsea::Poly specialized =
                     modular_polynomial.evaluate_x(
-                        curve.field(), curve.j_invariant()));
+                        curve.field(), curve.j_invariant());
+                const auto root_evidence =
+                    oneshotsea::certify_linear_roots(specialized);
+                check(oneshotsea::uniform_irreducible_factor_degree(
+                          specialized) ==
+                          oneshotsea::uniform_irreducible_factor_degree(
+                              root_evidence),
+                      "cached Frobenius factor-degree certificate matches the independent path");
+                const auto factors =
+                    oneshotsea::factor_polynomial(specialized);
                 const bool square_free = std::all_of(
                     factors.begin(), factors.end(), [](const auto& factor) {
                         return factor.multiplicity == 1UL;

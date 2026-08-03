@@ -446,6 +446,41 @@ void split_linear_factors(const Poly& polynomial, std::vector<mpz_class>& roots)
     throw std::runtime_error("deterministic linear-root splitting attempt limit reached");
 }
 
+struct LinearRootAnalysis {
+    Poly frobenius_x;
+    std::vector<mpz_class> roots;
+};
+
+LinearRootAnalysis analyze_linear_roots(const Poly& polynomial) {
+    if (polynomial.is_zero()) {
+        throw std::invalid_argument(
+            "zero polynomial has every field element as a root");
+    }
+    require_probable_prime_field(polynomial);
+    const Field& field = polynomial.field();
+    const Poly x = Poly::x(field);
+    Poly frobenius_x = powmod(x, field.modulus(), polynomial);
+    const Poly split = gcd(polynomial, sub(frobenius_x, x));
+    std::vector<mpz_class> roots;
+    roots.reserve(static_cast<std::size_t>(std::max(0, split.degree())));
+    split_linear_factors(split, roots);
+    std::sort(roots.begin(), roots.end());
+    roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
+
+    Poly reconstructed = Poly::constant(field, 1);
+    for (const mpz_class& root : roots) {
+        if (polynomial.evaluate(root) != 0) {
+            throw std::logic_error("linear-root validation failed");
+        }
+        reconstructed = mul(reconstructed,
+                            sub(x, Poly::constant(field, root)));
+    }
+    if (!equal(reconstructed.monic(), split.monic())) {
+        throw std::logic_error("linear-root reconstruction failed");
+    }
+    return {std::move(frobenius_x), std::move(roots)};
+}
+
 }  // namespace
 
 Poly::Poly(const Field& field) : field_(field) {}
@@ -982,32 +1017,29 @@ int rational_root_count(const Poly& polynomial) {
 }
 
 std::vector<mpz_class> linear_roots(const Poly& polynomial) {
-    if (polynomial.is_zero()) {
-        throw std::invalid_argument("zero polynomial has every field element as a root");
-    }
-    require_probable_prime_field(polynomial);
-    const Field& field = polynomial.field();
-    const Poly x = Poly::x(field);
-    const Poly xp = powmod(x, field.modulus(), polynomial);
-    const Poly split = gcd(polynomial, sub(xp, x));
-    std::vector<mpz_class> roots;
-    roots.reserve(static_cast<std::size_t>(std::max(0, split.degree())));
-    split_linear_factors(split, roots);
-    std::sort(roots.begin(), roots.end());
-    roots.erase(std::unique(roots.begin(), roots.end()), roots.end());
+    return analyze_linear_roots(polynomial).roots;
+}
 
-    Poly reconstructed = Poly::constant(field, 1);
-    for (const mpz_class& root : roots) {
-        if (polynomial.evaluate(root) != 0) {
-            throw std::logic_error("linear-root validation failed");
-        }
-        reconstructed = mul(reconstructed,
-                            sub(x, Poly::constant(field, root)));
+CertifiedLinearRoots::CertifiedLinearRoots(
+    std::shared_ptr<const Poly> polynomial, Poly frobenius_x,
+    std::vector<mpz_class> roots)
+    : polynomial_(std::move(polynomial)),
+      frobenius_x_(std::move(frobenius_x)), roots_(std::move(roots)) {}
+
+CertifiedLinearRoots certify_linear_roots(const Poly& polynomial) {
+    return certify_linear_roots(std::make_shared<const Poly>(polynomial));
+}
+
+CertifiedLinearRoots certify_linear_roots(
+    std::shared_ptr<const Poly> polynomial) {
+    if (!polynomial) {
+        throw std::invalid_argument(
+            "linear-root certification received no polynomial");
     }
-    if (!equal(reconstructed.monic(), split.monic())) {
-        throw std::logic_error("linear-root reconstruction failed");
-    }
-    return roots;
+    LinearRootAnalysis analysis = analyze_linear_roots(*polynomial);
+    return CertifiedLinearRoots(
+        std::move(polynomial), std::move(analysis.frobenius_x),
+        std::move(analysis.roots));
 }
 
 bool equal(const Poly& lhs, const Poly& rhs) {

@@ -12,26 +12,26 @@ ModularPolynomialSpecialization::ModularPolynomialSpecialization(
     unsigned level, mpz_class source_x, Poly value, Poly x_derivative)
     : level_(level),
       source_x_(std::move(source_x)),
-      value_(std::move(value)),
+      value_(std::make_shared<const Poly>(std::move(value))),
       x_derivative_(std::move(x_derivative)),
-      y_derivative_(value_.derivative()) {
+      y_derivative_(value_->derivative()) {
     if (level_ < 2U ||
         level_ > static_cast<unsigned>(
                      std::numeric_limits<int>::max() - 1)) {
         throw std::invalid_argument(
             "modular-polynomial specialization has an invalid level");
     }
-    if (value_.field().modulus() != x_derivative_.field().modulus()) {
+    if (value_->field().modulus() != x_derivative_.field().modulus()) {
         throw std::invalid_argument(
             "modular-polynomial specialization uses different fields");
     }
-    const Field& field = value_.field();
+    const Field& field = value_->field();
     if (source_x_ != field.normalize(source_x_)) {
         throw std::invalid_argument(
             "modular-polynomial specialization source is not canonical");
     }
-    if (value_.degree() != static_cast<int>(level_ + 1U) ||
-        value_.leading_coefficient() != 1) {
+    if (value_->degree() != static_cast<int>(level_ + 1U) ||
+        value_->leading_coefficient() != 1) {
         throw std::invalid_argument(
             "modular-polynomial specialization is not monic of degree ell+1");
     }
@@ -41,10 +41,15 @@ ModularPolynomialSpecialization::ModularPolynomialSpecialization(
     }
 }
 
+CertifiedLinearRoots certify_linear_roots(
+    const ModularPolynomialSpecialization& specialization) {
+    return certify_linear_roots(specialization.value_);
+}
+
 BivariateEvaluation
 ModularPolynomialSpecialization::evaluate_with_derivatives(
     const mpz_class& y) const {
-    return {value_.evaluate(y), x_derivative_.evaluate(y),
+    return {value_->evaluate(y), x_derivative_.evaluate(y),
             y_derivative_.evaluate(y)};
 }
 

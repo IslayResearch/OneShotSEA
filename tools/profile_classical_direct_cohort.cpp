@@ -36,6 +36,7 @@ struct Options {
     std::uint64_t schoof_through = 0U;
     std::uint64_t maximum_prime_candidates = UINT64_C(1000000);
     std::uint64_t maximum_x_candidates = UINT64_C(1000000);
+    std::optional<std::uint64_t> profile_level;
     std::vector<std::uint64_t> levels;
 };
 
@@ -208,6 +209,12 @@ void validate_options(const Options& options) {
                 "cohort levels must be odd primes greater than three");
         }
     }
+    if (options.profile_level.has_value() &&
+        std::find(options.levels.begin(), options.levels.end(),
+                  *options.profile_level) == options.levels.end()) {
+        throw std::invalid_argument(
+            "profile level is not present in the authenticated schedule");
+    }
 }
 
 Options parse_options(int argc, char** argv) {
@@ -271,9 +278,12 @@ Options parse_options(int argc, char** argv) {
             options.maximum_x_candidates = parse_u64(
                 value("--maximum-x-candidates"),
                 "maximum x candidates");
+        } else if (argument == "--profile-level") {
+            options.profile_level = parse_u64(
+                value("--profile-level"), "profile level");
         } else if (argument == "--help") {
             std::cout
-                << "usage: profile_classical_direct_cohort --p P --range-start I --count N --cache PATH --cache-sha256 DIGEST [--seed S] [--threads N] [--require-point4 0|1] [--cache-resident-bytes N] [--schoof-through ELL] [--maximum-prime-candidates N] [--maximum-x-candidates N] ELL...\n";
+                << "usage: profile_classical_direct_cohort --p P --range-start I --count N --cache PATH --cache-sha256 DIGEST [--seed S] [--threads N] [--require-point4 0|1] [--cache-resident-bytes N] [--schoof-through ELL] [--maximum-prime-candidates N] [--maximum-x-candidates N] [--profile-level ELL] ELL...\n";
             std::exit(EXIT_SUCCESS);
         } else {
             options.levels.push_back(parse_u64(argument, "SEA level"));
@@ -331,7 +341,11 @@ int run(const Options& options) {
         options.cache_path, options.cache_sha256);
     context.set_cached_context_residency_budget_bytes(
         options.cache_resident_bytes);
-    std::vector<Aggregate> aggregates(options.levels.size());
+    const std::vector<std::uint64_t> profiled_levels =
+        options.profile_level.has_value()
+            ? std::vector<std::uint64_t>{*options.profile_level}
+            : options.levels;
+    std::vector<Aggregate> aggregates(profiled_levels.size());
     const Clock::time_point cohort_start = Clock::now();
     std::uint64_t total_generation_us = 0U;
 
@@ -358,6 +372,19 @@ int run(const Options& options) {
             initial, initial, {}, {}, {}, {}, std::nullopt, {},
             oneshotsea::SeaCurveModelBinding{
                 sample.pair.curve.a(), sample.pair.curve.b()}};
+        if (options.profile_level.has_value()) {
+            for (const std::uint64_t ell : options.levels) {
+                if (ell == *options.profile_level) {
+                    continue;
+                }
+                state.classical_direct_levels.push_back(
+                    oneshotsea::ClassicalDirectSeaLevelRecord{
+                        ell, false, std::nullopt, 0, 0U, 0U, 0U,
+                        initial.modulus(), initial.modulus(),
+                        initial.candidate_count(), initial.candidate_count(),
+                        std::nullopt, 0U, 0U});
+            }
+        }
         std::uint64_t previous_load_count =
             context.cached_level_load_count();
         std::uint64_t previous_load_us = context.cached_level_load_us();
@@ -369,8 +396,8 @@ int run(const Options& options) {
         oneshotsea::extend_sea_with_prepared_classical_direct(
             sample.pair.curve, state, context, 1U,
             [&](const oneshotsea::ClassicalDirectSeaLevelRecord& record) {
-                if (reached >= options.levels.size() ||
-                    record.ell != options.levels[reached]) {
+                if (reached >= profiled_levels.size() ||
+                    record.ell != profiled_levels[reached]) {
                     throw std::logic_error(
                         "cohort direct level order changed");
                 }
@@ -499,7 +526,7 @@ int run(const Options& options) {
                 std::cout.flush();
                 ++reached;
             });
-        if (reached != options.levels.size()) {
+        if (reached != profiled_levels.size()) {
             throw std::runtime_error(
                 "cohort trace completed before every profiling level; use a shorter schedule or independent level contexts");
         }
@@ -519,9 +546,9 @@ int run(const Options& options) {
     }
 
     const std::vector<std::uint64_t> warm_order =
-        score_order(options.levels, aggregates, false);
+        score_order(profiled_levels, aggregates, false);
     const std::vector<std::uint64_t> observed_order =
-        score_order(options.levels, aggregates, true);
+        score_order(profiled_levels, aggregates, true);
     std::cout
         << "{\"schema\":\"oneshotsea.classical-direct-cohort-summary.v1\""
         << ",\"prime\":\"" << options.prime
@@ -554,13 +581,13 @@ int run(const Options& options) {
         << "\",\"generation_us\":\"" << total_generation_us
         << "\",\"elapsed_us\":\"" << elapsed_us(cohort_start)
         << "\",\"levels\":[";
-    for (std::size_t index = 0U; index < options.levels.size(); ++index) {
+    for (std::size_t index = 0U; index < profiled_levels.size(); ++index) {
         if (index != 0U) {
             std::cout << ',';
         }
         const Aggregate& aggregate = aggregates[index];
         std::cout
-            << "{\"ell\":\"" << options.levels[index]
+            << "{\"ell\":\"" << profiled_levels[index]
             << "\",\"samples\":\"" << aggregate.samples
             << "\",\"exact\":\"" << aggregate.exact
             << "\",\"atkin\":\"" << aggregate.atkin

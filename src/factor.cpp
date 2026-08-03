@@ -27,13 +27,24 @@ struct DegreeComponent {
 class FrobeniusCompositionPowers {
 public:
     FrobeniusCompositionPowers(const Poly& monic,
-                               unsigned int maximum_exponent)
+                               unsigned int maximum_exponent,
+                               const Poly* first_frobenius = nullptr)
         : modular_(monic), x_(mod(Poly::x(monic.field()), monic)) {
         if (maximum_exponent == 0U) {
             return;
         }
-        powers_.push_back(modular_.pow(
-            x_, monic.field().modulus()));
+        if (first_frobenius != nullptr) {
+            if (first_frobenius->field().modulus() !=
+                    monic.field().modulus() ||
+                first_frobenius->degree() >= monic.degree()) {
+                throw std::invalid_argument(
+                    "cached Frobenius image does not belong to the quotient");
+            }
+            powers_.push_back(*first_frobenius);
+        } else {
+            powers_.push_back(modular_.pow(
+                x_, monic.field().modulus()));
+        }
         unsigned int represented_exponent = 1U;
         while (represented_exponent <= maximum_exponent / 2U) {
             powers_.push_back(modular_.compose(
@@ -352,8 +363,10 @@ std::vector<IrreducibleFactor> factor_polynomial(const Poly& polynomial) {
     return factors;
 }
 
-std::optional<unsigned int> uniform_irreducible_factor_degree(
-    const Poly& polynomial) {
+namespace {
+
+std::optional<unsigned int> uniform_irreducible_factor_degree_impl(
+    const Poly& polynomial, const Poly* first_frobenius) {
     if (polynomial.is_zero()) {
         throw std::invalid_argument(
             "zero polynomial has no uniform factor degree");
@@ -370,7 +383,7 @@ std::optional<unsigned int> uniform_irreducible_factor_degree(
     const unsigned int polynomial_degree =
         static_cast<unsigned int>(monic.degree());
     const FrobeniusCompositionPowers frobenius(
-        monic, polynomial_degree);
+        monic, polynomial_degree, first_frobenius);
     std::vector<std::optional<Poly>> cached_powers(
         static_cast<std::size_t>(polynomial_degree) + 1U);
     cached_powers[0U] = frobenius.x();
@@ -409,6 +422,19 @@ std::optional<unsigned int> uniform_irreducible_factor_degree(
         }
     }
     return common_multiple;
+}
+
+}  // namespace
+
+std::optional<unsigned int> uniform_irreducible_factor_degree(
+    const Poly& polynomial) {
+    return uniform_irreducible_factor_degree_impl(polynomial, nullptr);
+}
+
+std::optional<unsigned int> uniform_irreducible_factor_degree(
+    const CertifiedLinearRoots& roots) {
+    return uniform_irreducible_factor_degree_impl(
+        roots.polynomial(), &roots.frobenius_x());
 }
 
 }  // namespace oneshotsea

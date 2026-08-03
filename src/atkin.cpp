@@ -21,14 +21,17 @@ const std::map<std::uint64_t, std::string>& trusted_table_digests() {
 }
 
 std::optional<AtkinConstraint> classify_classical_specialization(
-    const Curve& curve, std::uint64_t ell, const Poly& specialized) {
+    const Curve& curve, std::uint64_t ell, const Poly& specialized,
+    const CertifiedLinearRoots* roots = nullptr) {
     if (specialized.field().modulus() != curve.field().modulus() ||
         specialized.degree() != static_cast<int>(ell + 1U) ||
         specialized.leading_coefficient() != 1) {
         return std::nullopt;
     }
     const std::optional<unsigned int> common_factor_degree =
-        uniform_irreducible_factor_degree(specialized);
+        roots == nullptr
+            ? uniform_irreducible_factor_degree(specialized)
+            : uniform_irreducible_factor_degree(*roots);
     if (!common_factor_degree.has_value() ||
         *common_factor_degree <= 1U) {
         return std::nullopt;
@@ -104,9 +107,34 @@ std::optional<AtkinConstraint> classical_atkin_constraint_reference(
         throw std::invalid_argument(
             "classical Atkin specialization does not match the source curve");
     }
+    const CertifiedLinearRoots roots =
+        certify_linear_roots(classical_specialization);
+    return classical_atkin_constraint_reference(
+        curve, classical_specialization, roots);
+}
+
+std::optional<AtkinConstraint> classical_atkin_constraint_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& classical_specialization,
+    const CertifiedLinearRoots& roots) {
+    if (curve.is_singular()) {
+        throw std::invalid_argument(
+            "classical Atkin classification requires a nonsingular curve");
+    }
+    const mpz_class j = curve.j_invariant();
+    if (j == 0 || j == curve.field().normalize(1728)) {
+        return std::nullopt;
+    }
+    if (classical_specialization.source_x() != j ||
+        classical_specialization.value().field().modulus() !=
+            curve.field().modulus() ||
+        !equal(roots.polynomial(), classical_specialization.value())) {
+        throw std::invalid_argument(
+            "classical Atkin specialization or root certificate does not match the source curve");
+    }
     return classify_classical_specialization(
         curve, classical_specialization.level(),
-        classical_specialization.value());
+        classical_specialization.value(), &roots);
 }
 
 }  // namespace oneshotsea

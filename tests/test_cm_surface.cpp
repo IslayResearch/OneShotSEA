@@ -248,8 +248,22 @@ void test_three_power_class_polynomial() {
     const auto direct_kernels =
         oneshotsea::elkies_kernels_bmss_specialized_reference(
             target_curve, reconstructed.specialization);
+    const auto direct_root_evidence = oneshotsea::certify_linear_roots(
+        reconstructed.specialization);
+    const auto shared_root_kernels =
+        oneshotsea::elkies_kernels_bmss_specialized_reference(
+            target_curve, reconstructed.specialization,
+            direct_root_evidence);
     check(direct_trace.has_value() && direct_trace == table_trace &&
-              direct_trace.has_value() == !direct_kernels.empty(),
+              direct_trace.has_value() == !direct_kernels.empty() &&
+              direct_root_evidence.roots().size() == direct_kernels.size() &&
+              shared_root_kernels.size() == direct_kernels.size() &&
+              std::equal(
+                  shared_root_kernels.begin(), shared_root_kernels.end(),
+                  direct_kernels.begin(), [](const auto& lhs, const auto& rhs) {
+                      return lhs.neighbor_j == rhs.neighbor_j &&
+                             lhs.trace_residue == rhs.trace_residue;
+                  }),
           "direct classical specialization feeds a positive BMSS/Frobenius trace path");
     const oneshotsea::Curve wrong_source =
         oneshotsea::short_weierstrass_curve_from_j(target_field, 21);
@@ -268,15 +282,38 @@ void test_three_power_class_polynomial() {
     const auto direct_atkin =
         oneshotsea::classical_atkin_constraint_reference(
             atkin_curve, atkin_reconstructed.specialization);
+    const auto atkin_root_evidence = oneshotsea::certify_linear_roots(
+        atkin_reconstructed.specialization);
+    const auto shared_root_atkin =
+        oneshotsea::classical_atkin_constraint_reference(
+            atkin_curve, atkin_reconstructed.specialization,
+            atkin_root_evidence);
     const auto table_atkin =
         oneshotsea::classical_atkin_constraint_reference(atkin_curve, phi7);
     check(!oneshotsea::elkies_trace_residue_bmss_specialized_reference(
                atkin_curve, atkin_reconstructed.specialization).has_value() &&
               direct_atkin.has_value() && table_atkin.has_value() &&
+              atkin_root_evidence.roots().empty() &&
+              shared_root_atkin.has_value() &&
               direct_atkin->projective_order ==
                   table_atkin->projective_order &&
+              direct_atkin->projective_order ==
+                  shared_root_atkin->projective_order &&
               direct_atkin->trace_residues == table_atkin->trace_residues,
           "direct no-root specialization yields the same certified Atkin constraint");
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::elkies_kernels_bmss_specialized_reference(
+                      atkin_curve, atkin_reconstructed.specialization,
+                      direct_root_evidence));
+          }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::classical_atkin_constraint_reference(
+                          atkin_curve, atkin_reconstructed.specialization,
+                          direct_root_evidence));
+              }),
+          "direct consumers reject root evidence bound to another polynomial");
     check(rejects([&] {
               static_cast<void>(
                   oneshotsea::classical_atkin_constraint_reference(

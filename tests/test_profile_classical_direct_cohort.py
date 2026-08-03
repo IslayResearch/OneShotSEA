@@ -96,6 +96,7 @@ class ClassicalDirectCohortProfilerTests(unittest.TestCase):
         self.assert_rejected("--require-point4", "2")
         self.assert_rejected("--maximum-prime-candidates", "0")
         self.assert_rejected("--maximum-x-candidates", "0")
+        self.assert_rejected("--profile-level", "7")
         self.assert_rejected("--seed", str(U64_MAX + 1))
         self.assert_rejected("--cache-resident-bytes", str(U64_MAX + 1))
         self.assert_rejected("--cache-sha256", "not-a-digest")

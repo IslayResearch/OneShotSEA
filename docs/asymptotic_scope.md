@@ -121,11 +121,12 @@ The retained validation establishes that:
 - after the hot-path changes, the summed observed work was about 21.1 minutes
   with a largest single retained payload of about 614 MB.
 
-Subsequent p125 hot-path audits remove repeated Frobenius work and reuse
-fixed-inner modular-composition baby powers. These reduce deterministic
-per-level arithmetic and preserve the same four production traces, but remain
-constant-factor changes. They neither alter the number of curves predicted by
-the yield model nor remove the finite-schedule and 64-bit-field limitations.
+Subsequent p125 hot-path audits remove repeated Frobenius work, reuse
+fixed-inner modular-composition baby powers, and construct sub-degree odd
+powers of `X` as monomials. These reduce deterministic per-level arithmetic
+and preserve the same four production traces, but remain constant-factor
+changes. They neither alter the number of curves predicted by the yield model
+nor remove the finite-schedule and 64-bit-field limitations.
 
 It does not establish certificate yield, a production schedule, the behavior
 on many independent curves, p130 scaling, or the CM crossover. The full paths

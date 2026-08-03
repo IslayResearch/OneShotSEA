@@ -90,6 +90,14 @@ generic modular-composition path and does not change the certified factor
 partition. The p125 differential and production replay are retained in the
 [prepared-composition audit](../artifacts/local/p125-direct-frobenius-composition-20260803/README.md).
 
+The first Frobenius image is a fixed-base exponentiation of `X`. Odd powers
+strictly below the quotient modulus degree are already canonical monomials, so
+the sliding-window planner constructs them without quotient arithmetic and
+selects its window using only the remaining execution chain. The generic path
+is retained for every other reduced base. Exact binary differentials and the
+p125 production replay are retained in the [Frobenius-X-window
+audit](../artifacts/local/p125-direct-frobenius-x-window-20260803/README.md).
+
 ### 0.3 Sound early abort, exact smoothness, and certificate tail
 
 The first SEA pass proceeds to early screening only when the

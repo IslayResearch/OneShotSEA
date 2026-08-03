@@ -1,0 +1,133 @@
+{
+  "schema": "oneshotsea.p125-direct-frobenius-x-window.v1",
+  "implementation": {
+    "commit": "69bf11543bb7fc8237e5c60a53fc00d62d039fbb",
+    "tree": "4187cae3bf934e351c11751120404b692305e68e",
+    "profiler_sha256": "23a7368cf45a3ed9e78b850dc4315e4b2caf9d311b79bb860970b0ae8b89f06d",
+    "search_binary_sha256": "af40645cbc6991e4dfeae1afefeaeef1b58b8055f5ce8c45b3b3cc7712918b3e"
+  },
+  "baseline": {
+    "commit": "c10902aa411e3b6105755c1e1b8859cc3462a70c",
+    "tree": "e4e86c2dd9eece1f5cbf8080b342fac4b58a42d0",
+    "profiler_sha256": "7aeb3a8f306e7b73dd3bbc5c1d13a8896fd181025dd8074237dc3836984dd367"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416,
+    "seed": "202607300000",
+    "range_start": "2000001",
+    "count": 4,
+    "profile_level": 89,
+    "authenticated_levels": [61, 67, 71, 73, 79, 83, 89, 97],
+    "threads": 1,
+    "require_point_four": true
+  },
+  "direct_context": {
+    "sha256": "b4543589450c429516c95c5de575be853b6d5e7b5a4cdaabfdcf119a4b15d450",
+    "file_bytes": 140599516,
+    "profiled_level_payload_bytes": 24511760,
+    "resident_budget_bytes": 1000000000,
+    "maximum_prime_candidates": 10000000,
+    "maximum_x_candidates_per_surface": 1000000
+  },
+  "method": {
+    "order": ["baseline_a", "candidate_a", "candidate_b", "baseline_b"],
+    "fresh_process_per_run": true,
+    "same_benchmark_driver": true,
+    "same_authenticated_cache": true,
+    "timing_scope": "sum of four isolated level-89 direct evaluation_us values; cache indexing, curve generation, materialization, Schoof, Weber continuation, smoothness, and certificate work excluded",
+    "thermal_control": "curve generation used as a same-process directional control, not as a normalization factor",
+    "randomized": false,
+    "host": "Apple arm64, Darwin 25.5.0",
+    "generic_window_bits": 5,
+    "generic_execution_operations": 462,
+    "generic_table_operations": 16,
+    "generic_quotient_ring_operations": 478,
+    "specialized_window_bits": 6,
+    "specialized_execution_operations": 452,
+    "specialized_table_operations": 0,
+    "specialized_quotient_ring_operations": 452,
+    "quotient_ring_operations_saved": 26
+  },
+  "runs": {
+    "baseline_a": {
+      "records": "raw/baseline-a.ndjson",
+      "records_sha256": "348884113c217943473e32c6a55b5bcd7a29989ec5fe74585280697c7d31f018",
+      "evaluation_us": 2505271,
+      "generation_us": 46640713,
+      "materialization_us": 636230,
+      "peak_rss_bytes": 36798464
+    },
+    "candidate_a": {
+      "records": "raw/candidate-a.ndjson",
+      "records_sha256": "5b718430e0b2361b694a78d61605d794ea7dca962cfb34db77182ad3c15c1d38",
+      "evaluation_us": 1520798,
+      "generation_us": 30423781,
+      "materialization_us": 397454,
+      "peak_rss_bytes": 36962304
+    },
+    "candidate_b": {
+      "records": "raw/candidate-b.ndjson",
+      "records_sha256": "fa7a21c52f246c5b7e9946a9a31c76baf9e0c1fea2cb14f365512490d5147a2c",
+      "evaluation_us": 2768039,
+      "generation_us": 48001766,
+      "materialization_us": 605518,
+      "peak_rss_bytes": 36962304
+    },
+    "baseline_b": {
+      "records": "raw/baseline-b.ndjson",
+      "records_sha256": "5091f963faa19d4af2cb6de68ba0d3ae4d05a4f895d667eb9bc91dc63089e244",
+      "evaluation_us": 1992101,
+      "generation_us": 36836861,
+      "materialization_us": 516287,
+      "peak_rss_bytes": 36864000
+    }
+  },
+  "comparison": {
+    "baseline_evaluation_us": 4497372,
+    "candidate_evaluation_us": 4288837,
+    "raw_target_timer_speedup": 1.048622738518624,
+    "raw_target_timer_reduction_percent": 4.63681901341495,
+    "baseline_generation_us": 83477574,
+    "candidate_generation_us": 78425547,
+    "generation_control_reduction_percent": 6.051957140009845,
+    "baseline_materialization_us": 1152517,
+    "candidate_materialization_us": 1002972,
+    "identical_level_semantics": true,
+    "general_speedup_inference_allowed": false
+  },
+  "production_validation": {
+    "records": "raw/production-progress.ndjson",
+    "records_sha256": "11606b258a7c6d93a3ffeae8c1746c647e9f501800c21a1dcded8af628a537ad",
+    "checkpoint": "raw/production-checkpoint.json",
+    "checkpoint_sha256": "974f3228ea0758860d79f570aeb80e905b226bd02b73c21ec193a083beaf2867",
+    "schedule_sha256": "c542232bf07b3528edb88aa6a9c8e09193d6fcb7d8c8a9b9bea903dcaacf14ad",
+    "prior_records": "artifacts/local/p125-direct-frobenius-composition-20260803/raw/production-progress.ndjson",
+    "prior_records_sha256": "fa032f80e95b0415ef63b3e059ad2d3cc6641aeb76bd68741ff2d1a03077ab9f",
+    "independent_point_counts": "artifacts/local/p125-direct-first-cohort-20260803/raw/pari-point-counts.txt",
+    "independent_point_counts_sha256": "3f7b1849862acdf40a4cc58b98efd10181923e17f664bfb2f9e15e9427683e53",
+    "direct_level_evaluations": 85,
+    "direct_level_counts": [20, 22, 22, 21],
+    "direct_exact_counts": [12, 11, 11, 10],
+    "direct_atkin_counts": [8, 11, 11, 11],
+    "weber_level_counts": [33, 33, 35, 52],
+    "smooth_orders": 8,
+    "sound_rejections": 4,
+    "semantic_match": true,
+    "exact_traces_match_pari": true,
+    "timing_used_for_speedup_claim": false
+  },
+  "claims": {
+    "frobenius_x_odd_powers_constructed_as_monomials": true,
+    "frobenius_x_window_increased_at_level_89": true,
+    "powmod_result_changed": false,
+    "isolated_atkin_timer_improved": true,
+    "production_semantics_preserved": true,
+    "certificate_found": false,
+    "production_yield_measured": false,
+    "whole_cohort_speedup_claimed": false,
+    "end_to_end_speedup_claimed": false,
+    "cm_crossover_established": false,
+    "asymptotic_exponent_changed": false
+  }
+}

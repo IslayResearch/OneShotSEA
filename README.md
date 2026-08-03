@@ -41,6 +41,8 @@ The branch implements:
 - exact Elkies recovery with normalized-codomain and BMSS checks;
 - complete polynomial-bound root evidence and certified Atkin factor-degree,
   projective-order, and trace-set recovery;
+- monomial-aware sliding-window evaluation of the initial Frobenius image
+  `X^p mod f`;
 - fixed-inner modular-composition plans that reuse Frobenius baby powers
   across an Atkin factor proof;
 - retained set-valued CRT state across direct levels, cap-N to cap-one
@@ -141,6 +143,7 @@ Operational details are in [direct context caches](docs/direct_context_cache.md)
 | Interpolation hot path | Thirty-two real p125 evaluations remained identical while the isolated timer fell 19.52% against bracketing baselines. [Audit](artifacts/local/p125-direct-batched-interpolation-20260803/README.md) |
 | Atkin Frobenius reuse | Reusing complete-root evidence removed one duplicate quotient-ring exponentiation per Atkin level; a production replay preserved all four PARI traces. [Audit](artifacts/local/p125-direct-atkin-frobenius-reuse-20260803/README.md) |
 | Prepared Frobenius composition | Reusing fixed-inner baby powers removed 420 known table-building multiplications in the four level-89 proofs; an exact B/A/A/B comparison improved the isolated target timer 5.25% despite an adverse generation control, and the production replay preserved all proof semantics. [Audit](artifacts/local/p125-direct-frobenius-composition-20260803/README.md) |
+| Frobenius `X` window | Constructing sub-degree odd powers of `X` as exact monomials removed 26 quotient-ring operations from each level-89 initial Frobenius computation; the isolated timer improved 4.64%, with favorable control drift preventing a general speed claim, and the production replay preserved all proof semantics. [Audit](artifacts/local/p125-direct-frobenius-x-window-20260803/README.md) |
 | Bounded Atkin combination | A 240-record differential run was identical while the bounded combiner improved direct evaluation 10.96x and peak RSS 28.71x. [Audit](artifacts/local/p125-direct-atkin-mitm-20260803/README.md) |
 
 These runs validate the implementation and the composition of its proof state.
@@ -164,12 +167,14 @@ The highest-value questions for Drew are bounded:
    exact Elkies residues?
 3. Do complete-root evidence, Frobenius composition, factor degrees,
    projective orders, and residue enumeration justify every Atkin set?
-4. Are fixed-inner composition plans lifetime-safe, correctly bounded, and
+4. Does the specialized `X`-power planner admit only canonical sub-degree
+   monomials and remain exactly equivalent to generic exponentiation?
+5. Are fixed-inner composition plans lifetime-safe, correctly bounded, and
    exactly equivalent to generic quotient-ring composition?
-5. Are direct constraints composed soundly through cap-N screening, the
+6. Are direct constraints composed soundly through cap-N screening, the
    deferred suffix, Weber continuation, cap-one recovery, and smoothness
    rejection?
-6. Is loading an authenticated prepared context mathematically and
+7. Is loading an authenticated prepared context mathematically and
    operationally equivalent to constructing it fresh with the same inputs?
 
 A positive review would justify a larger p125/p130 yield experiment. It would
@@ -186,8 +191,9 @@ the per-curve SEA work is polynomial in `log p` and is absorbed into the
 
 This implementation has that intended decomposition, but the measurements in
 this repository do not prove the asymptotic claim. Context reuse, early abort,
-batched interpolation, Frobenius evidence reuse, and prepared composition are
-constant-factor improvements; none changes the outer exponent. The current
+batched interpolation, Frobenius evidence reuse, monomial `X` windows, and
+prepared composition are constant-factor improvements; none changes the outer
+exponent. The current
 finite schedule, fixed selector, and 64-bit auxiliary-field ceiling also keep
 this from being an unqualified unbounded implementation of the heuristic.
 See [the detailed asymptotic scope](docs/asymptotic_scope.md).

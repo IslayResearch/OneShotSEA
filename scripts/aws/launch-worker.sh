@@ -18,6 +18,15 @@ max_level=''
 sea_threads=''
 curve_family='weber-f'
 x1_require_point4=0
+sea_strategy='weber-first'
+classical_direct_levels=''
+classical_direct_maximum_prime_candidates=1000000
+classical_direct_maximum_x_candidates=1000000
+classical_direct_context_cache=''
+classical_direct_context_sha256=''
+classical_direct_context_max_file_bytes=4294967296
+classical_direct_cache_resident_bytes=0
+direct_option_seen=0
 curve_threads=1
 sea_level_telemetry=1
 schoof_fallback=0
@@ -45,6 +54,14 @@ Options:
   --checkpoint-every N                Checkpoint interval
   --curve-family FAMILY               weber-f, x1-11, or x1-27
   --x1-require-point4 0|1             Require validated X1 point of order four
+  --sea-strategy STRATEGY             weber-first or direct-first
+  --classical-direct-levels CSV       Ordered direct-level schedule
+  --classical-direct-max-prime-candidates N
+  --classical-direct-max-x-candidates N
+  --classical-direct-context-cache PATH
+  --classical-direct-context-sha256 SHA256
+  --classical-direct-context-max-file-bytes N
+  --classical-direct-cache-resident-bytes N
   --curve-threads N                   Concurrent curve workers
   --sea-level-telemetry 0|1           Emit per-level SEA telemetry
   --schoof-fallback 0|1               Complete exhausted SEA states exactly
@@ -115,6 +132,31 @@ while (( $# )); do
     --x1-require-point4)
       x1_require_point4="${2:-}"
       append_boolean_option x1-require-point4 "$x1_require_point4"; shift 2 ;;
+    --sea-strategy)
+      sea_strategy="${2:-}"
+      case "$sea_strategy" in
+        weber-first|direct-first) ;;
+        *) die 'sea-strategy must be weber-first or direct-first' ;;
+      esac
+      shift 2 ;;
+    --classical-direct-levels)
+      classical_direct_levels="${2:-}"; direct_option_seen=1; shift 2 ;;
+    --classical-direct-max-prime-candidates)
+      classical_direct_maximum_prime_candidates="${2:-}"
+      direct_option_seen=1; shift 2 ;;
+    --classical-direct-max-x-candidates)
+      classical_direct_maximum_x_candidates="${2:-}"
+      direct_option_seen=1; shift 2 ;;
+    --classical-direct-context-cache)
+      classical_direct_context_cache="${2:-}"; direct_option_seen=1; shift 2 ;;
+    --classical-direct-context-sha256)
+      classical_direct_context_sha256="${2:-}"; direct_option_seen=1; shift 2 ;;
+    --classical-direct-context-max-file-bytes)
+      classical_direct_context_max_file_bytes="${2:-}"
+      direct_option_seen=1; shift 2 ;;
+    --classical-direct-cache-resident-bytes)
+      classical_direct_cache_resident_bytes="${2:-}"
+      direct_option_seen=1; shift 2 ;;
     --curve-threads)
       curve_threads="${2:-}"
       validate_positive_uint curve-threads "$curve_threads"
@@ -170,6 +212,45 @@ if [[ "$curve_family" == weber-f && "$x1_require_point4" == 1 ]]; then
   die '--x1-require-point4 requires an X1 curve family'
 fi
 require_cmd python3
+validate_positive_uint classical-direct-max-prime-candidates \
+  "$classical_direct_maximum_prime_candidates"
+validate_positive_uint classical-direct-max-x-candidates \
+  "$classical_direct_maximum_x_candidates"
+validate_positive_uint classical-direct-context-max-file-bytes \
+  "$classical_direct_context_max_file_bytes"
+(( 10#$classical_direct_context_max_file_bytes >= 96 )) ||
+  die 'classical-direct-context-max-file-bytes must be at least 96'
+validate_uint classical-direct-cache-resident-bytes \
+  "$classical_direct_cache_resident_bytes"
+if [[ "$sea_strategy" == direct-first ]]; then
+  [[ -n "$classical_direct_levels" ]] ||
+    die '--sea-strategy direct-first requires --classical-direct-levels'
+  [[ -n "$classical_direct_context_cache" ]] ||
+    die '--sea-strategy direct-first requires --classical-direct-context-cache'
+  [[ "$classical_direct_context_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+    die '--sea-strategy direct-first requires a trusted direct-cache SHA-256'
+  if ! python3 - "$classical_direct_levels" <<'PY'
+import math
+import re
+import sys
+
+text = sys.argv[1]
+if not re.fullmatch(r"[1-9][0-9]*(?:,[1-9][0-9]*)*", text):
+    raise SystemExit(1)
+values = [int(value) for value in text.split(",")]
+if len(values) != len(set(values)) or any(value > (1 << 32) - 1 for value in values):
+    raise SystemExit(1)
+for value in values:
+    if value <= 3 or any(value % divisor == 0 for divisor in range(2, math.isqrt(value) + 1)):
+        raise SystemExit(1)
+PY
+  then
+    die 'classical-direct-levels must be ordered distinct canonical decimal primes greater than three'
+  fi
+else
+  (( direct_option_seen == 0 )) ||
+    die 'classical direct options require --sea-strategy direct-first'
+fi
 if ! python3 - "$curve_threads" "$smooth_coordinators" <<'PY'
 import sys
 curve_threads, smooth_coordinators = map(int, sys.argv[1:])
@@ -196,6 +277,14 @@ validate_remote_root
   die 'smooth cache must be a simple absolute path below the remote root'
 [[ "$smooth_cache" != *'/../'* && "$smooth_cache" != */.. ]] ||
   die 'smooth cache path may not traverse parents'
+if [[ "$sea_strategy" == direct-first ]]; then
+  [[ "$classical_direct_context_cache" =~ ^/[A-Za-z0-9._/+~-]+$ &&
+     "$classical_direct_context_cache" == "${AWS_REMOTE_ROOT}/"* ]] ||
+    die 'direct cache must be a simple absolute path below the remote root'
+  [[ "$classical_direct_context_cache" != *'/../'* &&
+     "$classical_direct_context_cache" != */.. ]] ||
+    die 'direct cache path may not traverse parents'
+fi
 require_cmd jq
 
 range_count="$(python3 - "$range_start" "$range_end" <<'PY'
@@ -226,6 +315,22 @@ remote_args=(
   "${search_args[@]}"
   "${resource_args[@]}"
 )
+if [[ "$sea_strategy" == direct-first ]]; then
+  remote_args+=(
+    --sea-strategy direct-first
+    --classical-direct-levels "$classical_direct_levels"
+    --classical-direct-max-prime-candidates \
+      "$classical_direct_maximum_prime_candidates"
+    --classical-direct-max-x-candidates \
+      "$classical_direct_maximum_x_candidates"
+    --classical-direct-context-cache "$classical_direct_context_cache"
+    --classical-direct-context-sha256 "$classical_direct_context_sha256"
+    --classical-direct-context-max-file-bytes \
+      "$classical_direct_context_max_file_bytes"
+    --classical-direct-cache-resident-bytes \
+      "$classical_direct_cache_resident_bytes"
+  )
+fi
 if (( resume == 1 )); then
   remote_args+=(--resume)
 fi

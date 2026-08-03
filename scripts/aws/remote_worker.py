@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -84,6 +85,17 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--smooth-cache-sha256", required=True)
     result.add_argument("--curve-family", choices=("weber-f", "x1-11", "x1-27"))
     result.add_argument("--x1-require-point4", type=int)
+    result.add_argument(
+        "--sea-strategy", choices=("weber-first", "direct-first"),
+        default="weber-first",
+    )
+    result.add_argument("--classical-direct-levels")
+    result.add_argument("--classical-direct-max-prime-candidates", type=int)
+    result.add_argument("--classical-direct-max-x-candidates", type=int)
+    result.add_argument("--classical-direct-context-cache", type=Path)
+    result.add_argument("--classical-direct-context-sha256")
+    result.add_argument("--classical-direct-context-max-file-bytes", type=int)
+    result.add_argument("--classical-direct-cache-resident-bytes", type=int)
     result.add_argument("--curve-threads", type=int)
     result.add_argument("--sea-level-telemetry", type=int)
     result.add_argument("--schoof-fallback", type=int)
@@ -157,6 +169,62 @@ def main() -> int:
         fail("--max-curves must be positive")
     if args.run_kind == "production" and not args.wall_time_limit_seconds:
         fail("production runs require wall time for artifact-fetch margin")
+
+    direct_values = (
+        args.classical_direct_levels,
+        args.classical_direct_max_prime_candidates,
+        args.classical_direct_max_x_candidates,
+        args.classical_direct_context_cache,
+        args.classical_direct_context_sha256,
+        args.classical_direct_context_max_file_bytes,
+        args.classical_direct_cache_resident_bytes,
+    )
+    direct_enabled = args.sea_strategy == "direct-first"
+    if not direct_enabled and any(value is not None for value in direct_values):
+        fail("classical direct options require --sea-strategy direct-first")
+    direct_levels: list[int] = []
+    if direct_enabled:
+        if any(value is None for value in direct_values):
+            fail("--sea-strategy direct-first requires every direct-cache option")
+        assert args.classical_direct_levels is not None
+        if not re.fullmatch(
+            r"[1-9][0-9]*(?:,[1-9][0-9]*)*", args.classical_direct_levels
+        ):
+            fail("invalid --classical-direct-levels")
+        direct_levels = [int(value) for value in args.classical_direct_levels.split(",")]
+        if len(direct_levels) != len(set(direct_levels)) or any(
+            value > (1 << 32) - 1 for value in direct_levels
+        ):
+            fail("invalid --classical-direct-levels")
+        for value in direct_levels:
+            if value <= 3 or any(
+                value % divisor == 0
+                for divisor in range(2, math.isqrt(value) + 1)
+            ):
+                fail("direct levels must be distinct primes greater than three")
+        direct_positive = (
+            ("classical-direct-max-prime-candidates",
+             args.classical_direct_max_prime_candidates),
+            ("classical-direct-max-x-candidates",
+             args.classical_direct_max_x_candidates),
+            ("classical-direct-context-max-file-bytes",
+             args.classical_direct_context_max_file_bytes),
+        )
+        for name, value in direct_positive:
+            assert value is not None
+            if not 0 < value <= MAX_U64:
+                fail(f"invalid --{name}")
+        assert args.classical_direct_context_max_file_bytes is not None
+        if args.classical_direct_context_max_file_bytes < 96:
+            fail("classical direct cache admission limit is below its header")
+        assert args.classical_direct_cache_resident_bytes is not None
+        if not 0 <= args.classical_direct_cache_resident_bytes <= MAX_U64:
+            fail("invalid --classical-direct-cache-resident-bytes")
+        if (
+            args.classical_direct_context_sha256 is None
+            or not HEX_64.fullmatch(args.classical_direct_context_sha256)
+        ):
+            fail("invalid trusted direct-cache digest")
 
     search_options = (
         ("curve-family", args.curve_family),
@@ -246,6 +314,88 @@ def main() -> int:
     ):
         fail("smooth cache provenance does not match the trusted worker inputs")
 
+    direct_cache = None
+    direct_manifest_path = None
+    direct_argv: list[str] = []
+    if direct_enabled:
+        assert args.classical_direct_context_cache is not None
+        assert args.classical_direct_context_sha256 is not None
+        assert args.classical_direct_max_prime_candidates is not None
+        assert args.classical_direct_max_x_candidates is not None
+        assert args.classical_direct_context_max_file_bytes is not None
+        assert args.classical_direct_cache_resident_bytes is not None
+        direct_cache = within(
+            args.classical_direct_context_cache, root, "direct cache"
+        )
+        if (
+            not direct_cache.is_file()
+            or direct_cache.is_symlink()
+            or digest(direct_cache) != args.classical_direct_context_sha256
+        ):
+            fail("direct cache is missing or its digest changed")
+        direct_manifest_path = within(
+            direct_cache.parent / "manifest.json", root,
+            "direct cache manifest",
+        )
+        if not direct_manifest_path.is_file():
+            fail("direct cache has no provenance manifest")
+        with direct_manifest_path.open(encoding="utf-8") as stream:
+            direct_manifest = json.load(stream)
+        if not isinstance(direct_manifest, dict):
+            fail("direct cache provenance manifest is not an object")
+        expected_direct_command = [
+            str(executable), "prepare-classical-direct-context",
+            "--p", str(args.prime),
+            "--classical-direct-levels", args.classical_direct_levels,
+            "--classical-direct-max-prime-candidates",
+            str(args.classical_direct_max_prime_candidates),
+            "--classical-direct-max-x-candidates",
+            str(args.classical_direct_max_x_candidates),
+            "--classical-direct-context-max-file-bytes",
+            str(args.classical_direct_context_max_file_bytes),
+            "--sea-threads", str(args.sea_threads),
+            "--output", str(direct_cache),
+        ]
+        direct_checks = (
+            ("schema", "oneshotsea.aws-direct-cache.v1"),
+            ("cache_id", direct_cache.parent.name),
+            ("prime", str(args.prime)),
+            ("ordered_levels", [str(value) for value in direct_levels]),
+            ("maximum_prime_candidates",
+             args.classical_direct_max_prime_candidates),
+            ("maximum_x_candidates_per_surface",
+             args.classical_direct_max_x_candidates),
+            ("sea_threads", args.sea_threads),
+            ("max_file_bytes", args.classical_direct_context_max_file_bytes),
+            ("file_bytes", direct_cache.stat().st_size),
+            ("deployment_commit", commit),
+            ("binary_sha256", binary_sha),
+            ("direct_cache_sha256", args.classical_direct_context_sha256),
+            ("command_argv", expected_direct_command),
+        )
+        for name, expected in direct_checks:
+            if direct_manifest.get(name) != expected:
+                fail(f"direct cache provenance mismatch: {name}")
+        if direct_manifest.get("expected_direct_cache_sha256") not in (
+            None, args.classical_direct_context_sha256
+        ):
+            fail("direct cache provenance mismatch: expected digest")
+        direct_argv = [
+            "--sea-strategy", "direct-first",
+            "--classical-direct-levels", args.classical_direct_levels,
+            "--classical-direct-max-prime-candidates",
+            str(args.classical_direct_max_prime_candidates),
+            "--classical-direct-max-x-candidates",
+            str(args.classical_direct_max_x_candidates),
+            "--classical-direct-context-cache", str(direct_cache),
+            "--classical-direct-context-sha256",
+            args.classical_direct_context_sha256,
+            "--classical-direct-context-max-file-bytes",
+            str(args.classical_direct_context_max_file_bytes),
+            "--classical-direct-cache-resident-bytes",
+            str(args.classical_direct_cache_resident_bytes),
+        ]
+
     assigned_start, assigned_end = partition(
         args.range_start, args.range_end, args.worker_id, args.worker_count
     )
@@ -278,6 +428,19 @@ def main() -> int:
         ),
         "remote_worker.py": Path(__file__).resolve(),
     }
+    if direct_enabled:
+        assert direct_cache is not None and direct_manifest_path is not None
+        provenance_sources.update({
+            "direct-cache-manifest.json": direct_manifest_path,
+            "direct-cache-command.sh": within(
+                direct_cache.parent / "command.sh", root,
+                "direct cache command",
+            ),
+            "direct-cache-build.log": within(
+                direct_cache.parent / "build.log", root,
+                "direct cache build log",
+            ),
+        })
     for name, source in provenance_sources.items():
         copy_authenticated(source, provenance_dir / name, name)
     provenance_manifest_path = provenance_dir / "manifest.json"
@@ -290,6 +453,10 @@ def main() -> int:
             name: digest(provenance_dir / name) for name in sorted(provenance_sources)
         },
     }
+    if direct_enabled:
+        provenance_manifest["direct_cache_sha256"] = (
+            args.classical_direct_context_sha256
+        )
     encoded_provenance = (
         json.dumps(provenance_manifest, sort_keys=True, separators=(",", ":")) + "\n"
     )
@@ -326,6 +493,7 @@ def main() -> int:
         "--checkpoint", str(checkpoint), "--progress", str(progress),
         "--certificate-out", str(result), "--build-id", build_id,
         *search_argv,
+        *direct_argv,
         *resource_argv,
     ]
     run_command = command
@@ -376,6 +544,8 @@ exit "$status"
         "command_argv": command,
         "command_sha256": command_sha256,
     }
+    if direct_enabled:
+        manifest["direct_cache_sha256"] = args.classical_direct_context_sha256
 
     if manifest_path.exists():
         if not args.resume:

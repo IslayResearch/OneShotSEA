@@ -145,6 +145,63 @@ run tree so `fetch.sh` retains the provenance before termination. Give the
 worker an explicit wall-time limit that leaves ample deployment, fetch, and
 verification margin before the guest lifetime backstop.
 
+## Authenticated direct-first workers
+
+The specialized classical-`j` context is a second, curve-independent cache.
+Unlike the smooth cache, its identity includes the ordered level schedule,
+both direct-construction caps, its preparation/search `--sea-threads` value,
+and its whole-file admission limit. Build it on each deployed instance with
+the exact production binary. For the measured p125 selected-20 policy:
+
+```sh
+P=100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237
+LEVELS=7,5,11,13,19,17,23,29,31,37,41,43,47,53,67,71,79,61,73,59
+
+scripts/aws/prepare-direct-cache.sh \
+  --cache-id p125-selected20 --prime "$P" --levels "$LEVELS" \
+  --maximum-prime-candidates 10000000 \
+  --maximum-x-candidates 1000000 --sea-threads 1 \
+  --max-file-bytes 1000000000 \
+  --expected-cache-sha256 \
+    d9848275c04d77c5a40f96eb06f113100ebc7a1b3ac0bc6c15d207677be41a53
+scripts/aws/prepare-direct-cache.sh \
+  --cache-id p125-selected20 --prime "$P" --levels "$LEVELS" \
+  --maximum-prime-candidates 10000000 \
+  --maximum-x-candidates 1000000 --sea-threads 1 \
+  --max-file-bytes 1000000000 \
+  --expected-cache-sha256 \
+    d9848275c04d77c5a40f96eb06f113100ebc7a1b3ac0bc6c15d207677be41a53 \
+  --execute
+```
+
+Then add the following to the otherwise complete bounded worker invocation:
+
+```sh
+  --sea-strategy direct-first \
+  --classical-direct-levels "$LEVELS" \
+  --classical-direct-max-prime-candidates 10000000 \
+  --classical-direct-max-x-candidates 1000000 \
+  --classical-direct-context-cache \
+    /opt/oneshotsea/direct-caches/p125-selected20/direct.ctx \
+  --classical-direct-context-sha256 \
+    d9848275c04d77c5a40f96eb06f113100ebc7a1b3ac0bc6c15d207677be41a53 \
+  --classical-direct-context-max-file-bytes 1000000000 \
+  --classical-direct-cache-resident-bytes 94601556 \
+  --sea-threads 1
+```
+
+The launcher and remote worker fail closed unless the cache file and manifest
+match the trusted digest, target, ordered schedule, caps, exact preparation
+command, file size, deployed commit and binary, and `sea-threads`. Supplying an
+expected digest during preparation additionally checks reproducibility; when
+it is initially unknown, record the emitted digest through a trusted channel
+and provide it to the launcher. The worker copies the direct-cache manifest,
+build log, and exact preparation command into its provenance tree; resume
+repeats the complete normalized search argv. The 94,601,556-byte cache above
+is a measured p125 policy input, not an automatic or asymptotically universal
+schedule. Its bounded four-curve evidence is retained under
+[`artifacts/local/p125-direct-first-cohort-20260803`](../artifacts/local/p125-direct-first-cohort-20260803).
+
 Always fetch artifacts before teardown, then terminate and confirm the final
 state:
 

@@ -32,6 +32,12 @@ mpz_class target_prime() {
         "0000000000000000000000000000000000000000000237");
 }
 
+mpz_class integer_power(unsigned long base, unsigned long exponent) {
+    mpz_class result;
+    mpz_ui_pow_ui(result.get_mpz_t(), base, exponent);
+    return result;
+}
+
 oneshotsea::CrtSpecializationResidue signed_residue(
     const mpz_class& prime, const std::vector<mpz_class>& value,
     const std::vector<mpz_class>& x_derivative) {
@@ -399,6 +405,33 @@ void test_algorithm1_table_differential() {
                   oneshotsea::CrtCoefficientBoundEvidence::
                       exact_table_reference,
           "opaque CRT height evidence agrees with independent coefficient accumulation");
+    const auto proved_classical_bound =
+        oneshotsea::derive_proved_classical_algorithm1_coefficient_bound(
+            5, target_field.modulus());
+    const mpz_class proved_numerator =
+        target_field.modulus() * integer_power(7, 3) *
+        integer_power(5, 30) * integer_power(11, 90);
+    const mpz_class proved_denominator = integer_power(4, 90);
+    const mpz_class expected_proved_bound =
+        (proved_numerator + proved_denominator - 1) /
+        proved_denominator;
+    check(proved_classical_bound.evidence() ==
+                  oneshotsea::CrtCoefficientBoundEvidence::
+                      proved_classical_algorithm1 &&
+              proved_classical_bound.absolute_bound() ==
+                  expected_proved_bound &&
+              proved_classical_bound.absolute_bound() > bound &&
+              rejects([] {
+                  static_cast<void>(oneshotsea::
+                      derive_proved_classical_algorithm1_coefficient_bound(
+                          4, 193));
+              }) &&
+              rejects([] {
+                  static_cast<void>(oneshotsea::
+                      derive_proved_classical_algorithm1_coefficient_bound(
+                          5, 195));
+              }),
+          "classical Algorithm 1 bound is exact-integer, theorem-derived, and fail-closed");
     check(rejects([&] {
               (void)oneshotsea::
                   derive_exact_crt_coefficient_bound_from_table_reference(
@@ -471,6 +504,54 @@ void test_algorithm1_table_differential() {
                   orchestrated.specialization.y_derivative(),
                   expected.y_derivative()),
           "checked suitable-order/prime-selection/provider/CRT path matches the table oracle");
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::reconstruct_weber_specialization_algorithm1(
+                      order, target_field, source, proved_classical_bound,
+                      10000,
+                      [&modular_polynomial](
+                          const oneshotsea::SutherlandCrtPrime& record,
+                          const std::vector<mpz_class>& supplied_powers) {
+                          return oneshotsea::
+                              specialize_sparse_modpoly_for_crt_reference(
+                                  modular_polynomial, supplied_powers,
+                                  record.prime);
+                      }));
+          }),
+          "Weber wrapper rejects the unrelated proved classical height evidence");
+
+    const auto classical_modular_polynomial =
+        oneshotsea::SparseModularPolynomial::load(
+            5, "data/modpoly/j/phi_5.txt");
+    const auto classical_expected =
+        classical_modular_polynomial.specialize_x_with_derivative(
+            target_field, source);
+    std::size_t classical_calls = 0U;
+    const auto classical_orchestrated =
+        oneshotsea::reconstruct_classical_specialization_algorithm1(
+            order, target_field, source, 10000,
+            [&classical_modular_polynomial, &powers, &classical_calls](
+                const oneshotsea::SutherlandCrtPrime& record,
+                const std::vector<mpz_class>& supplied_powers) {
+                ++classical_calls;
+                check(supplied_powers == powers,
+                      "classical Algorithm 1 preserves target-field lifts");
+                return oneshotsea::specialize_sparse_modpoly_for_crt_reference(
+                    classical_modular_polynomial, supplied_powers,
+                    record.prime);
+            });
+    check(classical_calls == classical_orchestrated.prime_count &&
+              classical_orchestrated.coefficient_abs_bound ==
+                  expected_proved_bound &&
+              classical_orchestrated.crt_product >
+                  4 * expected_proved_bound &&
+              oneshotsea::equal(
+                  classical_orchestrated.specialization.value(),
+                  classical_expected.value()) &&
+              oneshotsea::equal(
+                  classical_orchestrated.specialization.x_derivative(),
+                  classical_expected.x_derivative()),
+          "proved-bound classical Algorithm 1 reconstructs both target channels");
 
     const auto incompatible_order =
         oneshotsea::validate_sutherland_suitable_order(5, -251, 1);

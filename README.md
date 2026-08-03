@@ -46,7 +46,9 @@ For one SEA level `ell`, the new path now performs these steps:
    functionals needed for `Phi_ell(x,Y)` and its X derivative.  The producer
    never constructs or loads the bivariate target-level modular polynomial.
 9. Stream checked residues into exact centered CRT reconstruction, with strict
-   coverage, normalization, and coefficient-bound checks.
+   coverage, normalization, and coefficient-bound checks.  The classical `j`
+   wrapper derives its bound directly from Sutherland's theorem using exact
+   integer arithmetic; Weber remains gated on a normalization-specific proof.
 
 The level-5 fixture exercises steps 1--8 end to end.  The CRT layer is
 independently exercised with signed synthetic data, the 416-bit `p125` target,
@@ -64,6 +66,7 @@ and authenticated-table differential oracles.
 | Table-free classical `j` residue at an auxiliary prime | Implemented and differentially tested at `ell=5` |
 | Signed, target-table-free Weber residue | Implemented and differentially tested at `ell=5`, from caller-supplied class/orientation state |
 | Exact CRT reconstruction | Implemented and corruption-tested |
+| Proved classical Algorithm 1 coefficient bound | Implemented without floating-point logarithms |
 | Classical/Weber class-polynomial generation and authentication | Not implemented; current API validates caller-supplied state |
 | Authentication/selection of small Weber orientation relations | Not wired to the pinned catalog trust type |
 | Proved normalization-specific Weber height bound | Not implemented |
@@ -122,9 +125,10 @@ native producer.
 A positive Elkies result has strong downstream BMSS-isogeny and Frobenius
 checks.  An Atkin/no-root classification cannot carry the same local witness,
 so it depends directly on the authenticity of the specialization.  For that
-reason, the new path fails closed and remains outside production until
-class-invariant and small-relation provenance plus the coefficient-height proof
-are implemented and differentially validated at production scale.
+reason, the new path fails closed.  The classical wrapper now has a proved
+coefficient bound, but remains outside production until class-polynomial
+provenance is connected.  The Weber wrapper additionally awaits a proved
+normalization-specific height and authenticated small-relation provenance.
 
 Search heuristics may reorder work, but they may not reject curves.  A
 smoothness early abort is sound only after the complete Hasse-compatible trace
@@ -144,8 +148,10 @@ specializations, avoids a bivariate target-level table, and uses work
 polynomial in the interpolation and CRT sizes.  The repository does not yet
 establish the end-to-end claim.  Its order and auxiliary-prime searches are
 bounded practical selectors, and authenticated class-polynomial production,
-small-relation selection, and the proved height bound still have to meet the
-cited polynomial-time analysis.
+small-relation selection, and the proved Weber height still have to meet the
+cited polynomial-time analysis.  The classical fallback's bound and CRT size
+are already polynomial in `ell` and `log p`, but its HCP input is not yet a
+production-authenticated object.
 
 ## Why this milestone is worth reviewing
 
@@ -166,7 +172,7 @@ substantially larger:
 5. Do the two interpolation functionals compute exactly the required value
    and X-derivative channels?
 6. Are target-field lifting, strict CRT coverage, centered reconstruction, and
-   the no-root trust boundary sound?
+   the exact-integer classical height/no-root trust boundary sound?
 
 If those answers are yes, the milestone validates the geometric and CRT core
 needed by the intended one-shot SEA path.  It does not ask the reviewer to

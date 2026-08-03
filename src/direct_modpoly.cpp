@@ -30,6 +30,13 @@ void validate_odd_prime_level(unsigned level) {
     }
 }
 
+mpz_class positive_integer_power(unsigned long base,
+                                 unsigned long exponent) {
+    mpz_class result;
+    mpz_ui_pow_ui(result.get_mpz_t(), base, exponent);
+    return result;
+}
+
 bool is_squarefree(std::uint64_t value) {
     if (value == 0U) {
         return false;
@@ -626,6 +633,43 @@ derive_exact_crt_coefficient_bound_from_table_reference(
         maximum, CrtCoefficientBoundEvidence::exact_table_reference);
 }
 
+CrtCoefficientBound derive_proved_classical_algorithm1_coefficient_bound(
+    unsigned level, const mpz_class& target_modulus) {
+    validate_odd_prime_level(level);
+    if (!is_probable_prime(target_modulus)) {
+        throw std::invalid_argument(
+            "classical Algorithm 1 target modulus must be prime");
+    }
+
+    const unsigned long encoded_level =
+        static_cast<unsigned long>(level);
+    if (encoded_level >
+        std::numeric_limits<unsigned long>::max() / 18UL) {
+        throw std::overflow_error(
+            "classical Algorithm 1 height exponent overflows unsigned long");
+    }
+    const unsigned long height_exponent = 18UL * encoded_level;
+    const mpz_class ell_power = positive_integer_power(
+        encoded_level, 6UL * encoded_level);
+    // e = 1+1+1/2+sum_{k>=3}1/k! < 5/2+1/4 = 11/4:
+    // k! >= 2*3^(k-2) makes the remaining geometric tail at most 1/4.
+    // Keeping this ratio exact prevents a floating logarithm from weakening
+    // the coefficient trust boundary.
+    const mpz_class e_numerator = positive_integer_power(11UL,
+                                                         height_exponent);
+    const mpz_class e_denominator = positive_integer_power(4UL,
+                                                           height_exponent);
+    const mpz_class ell_plus_two = mpz_class(encoded_level) + 2;
+    const mpz_class numerator =
+        target_modulus * ell_plus_two * ell_plus_two * ell_plus_two *
+        ell_power * e_numerator;
+    const mpz_class absolute_bound =
+        (numerator + e_denominator - 1) / e_denominator;
+    return CrtCoefficientBound(
+        absolute_bound,
+        CrtCoefficientBoundEvidence::proved_classical_algorithm1);
+}
+
 CrtSpecializationResult reconstruct_specialization_explicit_crt(
     unsigned level, const Field& target_field, const mpz_class& source_x,
     const mpz_class& coefficient_abs_bound,
@@ -752,6 +796,11 @@ CrtSpecializationResult reconstruct_weber_specialization_algorithm1(
         throw std::invalid_argument(
             "suitable order does not satisfy the Weber-f congruences");
     }
+    if (coefficient_bound.evidence() !=
+        CrtCoefficientBoundEvidence::exact_table_reference) {
+        throw std::invalid_argument(
+            "Weber Algorithm 1 has no proved direct coefficient bound");
+    }
     if (!provider) {
         throw std::invalid_argument(
             "Algorithm 1 has no per-prime specialization provider");
@@ -791,6 +840,54 @@ CrtSpecializationResult reconstruct_weber_specialization_algorithm1(
     if (next != selected.size()) {
         throw std::logic_error(
             "Algorithm 1 did not consume every selected CRT prime");
+    }
+    return result;
+}
+
+CrtSpecializationResult reconstruct_classical_specialization_algorithm1(
+    const SutherlandSuitableOrder& order, const Field& target_field,
+    const mpz_class& source_j, std::uint64_t maximum_candidates,
+    const SutherlandSpecializationResidueProvider& provider) {
+    if (!provider) {
+        throw std::invalid_argument(
+            "classical Algorithm 1 has no per-prime specialization provider");
+    }
+    if (target_field.normalize(source_j) != source_j) {
+        throw std::invalid_argument(
+            "classical Algorithm 1 source j is not canonical");
+    }
+    const CrtCoefficientBound coefficient_bound =
+        derive_proved_classical_algorithm1_coefficient_bound(
+            order.level(), target_field.modulus());
+    const std::vector<mpz_class> target_power_lifts =
+        lifted_target_powers(target_field, source_j, order.level() + 1U);
+    const std::vector<SutherlandCrtPrime> selected =
+        select_sutherland_crt_primes(
+            order, target_field.modulus(),
+            coefficient_bound.absolute_bound(), maximum_candidates);
+    std::vector<mpz_class> primes;
+    primes.reserve(selected.size());
+    for (const SutherlandCrtPrime& record : selected) {
+        primes.push_back(record.prime);
+    }
+
+    std::size_t next = 0U;
+    CrtSpecializationResult result =
+        reconstruct_specialization_explicit_crt(
+            order.level(), target_field, source_j,
+            coefficient_bound.absolute_bound(), primes,
+            [&selected, &provider, &target_power_lifts, &next](
+                const mpz_class& prime) {
+                if (next >= selected.size() ||
+                    selected[next].prime != prime) {
+                    throw std::logic_error(
+                        "classical Algorithm 1 prime stream lost synchronization");
+                }
+                return provider(selected[next++], target_power_lifts);
+            });
+    if (next != selected.size()) {
+        throw std::logic_error(
+            "classical Algorithm 1 did not consume every selected prime");
     }
     return result;
 }

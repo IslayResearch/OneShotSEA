@@ -74,10 +74,11 @@ belong to the auxiliary order.  See
 
 `discover_sutherland_suitable_order` now provides a bounded deterministic
 producer for the validated order, with the ring-class number formula checked
-against independent reduced-form enumeration.  The high-level wrapper also
-accepts only an opaque, provenance-bearing coefficient bound; its sole current
-derivation is exact table evaluation for differential tests.  A proved
-Weber-specific height derivation is still required for the unbounded path.
+against independent reduced-form enumeration.  The classical high-level
+wrapper internally derives Sutherland's proved Algorithm 1 bound using exact
+integer arithmetic and accepts no external bound.  Exact table evaluation is
+retained only as differential evidence.  A proved Weber-specific height
+derivation is still required for the faster Weber path.
 
 `enumerate_cm_interpolation_surfaces` validates complete square-free splitting
 of a supplied `H_O mod p`, admits the unique trace-signed twist at each of the
@@ -132,8 +133,9 @@ raw timing arrays, build switches, and parsed semantic checks are retained in
 The implemented boundary and auxiliary-prime producer are necessary for the
 intended asymptotic implementation, but not sufficient.  They remove the API
 dependency on a stored bivariate target-level table, implement the classical
-CM geometry, signed Weber conversion, and bounded reconstruction, and leave
-input production/authentication plus the height proof incomplete.
+CM geometry, signed Weber conversion, and bounded reconstruction.  The
+classical route now has the theorem-derived height proof; input
+production/authentication and the Weber-specific height proof remain.
 
 For Algorithm 1, Sutherland proves under GRH an expected running time
 
@@ -155,7 +157,8 @@ normalization-specific bound, and steps 2--4 remain substantial:
 
 1. replace the bounded practical order discovery where necessary with an
    asymptotically justified selector and compute a proved Weber coefficient
-   bound (bounded discovery, validation, and CRT-prime selection are implemented);
+   bound (bounded discovery, validation, CRT-prime selection, and the proved
+   classical bound are implemented);
 2. compute and authenticate the required classical and Weber class polynomial
    state (supplied split state is currently validated and consumed);
 3. select and authenticate enough target-independent small Weber relations to

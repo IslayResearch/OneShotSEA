@@ -165,13 +165,31 @@ producer types are connected.
 
 ### 6. Exact CRT and height check
 
-The high-level Weber wrapper accepts a `CrtCoefficientBound`, not a raw
-integer.  Its constructor is private.  At present, the only available evidence
-is `exact_table_reference`, obtained by evaluating every table term after
-target-power lifting and bounding both the value and X-derivative channels.
-This makes table differential tests exact while making it impossible to pass a
-guessed empirical maximum through the production-facing API.  A future proved
-Weber height formula must add a distinct evidence kind and checked constructor.
+`CrtCoefficientBound` has a private constructor, so no high-level wrapper can
+accept a guessed empirical maximum.  `exact_table_reference` evaluates every
+table term after target-power lifting and exists only for differential tests.
+
+The classical wrapper instead uses
+`proved_classical_algorithm1`.  Sutherland's Algorithm 1 proves the logarithmic
+bound
+
+```text
+B = 6*ell*log(ell) + 18*ell + log(q) + 3*log(ell+2)
+```
+
+for the value and optional derivative channels.  The implementation converts
+this to an absolute integer bound without floating point:
+
+```text
+H = ceil(q*(ell+2)^3*ell^(6ell)*(11/4)^(18ell)).
+```
+
+The elementary series estimate `e < 11/4` proves `H >= exp(B)`.  This is
+slightly conservative but cannot round downward.  The checked classical
+orchestrator derives `H` internally, selects enough witnessed primes, and does
+not accept external bound evidence.  A separate normalization-specific proof
+is still required for the much smaller Weber bound; the paper's stated Weber
+formula is explicitly heuristic and is not admitted here.
 
 Let `M` be the product of the distinct primes `p_i`, `M_i=M/p_i`, and
 `a_i=M_i^-1 mod p_i`.  For one residue coefficient `c_i`, the implementation
@@ -213,6 +231,8 @@ value and X-derivative channels.
   64-bit proof range;
 - signed synthetic coefficients over `F_1009` and over the 416-bit `p125`
   target;
+- exact agreement of the theorem-derived classical bound with its rational
+  integer formula, plus end-to-end classical reconstruction of both channels;
 - auxiliary-prime permutation invariance;
 - insufficient product, duplicate/composite moduli, wrong provider identity,
   malformed leading terms, and deliberate residue corruption; and
@@ -263,8 +283,9 @@ particular:
   (supplied split polynomials are checked and consumed);
 - signed Weber rows are produced with supplied small relations, but selecting
   and authenticating a sufficient class-group generator set is not wired; and
-- the high-level API rejects untyped/empirical bounds, but a proved,
-  normalization-specific Weber coefficient bound `H` is not yet implemented.
+- the high-level API has a proved classical bound and rejects untyped/empirical
+  bounds, but a proved normalization-specific Weber bound is not yet
+  implemented.
 
 These missing operations are the ones that must satisfy Sutherland's
 polynomial-in-`log q` bounds.  Until they do, production still depends on the
@@ -276,9 +297,9 @@ implementation theorem.
 
 Turn the checked level-5 callback into a production provider:
 
-1. implement a proved Weber-specific height derivation, then derive or load
-   independently authenticated Hilbert-class-polynomial state
-   for the validated order;
+1. derive or load independently authenticated Hilbert-class-polynomial state
+   for the validated order and connect it first to the already proved-bound
+   classical wrapper;
 2. compute/authenticate the Weber surface class polynomial and a sufficient
    target-independent small-relation generator set for each selected order;
 3. pass the resulting signed residues through the proved-bound CRT wrapper;
@@ -286,8 +307,10 @@ Turn the checked level-5 callback into a production provider:
 4. compare every per-prime residue and final target specialization with the
    authenticated table oracle before permitting any no-root result.
 
-The first production connection must use the future proved-Weber evidence kind;
-the existing exact-table evidence remains a bounded differential oracle.
+The first sound production connection may use the implemented proved-classical
+evidence.  Enabling the faster Weber path still requires a distinct proved
+Weber evidence kind; exact-table evidence remains a bounded differential
+oracle.
 
 ### Implemented surface-edge primitive
 
@@ -322,6 +345,7 @@ A mathematical review can remain narrow:
 - completeness of the two signed torsors and the `X^ell Y^ell=-1` ambiguity
   rule;
 - strict CRT coverage and centered rounding; and
+- the exact rational derivation of the classical Algorithm 1 bound; and
 - whether the two output channels match the normalization required by
   [`docs/direct_specialization_boundary.md`](direct_specialization_boundary.md).
 

@@ -416,7 +416,10 @@ horizontal and descending edges, and interpolates both classical residue
 channels without a target-level bivariate table.  At level 5, a supplied Weber
 class polynomial and target-independent `Phi_37^f` relation connect the signed
 surface/floor torsors; exactly one relative sign yields `X^5Y^5=-1`, and both
-direct channels match the authenticated `Phi_5^f` oracle.  A proved Weber
+direct channels match the authenticated `Phi_5^f` oracle.  The classical
+Algorithm 1 wrapper now derives Sutherland's proved specialization bound with
+exact integer arithmetic; it never accepts a floating or caller-guessed bound.
+A proved Weber
 height bound plus authenticated class-polynomial and small-relation production
 remain open.  Until they are implemented, the authenticated finite Weber
 catalog is still the production source.  See

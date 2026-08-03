@@ -132,13 +132,13 @@ using SutherlandSpecializationResidueProvider =
 
 enum class CrtCoefficientBoundEvidence {
     exact_table_reference,
+    proved_classical_algorithm1,
 };
 
 // An absolute coefficient bound with an explicit derivation.  Construction is
-// restricted so the high-level Algorithm 1 wrapper cannot accept a guessed or
-// empirically sampled height.  The only current derivation is exact evaluation
-// from a full table for differential tests; the production Weber-height
-// theorem must add a separate evidence case and checked constructor.
+// restricted so a high-level Algorithm 1 wrapper cannot accept a guessed or
+// empirically sampled height.  Classical direct evaluation has a theorem-based
+// constructor; Weber still requires a normalization-specific proof.
 class CrtCoefficientBound {
 public:
     const mpz_class& absolute_bound() const { return absolute_bound_; }
@@ -151,6 +151,9 @@ private:
     friend CrtCoefficientBound
     derive_exact_crt_coefficient_bound_from_table_reference(
         const SparseModularPolynomial&, const std::vector<mpz_class>&);
+    friend CrtCoefficientBound
+    derive_proved_classical_algorithm1_coefficient_bound(
+        unsigned, const mpz_class&);
 
     mpz_class absolute_bound_;
     CrtCoefficientBoundEvidence evidence_;
@@ -163,6 +166,14 @@ CrtCoefficientBound
 derive_exact_crt_coefficient_bound_from_table_reference(
     const SparseModularPolynomial& modular_polynomial,
     const std::vector<mpz_class>& target_power_lifts);
+
+// Exact integer upper bound derived from Sutherland 2012, Algorithm 1:
+// B=6*ell*log(ell)+18*ell+log(q)+3*log(ell+2).  The implementation uses the
+// elementary rational inequality e<11/4, so it never rounds a floating-point
+// logarithm downward.  It covers the value and X-derivative channels (and is
+// conservative enough for the optional second derivative as well).
+CrtCoefficientBound derive_proved_classical_algorithm1_coefficient_bound(
+    unsigned level, const mpz_class& target_modulus);
 
 struct CrtSpecializationResult {
     ModularPolynomialSpecialization specialization;
@@ -184,9 +195,18 @@ CrtSpecializationResult reconstruct_specialization_explicit_crt(
     const std::vector<mpz_class>& auxiliary_primes,
     const CrtSpecializationResidueProvider& provider);
 
+// Checked classical-j Algorithm 1 orchestration with the proved bound above.
+// Unlike the Weber wrapper, it does not accept an externally supplied bound.
+CrtSpecializationResult reconstruct_classical_specialization_algorithm1(
+    const SutherlandSuitableOrder& order, const Field& target_field,
+    const mpz_class& source_j, std::uint64_t maximum_candidates,
+    const SutherlandSpecializationResidueProvider& provider);
+
 // Checked Algorithm 1 orchestration for the Weber-f path.  It enforces the
 // necessary order congruences, selects suitable CRT primes with their (t,v)
-// witnesses, and reconstructs the target specialization.  The callback is the
+// witnesses, and reconstructs the target specialization.  Until a proved
+// Weber-specific evidence kind exists, only exact full-table evidence is
+// accepted; the proved classical bound is deliberately rejected.  The callback is the
 // deliberately narrow integration point for the still-separate per-prime
 // isogeny-volcano evaluator; that producer must also prove that its Weber
 // values belong to the corresponding class invariant set.

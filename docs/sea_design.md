@@ -81,6 +81,15 @@ criterion, trace set, cache identity, early-abort policy, or asymptotic
 exponent. The p125 differential and production evidence is retained in the
 [Frobenius-reuse audit](../artifacts/local/p125-direct-atkin-frobenius-reuse-20260803/README.md).
 
+The factor-degree chain also composes several outer polynomials with each
+fixed Frobenius power. A prepared composition plan owns the quotient context
+and precomputes the fixed inner polynomial's baby powers once; all repeated
+queries are bounded by the plan's declared outer-coefficient capacity. This
+is an arithmetic cache only: it produces the same reduced polynomial as the
+generic modular-composition path and does not change the certified factor
+partition. The p125 differential and production replay are retained in the
+[prepared-composition audit](../artifacts/local/p125-direct-frobenius-composition-20260803/README.md).
+
 ### 0.3 Sound early abort, exact smoothness, and certificate tail
 
 The first SEA pass proceeds to early screening only when the

@@ -1,108 +1,92 @@
-# OneShotSEA: the direct-first SEA research branch
+# OneShotSEA
 
-This branch contains a custom SEA point-counting path for the one-shot
-primality-proof search. Its immediate target is the 416-bit prime
-`nextprime(10^125)` and then larger targets such as `nextprime(10^130)`.
+OneShotSEA is a custom, direct-first SEA implementation for searching for
+short one-shot primality proofs. The current engineering target is the
+416-bit prime `nextprime(10^125)` and, after that, targets such as
+`nextprime(10^130)`.
 
-The deliverable here is the point-counting and search machinery needed to run
-that experiment. It is not yet a p125 certificate, a general-purpose SEA
-library, or a measured proof of the SEA-versus-CM crossover.
+This repository currently contains a working native C++ SEA point-counting
+path, its integration into the one-shot search, authenticated prepared
+contexts, sound early-abort policies, and retained p125 validation evidence.
+It does **not** yet contain a p125 certificate, a certificate-yield study, or
+a measured proof of the SEA/CM crossover.
 
-Some CM-search and Weber code is inherited from the parent project. On this
-branch it is support machinery—for modular-polynomial construction, fallback,
-and differential validation—not the feature being proposed for review.
+Some CM-surface and Weber code remains because the specialized modular-
+polynomial producer uses CM isogeny surfaces and the search can continue with
+Weber levels. Those components support the SEA path; they are not a second
+project described by this README.
 
-## What this branch implements
+## The implemented path
 
 ```text
-authenticated prepared context
-    -> specialized classical Phi_ell(j,Y)
-    -> exact Elkies residue or certified Atkin trace set
-    -> retained CRT state
-    -> measured early-abort / cap-one policy
-    -> Weber continuation only where still needed
-    -> sound smoothness rejection or ordinary certificate gates
+prepare and authenticate an ordered direct-level context
+    -> specialize Phi_ell(j,Y) for the curve
+    -> recover an exact Elkies residue or certify an Atkin trace set
+    -> retain and combine direct CRT constraints
+    -> stop on a sound rejection, or continue through Weber levels
+    -> test the resulting curve/twist orders at the ordinary proof gates
 ```
 
-The SEA path is native C++; it does not call PARI/GP, Magma, Sage, or a
-general-purpose SEA implementation during a search. The branch adds:
+The search does not invoke PARI/GP, Magma, Sage, or another general-purpose
+SEA implementation. Independent point counters appear only in retained
+validation artifacts.
 
-- specialized classical modular-polynomial construction using CM isogeny
-  surfaces, Vélu quotients, interpolation, coefficient bounds, and centered
-  CRT;
-- bounded 128-bit batch accumulation for the compact interpolation matrices,
-  with an exact no-overflow capacity bound for each 64-bit auxiliary field;
+The branch implements:
+
+- specialized classical modular-polynomial construction using auxiliary
+  fields, CM isogeny surfaces, Vélu quotients, interpolation, coefficient
+  bounds, and centered CRT;
+- authenticated, bounded-residency context caches whose schedule, inputs,
+  witnesses, and mathematical payload are part of the search identity;
 - exact Elkies recovery with normalized-codomain and BMSS checks;
-- polynomial-bound complete root evidence that reuses the Elkies attempt's
-  validated first Frobenius image in the subsequent no-root Atkin proof;
-- certified Atkin trace sets with factored CRT counting and bounded
-  meet-in-the-middle enumeration;
-- retained direct constraints across Weber fallback and the cap-N-to-cap-one
-  transition;
-- an optional pre-smooth direct suffix, so a small multi-trace set can be made
-  exact before repeatedly scanning the smoothness cache;
-- streaming authenticated context caches with canonical encoding,
-  mathematical witnesses, bounded resident memory, and ordered schedules; and
-- an AWS preparation and worker path that binds the deployed commit, binary,
-  prime, schedule, construction limits, cache digest, and command.
+- complete polynomial-bound root evidence and certified Atkin factor-degree,
+  projective-order, and trace-set recovery;
+- fixed-inner modular-composition plans that reuse Frobenius baby powers
+  across an Atkin factor proof;
+- retained set-valued CRT state across direct levels, cap-N to cap-one
+  transitions, optional pre-smooth suffix levels, and Weber continuation;
+- sound smoothness rejection and ordinary certificate gates; and
+- preparation and worker commands that bind the deployed commit, binary,
+  prime, schedule, construction limits, and cache digest.
 
-Resource limits fail closed. Running out of a table, candidate budget, memory
-budget, or construction budget is never reported as a mathematical rejection.
+All resource limits fail closed. Exhausting a table, candidate limit,
+construction budget, or memory budget is not reported as a mathematical
+rejection.
 
-## Current evidence
-
-The retained p125 artifacts exercise the same proof state used by the search,
-while independent point counters are used only as validation oracles.
-
-| Property under test | Retained result |
-| --- | --- |
-| Complete specialized SEA trace | A 30-level run through `ell=271` matched every authenticated table-backed residue and an independent Magma trace. [Direct-trace audit](artifacts/local/p125-direct-trace-777e293-20260803/README.md) |
-| Direct-to-Weber composition | Fifteen direct levels were retained into Weber continuation; the reconstructed trace matched the table-backed route and PARI/GP. [Hybrid A/B audit](artifacts/local/p125-direct-first-hybrid-20260803/README.md) |
-| Sound cap-16 screening | A measured 20-level prefix completed four fixed screenings, including one curve on which Weber-only exhausted its usable levels; every set contained the independent PARI trace. [Four-curve cohort](artifacts/local/p125-direct-first-cohort-20260803/README.md) |
-| Certified cap-one completion | The difficult cohort curve stopped at the certified effective singleton at `ell=379`, recovered the PARI trace, and reached sound smoothness screening. [Singleton audit](artifacts/local/p125-certified-atkin-singleton-20260803/README.md) |
-| Deferred direct suffix | Levels 89/97 were absent from four ordinary p125 rejections, but cap-one replays preserved all three independent traces and shortened Weber continuation. [Deferred-suffix audit](artifacts/local/p125-cap-one-direct-tail-20260803/README.md) |
-| Pre-smooth suffix promotion | On the same four curves, five cached suffix evaluations reduced smoothness inputs from 46 orders to 8, resolved every multi-trace set to the independent PARI trace, and reduced the single-run summed total by 7.17%. [Pre-smooth A/B](artifacts/local/p125-pre-smooth-direct-tail-20260803/README.md) |
-| Direct interpolation hot path | On 32 real p125 level evaluations, batched modular accumulation preserved every exact/Atkin result and reduced isolated evaluation time by 19.52% against the mean of bracketing baselines; a production replay preserved all four independent traces. [Batched-interpolation A/B/A](artifacts/local/p125-direct-batched-interpolation-20260803/README.md) |
-| Direct Atkin Frobenius reuse | Complete root evidence removes one duplicate quotient-ring exponentiation per Atkin level. An exact B/A/A/B level-89 bracket cut the raw isolated target timer 50.54%, with favorable generation drift explicitly preventing a general speed claim; the full four-curve production replay preserved all PARI traces. [Frobenius-reuse audit](artifacts/local/p125-direct-atkin-frobenius-reuse-20260803/README.md) |
-| Bounded Atkin combiner | A 240-record differential A/B was identical while improving direct evaluation by 10.96x and peak RSS by 28.71x. [Atkin MITM audit](artifacts/local/p125-direct-atkin-mitm-20260803/README.md) |
-
-These results validate the implementation path and its proof-state composition.
-They do not establish certificate yield or a practical crossover against the
-CM search.
-
-## Validate this branch
+## Build and validate
 
 The native build requires a C++20 compiler and GMP.
 
 ```sh
 /usr/bin/make -j4
 /usr/bin/make \
-  test-direct-modpoly \
-  test-prime-isogeny \
-  test-cm-surface \
+  test \
+  test-factor \
   test-atkin \
-  test-search-checkpoint \
+  test-direct-modpoly \
+  test-cm-surface \
   test-search-pipeline \
+  test-search-checkpoint \
   test-cli \
-  test-aws \
-  test-yield-model
+  test-aws
 ```
 
-The retained performance/proof-state audits are checked with:
+The retained proof-state and performance evidence has executable audits:
 
 ```sh
 /usr/bin/make test-performance-artifacts
 /usr/bin/make test-p125-direct-trace
 ```
 
-The native suite does not require Magma. `/usr/bin/make test-all` also runs the
-optional independent point-count oracle and needs `MAGMA=/path/to/magma` (or
-`magma` on `PATH`).
+The native suite does not require Magma. `/usr/bin/make test-all` also runs an
+optional independent point-count oracle and needs `MAGMA=/path/to/magma` or a
+`magma` executable on `PATH`.
 
-## Run the branch-specific path
+## Run the direct-first search
 
-Preparation is curve-independent and can be amortized over a cohort. This is
-the current measured 20-level screening prefix plus a two-level cap-one suffix:
+Preparation is curve-independent and should be amortized over a cohort. This
+is the current measured 20-level screening prefix followed by a two-level
+cap-one suffix:
 
 ```sh
 LEVELS=7,5,11,13,19,17,23,29,31,37,41,43,47,53,67,71,79,61,73,59,89,97
@@ -138,82 +122,95 @@ same ordered schedule and construction limits:
 ```
 
 The level order, suffix boundary, and pre-smooth threshold are measured policy
-inputs and part of checkpoint identity. Set the pre-smooth threshold to zero to
-retain the conservative policy that tests every cap-N trace before attempting
-the suffix. Direct SEA remains opt-in; no launcher silently selects this
-schedule.
+inputs and part of checkpoint identity. Set the pre-smooth threshold to zero
+to test every cap-N trace before trying the suffix. Direct-first SEA is
+opt-in; no launcher silently selects this schedule.
 
-The operational contracts are in [direct context
-caches](docs/direct_context_cache.md), [search
-integration](docs/search_pipeline.md), and the [AWS operator
-guide](docs/aws.md).
+Operational details are in [direct context caches](docs/direct_context_cache.md),
+[search integration](docs/search_pipeline.md), and the [AWS guide](docs/aws.md).
 
-## Why expert review is worth the time
+## Current p125 evidence
 
-This is now reviewable proof code rather than a design proposal. The custom
-producer reaches the real search pipeline, certified Elkies and Atkin state
-survives fallback and trace-cap transitions, fixed 416-bit traces complete,
-independent oracle results are retained, and prepared contexts have a
-deterministic authenticated boundary.
+| What was validated | Retained result |
+| --- | --- |
+| Complete direct trace | Thirty prepared levels through `ell=271` reconstructed the exact trace and matched authenticated residues plus an independent Magma trace. [Audit](artifacts/local/p125-direct-trace-777e293-20260803/README.md) |
+| Direct/Weber composition | Fifteen direct constraints survived Weber continuation and reconstructed the same PARI/GP trace as the table-backed route. [Audit](artifacts/local/p125-direct-first-hybrid-20260803/README.md) |
+| Four-curve sound screening | A measured 20-level prefix completed four fixed p125 screenings; every set contained the independent PARI trace. [Audit](artifacts/local/p125-direct-first-cohort-20260803/README.md) |
+| Cap-one and deferred suffix | The difficult cohort curve reached a certified singleton, while deferred levels 89/97 preserved all traces and shortened continuation. [Singleton audit](artifacts/local/p125-certified-atkin-singleton-20260803/README.md), [suffix audit](artifacts/local/p125-cap-one-direct-tail-20260803/README.md) |
+| Pre-smooth promotion | Five suffix evaluations reduced smoothness inputs from 46 orders to 8 and preserved all four independent traces. [Audit](artifacts/local/p125-pre-smooth-direct-tail-20260803/README.md) |
+| Interpolation hot path | Thirty-two real p125 evaluations remained identical while the isolated timer fell 19.52% against bracketing baselines. [Audit](artifacts/local/p125-direct-batched-interpolation-20260803/README.md) |
+| Atkin Frobenius reuse | Reusing complete-root evidence removed one duplicate quotient-ring exponentiation per Atkin level; a production replay preserved all four PARI traces. [Audit](artifacts/local/p125-direct-atkin-frobenius-reuse-20260803/README.md) |
+| Prepared Frobenius composition | Reusing fixed-inner baby powers removed 420 known table-building multiplications in the four level-89 proofs; an exact B/A/A/B comparison improved the isolated target timer 5.25% despite an adverse generation control, and the production replay preserved all proof semantics. [Audit](artifacts/local/p125-direct-frobenius-composition-20260803/README.md) |
+| Bounded Atkin combination | A 240-record differential run was identical while the bounded combiner improved direct evaluation 10.96x and peak RSS 28.71x. [Audit](artifacts/local/p125-direct-atkin-mitm-20260803/README.md) |
 
-The highest-value review questions are concrete:
+These runs validate the implementation and the composition of its proof state.
+They do not establish certificate yield or a practical crossover against the
+CM search.
 
-1. Are the auxiliary-prime selection and suitable-order claims sufficient?
-2. Do the ring-class resultants and CM-surface checks authenticate every
-   specialization?
-3. Do Vélu enumeration, normalization, interpolation, and coefficient bounds
-   justify the reconstructed polynomial data?
-4. Are exact and set-valued trace constraints composed soundly through early
-   abort, the deferred suffix, Weber continuation, and cap-one recovery?
-5. Is a cached construction mathematically and operationally equivalent to a
-   fresh construction with the same declared inputs?
-6. Does the direct interpolation hot path's accumulator-capacity proof cover
-   every admitted 64-bit modulus and matrix dimension?
-7. Is the retained `X^p` image cryptographically bound to the exact immutable
-   specialization consumed by both the complete root and Atkin proofs?
+## What expert review should decide
 
-Those are bounded proof obligations with retained witnesses and differential
-evidence, which is why Drew's review is worth the time now. A positive review
-would justify a larger p125/p130 yield experiment; it would not, by itself,
-validate the yield heuristic, the finite-size crossover, or unbounded scaling.
+This is worth reviewing now because the custom producer reaches the real
+search pipeline, fixed 416-bit traces complete, exact and set-valued state
+survives every fallback and early-abort transition, independent oracle results
+are retained, and prepared contexts have a deterministic authenticated
+boundary.
 
-## Scope of the asymptotic claim
+The highest-value questions for Drew are bounded:
+
+1. Do auxiliary-prime selection, ring-class resultants, CM-surface checks,
+   interpolation bounds, and CRT reconstruction authenticate each specialized
+   modular polynomial?
+2. Do Vélu enumeration, codomain normalization, and BMSS checks justify the
+   exact Elkies residues?
+3. Do complete-root evidence, Frobenius composition, factor degrees,
+   projective orders, and residue enumeration justify every Atkin set?
+4. Are fixed-inner composition plans lifetime-safe, correctly bounded, and
+   exactly equivalent to generic quotient-ring composition?
+5. Are direct constraints composed soundly through cap-N screening, the
+   deferred suffix, Weber continuation, cap-one recovery, and smoothness
+   rejection?
+6. Is loading an authenticated prepared context mathematically and
+   operationally equivalent to constructing it fresh with the same inputs?
+
+A positive review would justify a larger p125/p130 yield experiment. It would
+not by itself validate the yield heuristic, finite-size crossover, or
+unbounded scaling.
+
+## Asymptotic scope
 
 The proposed `p^(1/8+o(1))` term is the heuristic number of curves searched to
-encounter the smooth divisor needed by a one-shot certificate. It is not the
-cost of one SEA point count. Under the stated small-level and auxiliary-prime
-assumptions, per-curve SEA work is polynomial in `log p` and is absorbed into
-the `o(1)` term.
+find the smooth divisor needed by a one-shot certificate. It is not the cost
+of one SEA point count. Under the small-level and auxiliary-prime assumptions,
+the per-curve SEA work is polynomial in `log p` and is absorbed into the
+`o(1)` term.
 
-This branch has the intended decomposition, but finite p125 measurements do
-not prove that asymptotic behavior. Context reuse, retained state, and early
-abort improve constants and rejected-curve cost; they do not change the outer
-heuristic exponent. The assumptions and current 64-bit auxiliary-field and
-fixed-selector qualifications are listed in [asymptotic
-scope](docs/asymptotic_scope.md).
+This implementation has that intended decomposition, but the measurements in
+this repository do not prove the asymptotic claim. Context reuse, early abort,
+batched interpolation, Frobenius evidence reuse, and prepared composition are
+constant-factor improvements; none changes the outer exponent. The current
+finite schedule, fixed selector, and 64-bit auxiliary-field ceiling also keep
+this from being an unqualified unbounded implementation of the heuristic.
+See [the detailed asymptotic scope](docs/asymptotic_scope.md).
 
 ## Review map
 
-- [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp): auxiliary primes,
-  coefficient bounds, and CRT reconstruction.
-- [`src/class_polynomial.cpp`](src/class_polynomial.cpp),
+- [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp),
+  [`src/class_polynomial.cpp`](src/class_polynomial.cpp),
   [`src/prime_isogeny.cpp`](src/prime_isogeny.cpp), and
-  [`src/cm_surface.cpp`](src/cm_surface.cpp): ring-class construction, Velu
-  quotients, surface authentication, and interpolation.
-- [`src/direct_context_cache.cpp`](src/direct_context_cache.cpp): canonical
-  encoding, streaming publication, and authenticated lazy loading.
-- [`src/sea.cpp`](src/sea.cpp), [`src/trace.cpp`](src/trace.cpp), and
-  [`src/early_abort.cpp`](src/early_abort.cpp): certified trace consumption and
-  sound early rejection.
+  [`src/cm_surface.cpp`](src/cm_surface.cpp): specialized modular-polynomial
+  production and authentication.
 - [`src/poly.cpp`](src/poly.cpp), [`src/factor.cpp`](src/factor.cpp),
   [`src/elkies.cpp`](src/elkies.cpp), and [`src/atkin.cpp`](src/atkin.cpp):
-  complete root evidence, Frobenius reuse, and exact Elkies/Atkin binding.
-- [`src/search_pipeline.cpp`](src/search_pipeline.cpp): retained continuation,
-  early-abort policy, concurrency, telemetry, and checkpoint identity.
-- [`scripts/aws/`](scripts/aws/): authenticated cache preparation and immutable
-  worker launch.
+  quotient-ring arithmetic and certified Elkies/Atkin recovery.
+- [`src/sea.cpp`](src/sea.cpp), [`src/trace.cpp`](src/trace.cpp), and
+  [`src/early_abort.cpp`](src/early_abort.cpp): trace-state composition and
+  sound early rejection.
+- [`src/direct_context_cache.cpp`](src/direct_context_cache.cpp) and
+  [`src/search_pipeline.cpp`](src/search_pipeline.cpp): authenticated context
+  loading, continuation policy, telemetry, and checkpoint identity.
+- [`scripts/aws/`](scripts/aws/): immutable preparation and worker launch.
 
-The specialized-modular-polynomial direction follows [Bröker, Lauter, and
+The specialized-modular-polynomial design follows [Bröker, Lauter, and
 Sutherland](https://arxiv.org/abs/1001.0402) and
-[Sutherland](https://arxiv.org/abs/1202.3985). Reproducible commands, inputs,
-outputs, and digests live under [`artifacts/local/`](artifacts/local/).
+[Sutherland](https://arxiv.org/abs/1202.3985). Reproducible inputs, outputs,
+and digests live under [`artifacts/local/`](artifacts/local/).

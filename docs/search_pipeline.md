@@ -142,9 +142,11 @@ surfaces are prepared under the same `--sea-threads` resource ceiling used by
 the table path; zero selects hardware concurrency and the actual worker count
 is capped by the witness count. Indexed result slots and ordered failure replay
 preserve deterministic context bytes and deterministic failure selection.
-Per-curve target-j interpolation, CRT combination, BMSS/Frobenius, and Atkin
-checks remain independent. A later level that no curve reaches is not prepared
-and cannot fail the run.
+After complete surface admission, each witness is compacted to its Lagrange
+and neighbor-coefficient matrices; auxiliary curves, kernels, and isogenies
+are not retained. Per-curve target-j matrix evaluation, CRT combination,
+BMSS/Frobenius, and Atkin checks remain independent. A later level that no
+curve reaches is not prepared and cannot fail the run.
 
 `oneshotsea.search-summary.v1` adds
 `classical_direct_preparation.context_count`, `elapsed_us`, and `thread_limit`

@@ -81,7 +81,10 @@ Each curve-independent level context is prepared on first use and shared
 read-only by all curve workers in that process.  Unused levels are not
 prepared.  `--sea-threads` bounds independent auxiliary-prime preparation;
 `0` selects the hardware default.  Preparation output and failure ordering
-remain deterministic.
+remain deterministic.  Once a witnessed CM surface has been admitted, the
+context keeps only its two square interpolation-coefficient matrices; the
+much larger auxiliary curves, kernels, and isogenies are released before
+per-curve evaluation begins.
 
 This path is admitted only by the local CLI.  The checked cloud launchers and
 artifact auditors deliberately reject these options until that operational

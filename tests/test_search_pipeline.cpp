@@ -698,6 +698,10 @@ void test_pipeline_prepares_direct_contexts_once_per_run() {
               result.classical_direct_context_count ==
                   prepared_levels.size() &&
               result.classical_direct_preparation_us != 0U &&
+              result.classical_direct_interpolation_coefficient_count != 0U &&
+              result.classical_direct_interpolation_storage_bytes ==
+                  result.classical_direct_interpolation_coefficient_count *
+                      sizeof(std::uint64_t) &&
               reports.size() == 2U && direct_records != 0U,
           "multi-curve search lazily prepares each used direct level once and shares it across workers");
 
@@ -710,7 +714,12 @@ void test_pipeline_prepares_direct_contexts_once_per_run() {
             [](const oneshotsea::MontgomeryCertificate&) { return false; });
     check(no_work_result.curves_processed == 0U &&
               no_work_result.classical_direct_context_count == 0U &&
-              no_work_result.classical_direct_preparation_us == 0U,
+              no_work_result.classical_direct_preparation_us == 0U &&
+              no_work_result
+                      .classical_direct_interpolation_coefficient_count ==
+                  0U &&
+              no_work_result.classical_direct_interpolation_storage_bytes ==
+                  0U,
           "zero-work search does not pay direct-context preparation cost");
 
     oneshotsea::SearchPipelineConfig capped = config;

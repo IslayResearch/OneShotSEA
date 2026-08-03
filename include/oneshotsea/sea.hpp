@@ -202,6 +202,8 @@ public:
     }
     std::size_t prepared_context_count() const;
     std::uint64_t preparation_us() const;
+    std::size_t interpolation_coefficient_count() const;
+    std::size_t interpolation_storage_bytes() const;
 
 private:
     ClassicalDirectSeaContext(

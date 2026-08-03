@@ -1826,6 +1826,12 @@ SearchPipelineRunResult run_search_pipeline(
             prepared_classical_direct_context->prepared_context_count();
         result.classical_direct_preparation_us =
             prepared_classical_direct_context->preparation_us();
+        result.classical_direct_interpolation_coefficient_count =
+            prepared_classical_direct_context
+                ->interpolation_coefficient_count();
+        result.classical_direct_interpolation_storage_bytes =
+            prepared_classical_direct_context
+                ->interpolation_storage_bytes();
     }
     result.exhausted_assigned_range = state.complete();
     return result;

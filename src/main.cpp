@@ -698,6 +698,12 @@ int main(int argc, char** argv) {
                           << result.classical_direct_preparation_us
                           << "\",\"thread_limit\":\""
                           << config.sea_threads
+                          << "\",\"matrix_coefficients\":\""
+                          << result
+                                 .classical_direct_interpolation_coefficient_count
+                          << "\",\"matrix_payload_bytes\":\""
+                          << result
+                                 .classical_direct_interpolation_storage_bytes
                           << "\"}";
             }
             std::cout

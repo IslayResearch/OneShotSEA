@@ -324,11 +324,26 @@ void test_prepared_classical_context_equivalence() {
     const auto parallel_context =
         oneshotsea::prepare_classical_direct_level_context(
             order, field, 100000U, 1000000U, 4U);
+    const std::size_t interpolation_width =
+        static_cast<std::size_t>(order.level()) + 2U;
+    const std::size_t expected_interpolation_coefficients =
+        context.auxiliary_prime_count() * 2U * interpolation_width *
+        interpolation_width;
     check(context.level() == 7U && context.target_modulus() == 193 &&
               context.order_discriminant() == order.discriminant() &&
               context.class_number() == order.class_number() &&
               context.auxiliary_prime_count() != 0U,
           "prepared direct context retains its checked target and CM metadata");
+    check(context.interpolation_coefficient_count() ==
+                  expected_interpolation_coefficients &&
+              parallel_context.interpolation_coefficient_count() ==
+                  expected_interpolation_coefficients &&
+              context.interpolation_storage_bytes() ==
+                  expected_interpolation_coefficients *
+                      sizeof(std::uint64_t) &&
+              parallel_context.interpolation_storage_bytes() ==
+                  context.interpolation_storage_bytes(),
+          "prepared context retains exactly two square interpolation matrices per CRT witness");
 
     const std::array<mpz_class, 2> invariants = {20, 4};
     for (const mpz_class& invariant : invariants) {

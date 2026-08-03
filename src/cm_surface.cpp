@@ -50,6 +50,319 @@ std::optional<RationalPrimeIsogenyEnumeration> try_surface_twist(
     }
 }
 
+struct ClassicalInterpolationMatrices {
+    mpz_class auxiliary_prime;
+    std::vector<mpz_class> lagrange_coefficients;
+    std::vector<mpz_class> neighbor_coefficients;
+};
+
+std::size_t square_size(std::size_t count) {
+    if (count != 0U &&
+        count > std::numeric_limits<std::size_t>::max() / count) {
+        throw std::overflow_error(
+            "classical interpolation matrix size overflows size_t");
+    }
+    return count * count;
+}
+
+ClassicalInterpolationMatrices prepare_classical_interpolation_matrices(
+    const CmSurfaceEnumeration& surfaces) {
+    const unsigned level = surfaces.level();
+    const std::size_t count = static_cast<std::size_t>(level) + 2U;
+    const std::vector<CmSurfaceCurve>& surface_curves =
+        surfaces.surface_curves();
+    if (surface_curves.size() < count) {
+        throw std::invalid_argument(
+            "CM specialization has too few interpolation surfaces");
+    }
+    const Field field(surfaces.auxiliary_prime());
+    Poly root_product = Poly::constant(field, 1);
+    for (std::size_t row = 0U; row < count; ++row) {
+        const CmSurfaceCurve& surface = surface_curves[row];
+        if (surface.curve.field().modulus() !=
+                surfaces.auxiliary_prime() ||
+            surface.j_invariant != surface.curve.j_invariant() ||
+            surface.edges.size() + 1U != count) {
+            throw std::invalid_argument(
+                "CM specialization surface row is inconsistent");
+        }
+        root_product = mul(
+            root_product,
+            Poly(field, {field.neg(surface.j_invariant), 1}));
+    }
+    if (root_product.degree() != static_cast<int>(count)) {
+        throw std::logic_error("CM interpolation points are not distinct");
+    }
+
+    const std::size_t entries = square_size(count);
+    std::vector<mpz_class> lagrange(entries, 0);
+    std::vector<mpz_class> neighbors(entries, 0);
+    for (std::size_t row = 0U; row < count; ++row) {
+        const CmSurfaceCurve& surface = surface_curves[row];
+        const mpz_class& x = surface.j_invariant;
+        const Poly divisor(field, {field.neg(x), 1});
+        auto quotient_and_remainder = divmod(root_product, divisor);
+        if (!quotient_and_remainder.second.is_zero()) {
+            throw std::logic_error(
+                "CM interpolation root does not divide its product");
+        }
+        const mpz_class denominator =
+            quotient_and_remainder.first.evaluate(x);
+        if (denominator == 0) {
+            throw std::invalid_argument(
+                "CM interpolation points collide modulo p");
+        }
+        const Poly basis = scalar_mul(
+            quotient_and_remainder.first, field.inverse(denominator));
+
+        Poly neighbor_polynomial = Poly::constant(field, 1);
+        for (const CmSurfaceEdge& edge : surface.edges) {
+            const mpz_class neighbor =
+                edge.isogeny.codomain.j_invariant();
+            neighbor_polynomial = mul(
+                neighbor_polynomial,
+                Poly(field, {field.neg(neighbor), 1}));
+        }
+        if (neighbor_polynomial.degree() !=
+                static_cast<int>(level + 1U) ||
+            neighbor_polynomial.leading_coefficient() != 1) {
+            throw std::logic_error(
+                "CM surface neighbor polynomial has the wrong degree");
+        }
+        for (std::size_t degree = 0U; degree < count; ++degree) {
+            const std::size_t index = row * count + degree;
+            lagrange[index] = basis.coefficient(degree);
+            neighbors[index] = neighbor_polynomial.coefficient(degree);
+        }
+    }
+    for (std::size_t degree = 0U; degree < count; ++degree) {
+        mpz_class sum = 0;
+        for (std::size_t row = 0U; row < count; ++row) {
+            sum = field.add(sum, lagrange[row * count + degree]);
+        }
+        const mpz_class expected = degree == 0U ? mpz_class(1)
+                                                : mpz_class(0);
+        if (sum != expected) {
+            throw std::logic_error(
+                "CM Lagrange rows do not form a partition of unity");
+        }
+    }
+    return {surfaces.auxiliary_prime(), std::move(lagrange),
+            std::move(neighbors)};
+}
+
+CrtSpecializationResidue specialize_classical_from_interpolation_matrices(
+    unsigned level, const mpz_class& auxiliary_prime,
+    const std::vector<mpz_class>& lagrange_coefficients,
+    const std::vector<mpz_class>& neighbor_coefficients,
+    const std::vector<mpz_class>& target_power_lifts) {
+    const std::size_t count = static_cast<std::size_t>(level) + 2U;
+    const std::size_t entries = square_size(count);
+    if (lagrange_coefficients.size() != entries ||
+        neighbor_coefficients.size() != entries ||
+        target_power_lifts.size() != count ||
+        target_power_lifts.empty() || target_power_lifts.front() != 1) {
+        throw std::invalid_argument(
+            "CM specialization has the wrong matrix or target-power count");
+    }
+    for (const mpz_class& lift : target_power_lifts) {
+        if (lift < 0) {
+            throw std::invalid_argument(
+                "CM specialization target-power lift is negative");
+        }
+    }
+
+    const Field field(auxiliary_prime);
+    std::vector<mpz_class> value_weights(count, 0);
+    std::vector<mpz_class> derivative_weights(count, 0);
+    for (std::size_t row = 0U; row < count; ++row) {
+        for (std::size_t degree = 0U; degree < count; ++degree) {
+            const mpz_class& coefficient =
+                lagrange_coefficients[row * count + degree];
+            if (coefficient < 0 || coefficient >= auxiliary_prime) {
+                throw std::logic_error(
+                    "prepared Lagrange coefficient is noncanonical");
+            }
+            value_weights[row] = field.add(
+                value_weights[row],
+                field.mul(coefficient,
+                          field.normalize(target_power_lifts[degree])));
+            if (degree != 0U) {
+                derivative_weights[row] = field.add(
+                    derivative_weights[row],
+                    field.mul(
+                        field.mul(
+                            coefficient,
+                            mpz_class(static_cast<unsigned long>(degree))),
+                        field.normalize(target_power_lifts[degree - 1U])));
+            }
+        }
+    }
+
+    std::vector<mpz_class> value(count, 0);
+    std::vector<mpz_class> x_derivative(count, 0);
+    for (std::size_t row = 0U; row < count; ++row) {
+        for (std::size_t y_degree = 0U; y_degree < count; ++y_degree) {
+            const mpz_class& coefficient =
+                neighbor_coefficients[row * count + y_degree];
+            if (coefficient < 0 || coefficient >= auxiliary_prime) {
+                throw std::logic_error(
+                    "prepared neighbor coefficient is noncanonical");
+            }
+            value[y_degree] = field.add(
+                value[y_degree],
+                field.mul(value_weights[row], coefficient));
+            x_derivative[y_degree] = field.add(
+                x_derivative[y_degree],
+                field.mul(derivative_weights[row], coefficient));
+        }
+    }
+    if (value.back() != 1 || x_derivative.back() != 0) {
+        throw std::logic_error(
+            "CM interpolation violated the monic modular-polynomial terms");
+    }
+    return {auxiliary_prime, std::move(value), std::move(x_derivative)};
+}
+
+std::uint64_t multiply_mod_u64(std::uint64_t lhs, std::uint64_t rhs,
+                               std::uint64_t modulus) {
+    return static_cast<std::uint64_t>(
+        (static_cast<unsigned __int128>(lhs) * rhs) % modulus);
+}
+
+std::uint64_t add_mod_u64(std::uint64_t lhs, std::uint64_t rhs,
+                          std::uint64_t modulus) {
+    return static_cast<std::uint64_t>(
+        (static_cast<unsigned __int128>(lhs) + rhs) % modulus);
+}
+
+mpz_class import_u64(std::uint64_t value) {
+    mpz_class output;
+    mpz_import(output.get_mpz_t(), 1U, -1, sizeof(value), 0, 0, &value);
+    return output;
+}
+
+std::vector<std::uint64_t> encode_interpolation_coefficients(
+    const std::vector<mpz_class>& coefficients,
+    std::uint64_t auxiliary_prime) {
+    std::vector<std::uint64_t> encoded;
+    encoded.reserve(coefficients.size());
+    for (const mpz_class& coefficient : coefficients) {
+        std::uint64_t value = 0U;
+        if (!export_u64(coefficient, value) || value >= auxiliary_prime) {
+            throw std::logic_error(
+                "classical interpolation coefficient is noncanonical");
+        }
+        encoded.push_back(value);
+    }
+    return encoded;
+}
+
+CrtSpecializationResidue
+specialize_classical_from_compact_interpolation_matrices(
+    unsigned level, const mpz_class& auxiliary_prime,
+    const std::vector<std::uint64_t>& lagrange_coefficients,
+    const std::vector<std::uint64_t>& neighbor_coefficients,
+    const std::vector<mpz_class>& target_power_lifts) {
+    std::uint64_t modulus = 0U;
+    if (!export_u64(auxiliary_prime, modulus) || modulus < 2U ||
+        !is_prime_u64(modulus)) {
+        throw std::logic_error(
+            "compact classical interpolation lost its proven prime");
+    }
+    const std::size_t count = static_cast<std::size_t>(level) + 2U;
+    const std::size_t entries = square_size(count);
+    if (lagrange_coefficients.size() != entries ||
+        neighbor_coefficients.size() != entries ||
+        target_power_lifts.size() != count ||
+        target_power_lifts.empty() || target_power_lifts.front() != 1) {
+        throw std::invalid_argument(
+            "compact CM specialization has the wrong matrix or target-power count");
+    }
+
+    std::vector<std::uint64_t> target_powers;
+    target_powers.reserve(count);
+    for (const mpz_class& lift : target_power_lifts) {
+        if (lift < 0) {
+            throw std::invalid_argument(
+                "CM specialization target-power lift is negative");
+        }
+        mpz_class remainder;
+        mpz_fdiv_r(remainder.get_mpz_t(), lift.get_mpz_t(),
+                   auxiliary_prime.get_mpz_t());
+        std::uint64_t encoded = 0U;
+        if (!export_u64(remainder, encoded) || encoded >= modulus) {
+            throw std::logic_error(
+                "target-power reduction is outside the auxiliary field");
+        }
+        target_powers.push_back(encoded);
+    }
+
+    std::vector<std::uint64_t> value_weights(count, 0U);
+    std::vector<std::uint64_t> derivative_weights(count, 0U);
+    for (std::size_t row = 0U; row < count; ++row) {
+        for (std::size_t degree = 0U; degree < count; ++degree) {
+            const std::uint64_t coefficient =
+                lagrange_coefficients[row * count + degree];
+            if (coefficient >= modulus) {
+                throw std::logic_error(
+                    "compact Lagrange coefficient is noncanonical");
+            }
+            value_weights[row] = add_mod_u64(
+                value_weights[row],
+                multiply_mod_u64(coefficient, target_powers[degree],
+                                 modulus),
+                modulus);
+            if (degree != 0U) {
+                const std::uint64_t differentiated = multiply_mod_u64(
+                    coefficient, static_cast<std::uint64_t>(degree),
+                    modulus);
+                derivative_weights[row] = add_mod_u64(
+                    derivative_weights[row],
+                    multiply_mod_u64(differentiated,
+                                     target_powers[degree - 1U], modulus),
+                    modulus);
+            }
+        }
+    }
+
+    std::vector<std::uint64_t> value_u64(count, 0U);
+    std::vector<std::uint64_t> derivative_u64(count, 0U);
+    for (std::size_t row = 0U; row < count; ++row) {
+        for (std::size_t y_degree = 0U; y_degree < count; ++y_degree) {
+            const std::uint64_t coefficient =
+                neighbor_coefficients[row * count + y_degree];
+            if (coefficient >= modulus) {
+                throw std::logic_error(
+                    "compact neighbor coefficient is noncanonical");
+            }
+            value_u64[y_degree] = add_mod_u64(
+                value_u64[y_degree],
+                multiply_mod_u64(value_weights[row], coefficient,
+                                 modulus),
+                modulus);
+            derivative_u64[y_degree] = add_mod_u64(
+                derivative_u64[y_degree],
+                multiply_mod_u64(derivative_weights[row], coefficient,
+                                 modulus),
+                modulus);
+        }
+    }
+    if (value_u64.back() != 1U || derivative_u64.back() != 0U) {
+        throw std::logic_error(
+            "compact CM interpolation violated the monic terms");
+    }
+    std::vector<mpz_class> value;
+    std::vector<mpz_class> derivative;
+    value.reserve(count);
+    derivative.reserve(count);
+    for (std::size_t index = 0U; index < count; ++index) {
+        value.push_back(import_u64(value_u64[index]));
+        derivative.push_back(import_u64(derivative_u64[index]));
+    }
+    return {auxiliary_prime, std::move(value), std::move(derivative)};
+}
+
 }  // namespace
 
 CmSurfaceEnumeration::CmSurfaceEnumeration(
@@ -68,10 +381,38 @@ ClassicalDirectLevelContext::ClassicalDirectLevelContext(
     SutherlandSuitableOrder order, mpz_class target_modulus,
     mpz_class coefficient_abs_bound,
     std::vector<SutherlandCrtPrime> witnesses,
-    std::vector<CmSurfaceEnumeration> surfaces)
+    std::vector<InterpolationSurface> interpolation_surfaces)
     : order_(std::move(order)), target_modulus_(std::move(target_modulus)),
       coefficient_abs_bound_(std::move(coefficient_abs_bound)),
-      witnesses_(std::move(witnesses)), surfaces_(std::move(surfaces)) {}
+      witnesses_(std::move(witnesses)),
+      interpolation_surfaces_(std::move(interpolation_surfaces)) {}
+
+std::size_t ClassicalDirectLevelContext::interpolation_coefficient_count()
+    const {
+    std::size_t total = 0U;
+    for (const InterpolationSurface& surface : interpolation_surfaces_) {
+        for (const std::size_t count :
+             {surface.lagrange_coefficients.size(),
+              surface.neighbor_coefficients.size()}) {
+            if (count > std::numeric_limits<std::size_t>::max() - total) {
+                throw std::overflow_error(
+                    "classical interpolation coefficient count overflows size_t");
+            }
+            total += count;
+        }
+    }
+    return total;
+}
+
+std::size_t ClassicalDirectLevelContext::interpolation_storage_bytes() const {
+    const std::size_t count = interpolation_coefficient_count();
+    if (count > std::numeric_limits<std::size_t>::max() /
+                    sizeof(std::uint64_t)) {
+        throw std::overflow_error(
+            "classical interpolation storage size overflows size_t");
+    }
+    return count * sizeof(std::uint64_t);
+}
 
 CmSurfaceEnumeration enumerate_cm_interpolation_surfaces_limited(
     const SutherlandSuitableOrder& order,
@@ -216,107 +557,12 @@ CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
 CrtSpecializationResidue specialize_classical_from_cm_surfaces(
     const CmSurfaceEnumeration& surfaces,
     const std::vector<mpz_class>& target_power_lifts) {
-    const std::size_t count = static_cast<std::size_t>(surfaces.level_) + 2U;
-    if (surfaces.surface_curves_.size() < count ||
-        target_power_lifts.size() != count ||
-        target_power_lifts.empty() || target_power_lifts.front() != 1) {
-        throw std::invalid_argument(
-            "CM specialization has the wrong surface or target-power count");
-    }
-    for (const mpz_class& lift : target_power_lifts) {
-        if (lift < 0) {
-            throw std::invalid_argument(
-                "CM specialization target-power lift is negative");
-        }
-    }
-    const Field field(surfaces.auxiliary_prime_);
-    Poly root_product = Poly::constant(field, 1);
-    for (std::size_t row = 0U; row < count; ++row) {
-        const CmSurfaceCurve& surface = surfaces.surface_curves_[row];
-        if (surface.curve.field().modulus() != surfaces.auxiliary_prime_ ||
-            surface.j_invariant != surface.curve.j_invariant() ||
-            surface.edges.size() + 1U != count) {
-            throw std::invalid_argument(
-                "CM specialization surface row is inconsistent");
-        }
-        root_product = mul(
-            root_product,
-            Poly(field, {field.neg(surface.j_invariant), 1}));
-    }
-    if (root_product.degree() != static_cast<int>(count)) {
-        throw std::logic_error(
-            "CM interpolation points are not distinct");
-    }
-
-    std::vector<mpz_class> value_weights(count, 0);
-    std::vector<mpz_class> derivative_weights(count, 0);
-    for (std::size_t row = 0U; row < count; ++row) {
-        const mpz_class x =
-            surfaces.surface_curves_[row].j_invariant;
-        const Poly divisor(field, {field.neg(x), 1});
-        auto quotient_and_remainder = divmod(root_product, divisor);
-        if (!quotient_and_remainder.second.is_zero()) {
-            throw std::logic_error(
-                "CM interpolation root does not divide its product");
-        }
-        const mpz_class denominator =
-            quotient_and_remainder.first.evaluate(x);
-        if (denominator == 0) {
-            throw std::invalid_argument(
-                "CM interpolation points collide modulo p");
-        }
-        const Poly basis = scalar_mul(
-            quotient_and_remainder.first, field.inverse(denominator));
-        for (std::size_t degree = 0U; degree < count; ++degree) {
-            value_weights[row] = field.add(
-                value_weights[row],
-                field.mul(basis.coefficient(degree),
-                          field.normalize(target_power_lifts[degree])));
-            if (degree != 0U) {
-                derivative_weights[row] = field.add(
-                    derivative_weights[row],
-                    field.mul(
-                        field.mul(
-                            basis.coefficient(degree),
-                            mpz_class(static_cast<unsigned long>(degree))),
-                        field.normalize(target_power_lifts[degree - 1U])));
-            }
-        }
-    }
-
-    std::vector<mpz_class> value(count, 0);
-    std::vector<mpz_class> x_derivative(count, 0);
-    for (std::size_t row = 0U; row < count; ++row) {
-        Poly neighbor_polynomial = Poly::constant(field, 1);
-        for (const CmSurfaceEdge& edge :
-             surfaces.surface_curves_[row].edges) {
-            const mpz_class neighbor = edge.isogeny.codomain.j_invariant();
-            neighbor_polynomial = mul(
-                neighbor_polynomial,
-                Poly(field, {field.neg(neighbor), 1}));
-        }
-        if (neighbor_polynomial.degree() !=
-                static_cast<int>(surfaces.level_ + 1U) ||
-            neighbor_polynomial.leading_coefficient() != 1) {
-            throw std::logic_error(
-                "CM surface neighbor polynomial has the wrong degree");
-        }
-        for (std::size_t y_degree = 0U; y_degree < count; ++y_degree) {
-            const mpz_class coefficient =
-                neighbor_polynomial.coefficient(y_degree);
-            value[y_degree] = field.add(
-                value[y_degree], field.mul(value_weights[row], coefficient));
-            x_derivative[y_degree] = field.add(
-                x_derivative[y_degree],
-                field.mul(derivative_weights[row], coefficient));
-        }
-    }
-    if (value.back() != 1 || x_derivative.back() != 0) {
-        throw std::logic_error(
-            "CM interpolation violated the monic modular-polynomial terms");
-    }
-    return {surfaces.auxiliary_prime_, std::move(value),
-            std::move(x_derivative)};
+    const ClassicalInterpolationMatrices matrices =
+        prepare_classical_interpolation_matrices(surfaces);
+    return specialize_classical_from_interpolation_matrices(
+        surfaces.level(), matrices.auxiliary_prime,
+        matrices.lagrange_coefficients, matrices.neighbor_coefficients,
+        target_power_lifts);
 }
 
 CrtSpecializationResult reconstruct_classical_specialization_from_cm(
@@ -362,7 +608,8 @@ ClassicalDirectLevelContext prepare_classical_direct_level_context(
     }
     resolved_threads = std::min(resolved_threads, witnesses.size());
 
-    std::vector<std::optional<CmSurfaceEnumeration>> prepared(
+    std::vector<std::optional<
+        ClassicalDirectLevelContext::InterpolationSurface>> prepared(
         witnesses.size());
     std::vector<std::exception_ptr> failures(witnesses.size());
     std::atomic<std::size_t> next_index{0U};
@@ -378,11 +625,26 @@ ClassicalDirectLevelContext prepare_classical_direct_level_context(
                 const ClassicalCmClassPolynomial class_polynomial =
                     derive_three_power_class_polynomial_mod_prime(
                         order, witness);
-                prepared[index].emplace(
+                const CmSurfaceEnumeration surfaces =
                     enumerate_cm_interpolation_surfaces_limited(
                         order, witness, class_polynomial.polynomial(),
                         maximum_x_candidates_per_surface,
-                        static_cast<std::size_t>(order.level()) + 2U));
+                        static_cast<std::size_t>(order.level()) + 2U);
+                ClassicalInterpolationMatrices matrices =
+                    prepare_classical_interpolation_matrices(surfaces);
+                std::uint64_t encoded_prime = 0U;
+                if (!export_u64(matrices.auxiliary_prime, encoded_prime) ||
+                    !is_prime_u64(encoded_prime)) {
+                    throw std::logic_error(
+                        "classical interpolation matrix prime is not proved 64-bit");
+                }
+                prepared[index].emplace(
+                    ClassicalDirectLevelContext::InterpolationSurface{
+                        std::move(matrices.auxiliary_prime),
+                        encode_interpolation_coefficients(
+                            matrices.lagrange_coefficients, encoded_prime),
+                        encode_interpolation_coefficients(
+                            matrices.neighbor_coefficients, encoded_prime)});
             } catch (...) {
                 failures[index] = std::current_exception();
             }
@@ -407,8 +669,9 @@ ClassicalDirectLevelContext prepare_classical_direct_level_context(
         thread.join();
     }
 
-    std::vector<CmSurfaceEnumeration> surfaces;
-    surfaces.reserve(witnesses.size());
+    std::vector<ClassicalDirectLevelContext::InterpolationSurface>
+        interpolation_surfaces;
+    interpolation_surfaces.reserve(witnesses.size());
     for (std::size_t index = 0U; index < witnesses.size(); ++index) {
         if (failures[index]) {
             std::rethrow_exception(failures[index]);
@@ -417,11 +680,11 @@ ClassicalDirectLevelContext prepare_classical_direct_level_context(
             throw std::logic_error(
                 "classical direct context worker produced no surface");
         }
-        surfaces.push_back(std::move(*prepared[index]));
+        interpolation_surfaces.push_back(std::move(*prepared[index]));
     }
     return ClassicalDirectLevelContext(
         order, target_field.modulus(), coefficient_bound.absolute_bound(),
-        std::move(witnesses), std::move(surfaces));
+        std::move(witnesses), std::move(interpolation_surfaces));
 }
 
 CrtSpecializationResult
@@ -437,7 +700,8 @@ reconstruct_classical_specialization_from_prepared_context(
             "prepared classical direct source j is not canonical");
     }
     if (context.witnesses_.empty() ||
-        context.witnesses_.size() != context.surfaces_.size()) {
+        context.witnesses_.size() !=
+            context.interpolation_surfaces_.size()) {
         throw std::logic_error(
             "prepared classical direct context is incomplete");
     }
@@ -457,12 +721,17 @@ reconstruct_classical_specialization_from_prepared_context(
             [&context, &target_power_lifts, &next](const mpz_class& prime) {
                 if (next >= context.witnesses_.size() ||
                     context.witnesses_[next].prime != prime ||
-                    context.surfaces_[next].auxiliary_prime() != prime) {
+                    context.interpolation_surfaces_[next].auxiliary_prime !=
+                        prime) {
                     throw std::logic_error(
                         "prepared classical direct prime stream lost synchronization");
                 }
-                return specialize_classical_from_cm_surfaces(
-                    context.surfaces_[next++], target_power_lifts);
+                const ClassicalDirectLevelContext::InterpolationSurface&
+                    surface = context.interpolation_surfaces_[next++];
+                return specialize_classical_from_compact_interpolation_matrices(
+                    context.order_.level(), surface.auxiliary_prime,
+                    surface.lagrange_coefficients,
+                    surface.neighbor_coefficients, target_power_lifts);
             });
     if (next != context.witnesses_.size()) {
         throw std::logic_error(

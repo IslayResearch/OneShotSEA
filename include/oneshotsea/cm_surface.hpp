@@ -65,9 +65,11 @@ private:
 // Immutable curve-independent state for one classical direct SEA level over a
 // fixed target characteristic.  Construction internally selects every
 // witnessed CRT prime, derives its ring class polynomial, and admits the
-// complete interpolation surface.  Search workers may share this context;
-// only target-j interpolation, CRT combination, and the target-field SEA
-// consumer remain per curve.
+// complete interpolation surface.  It then retains only the immutable
+// Lagrange and neighbor-coefficient matrices: auxiliary curves, kernels, and
+// isogenies are released before the context is returned.  Search workers may
+// share this compact context; only target-j matrix evaluation, CRT
+// combination, and the target-field SEA consumer remain per curve.
 class ClassicalDirectLevelContext {
 public:
     unsigned level() const { return order_.level(); }
@@ -77,13 +79,21 @@ public:
     }
     std::uint64_t class_number() const { return order_.class_number(); }
     std::size_t auxiliary_prime_count() const { return witnesses_.size(); }
+    std::size_t interpolation_coefficient_count() const;
+    std::size_t interpolation_storage_bytes() const;
 
 private:
+    struct InterpolationSurface {
+        mpz_class auxiliary_prime;
+        std::vector<std::uint64_t> lagrange_coefficients;
+        std::vector<std::uint64_t> neighbor_coefficients;
+    };
+
     ClassicalDirectLevelContext(
         SutherlandSuitableOrder order, mpz_class target_modulus,
         mpz_class coefficient_abs_bound,
         std::vector<SutherlandCrtPrime> witnesses,
-        std::vector<CmSurfaceEnumeration> surfaces);
+        std::vector<InterpolationSurface> interpolation_surfaces);
 
     friend ClassicalDirectLevelContext
     prepare_classical_direct_level_context(
@@ -97,7 +107,7 @@ private:
     mpz_class target_modulus_;
     mpz_class coefficient_abs_bound_;
     std::vector<SutherlandCrtPrime> witnesses_;
-    std::vector<CmSurfaceEnumeration> surfaces_;
+    std::vector<InterpolationSurface> interpolation_surfaces_;
 };
 
 // Validate one H_O mod p instance against the checked order and CRT witness,

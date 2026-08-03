@@ -154,6 +154,13 @@ against the lifted target powers and the corresponding algebraic derivative
 functional.  The result is the two classical `j` residue vectors expected by
 the CRT interface.
 
+The reusable search context performs the same checked surface admission once,
+then stores only each witness's square Lagrange and neighbor-coefficient
+matrices. Full auxiliary curves, kernels, and isogenies are released. Later
+curves evaluate the two linear functionals from those immutable matrices, so
+the compact representation changes neither interpolation order nor CRT
+residues.
+
 The raw-polynomial overload remains for isolated fixtures, but the complete
 classical entry point cannot receive it.  It generates the opaque object for
 each witnessed prime and immediately feeds it to the checked surface overload.

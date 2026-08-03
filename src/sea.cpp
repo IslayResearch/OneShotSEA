@@ -736,6 +736,38 @@ std::uint64_t ClassicalDirectSeaContext::preparation_us() const {
     return total;
 }
 
+std::size_t ClassicalDirectSeaContext::interpolation_coefficient_count()
+    const {
+    std::size_t total = 0U;
+    for (const std::unique_ptr<LevelSlot>& slot : level_slots_) {
+        if (!slot->prepared.load(std::memory_order_acquire)) {
+            continue;
+        }
+        if (!slot->context) {
+            throw std::logic_error(
+                "prepared classical direct level has no compact context");
+        }
+        const std::size_t count =
+            slot->context->interpolation_coefficient_count();
+        if (count > std::numeric_limits<std::size_t>::max() - total) {
+            throw std::overflow_error(
+                "classical direct interpolation count overflows size_t");
+        }
+        total += count;
+    }
+    return total;
+}
+
+std::size_t ClassicalDirectSeaContext::interpolation_storage_bytes() const {
+    const std::size_t count = interpolation_coefficient_count();
+    if (count > std::numeric_limits<std::size_t>::max() /
+                    sizeof(std::uint64_t)) {
+        throw std::overflow_error(
+            "classical direct interpolation storage overflows size_t");
+    }
+    return count * sizeof(std::uint64_t);
+}
+
 void extend_sea_with_prepared_classical_direct(
     const Curve& curve, WeberSeaResult& result,
     const ClassicalDirectSeaContext& context,

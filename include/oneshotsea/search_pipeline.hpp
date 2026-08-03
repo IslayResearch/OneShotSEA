@@ -289,6 +289,10 @@ struct SearchPipelineRunResult {
     // the first worker's wall-clock SEA time necessarily includes its wait.
     std::size_t classical_direct_context_count = 0U;
     std::uint64_t classical_direct_preparation_us = 0U;
+    // Exact payload of the two compact uint64 interpolation matrices. This
+    // excludes witness metadata, vector headers, and allocator overhead.
+    std::size_t classical_direct_interpolation_coefficient_count = 0U;
+    std::size_t classical_direct_interpolation_storage_bytes = 0U;
     // True only when this invocation actually constructed the resource-only
     // cross-curve exact-smooth coordinator pool.
     bool smooth_batch_coordinator_enabled = false;

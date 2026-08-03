@@ -519,6 +519,16 @@ class CliTests(unittest.TestCase):
                 summary["classical_direct_preparation"]["thread_limit"],
                 "0",
             )
+            matrix_coefficients = int(
+                summary["classical_direct_preparation"]
+                ["matrix_coefficients"]
+            )
+            self.assertGreater(matrix_coefficients, 0)
+            self.assertEqual(
+                int(summary["classical_direct_preparation"]
+                    ["matrix_payload_bytes"]),
+                matrix_coefficients * 8,
+            )
 
             digest = hashlib.sha256(
                 (root / "smooth.cache").read_bytes()

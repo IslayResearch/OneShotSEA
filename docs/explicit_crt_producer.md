@@ -157,9 +157,11 @@ the CRT interface.
 The reusable search context performs the same checked surface admission once,
 then stores only each witness's square Lagrange and neighbor-coefficient
 matrices. Full auxiliary curves, kernels, and isogenies are released. Later
-curves evaluate the two linear functionals from those immutable matrices, so
-the compact representation changes neither interpolation order nor CRT
-residues.
+curves evaluate the two linear functionals from those immutable matrices. The
+matrix residues are canonical `uint64_t` values because every admitted
+auxiliary prime is proved 64-bit; exact `unsigned __int128` products implement
+the warm modular arithmetic. The compact representation changes neither
+interpolation order nor CRT residues.
 
 The raw-polynomial overload remains for isolated fixtures, but the complete
 classical entry point cannot receive it.  It generates the opaque object for

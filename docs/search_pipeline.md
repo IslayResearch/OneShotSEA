@@ -149,18 +149,24 @@ BMSS/Frobenius, and Atkin checks remain independent. A later level that no
 curve reaches is not prepared and cannot fail the run.
 
 `oneshotsea.search-summary.v1` adds
-`classical_direct_preparation.context_count`, `elapsed_us`, and `thread_limit`
-only when the direct schedule is configured. The elapsed value is the
-cumulative setup time for contexts actually prepared. Direct per-level timings
-exclude setup, while the enclosing curve `sea` wall time includes any first-use
-preparation or wait experienced by that worker. Benchmarks must therefore
-report the summary and per-curve values together; reduced warm-curve time alone
-is not a complete speedup claim. On the checked 416-bit X1(27) fixture, a
+`classical_direct_preparation.context_count`, `elapsed_us`, `thread_limit`,
+`matrix_coefficients`, and `matrix_payload_bytes` only when the direct schedule
+is configured. The last two fields report the exact compact `uint64_t` matrix
+payload, excluding witness metadata, vector headers, and allocator overhead.
+The elapsed value is the cumulative setup time for contexts actually prepared.
+Direct per-level timings exclude setup, while the enclosing curve `sea` wall
+time includes any first-use preparation or wait experienced by that worker.
+Benchmarks must therefore report the summary and per-curve values together;
+reduced warm-curve time alone is not a complete speedup claim. On the checked
+416-bit X1(27) fixture, a
 reverse-bracketed run
 measured 3.03--3.21 s of serial level-7/11 setup and 0.924--0.931 s with four
 preparation workers. The main cold evaluation took 0.969 s and the second
 curve using the same contexts 0.099 s. This is a bounded local regression, not
 a throughput distribution.
+
+The retained representation and isolated level-13/29 RSS bracket are detailed
+in [the compact direct-context note](direct_context_compaction.md).
 
 Sound-only runs may instead opt into `--schoof-fallback 1`. After all
 authenticated Weber levels are exhausted without fitting the trace cap, this

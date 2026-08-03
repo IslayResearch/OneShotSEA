@@ -368,18 +368,11 @@ int main(int argc, char** argv) {
             const std::filesystem::path output =
                 required(options, "output");
             ensure_parent_directory(output);
-            oneshotsea::ClassicalDirectSeaContext context =
-                oneshotsea::make_classical_direct_sea_context(
+            const oneshotsea::ClassicalDirectContextCacheBuildResult build =
+                oneshotsea::prepare_classical_direct_context_cache(
                     oneshotsea::Field(prime), levels,
                     maximum_prime_candidates, maximum_x_candidates,
-                    static_cast<std::size_t>(sea_threads));
-            const auto start = std::chrono::steady_clock::now();
-            const std::string digest =
-                oneshotsea::save_classical_direct_context_cache(
-                    context, output);
-            const auto elapsed = std::chrono::duration_cast<
-                std::chrono::microseconds>(
-                std::chrono::steady_clock::now() - start).count();
+                    static_cast<std::size_t>(sea_threads), output);
             std::cout
                 << "{\"schema\":\"oneshotsea.classical-direct-context.v1\""
                 << ",\"prime\":\"" << prime << "\",\"levels\":[";
@@ -395,17 +388,19 @@ int main(int argc, char** argv) {
                       << maximum_x_candidates
                       << "\",\"thread_limit\":\"" << sea_threads
                       << "\",\"context_count\":\""
-                      << context.prepared_context_count()
+                      << build.context_count
                       << "\",\"preparation_us\":\""
-                      << context.preparation_us()
-                      << "\",\"elapsed_us\":\"" << elapsed
+                      << build.preparation_us
+                      << "\",\"elapsed_us\":\"" << build.elapsed_us
                       << "\",\"matrix_coefficients\":\""
-                      << context.interpolation_coefficient_count()
+                      << build.interpolation_coefficient_count
                       << "\",\"matrix_payload_bytes\":\""
-                      << context.interpolation_storage_bytes()
+                      << build.interpolation_storage_bytes
+                      << "\",\"peak_resident_contexts\":\""
+                      << build.peak_resident_context_count
                       << "\",\"file_bytes\":\""
-                      << std::filesystem::file_size(output)
-                      << "\",\"sha256\":\"" << digest << "\"}\n";
+                      << build.file_bytes
+                      << "\",\"sha256\":\"" << build.sha256 << "\"}\n";
             return 0;
         }
         if (command == "search") {
@@ -826,6 +821,16 @@ int main(int argc, char** argv) {
                                   : "false")
                           << ",\"cache_load_us\":\""
                           << result.classical_direct_context_cache_load_us
+                          << "\",\"cached_level_load_count\":\""
+                          << result.classical_direct_cached_level_load_count
+                          << "\",\"cached_level_load_us\":\""
+                          << result.classical_direct_cached_level_load_us
+                          << "\",\"peak_cached_resident_contexts\":\""
+                          << result
+                                 .classical_direct_peak_cached_resident_context_count
+                          << "\",\"final_cached_resident_contexts\":\""
+                          << result
+                                 .classical_direct_final_cached_resident_context_count
                           << "\"}";
             }
             std::cout

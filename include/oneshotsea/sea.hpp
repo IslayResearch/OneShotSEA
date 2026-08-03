@@ -204,8 +204,13 @@ public:
     std::uint64_t preparation_us() const;
     std::size_t interpolation_coefficient_count() const;
     std::size_t interpolation_storage_bytes() const;
+    std::size_t interpolation_storage_bytes(std::size_t level_index) const;
     bool loaded_from_cache() const { return loaded_from_cache_; }
     std::uint64_t cache_load_us() const { return cache_load_us_; }
+    std::uint64_t cached_level_load_count() const;
+    std::uint64_t cached_level_load_us() const;
+    std::size_t cached_resident_context_count() const;
+    std::size_t peak_cached_resident_context_count() const;
 
 private:
     ClassicalDirectSeaContext(
@@ -223,11 +228,17 @@ private:
     friend class DirectContextCacheCodec;
 
     struct LevelSlot;
-    const ClassicalDirectLevelContext& level_context(
+    struct CacheTelemetry;
+    struct CachedLevelSource {
+        std::function<std::unique_ptr<ClassicalDirectLevelContext>()> load;
+        std::size_t interpolation_coefficient_count = 0U;
+    };
+    std::shared_ptr<const ClassicalDirectLevelContext> level_context(
         std::size_t index) const;
     void install_cached_contexts(
-        std::vector<std::unique_ptr<ClassicalDirectLevelContext>> contexts,
+        std::vector<CachedLevelSource> sources,
         std::uint64_t load_us);
+    void discard_generated_level_context(std::size_t index) const;
 
     mpz_class target_modulus_;
     std::vector<std::uint64_t> levels_;
@@ -235,6 +246,7 @@ private:
     std::uint64_t maximum_x_candidates_per_surface_;
     std::size_t preparation_threads_;
     std::vector<std::unique_ptr<LevelSlot>> level_slots_;
+    std::shared_ptr<CacheTelemetry> cache_telemetry_;
     bool loaded_from_cache_ = false;
     std::uint64_t cache_load_us_ = 0U;
 };

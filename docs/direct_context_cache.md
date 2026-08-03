@@ -9,9 +9,12 @@ proof-producing objects are curve-independent, but before this cache existed
 they were rebuilt by every new process.
 
 `oneshotsea.classical-direct-context.v1` persists the already compact,
-immutable matrices. A search can authenticate and load the artifact once,
-then begin per-curve interpolation without rerunning the CM/isogeny
-preparation. The uncached path remains available and retains lazy preparation.
+immutable matrices. A search authenticates and structurally indexes the
+artifact once without retaining its matrix payload. Each reached level is
+then reauthenticated, materialized, shared by overlapping curve workers, and
+released before the worker continues into BMSS/Frobenius work. The uncached
+path remains available and retains sticky lazy preparation for cross-curve
+reuse.
 
 ## Trust model
 
@@ -35,8 +38,11 @@ On load, the implementation also:
   64-bit auxiliary prime;
 - checks the Lagrange partition of unity and every neighbor row's monicity;
 - checks aggregate witness and coefficient counts, CRC64, exact file length,
-  and absence of trailing data; and
-- hashes the path both before and after transactional loading.
+  and absence of trailing data;
+- computes the trusted whole-file SHA-256 before parsing and again over the
+  bytes actually consumed by the structural scan; and
+- records a SHA-256 and CRC64 for each authenticated level region, then checks
+  both over the bytes used by every lazy materialization.
 
 These structural checks are defense in depth. They do not reconstruct the CM
 surfaces, so the external SHA-256 remains the authenticity anchor. A supplied
@@ -68,7 +74,7 @@ publishers and authenticate the surviving complete file.
 
 ## Generate and use a cache
 
-Build the binary, materialize the complete requested schedule, and retain the
+Build the binary, stream the requested schedule to disk, and retain the
 printed SHA-256:
 
 ```sh
@@ -100,9 +106,13 @@ preparation thread count is a resource setting rather than artifact content;
 loaded matrices remain deterministic and may be consumed with a different
 current `--sea-threads` value.
 
-Search-start telemetry reports the trusted digest and load time. Search
-summary telemetry reports `cache_loaded`, `cache_load_us`, zero preparation
-time, matrix coefficient count, and matrix payload bytes.
+Cache generation reports `peak_resident_contexts=1`: preparation writes and
+releases one level before starting the next, so matrix residency is bounded by
+the largest level rather than the schedule sum. Search-start telemetry reports
+the trusted digest and indexing time. Search summary telemetry reports
+`cache_loaded`, `cache_load_us`, zero preparation time, logical matrix counts,
+per-level load count/time, and peak/final resident context counts. A completed
+run must report `final_cached_resident_contexts=0`.
 
 ## Checked 416-bit restart bracket
 
@@ -138,13 +148,66 @@ precomputation shareable across worker shards. It changes neither direct SEA
 point-count complexity nor the conditional outer `p^(1/8+o(1))` search
 exponent.
 
+## Checked streaming brackets
+
+A combined p125 artifact for levels `29,101,157` was produced with four
+workers and the 10-million auxiliary-prime candidate cap:
+
+```text
+artifact bytes             161,818,556
+logical matrix payload     161,804,080
+summed preparation          44.115 s
+end-to-end publication      45.761 s
+peak resident contexts            1
+SHA-256                     60ee1f183781066563b7465ad24ac2df83f9d6eed602d406cf2613285bac65e2
+```
+
+The artifact therefore has the same canonical whole-schedule format while
+generation residency follows the 124,989,264-byte level-157 payload, not the
+sum of all three levels.
+
+The same combined artifact was then consumed by the fixed p125 X1(27)
+validator. It reproduced the authenticated exact residues `17 mod 29`,
+`12 mod 101`, and `106 mod 157` with:
+
+```text
+structural index/authentication    2.556 s
+three lazy materializations        1.390 s
+three SEA evaluations              2.536 s
+end-to-end                         6.481 s
+peak resident contexts                 1
+final resident contexts                0
+```
+
+The validator invocation was:
+
+```sh
+./build/validate_p125_direct_trace \
+  --threads 4 \
+  --cache /private/tmp/p125-direct-stream-29-101-157.ctx \
+  --cache-sha256 60ee1f183781066563b7465ad24ac2df83f9d6eed602d406cf2613285bac65e2 \
+  29 101 157
+```
+
+The lazy loader was also checked against retained p125 artifacts:
+
+| Level | Logical matrix payload | Index/authenticate | Lazy loads | Peak resident contexts | Final resident contexts | Process peak RSS |
+|---:|---:|---:|---:|---:|---:|---:|
+| 101 | 35,646,240 B | 0.732 s | 2 | 1 | 0 | 47,202,304 B |
+| 157 | 124,989,264 B | 2.387 s | 2 | 1 | 0 | 156,254,208 B |
+
+Each bracket evaluated two distinct p125 `j`-invariants. The level-157 run
+exercised one Atkin/no-root and one exact curve. These are same-host memory and
+I/O brackets, not certificate-yield measurements.
+
 ## Current limits
 
-- Cache generation eagerly materializes every listed level; the ordinary
-  uncached search is still the path for lazy, only-if-reached preparation.
+- An uncached search still retains every reached generated level in memory;
+  schedule-scale bounded residency currently requires a prepared cache.
 - Trust-anchor distribution is manual, and cloud launchers do not yet admit
   the cache options.
-- Version 1 is a whole-schedule artifact. Incremental append or per-level
-  manifests would need a new authenticated format and concurrency contract.
+- Version 1 is a whole-schedule artifact. It is lazily indexed and consumed,
+  but incremental append or per-level manifests would need a new authenticated
+  format and concurrency contract.
 - The existing 64-bit auxiliary-prime and fixed-`v` selection qualifications
   still apply.

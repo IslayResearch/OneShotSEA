@@ -78,6 +78,11 @@ void test_sha256_fixtures() {
               "d7a8fbb307d7809469ca9abcb0082e4f"
               "8d5651e46d3cdb762d02d0bf37c9e592",
           "SHA-256 regular-file fixture");
+    oneshotsea::Sha256Hasher incremental;
+    incremental.update("The quick brown ");
+    incremental.update("fox jumps over the lazy dog");
+    check(incremental.hex_digest() == oneshotsea::sha256_file(fox),
+          "incremental SHA-256 matches the regular-file digest");
 
     const std::filesystem::path source =
         "third_party/oneshot_primality_proofs/voneshot.py";
@@ -816,8 +821,13 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
                   cached.cache_load_us() &&
               result.classical_direct_context_count == 1U &&
               result.classical_direct_preparation_us == 0U &&
-              result.classical_direct_interpolation_coefficient_count != 0U,
-          "search consumes an authenticated direct cache without rebuilding its level context");
+              result.classical_direct_interpolation_coefficient_count != 0U &&
+              result.classical_direct_cached_level_load_count != 0U &&
+              result.classical_direct_peak_cached_resident_context_count ==
+                  1U &&
+              result.classical_direct_final_cached_resident_context_count ==
+                  0U,
+          "search streams an authenticated direct cache without rebuilding or retaining its level context");
 
     oneshotsea::SearchPipelineRunOptions no_cache_options;
     oneshotsea::SearchState missing_cache_state(identity);

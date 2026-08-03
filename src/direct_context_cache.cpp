@@ -75,6 +75,17 @@ std::uint64_t square_entries(std::uint64_t level) {
                        "matrix entry count");
 }
 
+std::uint64_t add_mod_u64(std::uint64_t left, std::uint64_t right,
+                          std::uint64_t modulus) {
+    if (left >= modulus || right >= modulus || modulus == 0U) {
+        throw ClassicalDirectContextCacheError(
+            "direct-cache modular addition received a noncanonical operand");
+    }
+    return left >= modulus - right
+        ? left - (modulus - right)
+        : left + right;
+}
+
 void put_u32(std::array<std::uint8_t, kHeaderBytes>& bytes,
              std::size_t offset, std::uint32_t value) {
     for (std::size_t index = 0U; index < 4U; ++index) {
@@ -171,17 +182,6 @@ std::vector<std::uint8_t> export_positive(const mpz_class& value) {
             "GMP produced a noncanonical direct-cache target");
     }
     return bytes;
-}
-
-std::uint64_t export_required_u64(const mpz_class& value,
-                                  const char* label) {
-    std::uint64_t encoded = 0U;
-    if (!export_u64(value, encoded)) {
-        throw ClassicalDirectContextCacheError(
-            std::string("classical direct cache ") + label +
-            " does not fit uint64");
-    }
-    return encoded;
 }
 
 class TemporaryFile {
@@ -330,7 +330,8 @@ private:
 
 class ReadFile {
 public:
-    explicit ReadFile(const std::filesystem::path& path)
+    explicit ReadFile(const std::filesystem::path& path,
+                      std::uint64_t offset = 0U)
         : path_(path), buffer_(kPayloadWriteBufferBytes) {
         descriptor_ = ::open(path.c_str(), O_RDONLY);
         if (descriptor_ < 0) {
@@ -353,6 +354,22 @@ public:
                 "direct cache is not a regular file");
         }
         size_ = static_cast<std::uint64_t>(attributes.st_size);
+        if (offset > size_ ||
+            offset > static_cast<std::uint64_t>(
+                         std::numeric_limits<off_t>::max())) {
+            ::close(descriptor_);
+            descriptor_ = -1;
+            throw ClassicalDirectContextCacheError(
+                "direct cache seek offset is outside the file");
+        }
+        if (::lseek(descriptor_, static_cast<off_t>(offset), SEEK_SET) < 0) {
+            const int saved_errno = errno;
+            ::close(descriptor_);
+            descriptor_ = -1;
+            errno = saved_errno;
+            throw ClassicalDirectContextCacheError(
+                errno_text("cannot seek direct cache", path_));
+        }
     }
 
     ReadFile(const ReadFile&) = delete;
@@ -400,9 +417,17 @@ private:
 
 class PayloadReader {
 public:
+    struct SegmentDigest {
+        std::uint64_t crc = 0U;
+        std::string sha256;
+        std::uint64_t bytes = 0U;
+    };
+
     PayloadReader(ReadFile& source, std::uint64_t crc,
-                  std::uint64_t expected_bytes)
-        : source_(source), crc_(crc), expected_bytes_(expected_bytes) {}
+                  std::uint64_t expected_bytes,
+                  Sha256Hasher sha256 = {})
+        : source_(source), crc_(crc), expected_bytes_(expected_bytes),
+          sha256_(std::move(sha256)) {}
 
     void bytes(std::uint8_t* value, std::size_t length) {
         if (consumed_ > expected_bytes_ ||
@@ -413,6 +438,14 @@ public:
         }
         source_.read(value, length);
         crc_ = crc64_update(crc_, value, length);
+        sha256_.update(value, length);
+        if (segment_active_) {
+            segment_crc_ = crc64_update(segment_crc_, value, length);
+            segment_sha256_.update(value, length);
+            segment_bytes_ = checked_add(
+                segment_bytes_, static_cast<std::uint64_t>(length),
+                "segment byte count");
+        }
         consumed_ += static_cast<std::uint64_t>(length);
     }
 
@@ -423,6 +456,7 @@ public:
     }
 
     std::uint64_t crc() const { return crc_; }
+    std::string sha256() { return sha256_.hex_digest(); }
     std::uint64_t consumed() const { return consumed_; }
     std::uint64_t remaining() const {
         if (consumed_ > expected_bytes_) {
@@ -432,11 +466,37 @@ public:
         return expected_bytes_ - consumed_;
     }
 
+    void begin_segment() {
+        if (segment_active_) {
+            throw ClassicalDirectContextCacheError(
+                "direct cache reader already has an active segment");
+        }
+        segment_crc_ = 0U;
+        segment_sha256_ = Sha256Hasher{};
+        segment_bytes_ = 0U;
+        segment_active_ = true;
+    }
+
+    SegmentDigest end_segment() {
+        if (!segment_active_) {
+            throw ClassicalDirectContextCacheError(
+                "direct cache reader has no active segment");
+        }
+        segment_active_ = false;
+        return {segment_crc_, segment_sha256_.hex_digest(),
+                segment_bytes_};
+    }
+
 private:
     ReadFile& source_;
     std::uint64_t crc_;
     std::uint64_t expected_bytes_;
     std::uint64_t consumed_ = 0U;
+    Sha256Hasher sha256_;
+    bool segment_active_ = false;
+    std::uint64_t segment_crc_ = 0U;
+    Sha256Hasher segment_sha256_;
+    std::uint64_t segment_bytes_ = 0U;
 };
 
 void sync_parent_directory(const std::filesystem::path& path) {
@@ -484,9 +544,8 @@ void validate_compact_matrices(
     for (std::size_t degree = 0U; degree < width; ++degree) {
         std::uint64_t sum = 0U;
         for (std::size_t row = 0U; row < width; ++row) {
-            sum = static_cast<std::uint64_t>(
-                (static_cast<unsigned __int128>(sum) +
-                 lagrange[row * width + degree]) % prime);
+            sum = add_mod_u64(
+                sum, lagrange[row * width + degree], prime);
         }
         const std::uint64_t expected = degree == 0U ? 1U : 0U;
         if (sum != expected) {
@@ -498,6 +557,49 @@ void validate_compact_matrices(
         if (neighbors[row * width + width - 1U] != 1U) {
             throw ClassicalDirectContextCacheError(
                 "direct-cache neighbor row is not monic");
+        }
+    }
+}
+
+void validate_streamed_compact_matrices(
+    PayloadReader& reader, std::uint64_t level, std::uint64_t prime) {
+    const std::uint64_t width_u64 = checked_add(level, 2U, "matrix width");
+    const std::uint64_t entries_u64 = square_entries(level);
+    if (width_u64 > std::numeric_limits<std::size_t>::max() ||
+        entries_u64 > std::numeric_limits<std::size_t>::max() ||
+        prime < 2U || !is_prime_u64(prime)) {
+        throw ClassicalDirectContextCacheError(
+            "streamed direct-cache interpolation dimensions or prime are invalid");
+    }
+    const std::size_t width = static_cast<std::size_t>(width_u64);
+    const std::size_t entries = static_cast<std::size_t>(entries_u64);
+    std::vector<std::uint64_t> column_sums(width, 0U);
+    for (std::size_t index = 0U; index < entries; ++index) {
+        const std::uint64_t coefficient = reader.u64();
+        if (coefficient >= prime) {
+            throw ClassicalDirectContextCacheError(
+                "streamed direct-cache Lagrange coefficient is noncanonical");
+        }
+        const std::size_t degree = index % width;
+        column_sums[degree] = add_mod_u64(
+            column_sums[degree], coefficient, prime);
+    }
+    for (std::size_t degree = 0U; degree < width; ++degree) {
+        const std::uint64_t expected = degree == 0U ? 1U : 0U;
+        if (column_sums[degree] != expected) {
+            throw ClassicalDirectContextCacheError(
+                "streamed direct-cache Lagrange rows do not partition unity");
+        }
+    }
+    for (std::size_t index = 0U; index < entries; ++index) {
+        const std::uint64_t coefficient = reader.u64();
+        if (coefficient >= prime) {
+            throw ClassicalDirectContextCacheError(
+                "streamed direct-cache neighbor coefficient is noncanonical");
+        }
+        if (index % width == width - 1U && coefficient != 1U) {
+            throw ClassicalDirectContextCacheError(
+                "streamed direct-cache neighbor row is not monic");
         }
     }
 }
@@ -519,11 +621,96 @@ bool same_witness(const SutherlandCrtPrime& expected,
 }  // namespace
 
 class DirectContextCacheCodec {
+    struct CachedLevelPlan {
+        std::filesystem::path path;
+        std::uint64_t file_size;
+        std::uint64_t offset;
+        std::uint64_t bytes;
+        std::uint64_t crc;
+        std::string sha256;
+        std::uint64_t encoded_level;
+        std::uint64_t witness_count;
+        SutherlandSuitableOrder order;
+        mpz_class target_modulus;
+        mpz_class coefficient_abs_bound;
+        std::vector<SutherlandCrtPrime> witnesses;
+    };
+
+    struct CacheLevelLayout {
+        std::uint64_t level;
+        std::vector<SutherlandCrtPrime> witnesses;
+        std::uint64_t entries;
+        std::uint64_t coefficient_count;
+        std::uint64_t payload_bytes;
+    };
+
+    static std::unique_ptr<ClassicalDirectLevelContext>
+    materialize_cached_level(const CachedLevelPlan& plan) {
+        ReadFile source(plan.path, plan.offset);
+        if (source.size() != plan.file_size) {
+            throw ClassicalDirectContextCacheError(
+                "classical direct cache size changed after authentication");
+        }
+        PayloadReader reader(source, 0U, plan.bytes);
+        const std::uint64_t encoded_level = reader.u64();
+        const std::uint64_t witness_count = reader.u64();
+        if (encoded_level != plan.encoded_level ||
+            witness_count != plan.witness_count ||
+            plan.witnesses.size() != witness_count) {
+            throw ClassicalDirectContextCacheError(
+                "lazy direct-cache level header changed after authentication");
+        }
+        const std::uint64_t entries_u64 = square_entries(encoded_level);
+        if (entries_u64 > std::numeric_limits<std::size_t>::max()) {
+            throw ClassicalDirectContextCacheError(
+                "lazy direct-cache matrix exceeds the address space");
+        }
+        const std::size_t entries = static_cast<std::size_t>(entries_u64);
+        std::vector<ClassicalDirectLevelContext::InterpolationSurface>
+            surfaces;
+        surfaces.reserve(plan.witnesses.size());
+        for (std::size_t witness_index = 0U;
+             witness_index < plan.witnesses.size(); ++witness_index) {
+            const std::uint64_t prime = reader.u64();
+            const std::uint64_t trace = reader.u64();
+            const std::uint64_t volcano_parameter = reader.u64();
+            if (!same_witness(plan.witnesses[witness_index], prime, trace,
+                              volcano_parameter)) {
+                throw ClassicalDirectContextCacheError(
+                    "lazy direct-cache witness changed after authentication");
+            }
+            std::vector<std::uint64_t> lagrange(entries);
+            std::vector<std::uint64_t> neighbors(entries);
+            for (std::uint64_t& coefficient : lagrange) {
+                coefficient = reader.u64();
+            }
+            for (std::uint64_t& coefficient : neighbors) {
+                coefficient = reader.u64();
+            }
+            validate_compact_matrices(encoded_level, prime, lagrange,
+                                      neighbors);
+            surfaces.push_back({mpz_class(std::to_string(prime)),
+                                std::move(lagrange),
+                                std::move(neighbors)});
+        }
+        if (reader.consumed() != plan.bytes || reader.crc() != plan.crc ||
+            reader.sha256() != plan.sha256) {
+            throw ClassicalDirectContextCacheError(
+                "lazy direct-cache level digest changed after authentication");
+        }
+        return std::unique_ptr<ClassicalDirectLevelContext>(
+            new ClassicalDirectLevelContext(
+                plan.order, plan.target_modulus,
+                plan.coefficient_abs_bound, plan.witnesses,
+                std::move(surfaces)));
+    }
+
 public:
     static std::string save(
         const ClassicalDirectSeaContext& context,
         const std::filesystem::path& cache_path,
-        ClassicalDirectContextCacheLimits limits) {
+        ClassicalDirectContextCacheLimits limits,
+        bool discard_generated_contexts = false) {
         validate_limits(limits);
         if (cache_path.empty()) {
             throw ClassicalDirectContextCacheError(
@@ -537,29 +724,33 @@ public:
         const std::vector<std::uint8_t> target =
             export_positive(context.target_modulus_);
 
-        std::vector<const ClassicalDirectLevelContext*> level_contexts;
-        level_contexts.reserve(context.levels_.size());
         std::uint64_t total_witnesses = 0U;
         std::uint64_t total_coefficients = 0U;
         std::uint64_t payload_bytes =
             static_cast<std::uint64_t>(target.size());
+        std::vector<CacheLevelLayout> layouts;
+        layouts.reserve(context.levels_.size());
         for (std::size_t index = 0U; index < context.levels_.size(); ++index) {
-            const ClassicalDirectLevelContext& level_context =
-                context.level_context(index);
-            if (level_context.level() != context.levels_[index] ||
-                level_context.target_modulus_ != context.target_modulus_ ||
-                level_context.witnesses_.size() !=
-                    level_context.interpolation_surfaces_.size() ||
-                level_context.witnesses_.empty() ||
-                level_context.witnesses_.size() >
-                    limits.max_witnesses_per_level) {
+            const std::uint64_t level = context.levels_[index];
+            const SutherlandSuitableOrder order =
+                derive_three_power_suitable_order(
+                    static_cast<unsigned>(level));
+            const CrtCoefficientBound coefficient_bound =
+                derive_proved_classical_algorithm1_coefficient_bound(
+                    static_cast<unsigned>(level), context.target_modulus_);
+            std::vector<SutherlandCrtPrime> witnesses =
+                select_sutherland_crt_primes(
+                    order, context.target_modulus_,
+                    coefficient_bound.absolute_bound(),
+                    context.maximum_prime_candidates_);
+            if (witnesses.empty() ||
+                witnesses.size() > limits.max_witnesses_per_level) {
                 throw ClassicalDirectContextCacheError(
-                    "classical direct context is incomplete or mismatched");
+                    "classical direct cache layout has an invalid witness count");
             }
             const std::uint64_t witness_count =
-                static_cast<std::uint64_t>(level_context.witnesses_.size());
-            const std::uint64_t entries = square_entries(
-                static_cast<std::uint64_t>(level_context.level()));
+                static_cast<std::uint64_t>(witnesses.size());
+            const std::uint64_t entries = square_entries(level);
             const std::uint64_t coefficients = checked_mul(
                 checked_mul(witness_count, 2U, "coefficient count"),
                 entries, "coefficient count");
@@ -577,7 +768,14 @@ public:
                 checked_mul(witness_count, witness_bytes,
                             "level payload size"),
                 "payload size");
-            level_contexts.push_back(&level_context);
+            layouts.push_back({
+                level, std::move(witnesses), entries, coefficients,
+                checked_add(
+                    16U,
+                    checked_mul(witness_count, witness_bytes,
+                                "level payload size"),
+                    "level payload size"),
+            });
         }
         const std::uint64_t file_bytes = checked_add(
             kClassicalDirectContextCacheHeaderBytes, payload_bytes,
@@ -595,7 +793,7 @@ public:
         put_u64(header, 16U, payload_bytes);
         put_u64(header, 24U, 0U);
         put_u64(header, 32U,
-                static_cast<std::uint64_t>(level_contexts.size()));
+                static_cast<std::uint64_t>(context.levels_.size()));
         put_u64(header, 40U, context.maximum_prime_candidates_);
         put_u64(header, 48U,
                 context.maximum_x_candidates_per_surface_);
@@ -612,8 +810,21 @@ public:
         PayloadWriter writer(temporary.descriptor, temporary.path,
                              header_crc_seed(header));
         writer.bytes(target.data(), target.size());
-        for (const ClassicalDirectLevelContext* level_context :
-             level_contexts) {
+        for (std::size_t level_index = 0U;
+             level_index < context.levels_.size(); ++level_index) {
+            const CacheLevelLayout& layout = layouts[level_index];
+            const std::uint64_t level_start = writer.count();
+            const std::shared_ptr<const ClassicalDirectLevelContext>
+                level_context = context.level_context(level_index);
+            if (level_context->level() != layout.level ||
+                level_context->target_modulus_ != context.target_modulus_ ||
+                level_context->witnesses_.size() !=
+                    level_context->interpolation_surfaces_.size() ||
+                level_context->witnesses_.size() !=
+                    layout.witnesses.size()) {
+                throw ClassicalDirectContextCacheError(
+                    "classical direct context is incomplete or mismatched");
+            }
             writer.u64(static_cast<std::uint64_t>(level_context->level()));
             writer.u64(static_cast<std::uint64_t>(
                 level_context->witnesses_.size()));
@@ -621,14 +832,20 @@ public:
                  index < level_context->witnesses_.size(); ++index) {
                 const SutherlandCrtPrime& witness =
                     level_context->witnesses_[index];
+                std::uint64_t prime = 0U;
+                std::uint64_t trace = 0U;
+                std::uint64_t volcano_parameter = 0U;
+                if (!export_u64(witness.prime, prime) ||
+                    !export_u64(witness.trace, trace) ||
+                    !export_u64(witness.volcano_parameter,
+                                volcano_parameter) ||
+                    !same_witness(layout.witnesses[index], prime, trace,
+                                  volcano_parameter)) {
+                    throw ClassicalDirectContextCacheError(
+                        "classical direct context witness differs from deterministic cache layout");
+                }
                 const ClassicalDirectLevelContext::InterpolationSurface&
                     surface = level_context->interpolation_surfaces_[index];
-                const std::uint64_t prime = export_required_u64(
-                    witness.prime, "auxiliary prime");
-                const std::uint64_t trace = export_required_u64(
-                    witness.trace, "auxiliary trace");
-                const std::uint64_t volcano_parameter = export_required_u64(
-                    witness.volcano_parameter, "volcano parameter");
                 if (surface.auxiliary_prime != witness.prime) {
                     throw ClassicalDirectContextCacheError(
                         "direct-cache surface prime lost witness synchronization");
@@ -648,6 +865,13 @@ public:
                      surface.neighbor_coefficients) {
                     writer.u64(coefficient);
                 }
+            }
+            if (writer.count() - level_start != layout.payload_bytes) {
+                throw ClassicalDirectContextCacheError(
+                    "classical direct cache writer produced an inconsistent level length");
+            }
+            if (discard_generated_contexts) {
+                context.discard_generated_level_context(level_index);
             }
         }
         if (writer.count() != payload_bytes) {
@@ -698,15 +922,20 @@ public:
             throw ClassicalDirectContextCacheError(
                 "trusted direct-cache SHA-256 is not canonical");
         }
+        // Lazy level loaders may run long after this call returns. Bind them
+        // to the artifact's current absolute name so a later cwd change
+        // cannot silently redirect a relative cache path.
+        const std::filesystem::path authenticated_path =
+            std::filesystem::absolute(cache_path);
         ClassicalDirectSeaContext result =
             make_classical_direct_sea_context(
                 target_field, levels, maximum_prime_candidates,
                 maximum_x_candidates_per_surface, preparation_threads);
-        if (sha256_file(cache_path) != trusted_sha256) {
+        if (sha256_file(authenticated_path) != trusted_sha256) {
             throw ClassicalDirectContextCacheError(
                 "classical direct context cache SHA-256 mismatch");
         }
-        ReadFile source(cache_path);
+        ReadFile source(authenticated_path);
         if (source.size() < kClassicalDirectContextCacheHeaderBytes ||
             source.size() > limits.max_file_bytes) {
             throw ClassicalDirectContextCacheError(
@@ -744,7 +973,10 @@ public:
                 "direct-cache metadata does not match the expected schedule or file size");
         }
 
-        PayloadReader reader(source, header_crc_seed(header), payload_bytes);
+        Sha256Hasher parsed_sha256;
+        parsed_sha256.update(header.data(), header.size());
+        PayloadReader reader(source, header_crc_seed(header), payload_bytes,
+                             std::move(parsed_sha256));
         std::vector<std::uint8_t> target(
             static_cast<std::size_t>(target_bytes));
         reader.bytes(target.data(), target.size());
@@ -760,12 +992,16 @@ public:
                 "direct-cache target does not match the requested field");
         }
 
-        std::vector<std::unique_ptr<ClassicalDirectLevelContext>> contexts;
-        contexts.reserve(levels.size());
+        std::vector<ClassicalDirectSeaContext::CachedLevelSource> sources;
+        sources.reserve(levels.size());
         std::uint64_t total_witnesses = 0U;
         std::uint64_t total_coefficients = 0U;
         for (std::size_t level_index = 0U; level_index < levels.size();
              ++level_index) {
+            const std::uint64_t level_offset = checked_add(
+                kClassicalDirectContextCacheHeaderBytes,
+                reader.consumed(), "level file offset");
+            reader.begin_segment();
             const std::uint64_t encoded_level = reader.u64();
             const std::uint64_t witness_count = reader.u64();
             if (encoded_level != levels[level_index] ||
@@ -807,11 +1043,6 @@ public:
                 throw ClassicalDirectContextCacheError(
                     "direct-cache matrix dimensions exceed the remaining payload");
             }
-            const std::size_t entries =
-                static_cast<std::size_t>(entries_u64);
-            std::vector<ClassicalDirectLevelContext::InterpolationSurface>
-                surfaces;
-            surfaces.reserve(static_cast<std::size_t>(witness_count));
             for (std::size_t witness_index = 0U;
                  witness_index < witnesses.size(); ++witness_index) {
                 const std::uint64_t prime = reader.u64();
@@ -822,45 +1053,60 @@ public:
                     throw ClassicalDirectContextCacheError(
                         "direct-cache witness differs from deterministic selection");
                 }
-                std::vector<std::uint64_t> lagrange(entries);
-                std::vector<std::uint64_t> neighbors(entries);
-                for (std::uint64_t& coefficient : lagrange) {
-                    coefficient = reader.u64();
-                }
-                for (std::uint64_t& coefficient : neighbors) {
-                    coefficient = reader.u64();
-                }
-                validate_compact_matrices(encoded_level, prime, lagrange,
-                                          neighbors);
-                surfaces.push_back({mpz_class(std::to_string(prime)),
-                                    std::move(lagrange),
-                                    std::move(neighbors)});
+                validate_streamed_compact_matrices(
+                    reader, encoded_level, prime);
+            }
+            const PayloadReader::SegmentDigest segment =
+                reader.end_segment();
+            const std::uint64_t expected_level_bytes = checked_add(
+                16U,
+                checked_mul(witness_count, bytes_per_witness,
+                            "indexed level bytes"),
+                "indexed level bytes");
+            if (segment.bytes != expected_level_bytes) {
+                throw ClassicalDirectContextCacheError(
+                    "direct-cache indexed level has an inconsistent byte count");
             }
             total_witnesses = checked_add(total_witnesses, witness_count,
                                           "loaded witness count");
+            const std::uint64_t coefficient_count = checked_mul(
+                checked_mul(witness_count, 2U,
+                            "loaded coefficient count"),
+                entries_u64, "loaded coefficient count");
             total_coefficients = checked_add(
-                total_coefficients,
-                checked_mul(checked_mul(witness_count, 2U,
-                                        "loaded coefficient count"),
-                            entries_u64, "loaded coefficient count"),
+                total_coefficients, coefficient_count,
                 "loaded coefficient count");
-            contexts.push_back(
-                std::unique_ptr<ClassicalDirectLevelContext>(
-                    new ClassicalDirectLevelContext(
-                        std::move(order), target_field.modulus(),
-                        coefficient_bound.absolute_bound(),
-                        std::move(witnesses), std::move(surfaces))));
+            if (coefficient_count >
+                std::numeric_limits<std::size_t>::max()) {
+                throw ClassicalDirectContextCacheError(
+                    "direct-cache coefficient count exceeds the address space");
+            }
+            auto plan = std::make_shared<CachedLevelPlan>(CachedLevelPlan{
+                authenticated_path,
+                source.size(),
+                level_offset,
+                expected_level_bytes,
+                segment.crc,
+                segment.sha256,
+                encoded_level,
+                witness_count,
+                std::move(order),
+                target_field.modulus(),
+                coefficient_bound.absolute_bound(),
+                std::move(witnesses),
+            });
+            sources.push_back({
+                [plan] { return materialize_cached_level(*plan); },
+                static_cast<std::size_t>(coefficient_count),
+            });
         }
         if (reader.consumed() != payload_bytes ||
             reader.crc() != recorded_crc ||
+            reader.sha256() != trusted_sha256 ||
             total_witnesses != encoded_total_witnesses ||
             total_coefficients != encoded_total_coefficients) {
             throw ClassicalDirectContextCacheError(
                 "direct-cache checksum, payload, or aggregate count is inconsistent");
-        }
-        if (sha256_file(cache_path) != trusted_sha256) {
-            throw ClassicalDirectContextCacheError(
-                "classical direct context cache changed while loading");
         }
         const auto elapsed = std::chrono::duration_cast<
             std::chrono::microseconds>(
@@ -872,7 +1118,7 @@ public:
                 "direct-cache load timing is out of range");
         }
         result.install_cached_contexts(
-            std::move(contexts), static_cast<std::uint64_t>(elapsed));
+            std::move(sources), static_cast<std::uint64_t>(elapsed));
         return result;
     }
 };
@@ -882,6 +1128,46 @@ std::string save_classical_direct_context_cache(
     const std::filesystem::path& cache_path,
     ClassicalDirectContextCacheLimits limits) {
     return DirectContextCacheCodec::save(context, cache_path, limits);
+}
+
+ClassicalDirectContextCacheBuildResult
+prepare_classical_direct_context_cache(
+    const Field& target_field, const std::vector<std::uint64_t>& levels,
+    std::uint64_t maximum_prime_candidates,
+    std::uint64_t maximum_x_candidates_per_surface,
+    std::size_t preparation_threads,
+    const std::filesystem::path& cache_path,
+    ClassicalDirectContextCacheLimits limits) {
+    const auto start = std::chrono::steady_clock::now();
+    ClassicalDirectSeaContext context = make_classical_direct_sea_context(
+        target_field, levels, maximum_prime_candidates,
+        maximum_x_candidates_per_surface, preparation_threads);
+    const std::string digest = DirectContextCacheCodec::save(
+        context, cache_path, limits, true);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - start).count();
+    if (elapsed < 0 ||
+        static_cast<unsigned long long>(elapsed) >
+            std::numeric_limits<std::uint64_t>::max()) {
+        throw ClassicalDirectContextCacheError(
+            "streaming direct-cache build timing is out of range");
+    }
+    const std::uintmax_t file_bytes =
+        std::filesystem::file_size(cache_path);
+    if (file_bytes > std::numeric_limits<std::uint64_t>::max()) {
+        throw ClassicalDirectContextCacheError(
+            "streaming direct-cache artifact size exceeds uint64");
+    }
+    return {
+        digest,
+        context.prepared_context_count(),
+        context.preparation_us(),
+        static_cast<std::uint64_t>(elapsed),
+        context.interpolation_coefficient_count(),
+        context.interpolation_storage_bytes(),
+        static_cast<std::uint64_t>(file_bytes),
+        levels.empty() ? 0U : 1U,
+    };
 }
 
 ClassicalDirectSeaContext load_classical_direct_context_cache(

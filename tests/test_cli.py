@@ -578,6 +578,7 @@ class CliTests(unittest.TestCase):
             )
             self.assertEqual(record["levels"], ["7", "11"])
             self.assertEqual(record["context_count"], "2")
+            self.assertEqual(record["peak_resident_contexts"], "1")
             self.assertGreater(int(record["matrix_coefficients"]), 0)
             self.assertEqual(
                 int(record["matrix_payload_bytes"]),
@@ -619,6 +620,9 @@ class CliTests(unittest.TestCase):
             self.assertTrue(summary["cache_loaded"])
             self.assertEqual(summary["elapsed_us"], "0")
             self.assertEqual(summary["context_count"], "2")
+            self.assertGreater(int(summary["cached_level_load_count"]), 0)
+            self.assertEqual(summary["peak_cached_resident_contexts"], "1")
+            self.assertEqual(summary["final_cached_resident_contexts"], "0")
             self.assertEqual(
                 int(summary["matrix_payload_bytes"]),
                 int(summary["matrix_coefficients"]) * 8,

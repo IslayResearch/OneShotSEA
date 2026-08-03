@@ -293,10 +293,11 @@ struct SearchPipelineRunResult {
     std::uint64_t curves_processed = 0;
     bool exhausted_assigned_range = false;
     std::optional<SearchCurveReport> verified;
-    // Curve-independent direct-SEA levels constructed lazily at most once by
-    // this invocation and then shared read-only across curve workers.  The
-    // aggregate preparation time is reported separately for amortization;
-    // the first worker's wall-clock SEA time necessarily includes its wait.
+    // Curve-independent direct-SEA levels generated lazily at most once by an
+    // uncached invocation and then shared read-only across curve workers. An
+    // authenticated cache instead indexes the whole schedule and temporarily
+    // shares only each currently reached level. Aggregate generation and lazy
+    // materialization telemetry are reported separately.
     std::size_t classical_direct_context_count = 0U;
     std::uint64_t classical_direct_preparation_us = 0U;
     // Exact payload of the two compact uint64 interpolation matrices. This
@@ -305,6 +306,10 @@ struct SearchPipelineRunResult {
     std::size_t classical_direct_interpolation_storage_bytes = 0U;
     bool classical_direct_context_cache_loaded = false;
     std::uint64_t classical_direct_context_cache_load_us = 0U;
+    std::uint64_t classical_direct_cached_level_load_count = 0U;
+    std::uint64_t classical_direct_cached_level_load_us = 0U;
+    std::size_t classical_direct_peak_cached_resident_context_count = 0U;
+    std::size_t classical_direct_final_cached_resident_context_count = 0U;
     // True only when this invocation actually constructed the resource-only
     // cross-curve exact-smooth coordinator pool.
     bool smooth_batch_coordinator_enabled = false;

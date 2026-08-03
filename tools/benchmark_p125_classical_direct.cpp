@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -115,6 +116,7 @@ int main(int argc, char** argv) {
     try {
         std::size_t threads = 4U;
         std::vector<std::uint64_t> levels;
+        bool skip_schoof = false;
 #if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
         std::string cache_path;
         std::string cache_sha256;
@@ -134,6 +136,10 @@ int main(int argc, char** argv) {
                         "thread limit exceeds size_t");
                 }
                 threads = static_cast<std::size_t>(parsed);
+                continue;
+            }
+            if (argument == "--skip-schoof") {
+                skip_schoof = true;
                 continue;
             }
 #if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
@@ -166,7 +172,7 @@ int main(int argc, char** argv) {
         if (levels.empty()) {
             std::cerr << "usage: benchmark_p125_classical_direct "
                          "[--threads N] [--cache PATH "
-                         "--cache-sha256 DIGEST] ELL...\n";
+                         "--cache-sha256 DIGEST] [--skip-schoof] ELL...\n";
             return 2;
         }
 #if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
@@ -210,10 +216,14 @@ int main(int argc, char** argv) {
                 evaluate(warm_curve, context);
             const std::uint64_t warm_us = elapsed_us(warm_start);
             const Clock::time_point validation_start = Clock::now();
-            const std::uint64_t cold_schoof =
-                validate_against_schoof(cold_curve, cold, ell);
-            const std::uint64_t warm_schoof =
-                validate_against_schoof(warm_curve, warm, ell);
+            std::optional<std::uint64_t> cold_schoof;
+            std::optional<std::uint64_t> warm_schoof;
+            if (!skip_schoof) {
+                cold_schoof =
+                    validate_against_schoof(cold_curve, cold, ell);
+                warm_schoof =
+                    validate_against_schoof(warm_curve, warm, ell);
+            }
             const std::uint64_t validation_us =
                 elapsed_us(validation_start);
             const auto& cold_record = cold.classical_direct_levels.front();
@@ -231,6 +241,14 @@ int main(int argc, char** argv) {
                 << "\",\"cache_loaded\":"
                 << (context.loaded_from_cache() ? "true" : "false")
                 << ",\"cache_load_us\":\"" << context.cache_load_us()
+                << "\",\"cached_level_load_count\":\""
+                << context.cached_level_load_count()
+                << "\",\"cached_level_load_us\":\""
+                << context.cached_level_load_us()
+                << "\",\"peak_cached_resident_contexts\":\""
+                << context.peak_cached_resident_context_count()
+                << "\",\"final_cached_resident_contexts\":\""
+                << context.cached_resident_context_count()
 #endif
                 << "\",\"cold_us\":\"" << cold_us
                 << "\",\"warm_distinct_j_us\":\"" << warm_us
@@ -252,9 +270,19 @@ int main(int argc, char** argv) {
                 << (cold_record.exact ? "true" : "false")
                 << ",\"warm_exact\":"
                 << (warm_record.exact ? "true" : "false")
-                << ",\"cold_schoof_residue\":\"" << cold_schoof
-                << "\",\"warm_schoof_residue\":\"" << warm_schoof
-                << "\",\"process_peak_rss_bytes\":\""
+                << ",\"cold_schoof_residue\":";
+            if (cold_schoof.has_value()) {
+                std::cout << '"' << *cold_schoof << '"';
+            } else {
+                std::cout << "null";
+            }
+            std::cout << ",\"warm_schoof_residue\":";
+            if (warm_schoof.has_value()) {
+                std::cout << '"' << *warm_schoof << '"';
+            } else {
+                std::cout << "null";
+            }
+            std::cout << ",\"process_peak_rss_bytes\":\""
                 << peak_rss_bytes() << "\"}\n";
         }
         return 0;

@@ -1879,6 +1879,16 @@ SearchPipelineRunResult run_search_pipeline(
             prepared_classical_direct_context->loaded_from_cache();
         result.classical_direct_context_cache_load_us =
             prepared_classical_direct_context->cache_load_us();
+        result.classical_direct_cached_level_load_count =
+            prepared_classical_direct_context->cached_level_load_count();
+        result.classical_direct_cached_level_load_us =
+            prepared_classical_direct_context->cached_level_load_us();
+        result.classical_direct_peak_cached_resident_context_count =
+            prepared_classical_direct_context
+                ->peak_cached_resident_context_count();
+        result.classical_direct_final_cached_resident_context_count =
+            prepared_classical_direct_context
+                ->cached_resident_context_count();
     }
     result.exhausted_assigned_range = state.complete();
     return result;

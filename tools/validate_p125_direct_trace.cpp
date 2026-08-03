@@ -1,3 +1,4 @@
+#include "oneshotsea/direct_context_cache.hpp"
 #include "oneshotsea/sea.hpp"
 #include "oneshotsea/x1_27_probe.hpp"
 
@@ -8,6 +9,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -104,7 +106,7 @@ void print_level(
     std::size_t index,
     const oneshotsea::ClassicalDirectSeaLevelRecord& record,
     std::uint64_t expected_residue, bool oracle_accepted,
-    const oneshotsea::ClassicalDirectSeaContext& context,
+    std::size_t matrix_payload_bytes, std::uint64_t preparation_us,
     std::uint64_t total_us) {
     std::cout
         << "{\"schema\":\"oneshotsea.p125-direct-trace-level.v1\""
@@ -137,15 +139,39 @@ void print_level(
         << record.auxiliary_prime_count << "\""
         << ",\"class_number\":\"" << record.class_number << "\""
         << ",\"matrix_payload_bytes\":\""
-        << context.interpolation_storage_bytes() << "\""
-        << ",\"preparation_us\":\"" << context.preparation_us()
+        << matrix_payload_bytes << "\""
+        << ",\"preparation_us\":\"" << preparation_us
         << "\",\"evaluation_us\":\"" << record.elapsed_us
         << "\",\"total_us\":\"" << total_us << "\"}\n";
     std::cout.flush();
 }
 
+bool oracle_accepts(
+    const oneshotsea::ClassicalDirectSeaLevelRecord& record,
+    const oneshotsea::WeberSeaResult& state,
+    std::uint64_t expected_residue) {
+    if (record.exact) {
+        return record.trace_residue.has_value() &&
+               *record.trace_residue == expected_residue;
+    }
+    if (!record.atkin_projective_order.has_value()) {
+        // An unconstrained level makes no assertion about the trace.
+        return true;
+    }
+    const auto constraint = std::find_if(
+        state.atkin_constraints.begin(), state.atkin_constraints.end(),
+        [&record](const oneshotsea::AtkinConstraint& candidate) {
+            return candidate.ell == record.ell;
+        });
+    return constraint != state.atkin_constraints.end() &&
+           std::find(constraint->trace_residues.begin(),
+                     constraint->trace_residues.end(),
+                     expected_residue) != constraint->trace_residues.end();
+}
+
 int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
-        bool require_completion) {
+        bool require_completion, const std::string& cache_path,
+        const std::string& cache_sha256) {
     validate_schedule(levels);
     const mpz_class prime = target_prime();
     const oneshotsea::Field field(prime);
@@ -163,7 +189,7 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
             prior.residue() ||
         expected_trace * expected_trace > 4 * prime) {
         throw std::logic_error(
-            "independent trace oracle contradicts the X1(27) prior or Hasse");
+            "authenticated reference trace contradicts the X1(27) prior or Hasse");
     }
 
     oneshotsea::TraceConstraints initial(prime);
@@ -171,7 +197,37 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
     oneshotsea::WeberSeaResult state{
         initial, initial, {}, {}, {}, {}, std::nullopt, {}};
 
-    for (std::size_t index = 0U; index < levels.size(); ++index) {
+    std::unique_ptr<oneshotsea::ClassicalDirectSeaContext> cached_context;
+    std::uint64_t cached_total_us = 0U;
+    if (!cache_path.empty()) {
+        const Clock::time_point started = Clock::now();
+        cached_context =
+            std::make_unique<oneshotsea::ClassicalDirectSeaContext>(
+                oneshotsea::load_classical_direct_context_cache(
+                    field, levels, kPrimeCandidateCap, kXCandidateCap,
+                    threads, cache_path, cache_sha256));
+        oneshotsea::extend_sea_with_prepared_classical_direct(
+            sample.pair.curve, state, *cached_context, 1U);
+        cached_total_us = elapsed_us(started);
+        for (std::size_t index = 0U;
+             index < state.classical_direct_levels.size(); ++index) {
+            const auto& record = state.classical_direct_levels[index];
+            const std::uint64_t expected_residue =
+                mpz_fdiv_ui(expected_trace.get_mpz_t(), record.ell);
+            const bool accepted =
+                oracle_accepts(record, state, expected_residue);
+            print_level(index, record, expected_residue, accepted,
+                        cached_context->interpolation_storage_bytes(index),
+                        0U, record.elapsed_us);
+            if (!accepted) {
+                throw std::runtime_error(
+                    "cached direct level contradicts the authenticated p125 reference trace");
+            }
+        }
+    }
+
+    for (std::size_t index = 0U;
+         cache_path.empty() && index < levels.size(); ++index) {
         if (state.traces.has_value()) {
             break;
         }
@@ -193,28 +249,10 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
             state.classical_direct_levels.back();
         const std::uint64_t expected_residue =
             mpz_fdiv_ui(expected_trace.get_mpz_t(), ell);
-        bool accepted = false;
-        if (record.exact) {
-            accepted = record.trace_residue.has_value() &&
-                       *record.trace_residue == expected_residue;
-        } else if (record.atkin_projective_order.has_value()) {
-            const auto constraint = std::find_if(
-                state.atkin_constraints.begin(),
-                state.atkin_constraints.end(),
-                [ell](const oneshotsea::AtkinConstraint& candidate) {
-                    return candidate.ell == ell;
-                });
-            accepted = constraint != state.atkin_constraints.end() &&
-                std::find(constraint->trace_residues.begin(),
-                          constraint->trace_residues.end(),
-                          expected_residue) !=
-                    constraint->trace_residues.end();
-        } else {
-            // An unconstrained level makes no assertion about the trace.
-            accepted = true;
-        }
-        print_level(index, record, expected_residue, accepted, context,
-                    total);
+        const bool accepted = oracle_accepts(record, state, expected_residue);
+        print_level(index, record, expected_residue, accepted,
+                    context.interpolation_storage_bytes(),
+                    context.preparation_us(), total);
         if (!accepted) {
             throw std::runtime_error(
                 "direct level contradicts the authenticated p125 reference trace");
@@ -234,7 +272,24 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
         << ",\"exact_modulus\":\"" << state.constraints.modulus()
         << "\",\"exact_trace_candidate_count\":\""
         << state.constraints.candidate_count() << "\""
-        << ",\"trace\":";
+        << ",\"cache\":";
+    if (cached_context) {
+        std::cout
+            << "{\"authenticated\":true,\"index_load_us\":\""
+            << cached_context->cache_load_us()
+            << "\",\"level_load_count\":\""
+            << cached_context->cached_level_load_count()
+            << "\",\"level_load_us\":\""
+            << cached_context->cached_level_load_us()
+            << "\",\"peak_resident_contexts\":\""
+            << cached_context->peak_cached_resident_context_count()
+            << "\",\"final_resident_contexts\":\""
+            << cached_context->cached_resident_context_count()
+            << "\",\"total_us\":\"" << cached_total_us << "\"}";
+    } else {
+        std::cout << "null";
+    }
+    std::cout << ",\"trace\":";
     if (complete) {
         std::cout << '"' << state.traces->front() << '"';
     } else {
@@ -250,7 +305,7 @@ int run(std::size_t threads, const std::vector<std::uint64_t>& levels,
 
 void usage(const char* executable) {
     std::cerr << "usage: " << executable
-              << " [--threads N] [ELL ...]\n";
+              << " [--threads N] [--cache PATH --cache-sha256 DIGEST] [ELL ...]\n";
 }
 
 }  // namespace
@@ -259,6 +314,8 @@ int main(int argc, char** argv) {
     try {
         std::size_t threads = 4U;
         std::vector<std::uint64_t> levels;
+        std::string cache_path;
+        std::string cache_sha256;
         for (int index = 1; index < argc; ++index) {
             const std::string_view argument(argv[index]);
             if (argument == "--threads") {
@@ -274,6 +331,17 @@ int main(int argc, char** argv) {
                         "thread count is outside size_t");
                 }
                 threads = static_cast<std::size_t>(parsed);
+            } else if (argument == "--cache") {
+                if (++index >= argc) {
+                    throw std::invalid_argument("--cache requires a path");
+                }
+                cache_path = argv[index];
+            } else if (argument == "--cache-sha256") {
+                if (++index >= argc) {
+                    throw std::invalid_argument(
+                        "--cache-sha256 requires a digest");
+                }
+                cache_sha256 = argv[index];
             } else if (argument == "--help") {
                 usage(argv[0]);
                 return EXIT_SUCCESS;
@@ -285,7 +353,12 @@ int main(int argc, char** argv) {
         if (default_schedule) {
             levels = completing_exact_schedule();
         }
-        return run(threads, levels, default_schedule);
+        if (cache_path.empty() != cache_sha256.empty()) {
+            throw std::invalid_argument(
+                "--cache and --cache-sha256 must be supplied together");
+        }
+        return run(threads, levels, default_schedule, cache_path,
+                   cache_sha256);
     } catch (const std::exception& error) {
         std::cerr << "p125 direct trace validation failed: "
                   << error.what() << '\n';

@@ -236,6 +236,22 @@ std::uint64_t elapsed_us(Clock::time_point start) {
     return static_cast<std::uint64_t>(elapsed);
 }
 
+void checked_atomic_add(std::atomic<std::uint64_t>& target,
+                        std::uint64_t increment, const char* label) {
+    std::uint64_t current = target.load(std::memory_order_acquire);
+    for (;;) {
+        if (increment >
+            std::numeric_limits<std::uint64_t>::max() - current) {
+            throw std::overflow_error(label);
+        }
+        if (target.compare_exchange_weak(
+                current, current + increment, std::memory_order_acq_rel,
+                std::memory_order_acquire)) {
+            return;
+        }
+    }
+}
+
 TraceConstraints rebuilt_effective_constraints(
     const TraceConstraints& exact_constraints,
     const std::vector<AtkinConstraint>& atkin_constraints) {
@@ -628,10 +644,22 @@ void extend_sea_with_classical_direct(
 
 struct ClassicalDirectSeaContext::LevelSlot {
     std::once_flag once;
-    std::unique_ptr<ClassicalDirectLevelContext> context;
+    std::shared_ptr<const ClassicalDirectLevelContext> context;
+    std::weak_ptr<const ClassicalDirectLevelContext> cached_context;
+    std::function<std::unique_ptr<ClassicalDirectLevelContext>()>
+        cached_loader;
+    std::mutex cached_mutex;
     std::exception_ptr failure;
     std::atomic<bool> prepared{false};
     std::atomic<std::uint64_t> preparation_us{0U};
+    std::size_t interpolation_coefficient_count = 0U;
+};
+
+struct ClassicalDirectSeaContext::CacheTelemetry {
+    std::atomic<std::uint64_t> load_count{0U};
+    std::atomic<std::uint64_t> load_us{0U};
+    std::atomic<std::size_t> resident_contexts{0U};
+    std::atomic<std::size_t> peak_resident_contexts{0U};
 };
 
 ClassicalDirectSeaContext::~ClassicalDirectSeaContext() = default;
@@ -650,7 +678,8 @@ ClassicalDirectSeaContext::ClassicalDirectSeaContext(
       maximum_prime_candidates_(maximum_prime_candidates),
       maximum_x_candidates_per_surface_(
           maximum_x_candidates_per_surface),
-      preparation_threads_(preparation_threads) {
+      preparation_threads_(preparation_threads),
+      cache_telemetry_(std::make_shared<CacheTelemetry>()) {
     level_slots_.reserve(levels_.size());
     for (std::size_t index = 0U; index < levels_.size(); ++index) {
         level_slots_.push_back(std::make_unique<LevelSlot>());
@@ -673,13 +702,59 @@ ClassicalDirectSeaContext make_classical_direct_sea_context(
         maximum_x_candidates_per_surface, preparation_threads);
 }
 
-const ClassicalDirectLevelContext&
+std::shared_ptr<const ClassicalDirectLevelContext>
 ClassicalDirectSeaContext::level_context(std::size_t index) const {
     if (index >= level_slots_.size()) {
         throw std::out_of_range(
             "classical direct SEA level context index is out of range");
     }
     LevelSlot& slot = *level_slots_[index];
+    if (slot.cached_loader) {
+        const std::lock_guard<std::mutex> lock(slot.cached_mutex);
+        if (std::shared_ptr<const ClassicalDirectLevelContext> resident =
+                slot.cached_context.lock()) {
+            return resident;
+        }
+        const Clock::time_point start = Clock::now();
+        std::unique_ptr<ClassicalDirectLevelContext> loaded =
+            slot.cached_loader();
+        if (!loaded || loaded->level() != levels_[index] ||
+            loaded->target_modulus() != target_modulus_) {
+            throw std::logic_error(
+                "cached classical direct level loader returned a mismatched context");
+        }
+        const std::uint64_t duration = elapsed_us(start);
+        const std::shared_ptr<CacheTelemetry> telemetry = cache_telemetry_;
+        const std::size_t resident =
+            telemetry->resident_contexts.fetch_add(
+                1U, std::memory_order_acq_rel) + 1U;
+        std::size_t peak = telemetry->peak_resident_contexts.load(
+            std::memory_order_acquire);
+        while (resident > peak &&
+               !telemetry->peak_resident_contexts.compare_exchange_weak(
+                   peak, resident, std::memory_order_release,
+                   std::memory_order_acquire)) {
+        }
+        std::shared_ptr<const ClassicalDirectLevelContext> shared(
+            loaded.release(),
+            [telemetry](const ClassicalDirectLevelContext* context) {
+                delete context;
+                const std::size_t previous =
+                    telemetry->resident_contexts.fetch_sub(
+                        1U, std::memory_order_acq_rel);
+                if (previous == 0U) {
+                    std::terminate();
+                }
+            });
+        slot.cached_context = shared;
+        checked_atomic_add(
+            telemetry->load_count, 1U,
+            "classical direct cached-level load count overflow");
+        checked_atomic_add(
+            telemetry->load_us, duration,
+            "classical direct cached-level load timing overflow");
+        return shared;
+    }
     std::call_once(slot.once, [&] {
         if (slot.context) {
             return;
@@ -690,8 +765,8 @@ ClassicalDirectSeaContext::level_context(std::size_t index) const {
             const SutherlandSuitableOrder order =
                 derive_three_power_suitable_order(
                     static_cast<unsigned>(levels_[index]));
-            std::unique_ptr<ClassicalDirectLevelContext> prepared =
-                std::make_unique<ClassicalDirectLevelContext>(
+            std::shared_ptr<const ClassicalDirectLevelContext> prepared =
+                std::make_shared<ClassicalDirectLevelContext>(
                     prepare_classical_direct_level_context(
                         order, target_field,
                         maximum_prime_candidates_,
@@ -713,27 +788,48 @@ ClassicalDirectSeaContext::level_context(std::size_t index) const {
         throw std::logic_error(
             "classical direct SEA level preparation produced no context");
     }
-    return *slot.context;
+    return slot.context;
 }
 
 void ClassicalDirectSeaContext::install_cached_contexts(
-    std::vector<std::unique_ptr<ClassicalDirectLevelContext>> contexts,
+    std::vector<CachedLevelSource> sources,
     std::uint64_t load_us) {
-    if (contexts.size() != level_slots_.size() || loaded_from_cache_) {
+    if (sources.size() != level_slots_.size() || loaded_from_cache_) {
         throw std::logic_error(
             "classical direct cache does not match an empty schedule context");
     }
-    for (std::size_t index = 0U; index < contexts.size(); ++index) {
-        if (!contexts[index] || level_slots_[index]->context ||
+    for (std::size_t index = 0U; index < sources.size(); ++index) {
+        if (!sources[index].load ||
+            sources[index].interpolation_coefficient_count == 0U ||
+            level_slots_[index]->context ||
+            level_slots_[index]->cached_loader ||
             level_slots_[index]->prepared.load(std::memory_order_acquire)) {
             throw std::logic_error(
                 "classical direct cache contains a missing or duplicate level context");
         }
-        level_slots_[index]->context = std::move(contexts[index]);
+        level_slots_[index]->cached_loader = std::move(sources[index].load);
+        level_slots_[index]->interpolation_coefficient_count =
+            sources[index].interpolation_coefficient_count;
         level_slots_[index]->prepared.store(true, std::memory_order_release);
     }
     cache_load_us_ = load_us;
     loaded_from_cache_ = true;
+}
+
+void ClassicalDirectSeaContext::discard_generated_level_context(
+    std::size_t index) const {
+    if (index >= level_slots_.size()) {
+        throw std::out_of_range(
+            "classical direct SEA discard index is out of range");
+    }
+    LevelSlot& slot = *level_slots_[index];
+    if (loaded_from_cache_ || slot.cached_loader || !slot.context) {
+        throw std::logic_error(
+            "classical direct SEA can discard only a generated resident context");
+    }
+    slot.interpolation_coefficient_count =
+        slot.context->interpolation_coefficient_count();
+    slot.context.reset();
 }
 
 std::size_t ClassicalDirectSeaContext::prepared_context_count() const {
@@ -766,12 +862,14 @@ std::size_t ClassicalDirectSeaContext::interpolation_coefficient_count()
         if (!slot->prepared.load(std::memory_order_acquire)) {
             continue;
         }
-        if (!slot->context) {
+        std::size_t count = slot->interpolation_coefficient_count;
+        if (count == 0U && slot->context) {
+            count = slot->context->interpolation_coefficient_count();
+        }
+        if (count == 0U) {
             throw std::logic_error(
                 "prepared classical direct level has no compact context");
         }
-        const std::size_t count =
-            slot->context->interpolation_coefficient_count();
         if (count > std::numeric_limits<std::size_t>::max() - total) {
             throw std::overflow_error(
                 "classical direct interpolation count overflows size_t");
@@ -791,6 +889,49 @@ std::size_t ClassicalDirectSeaContext::interpolation_storage_bytes() const {
     return count * sizeof(std::uint64_t);
 }
 
+std::size_t ClassicalDirectSeaContext::interpolation_storage_bytes(
+    std::size_t level_index) const {
+    if (level_index >= level_slots_.size()) {
+        throw std::out_of_range(
+            "classical direct interpolation storage index is out of range");
+    }
+    const LevelSlot& slot = *level_slots_[level_index];
+    std::size_t count = slot.interpolation_coefficient_count;
+    if (count == 0U &&
+        slot.prepared.load(std::memory_order_acquire) && slot.context) {
+        count = slot.context->interpolation_coefficient_count();
+    }
+    if (count == 0U) {
+        throw std::logic_error(
+            "classical direct level has no interpolation storage metadata");
+    }
+    if (count > std::numeric_limits<std::size_t>::max() /
+                    sizeof(std::uint64_t)) {
+        throw std::overflow_error(
+            "classical direct level storage overflows size_t");
+    }
+    return count * sizeof(std::uint64_t);
+}
+
+std::uint64_t ClassicalDirectSeaContext::cached_level_load_count() const {
+    return cache_telemetry_->load_count.load(std::memory_order_acquire);
+}
+
+std::uint64_t ClassicalDirectSeaContext::cached_level_load_us() const {
+    return cache_telemetry_->load_us.load(std::memory_order_acquire);
+}
+
+std::size_t ClassicalDirectSeaContext::cached_resident_context_count() const {
+    return cache_telemetry_->resident_contexts.load(
+        std::memory_order_acquire);
+}
+
+std::size_t
+ClassicalDirectSeaContext::peak_cached_resident_context_count() const {
+    return cache_telemetry_->peak_resident_contexts.load(
+        std::memory_order_acquire);
+}
+
 void extend_sea_with_prepared_classical_direct(
     const Curve& curve, WeberSeaResult& result,
     const ClassicalDirectSeaContext& context,
@@ -801,25 +942,32 @@ void extend_sea_with_prepared_classical_direct(
         throw std::invalid_argument(
             "prepared classical direct SEA context belongs to another field or is incomplete");
     }
+    std::shared_ptr<const ClassicalDirectLevelContext> active_context;
     extend_classical_direct_impl(
         curve, result, context.levels_, trace_cap,
         [&](std::size_t level_index) {
-            static_cast<void>(context.level_context(level_index));
+            active_context = context.level_context(level_index);
         },
         [&](std::size_t level_index) {
-            const ClassicalDirectLevelContext& level_context =
-                context.level_context(level_index);
+            if (!active_context ||
+                active_context->level() != context.levels_[level_index]) {
+                throw std::logic_error(
+                    "prepared classical direct level lifetime was not retained");
+            }
             CrtSpecializationResult specialization =
                 reconstruct_classical_specialization_from_prepared_context(
-                    level_context, curve.field(), curve.j_invariant());
+                    *active_context, curve.field(), curve.j_invariant());
             if (specialization.prime_count !=
-                level_context.auxiliary_prime_count()) {
+                active_context->auxiliary_prime_count()) {
                 throw std::logic_error(
                     "prepared classical direct SEA lost auxiliary-prime coverage");
             }
-            return ClassicalDirectEvaluation{
-                level_context.level(), level_context.order_discriminant(),
-                level_context.class_number(), std::move(specialization)};
+            ClassicalDirectEvaluation evaluation{
+                active_context->level(),
+                active_context->order_discriminant(),
+                active_context->class_number(), std::move(specialization)};
+            active_context.reset();
+            return evaluation;
         },
         progress);
 }

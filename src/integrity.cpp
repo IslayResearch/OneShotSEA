@@ -13,76 +13,71 @@
 #include <string_view>
 
 namespace oneshotsea {
-namespace {
+void Sha256Hasher::update(std::string_view bytes) {
+    update(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+}
 
-class Sha256 {
-public:
-    void update(std::string_view bytes) {
-        update(reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size());
+void Sha256Hasher::update(const std::uint8_t* bytes, std::size_t size) {
+    if (finalized_) {
+        throw std::logic_error("cannot update a finalized SHA-256");
     }
-
-    void update(const unsigned char* bytes, std::size_t size) {
-        if (finalized_) {
-            throw std::logic_error("cannot update a finalized SHA-256");
-        }
-        constexpr std::uint64_t maximum_bytes =
-            std::numeric_limits<std::uint64_t>::max() / 8U;
-        if (byte_count_ > maximum_bytes || size > maximum_bytes - byte_count_) {
-            throw std::overflow_error("SHA-256 input length overflow");
-        }
-        byte_count_ += static_cast<std::uint64_t>(size);
-        while (size != 0U) {
-            const std::size_t take = std::min(size, block_.size() - used_);
-            std::copy_n(bytes, take, block_.begin() +
-                                         static_cast<std::ptrdiff_t>(used_));
-            bytes += take;
-            size -= take;
-            used_ += take;
-            if (used_ == block_.size()) {
-                transform(block_.data());
-                used_ = 0;
-            }
-        }
+    constexpr std::uint64_t maximum_bytes =
+        std::numeric_limits<std::uint64_t>::max() / 8U;
+    if (byte_count_ > maximum_bytes || size > maximum_bytes - byte_count_) {
+        throw std::overflow_error("SHA-256 input length overflow");
     }
-
-    std::string hex_digest() {
-        if (!finalized_) {
-            const std::uint64_t bit_count = byte_count_ * 8U;
-            block_[used_++] = 0x80U;
-            if (used_ > 56U) {
-                std::fill(block_.begin() + static_cast<std::ptrdiff_t>(used_),
-                          block_.end(), 0U);
-                transform(block_.data());
-                used_ = 0;
-            }
-            std::fill(block_.begin() + static_cast<std::ptrdiff_t>(used_),
-                      block_.begin() + 56, 0U);
-            for (unsigned index = 0; index < 8U; ++index) {
-                block_[63U - index] = static_cast<unsigned char>(
-                    bit_count >> (index * 8U));
-            }
+    byte_count_ += static_cast<std::uint64_t>(size);
+    while (size != 0U) {
+        const std::size_t take = std::min(size, block_.size() - used_);
+        std::copy_n(bytes, take,
+                    block_.begin() + static_cast<std::ptrdiff_t>(used_));
+        bytes += take;
+        size -= take;
+        used_ += take;
+        if (used_ == block_.size()) {
             transform(block_.data());
             used_ = 0;
-            finalized_ = true;
         }
-        std::ostringstream output;
-        output << std::hex << std::setfill('0');
-        for (const std::uint32_t word : state_) {
-            output << std::setw(8) << word;
+    }
+}
+
+std::string Sha256Hasher::hex_digest() {
+    if (!finalized_) {
+        const std::uint64_t bit_count = byte_count_ * 8U;
+        block_[used_++] = 0x80U;
+        if (used_ > 56U) {
+            std::fill(block_.begin() + static_cast<std::ptrdiff_t>(used_),
+                      block_.end(), 0U);
+            transform(block_.data());
+            used_ = 0;
         }
-        return output.str();
+        std::fill(block_.begin() + static_cast<std::ptrdiff_t>(used_),
+                  block_.begin() + 56, 0U);
+        for (unsigned index = 0; index < 8U; ++index) {
+            block_[63U - index] = static_cast<std::uint8_t>(
+                bit_count >> (index * 8U));
+        }
+        transform(block_.data());
+        used_ = 0;
+        finalized_ = true;
     }
-
-private:
-    static std::uint32_t load_be(const unsigned char* value) {
-        return (static_cast<std::uint32_t>(value[0]) << 24U) |
-               (static_cast<std::uint32_t>(value[1]) << 16U) |
-               (static_cast<std::uint32_t>(value[2]) << 8U) |
-               static_cast<std::uint32_t>(value[3]);
+    std::ostringstream output;
+    output << std::hex << std::setfill('0');
+    for (const std::uint32_t word : state_) {
+        output << std::setw(8) << word;
     }
+    return output.str();
+}
 
-    void transform(const unsigned char* block) {
-        static constexpr std::array<std::uint32_t, 64> constants = {
+std::uint32_t Sha256Hasher::load_be(const std::uint8_t* value) {
+    return (static_cast<std::uint32_t>(value[0]) << 24U) |
+           (static_cast<std::uint32_t>(value[1]) << 16U) |
+           (static_cast<std::uint32_t>(value[2]) << 8U) |
+           static_cast<std::uint32_t>(value[3]);
+}
+
+void Sha256Hasher::transform(const std::uint8_t* block) {
+    static constexpr std::array<std::uint32_t, 64> constants = {
             0x428a2f98U, 0x71374491U, 0xb5c0fbcfU, 0xe9b5dba5U,
             0x3956c25bU, 0x59f111f1U, 0x923f82a4U, 0xab1c5ed5U,
             0xd807aa98U, 0x12835b01U, 0x243185beU, 0x550c7dc3U,
@@ -99,68 +94,56 @@ private:
             0x391c0cb3U, 0x4ed8aa4aU, 0x5b9cca4fU, 0x682e6ff3U,
             0x748f82eeU, 0x78a5636fU, 0x84c87814U, 0x8cc70208U,
             0x90befffaU, 0xa4506cebU, 0xbef9a3f7U, 0xc67178f2U,
-        };
-        std::array<std::uint32_t, 64> words{};
-        for (std::size_t index = 0; index < 16U; ++index) {
-            words[index] = load_be(block + 4U * index);
-        }
-        for (std::size_t index = 16U; index < words.size(); ++index) {
-            const std::uint32_t left = words[index - 15U];
-            const std::uint32_t right = words[index - 2U];
-            const std::uint32_t s0 = std::rotr(left, 7) ^ std::rotr(left, 18) ^
-                                     (left >> 3U);
-            const std::uint32_t s1 = std::rotr(right, 17) ^
-                                     std::rotr(right, 19) ^ (right >> 10U);
-            words[index] = words[index - 16U] + s0 + words[index - 7U] + s1;
-        }
-        std::uint32_t a = state_[0];
-        std::uint32_t b = state_[1];
-        std::uint32_t c = state_[2];
-        std::uint32_t d = state_[3];
-        std::uint32_t e = state_[4];
-        std::uint32_t f = state_[5];
-        std::uint32_t g = state_[6];
-        std::uint32_t h = state_[7];
-        for (std::size_t index = 0; index < words.size(); ++index) {
-            const std::uint32_t s1 = std::rotr(e, 6) ^ std::rotr(e, 11) ^
-                                     std::rotr(e, 25);
-            const std::uint32_t choice = (e & f) ^ ((~e) & g);
-            const std::uint32_t temporary1 =
-                h + s1 + choice + constants[index] + words[index];
-            const std::uint32_t s0 = std::rotr(a, 2) ^ std::rotr(a, 13) ^
-                                     std::rotr(a, 22);
-            const std::uint32_t majority = (a & b) ^ (a & c) ^ (b & c);
-            const std::uint32_t temporary2 = s0 + majority;
-            h = g;
-            g = f;
-            f = e;
-            e = d + temporary1;
-            d = c;
-            c = b;
-            b = a;
-            a = temporary1 + temporary2;
-        }
-        state_[0] += a;
-        state_[1] += b;
-        state_[2] += c;
-        state_[3] += d;
-        state_[4] += e;
-        state_[5] += f;
-        state_[6] += g;
-        state_[7] += h;
-    }
-
-    std::array<std::uint32_t, 8> state_ = {
-        0x6a09e667U, 0xbb67ae85U, 0x3c6ef372U, 0xa54ff53aU,
-        0x510e527fU, 0x9b05688cU, 0x1f83d9abU, 0x5be0cd19U,
     };
-    std::array<unsigned char, 64> block_{};
-    std::size_t used_ = 0;
-    std::uint64_t byte_count_ = 0;
-    bool finalized_ = false;
-};
-
-}  // namespace
+    std::array<std::uint32_t, 64> words{};
+    for (std::size_t index = 0; index < 16U; ++index) {
+        words[index] = load_be(block + 4U * index);
+    }
+    for (std::size_t index = 16U; index < words.size(); ++index) {
+        const std::uint32_t left = words[index - 15U];
+        const std::uint32_t right = words[index - 2U];
+        const std::uint32_t s0 = std::rotr(left, 7) ^ std::rotr(left, 18) ^
+                                 (left >> 3U);
+        const std::uint32_t s1 = std::rotr(right, 17) ^
+                                 std::rotr(right, 19) ^ (right >> 10U);
+        words[index] = words[index - 16U] + s0 + words[index - 7U] + s1;
+    }
+    std::uint32_t a = state_[0];
+    std::uint32_t b = state_[1];
+    std::uint32_t c = state_[2];
+    std::uint32_t d = state_[3];
+    std::uint32_t e = state_[4];
+    std::uint32_t f = state_[5];
+    std::uint32_t g = state_[6];
+    std::uint32_t h = state_[7];
+    for (std::size_t index = 0; index < words.size(); ++index) {
+        const std::uint32_t s1 = std::rotr(e, 6) ^ std::rotr(e, 11) ^
+                                 std::rotr(e, 25);
+        const std::uint32_t choice = (e & f) ^ ((~e) & g);
+        const std::uint32_t temporary1 =
+            h + s1 + choice + constants[index] + words[index];
+        const std::uint32_t s0 = std::rotr(a, 2) ^ std::rotr(a, 13) ^
+                                 std::rotr(a, 22);
+        const std::uint32_t majority = (a & b) ^ (a & c) ^ (b & c);
+        const std::uint32_t temporary2 = s0 + majority;
+        h = g;
+        g = f;
+        f = e;
+        e = d + temporary1;
+        d = c;
+        c = b;
+        b = a;
+        a = temporary1 + temporary2;
+    }
+    state_[0] += a;
+    state_[1] += b;
+    state_[2] += c;
+    state_[3] += d;
+    state_[4] += e;
+    state_[5] += f;
+    state_[6] += g;
+    state_[7] += h;
+}
 
 bool is_lower_sha256(const std::string& value) {
     return value.size() == 64U &&
@@ -176,8 +159,8 @@ std::string sha256_file(const std::filesystem::path& path) {
         throw std::runtime_error("cannot open file for SHA-256: " +
                                  path.string());
     }
-    Sha256 digest;
-    std::array<unsigned char, 64U * 1024U> buffer{};
+    Sha256Hasher digest;
+    std::array<std::uint8_t, 64U * 1024U> buffer{};
     while (input) {
         input.read(reinterpret_cast<char*>(buffer.data()),
                    static_cast<std::streamsize>(buffer.size()));

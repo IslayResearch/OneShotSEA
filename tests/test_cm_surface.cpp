@@ -66,6 +66,19 @@ private:
     std::filesystem::path path_;
 };
 
+class CurrentPathGuard {
+public:
+    CurrentPathGuard() : original_(std::filesystem::current_path()) {}
+
+    ~CurrentPathGuard() {
+        std::error_code ignored;
+        std::filesystem::current_path(original_, ignored);
+    }
+
+private:
+    std::filesystem::path original_;
+};
+
 mpz_class target_prime() {
     return oneshotsea::parse_integer(
         "10000000000000000000000000000000000000000000000000000000000000000000000000000000"
@@ -587,17 +600,55 @@ void test_classical_direct_context_cache() {
               source.prepared_context_count() == levels.size() &&
               source.interpolation_coefficient_count() != 0U,
           "direct-context cache materializes every level and returns its trust anchor");
+    const std::filesystem::path streaming_cache =
+        temporary.path() / "direct-streaming.ctx";
+    const oneshotsea::ClassicalDirectContextCacheBuildResult streaming_build =
+        oneshotsea::prepare_classical_direct_context_cache(
+            field, levels, prime_cap, x_cap, 2U, streaming_cache);
+    check(streaming_build.sha256 == digest &&
+              streaming_build.context_count == levels.size() &&
+              streaming_build.preparation_us != 0U &&
+              streaming_build.interpolation_coefficient_count ==
+                  source.interpolation_coefficient_count() &&
+              streaming_build.interpolation_storage_bytes ==
+                  source.interpolation_storage_bytes() &&
+              streaming_build.file_bytes ==
+                  std::filesystem::file_size(streaming_cache) &&
+              streaming_build.peak_resident_context_count == 1U,
+          "streaming direct-cache preparation is byte-identical and bounds level residency");
 
     auto loaded = oneshotsea::load_classical_direct_context_cache(
         field, levels, prime_cap, x_cap, 3U, cache, digest);
     check(loaded.loaded_from_cache() && loaded.preparation_threads() == 3U &&
               loaded.prepared_context_count() == levels.size() &&
               loaded.preparation_us() == 0U &&
+              loaded.cached_level_load_count() == 0U &&
+              loaded.cached_resident_context_count() == 0U &&
+              loaded.peak_cached_resident_context_count() == 0U &&
               loaded.interpolation_coefficient_count() ==
                   source.interpolation_coefficient_count() &&
               loaded.interpolation_storage_bytes() ==
                   source.interpolation_storage_bytes(),
           "authenticated direct-context load preserves compact schedule metadata without re-preparation");
+
+    const std::filesystem::path relative_cache =
+        std::filesystem::relative(cache, std::filesystem::current_path());
+    auto relative_loaded = oneshotsea::load_classical_direct_context_cache(
+        field, levels, prime_cap, x_cap, 1U, relative_cache, digest);
+    {
+        CurrentPathGuard restore_path;
+        std::filesystem::current_path(temporary.path());
+        oneshotsea::TraceConstraints relative_initial(field.modulus());
+        oneshotsea::WeberSeaResult relative_state{
+            relative_initial, relative_initial, {}, {}, {}, {},
+            std::nullopt, {}};
+        const oneshotsea::Curve relative_curve =
+            oneshotsea::short_weierstrass_curve_from_j(field, 20);
+        oneshotsea::extend_sea_with_prepared_classical_direct(
+            relative_curve, relative_state, relative_loaded, 16U);
+        check(relative_state.classical_direct_levels.size() == 1U,
+              "lazy cache materialization survives a working-directory change");
+    }
 
     oneshotsea::TraceConstraints initial(field.modulus());
     oneshotsea::WeberSeaResult cached_state{
@@ -613,8 +664,11 @@ void test_classical_direct_context_cache() {
               cached_state.classical_direct_levels.front().trace_residue ==
                   mpz_fdiv_ui(curve_trace.get_mpz_t(), 7U) &&
               cached_state.classical_direct_levels.front()
-                      .auxiliary_prime_count != 0U,
-          "reloaded compact matrices preserve independently checkable SEA semantics");
+                      .auxiliary_prime_count != 0U &&
+              loaded.cached_level_load_count() == 1U &&
+              loaded.cached_resident_context_count() == 0U &&
+              loaded.peak_cached_resident_context_count() == 1U,
+          "lazily reloaded compact matrices preserve independently checkable SEA semantics and are released after use");
 
     std::vector<std::future<bool>> concurrent;
     for (std::size_t index = 0U; index < 4U; ++index) {
@@ -637,6 +691,9 @@ void test_classical_direct_context_cache() {
         check(future.get(),
               "reloaded direct context remains immutable under concurrent reuse");
     }
+    check(loaded.cached_resident_context_count() == 0U &&
+              loaded.peak_cached_resident_context_count() == 1U,
+          "concurrent lazy-cache reuse never retains duplicate same-level contexts");
 
     const std::filesystem::path duplicate =
         temporary.path() / "direct-duplicate.ctx";
@@ -644,6 +701,34 @@ void test_classical_direct_context_cache() {
         oneshotsea::save_classical_direct_context_cache(loaded, duplicate);
     check(duplicate_digest == digest,
           "direct-context encoding is deterministic across prepare/load/save cycles");
+
+    const std::filesystem::path deferred_corruption =
+        temporary.path() / "direct-deferred-corruption.ctx";
+    std::filesystem::copy_file(cache, deferred_corruption);
+    auto deferred = oneshotsea::load_classical_direct_context_cache(
+        field, levels, prime_cap, x_cap, 1U, deferred_corruption, digest);
+    {
+        std::fstream file(deferred_corruption,
+                          std::ios::binary | std::ios::in | std::ios::out);
+        file.seekg(-1, std::ios::end);
+        char byte = 0;
+        file.read(&byte, 1);
+        byte = static_cast<char>(
+            static_cast<unsigned char>(byte) ^ 0x01U);
+        file.seekp(-1, std::ios::end);
+        file.write(&byte, 1);
+    }
+    oneshotsea::TraceConstraints deferred_initial(field.modulus());
+    oneshotsea::WeberSeaResult deferred_state{
+        deferred_initial, deferred_initial, {}, {}, {}, {}, std::nullopt, {}};
+    check(rejects([&] {
+              oneshotsea::extend_sea_with_prepared_classical_direct(
+                  curve, deferred_state, deferred, 16U);
+          }) &&
+              deferred_state.classical_direct_levels.empty() &&
+              deferred_state.constraints.modulus() == 1 &&
+              deferred.cached_resident_context_count() == 0U,
+          "lazy direct cache reauthenticates a level and fails transactionally after deferred corruption");
 
     const std::filesystem::path raced =
         temporary.path() / "direct-raced.ctx";

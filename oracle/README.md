@@ -158,7 +158,8 @@ Weber-f lift and its map to `j`, the canonical curve model, the least-nonsquare
 quadratic twist, the full-rational-2-torsion trace prior, exact Elkies residues,
 certified Atkin projective orders and their complete allowed residue sets,
 retained exact Schoof fallback state, all candidate counts and trace lists, and
-the final exact-only singleton.  The curve and twist orders must sum to
+the final certified singleton, with exact-only provenance reported separately.
+The curve and twist orders must sum to
 `2*p+2`, and no intermediate constraint may eliminate the Magma trace.
 `unconstrained` means that no residue evidence was committed, not that the
 Frobenius discriminant was mathematically unclassifiable.  In particular, a

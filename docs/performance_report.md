@@ -159,7 +159,7 @@ finding all three rational roots of the actual short Weierstrass cubic.  For
 X1(11), the selected curve or twist gives `t = +(p+1)` or `-(p+1)` modulo its
 certified group-order divisor 44, 88, or conditionally 176; because 11 divides every modulus, SEA
 skips the redundant `ell=11` table.  The prior participates in both sound early
-screening and the exact unique-trace gate, is emitted in curve telemetry, and
+screening and the certified unique-trace gate, is emitted in curve telemetry, and
 changes the schedule digest.  The retained family A/B predates this policy, so
 it does not measure the policy's additional SEA reduction.
 

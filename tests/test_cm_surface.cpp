@@ -1179,7 +1179,7 @@ void test_classical_direct_sea_runner() {
         elkies_curve, elkies_state, {7U}, 1U, 100000U, 1000000U);
     check(!elkies_state.traces.has_value() &&
               elkies_state.classical_direct_levels.size() == 1U,
-          "no-op direct extension clears a stale cap-N trace enumeration at the exact cap-one gate");
+          "no-op direct extension clears a stale cap-N trace enumeration at the certified cap-one gate");
     oneshotsea::extend_sea_with_classical_direct(
         elkies_curve, elkies_state, {7U, 11U}, 1U, 100000U, 1000000U);
     check(elkies_state.classical_direct_levels.size() == 2U &&
@@ -1233,6 +1233,28 @@ void test_classical_direct_sea_runner() {
           "direct SEA Atkin set contains the brute-force trace residue");
     check(atkin_state.traces.has_value(),
           "direct SEA Atkin constraint fits the requested complete trace cap");
+
+    oneshotsea::TraceConstraints singleton_exact(field.modulus());
+    singleton_exact.refine_exact(
+        17U, mpz_fdiv_ui(atkin_trace.get_mpz_t(), 17U));
+    oneshotsea::TraceConstraints singleton_effective = singleton_exact;
+    oneshotsea::WeberSeaResult atkin_singleton_state{
+        singleton_exact, singleton_effective, {}, {}, {}, {},
+        std::nullopt, {},
+        oneshotsea::SeaCurveModelBinding{
+            atkin_curve.a(), atkin_curve.b()}};
+    oneshotsea::extend_sea_with_classical_direct(
+        atkin_curve, atkin_singleton_state, {7U}, 1U,
+        100000U, 1000000U);
+    check(atkin_singleton_state.constraints.candidate_count() == 3 &&
+              atkin_singleton_state.effective_constraints.candidate_count() ==
+                  1 &&
+              atkin_singleton_state.classical_direct_levels.size() == 1U &&
+              !atkin_singleton_state.classical_direct_levels.front().exact &&
+              atkin_singleton_state.traces ==
+                  std::optional<std::vector<mpz_class>>(
+                      std::vector<mpz_class>{atkin_trace}),
+          "certified direct Atkin evidence promotes only a Hasse singleton and preserves the brute-force trace");
 
     mpz_class nonsquare = 2;
     while (field.legendre(nonsquare) != -1) {

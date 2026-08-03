@@ -355,6 +355,16 @@ std::optional<std::vector<mpz_class>> exact_singleton_traces(
     return traces;
 }
 
+std::optional<std::vector<mpz_class>> certified_singleton_traces(
+    const oneshotsea::WeberSeaResult& state) {
+    std::optional<std::vector<mpz_class>> traces =
+        state.effective_constraints.enumerate(1U);
+    if (!traces.has_value() || traces->size() != 1U) {
+        return std::nullopt;
+    }
+    return traces;
+}
+
 oneshotsea::WeberSeaResult run_sea(
     const AuditOptions& options, const oneshotsea::WeberCurvePair& pair,
     const std::optional<oneshotsea::ExactTracePrior>& trace_prior,
@@ -371,12 +381,18 @@ void write_record(
     const std::optional<oneshotsea::ExactTracePrior>& trace_prior,
     const oneshotsea::WeberSeaResult& early,
     const oneshotsea::WeberSeaResult& final_state, const char* unique_mode) {
+    const std::optional<std::vector<mpz_class>> certified_traces =
+        certified_singleton_traces(final_state);
     const std::optional<std::vector<mpz_class>> exact_traces =
         exact_singleton_traces(final_state);
-    const bool complete = exact_traces.has_value() &&
+    const bool complete = certified_traces.has_value() &&
                           final_state.traces.has_value() &&
                           final_state.traces->size() == 1U &&
-                          final_state.traces->front() == exact_traces->front();
+                          final_state.traces->front() ==
+                              certified_traces->front();
+    const bool final_exact_only =
+        complete && exact_traces.has_value() &&
+        exact_traces->front() == certified_traces->front();
     if (final_state.traces.has_value() && final_state.traces->empty()) {
         throw std::logic_error("unique SEA state contains an empty trace set");
     }
@@ -413,12 +429,12 @@ void write_record(
                 final_state);
     output << ",\"final_exact_trace\":";
     if (complete) {
-        output << '"' << exact_traces->front() << '"';
+        output << '"' << certified_traces->front() << '"';
     } else {
         output << "null";
     }
     output << ",\"final_exact_only\":"
-           << (complete ? "true" : "false")
+           << (final_exact_only ? "true" : "false")
            << ",\"complete\":" << (complete ? "true" : "false")
            << "}\n";
 }
@@ -452,8 +468,13 @@ int main(int argc, char** argv) {
             const char* unique_mode = "already_exact_singleton";
             const std::optional<std::vector<mpz_class>> early_exact_traces =
                 exact_singleton_traces(early);
+            const std::optional<std::vector<mpz_class>>
+                early_certified_traces = certified_singleton_traces(early);
             if (early_exact_traces.has_value()) {
                 final_state.traces = early_exact_traces;
+            } else if (early_certified_traces.has_value()) {
+                unique_mode = "already_certified_singleton";
+                final_state.traces = early_certified_traces;
             } else {
                 if (options.schoof_fallback) {
                     unique_mode = "retained_schoof_fallback";
@@ -464,10 +485,11 @@ int main(int argc, char** argv) {
                     final_state = run_sea(options, pair, trace_prior, 1U);
                 }
             }
-            const std::optional<std::vector<mpz_class>> final_exact_traces =
-                exact_singleton_traces(final_state);
-            if (final_exact_traces.has_value()) {
-                final_state.traces = final_exact_traces;
+            const std::optional<std::vector<mpz_class>>
+                final_certified_traces =
+                    certified_singleton_traces(final_state);
+            if (final_certified_traces.has_value()) {
+                final_state.traces = final_certified_traces;
             } else {
                 final_state.traces.reset();
             }

@@ -2460,7 +2460,7 @@ std::string search_schedule_sha256(
               << '\n'
               << "weber_source_lift_policy=" << kWeberSourceLiftPolicy
               << '\n'
-              << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+              << "sea=weber-reference-two-pass-certified-atkin-singleton-v3\n"
               << "rare_schoof_fallback="
               << (config.enable_schoof_fallback
                       ? kRareSchoofFallbackPolicy

@@ -1905,7 +1905,7 @@ void test_worker_partition_is_identity_bound() {
                      "x1-selected-group-divisor-point4-p5mod8-176-v2\n"
                   << "weber_source_lift_policy="
                      "generator-retained-unramified-singleton-v1\n"
-                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "sea=weber-reference-two-pass-certified-atkin-singleton-v3\n"
                   << "rare_schoof_fallback=disabled\n"
                   << "heuristic_rejection=disabled\n"
                   << "prime=" << config.prime << '\n'
@@ -1943,7 +1943,7 @@ void test_worker_partition_is_identity_bound() {
                   << "trace_prior_policy="
                   << "weber-full-e2-mod4-if-validated-"
                      "x1-selected-group-divisor-point4-p5mod8-176-v2\n"
-                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "sea=weber-reference-two-pass-certified-atkin-singleton-v3\n"
                   << "heuristic_rejection=disabled\n"
                   << "prime=" << config.prime << '\n'
                   << "max_level=" << config.max_level << '\n'
@@ -1990,7 +1990,7 @@ void test_worker_partition_is_identity_bound() {
                      "x1-selected-group-divisor-v1\n"
                   << "weber_source_lift_policy="
                      "generator-retained-unramified-singleton-v1\n"
-                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "sea=weber-reference-two-pass-certified-atkin-singleton-v3\n"
                   << "heuristic_rejection=disabled\n"
                   << "prime=" << config.prime << '\n'
                   << "max_level=" << config.max_level << '\n'
@@ -2033,7 +2033,7 @@ void test_worker_partition_is_identity_bound() {
         std::ostringstream canonical;
         canonical << "oneshotsea.search-schedule.v1\n"
                   << "curve_generator=weber-f-montgomery-filtered-v2\n"
-                  << "sea=weber-reference-two-pass-classical-atkin-v2\n"
+                  << "sea=weber-reference-two-pass-certified-atkin-singleton-v3\n"
                   << "heuristic_rejection=disabled\n"
                   << "prime=" << config.prime << '\n'
                   << "max_level=" << config.max_level << '\n'

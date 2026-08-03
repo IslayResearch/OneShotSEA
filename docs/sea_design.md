@@ -62,8 +62,9 @@ information-per-cost schedule remains available only in the low-level tool;
 its held-out production A/B was 0.7% slower, so it is not the search default.
 Authenticated classical levels 5 and 7 may add certified Atkin factor-degree
 constraints.  Exact Elkies residues and the family trace prior form the exact
-CRT; Atkin state is separate and can narrow a complete bounded Hasse set but
-cannot satisfy the final unique-trace gate.  If the Weber schedule is
+CRT; Atkin state is separate and can narrow a complete bounded Hasse set or
+certify the final trace when the complete intersection has cardinality one.
+If the Weber schedule is
 insufficient, the explicitly enabled exact Schoof fallback extends the retained
 state through a fixed audited prime sequence.  A contradiction or exhausted
 implementation limit fails closed.
@@ -600,12 +601,14 @@ invariants, absent tables, and untrusted levels supply no Atkin constraint; a
 present level-5 or level-7 table with the wrong pinned digest is a hard error.
 Thus an empty Weber result is never the premise of the classification.
 
-The resulting constraint is held separately from exact Elkies CRT state.  It
-may reduce a complete bounded trace set for sound smoothness rejection, but a
-trace-cap-one pass ignores Atkin uniqueness and continues until the exact
-Elkies CRT alone identifies the trace.  Full Weber-to-`j` descent remains the
-route to extending this optimization beyond the two authenticated classical
-levels.
+The resulting constraint is held separately from exact Elkies CRT state. It
+may reduce a complete bounded trace set for sound smoothness rejection and,
+after the certified-singleton audit, may identify the final trace when the
+intersection of every exact and certified constraint with the Hasse interval
+has cardinality exactly one. Telemetry continues to report exact-Elkies and
+effective candidate counts separately, so this does not relabel Atkin evidence
+as an exact residue. Full Weber-to-`j` descent remains the route to extending
+this optimization beyond authenticated classical specializations.
 
 Atkin constraints are ranked by
 

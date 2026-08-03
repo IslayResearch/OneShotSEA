@@ -662,7 +662,7 @@ def validate_state(
             or ell != expected_table_levels[ordinal]
         ):
             raise AuditError(f"{level_label} is not the next production table level")
-        completion_state = exact if trace_cap == 1 else effective
+        completion_state = effective
         if production_early and candidate_count(prime, completion_state) <= trace_cap:
             raise AuditError(f"{level_label} ran after the production trace cap was met")
         previous_ell = ell
@@ -777,7 +777,7 @@ def validate_state(
     if production_early and fallback_value:
         if len(levels_value) != len(expected_table_levels):
             raise AuditError(f"{label} entered fallback before exhausting Weber tables")
-        completion_state = exact if trace_cap == 1 else effective
+        completion_state = effective
         if candidate_count(prime, completion_state) <= trace_cap:
             raise AuditError(f"{label} entered fallback after the production trace cap was met")
     fallback_cursor = 0
@@ -795,7 +795,7 @@ def validate_state(
             or level["classification"] != "exact_schoof"
         ):
             raise AuditError(f"{fallback_label} violates the fixed fallback schedule")
-        completion_state = exact if trace_cap == 1 else effective
+        completion_state = effective
         if production_early and candidate_count(prime, completion_state) <= trace_cap:
             raise AuditError(f"{fallback_label} ran after the production trace cap was met")
         residue = exact_integer(level["trace_residue"], f"{fallback_label} residue")
@@ -826,7 +826,7 @@ def validate_state(
         fallback_cursor += 1
 
     if production_early:
-        completion_state = exact if trace_cap == 1 else effective
+        completion_state = effective
         if candidate_count(prime, completion_state) > trace_cap:
             if len(levels_value) != len(expected_table_levels):
                 raise AuditError(f"{label} stopped before exhausting Weber tables")
@@ -872,7 +872,7 @@ def validate_state(
 
     expected_traces = enumerate_traces(
         prime,
-        exact if final or trace_cap == 1 else effective,
+        effective,
         1 if final else trace_cap,
     )
     traces_value = state["traces"]
@@ -1027,9 +1027,17 @@ def validate_native_record(
 
     mode = record["unique_mode"]
     allowed_modes = (
-        {"already_exact_singleton", "retained_schoof_fallback"}
+        {
+            "already_exact_singleton",
+            "already_certified_singleton",
+            "retained_schoof_fallback",
+        }
         if expected_fallback
-        else {"already_exact_singleton", "fresh_cap_one"}
+        else {
+            "already_exact_singleton",
+            "already_certified_singleton",
+            "fresh_cap_one",
+        }
     )
     if type(mode) is not str or mode not in allowed_modes:
         raise AuditError("native Weber audit returned an invalid unique mode")
@@ -1071,17 +1079,33 @@ def validate_native_record(
         comparable_final.pop("status")
         if comparable_early != comparable_final:
             raise AuditError("already-exact native states are not identical")
+    if mode == "already_certified_singleton":
+        if (
+            int(early["exact_trace_candidate_count"]) <= 1
+            or int(early["trace_candidate_count"]) != 1
+        ):
+            raise AuditError(
+                "already-certified mode lacks a distinct effective singleton"
+            )
+        comparable_early = dict(early)
+        comparable_final = dict(final)
+        comparable_early.pop("status")
+        comparable_final.pop("status")
+        if comparable_early != comparable_final:
+            raise AuditError("already-certified native states are not identical")
     if mode == "retained_schoof_fallback":
         if final["levels"] != early["levels"] or final["fallback_levels"][: len(early["fallback_levels"])] != early["fallback_levels"]:
             raise AuditError("retained fallback did not preserve the early production state")
         appended_fallback = final["fallback_levels"][len(early["fallback_levels"]):]
-        if int(early["exact_trace_candidate_count"]) <= 1 or not appended_fallback:
+        if int(early["trace_candidate_count"]) <= 1 or not appended_fallback:
             raise AuditError("retained fallback lacks a necessary cap-one continuation")
         if any(
-            int(level["exact_trace_candidate_count"]) <= 1
+            int(level["trace_candidate_count"]) <= 1
             for level in appended_fallback[:-1]
-        ) or int(appended_fallback[-1]["exact_trace_candidate_count"]) != 1:
-            raise AuditError("retained fallback did not stop at the first exact singleton")
+        ) or int(appended_fallback[-1]["trace_candidate_count"]) != 1:
+            raise AuditError(
+                "retained fallback did not stop at the first certified singleton"
+            )
     if mode == "fresh_cap_one":
         if early["fallback_levels"] or final["fallback_levels"]:
             raise AuditError("fallback-off counterfactual contains fallback levels")
@@ -1099,15 +1123,17 @@ def validate_native_record(
     )
     scientifically_complete = (
         complete
-        and final_exact_only
-        and candidate_count(prime, final_exact) == 1
+        and candidate_count(prime, _final_effective) == 1
         and final["traces"] == [str(curve_trace)]
         and final_trace == curve_trace
     )
+    replay_exact_only = candidate_count(prime, final_exact) == 1
+    if final_exact_only != (complete and replay_exact_only):
+        raise AuditError("native final-exact-only flag disagrees with replay")
     if require_complete and not scientifically_complete:
         raise AuditError("native final state is not the exact Magma-trace singleton")
     if not require_complete:
-        if complete != scientifically_complete or final_exact_only != complete:
+        if complete != scientifically_complete:
             raise AuditError("native counterfactual completion flags disagree with replay")
         if not complete and (final_trace is not None or final["traces"] is not None):
             raise AuditError("incomplete native counterfactual claims a final trace")

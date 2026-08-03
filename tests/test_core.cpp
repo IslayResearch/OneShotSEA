@@ -1342,20 +1342,19 @@ void test_weber_sea_runner() {
                   std::optional<std::vector<mpz_class>>(
                       std::vector<mpz_class>{brute_force_trace}),
           "prior-constrained SEA matches unprioritized SEA and brute force");
-    check(prior_result.levels.size() == 2U &&
+    check(prior_result.levels.size() == 1U &&
               prior_result.levels[0].ell == 7U &&
-              prior_result.levels[1].ell == 5U &&
               std::none_of(
                   prior_result.levels.begin(), prior_result.levels.end(),
                   [](const oneshotsea::WeberSeaLevelRecord& level) {
                       return level.ell == 11U;
                   }),
-          "composite exact prior skips every table prime sharing its modulus");
+          "certified Atkin singleton stops immediately while the composite prior skips every shared table prime");
     check(prior_result.levels[0].exact_modulus == 22 &&
               prior_result.levels[0].constraint_modulus == 154 &&
-              prior_result.levels[1].exact_modulus == 110 &&
-              prior_result.levels[1].constraint_modulus == 770,
-          "SEA level telemetry composes from identical prior constraints");
+              prior_result.levels[0].exact_trace_candidate_count == 2 &&
+              prior_result.levels[0].trace_candidate_count == 1,
+          "SEA telemetry distinguishes exact ambiguity from the certified Atkin singleton");
 
     bool rejected_foreign_prior = false;
     try {
@@ -1415,7 +1414,7 @@ void test_weber_sea_runner() {
         curve, "data/modpoly/weber_f", 7, 1, {}, 1);
     check(!exact_gate.traces.has_value() &&
               exact_gate.effective_constraints.candidate_count() == 2,
-          "Atkin evidence cannot satisfy the exact unique-trace gate");
+          "a two-trace Atkin set does not satisfy the certified singleton gate");
 }
 
 void test_early_abort() {
@@ -1540,8 +1539,11 @@ void test_retained_state_schoof_fallback() {
     exact.refine_exact(4U, mpz_fdiv_ui(trace.get_mpz_t(), 4U));
     oneshotsea::TraceConstraints effective = exact;
     const std::uint64_t residue5 = mpz_fdiv_ui(trace.get_mpz_t(), 5U);
+    // Keep this synthetic retained component deliberately nonrestrictive so
+    // the fixture reaches the exact-Schoof upgrade path rather than the
+    // certified-singleton gate exercised by the dedicated tests below.
     const oneshotsea::AtkinConstraint atkin{
-        5U, 2U, {residue5, (residue5 + 1U) % 5U}};
+        5U, 2U, {0U, 1U, 2U, 3U, 4U}};
     effective.refine(atkin.ell, atkin.trace_residues);
     oneshotsea::WeberSeaResult retained{
         exact, effective, {atkin}, {}, {}, {}, std::nullopt, {},
@@ -1672,8 +1674,14 @@ void test_retained_state_schoof_fallback() {
     conflict_exact.refine_exact(4U, mpz_fdiv_ui(trace.get_mpz_t(), 4U));
     conflict_exact.refine_exact(3U, mpz_fdiv_ui(trace.get_mpz_t(), 3U));
     oneshotsea::TraceConstraints conflict_effective = conflict_exact;
+    std::vector<std::uint64_t> conflicting_residues;
+    for (std::uint64_t candidate = 0U; candidate < 5U; ++candidate) {
+        if (candidate != residue5) {
+            conflicting_residues.push_back(candidate);
+        }
+    }
     const oneshotsea::AtkinConstraint conflicting{
-        5U, 2U, {(residue5 + 2U) % 5U}};
+        5U, 2U, conflicting_residues};
     conflict_effective.refine(
         conflicting.ell, conflicting.trace_residues);
     oneshotsea::WeberSeaResult conflict{

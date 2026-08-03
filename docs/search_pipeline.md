@@ -114,9 +114,9 @@ internally derives its `D=-7*3^(2n)` suitable order and ring class polynomial,
 reconstructs `Phi_ell(j,Y)` and its X derivative by witnessed auxiliary-prime
 CRT, and consumes the result through BMSS/Frobenius or certified Atkin
 factorization. A complete bounded trace set may enter the exact smoothness
-screen; a survivor continues the same direct schedule at the exact cap-one
-gate. It neither repeats the table pass nor treats Atkin evidence as an exact
-trace. The exact/Atkin constraints then flow through the unchanged
+screen; a survivor continues the same direct schedule at the certified
+cap-one gate. It neither repeats the table pass nor treats Atkin evidence as an
+exact residue. The exact/Atkin constraints then flow through the unchanged
 smoothness, certificate, and canonical-verifier gates.
 
 The direct policy version, ordered level list, auxiliary-prime candidate cap,
@@ -141,7 +141,7 @@ sign of the validated prior, not which curve is counted.
 Only a complete bounded trace set may enter the exact smoothness screen,
 whether completed directly or by Weber continuation; the screen still checks
 both curve and twist orders. A surviving multi-trace set continues the same
-retained state at the exact cap-one gate. If
+retained state at the certified cap-one gate. If
 the direct schedule is inconclusive at either gate, the ordinary Weber pass
 continues its retained exact and independently certified Atkin constraints.
 It skips every modulus already owned by the direct state and every previously

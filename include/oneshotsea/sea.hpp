@@ -22,7 +22,7 @@ namespace oneshotsea {
 inline constexpr char kRareSchoofFallbackPolicy[] =
     "retained-state-exact-schoof-3,5,7,11,13,17,19,23,29,31,37-v2";
 inline constexpr char kClassicalDirectSeaPolicy[] =
-    "retained-state-three-power-classical-j-crt-bmss-atkin-v2";
+    "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-v3";
 
 // A caller-supplied exact congruence for the Frobenius trace. The modulus may
 // be composite, but must fit uint64, be coprime to the field characteristic,
@@ -101,11 +101,13 @@ struct SeaCurveModelBinding {
 
 struct WeberSeaResult {
     // The exact caller prior, when present, followed by exact Elkies residues.
-    // These remain the final unique-trace gate.
+    // Telemetry retains this state separately so a certified-Atkin singleton
+    // never masquerades as exact-Elkies CRT coverage.
     TraceConstraints constraints;
     // The same exact prior and Elkies residues, plus independently certified
-    // Atkin constraints. This state may supply a complete bounded trace set
-    // for sound smoothness screening.
+    // Atkin constraints. This state supplies complete bounded trace sets for
+    // sound smoothness screening and may certify the final trace when its
+    // Hasse-compatible cardinality is exactly one.
     TraceConstraints effective_constraints;
     std::vector<AtkinConstraint> atkin_constraints;
     std::vector<WeberSeaLevelRecord> levels;

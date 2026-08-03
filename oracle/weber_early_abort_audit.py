@@ -445,7 +445,7 @@ def audit_record(
         or native.get("schoof_fallback") is not True
         or native.get("smoothness_audited") is not False
         or native.get("complete") is not True
-        or native.get("final_exact_only") is not True
+        or type(native.get("final_exact_only")) is not bool
         or decimal(
             native.get("rejected_samples"), f"record {ordinal} generator rejections"
         )
@@ -603,7 +603,7 @@ def audit_record(
         fail(f"record {ordinal} counterfactual final state is missing")
     if counterfactual_complete:
         if (
-            heuristic.get("final_exact_only") is not True
+            type(heuristic.get("final_exact_only")) is not bool
             or decimal(
                 heuristic.get("final_exact_trace"),
                 f"record {ordinal} counterfactual final trace",
@@ -812,7 +812,7 @@ def audit_corpus(root: Path) -> dict[str, object]:
                     "skip when the configured trace cap is not reached after all Weber tables"
                 ),
                 "second_pass": (
-                    "after a sound smoothness survivor, skip when a fresh exact cap-one Weber pass is incomplete"
+                    "after a sound smoothness survivor, skip when a fresh certified cap-one Weber pass is incomplete"
                 ),
             },
             "heuristic_false_negative_label": (

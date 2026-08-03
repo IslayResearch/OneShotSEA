@@ -571,7 +571,9 @@ def validate_state(
 
     traces_value = state.get("traces")
     status = state.get("status")
-    expected_traces = enumerate_traces(prime, exact if final else effective, 1 if final else trace_cap)
+    expected_traces = enumerate_traces(
+        prime, effective, 1 if final else trace_cap
+    )
     if traces_value is None:
         if state.get("trace_count") is not None or expected_traces is not None:
             fail(f"{label} trace enumeration disagrees with CRT replay")
@@ -731,7 +733,7 @@ def validate_native(
             fail(f"{label} trace prior lacks the required geometric provenance")
         initial = ConstraintState(modulus, (residue,))
 
-    _early_counts, early_exact, _early_effective = validate_state(
+    _early_counts, early_exact, early_effective = validate_state(
         native.get("early"),
         prime=prime,
         oracle_trace=oracle_trace,
@@ -744,7 +746,7 @@ def validate_native(
     complete = native.get("complete")
     if type(complete) is not bool:
         fail(f"{label} complete flag is not Boolean")
-    final_counts, final_exact, _final_effective = validate_state(
+    final_counts, final_exact, final_effective = validate_state(
         native.get("final"),
         prime=prime,
         oracle_trace=oracle_trace,
@@ -756,9 +758,17 @@ def validate_native(
     )
     mode = native.get("unique_mode")
     allowed_modes = (
-        {"already_exact_singleton", "retained_schoof_fallback"}
+        {
+            "already_exact_singleton",
+            "already_certified_singleton",
+            "retained_schoof_fallback",
+        }
         if expected_fallback
-        else {"already_exact_singleton", "fresh_cap_one"}
+        else {
+            "already_exact_singleton",
+            "already_certified_singleton",
+            "fresh_cap_one",
+        }
     )
     if mode not in allowed_modes:
         fail(f"{label} has an invalid exact-completion mode")
@@ -773,6 +783,18 @@ def validate_native(
         final_copy.pop("status", None)
         if early_copy != final_copy:
             fail(f"{label} already-exact states differ")
+    elif mode == "already_certified_singleton":
+        if (
+            candidate_count(prime, early_exact) <= 1
+            or candidate_count(prime, early_effective) != 1
+        ):
+            fail(f"{label} already-certified mode lacks a distinct singleton")
+        early_copy = dict(early_state)
+        final_copy = dict(final_state)
+        early_copy.pop("status", None)
+        final_copy.pop("status", None)
+        if early_copy != final_copy:
+            fail(f"{label} already-certified states differ")
     elif mode == "retained_schoof_fallback":
         early_levels = list_value(early_state.get("levels"), f"{label} early levels")
         final_levels = list_value(final_state.get("levels"), f"{label} final levels")
@@ -785,7 +807,7 @@ def validate_native(
         if final_levels != early_levels or final_fallback[: len(early_fallback)] != early_fallback:
             fail(f"{label} retained fallback did not preserve the early state")
         appended = final_fallback[len(early_fallback) :]
-        if candidate_count(prime, early_exact) <= 1 or not appended:
+        if candidate_count(prime, early_effective) <= 1 or not appended:
             fail(f"{label} retained fallback lacks a necessary continuation")
     elif list_value(
         early_state.get("fallback_levels"), f"{label} early fallback"
@@ -795,16 +817,18 @@ def validate_native(
     final_trace = native.get("final_exact_trace")
     scientifically_complete = (
         complete
-        and native.get("final_exact_only") is True
-        and candidate_count(prime, final_exact) == 1
+        and candidate_count(prime, final_effective) == 1
         and final_state.get("traces") == [str(oracle_trace)]
         and final_trace is not None
         and decimal(final_trace, f"{label} final trace", signed=True) == oracle_trace
     )
+    replay_exact_only = candidate_count(prime, final_exact) == 1
+    if native.get("final_exact_only") is not (complete and replay_exact_only):
+        fail(f"{label} final-exact-only flag disagrees with replay")
     if require_complete and not scientifically_complete:
         fail(f"{label} did not complete the required point count")
     if not require_complete:
-        if complete != scientifically_complete or native.get("final_exact_only") is not complete:
+        if complete != scientifically_complete:
             fail(f"{label} counterfactual completion flags disagree with replay")
         if not complete and final_trace is not None:
             fail(f"{label} incomplete counterfactual claims a final trace")

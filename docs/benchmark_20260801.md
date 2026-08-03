@@ -93,8 +93,9 @@ effective  =  72280632232420099017117566729890709342161260327433527471028682
 
 This removes exactly `5/7` of the ambiguity, a factor of `3.5` or
 `1.807354922` bits, in 0.34 seconds wall time for both levels on the Apple M4.
-It is not a complete count or a search-speedup claim.  Only levels 5 and 7 are
-enabled, and a trace-cap-one run still requires exact Elkies uniqueness.
+It is not a complete count or a search-speedup claim. Only levels 5 and 7 were
+enabled in this historical run; the later certified-singleton gate may use
+such evidence only when the complete Hasse intersection has cardinality one.
 
 ## Exact Weber 24th-root orbit reuse
 

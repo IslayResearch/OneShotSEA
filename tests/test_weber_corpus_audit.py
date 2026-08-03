@@ -639,6 +639,12 @@ class WeberCorpusAuditTests(unittest.TestCase):
             normalized["early"]["atkin_constraints"][0]["projective_order"],
             2,
         )
+        self.assertEqual(
+            normalized["unique_mode"], "already_certified_singleton"
+        )
+        self.assertTrue(normalized["complete"])
+        self.assertFalse(normalized["final_exact_only"])
+        self.assertEqual(normalized["final_exact_trace"], "0")
 
     def test_accepts_fail_closed_square_discriminant_without_kernel(self) -> None:
         normalized = driver.validate_native_record(

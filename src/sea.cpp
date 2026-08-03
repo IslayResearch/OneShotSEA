@@ -66,9 +66,8 @@ bool count_fits_cap(const mpz_class& count, std::size_t cap) {
 }
 
 bool completion_fits_cap(const WeberSeaResult& result, std::size_t cap) {
-    return cap == 1U
-        ? count_fits_cap(result.constraints.candidate_count(), cap)
-        : count_fits_cap(result.effective_constraints.candidate_count(), cap);
+    return count_fits_cap(
+        result.effective_constraints.candidate_count(), cap);
 }
 
 SeaCurveModelBinding curve_model_binding(const Curve& curve) {
@@ -265,8 +264,7 @@ void extend_classical_direct_impl(
 
 std::optional<std::vector<mpz_class>> enumerate_completed(
     const WeberSeaResult& result, std::size_t cap) {
-    return cap == 1U ? result.constraints.enumerate(cap)
-                     : result.effective_constraints.enumerate(cap);
+    return result.effective_constraints.enumerate(cap);
 }
 
 std::uint64_t elapsed_us(Clock::time_point start) {

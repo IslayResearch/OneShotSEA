@@ -478,7 +478,7 @@ class CliTests(unittest.TestCase):
             start = records[0]
             self.assertEqual(
                 start["classical_direct"]["policy"],
-                "retained-state-three-power-classical-j-crt-bmss-atkin-v2",
+                "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-v3",
             )
             self.assertEqual(start["classical_direct"]["levels"], ["7", "11"])
             self.assertEqual(

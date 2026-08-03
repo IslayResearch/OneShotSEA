@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       CC: gcc
@@ -28,34 +28,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgmp-dev
 
-      - name: Build current-main benchmark baseline
-        run: |
-          make -j2 build/benchmark_p125_poly_trusted
-          cp build/benchmark_p125_poly_trusted /tmp/benchmark-p125-baseline
-
-      - name: Apply polynomial hot-path candidate
-        run: |
-          git apply --check tools/poly-hotpath-candidate.patch
-          git apply tools/poly-hotpath-candidate.patch
-          git diff --check
-          make clean
-
-      - name: Pack exact candidate source snapshot
-        run: tar --exclude=.git -czf /tmp/oneshotsea-source.tgz .
-
-      - name: Upload exact candidate source snapshot
-        uses: actions/upload-artifact@v4
-        with:
-          name: oneshotsea-source-${{ github.sha }}
-          path: /tmp/oneshotsea-source.tgz
-          compression-level: 0
-          retention-days: 1
-
-      - name: Build candidate
+      - name: Build current main
         run: make -j2 all build/benchmark_p125_poly_trusted
 
       - name: Run portable native and reference tests
         run: |
+          python3 -m py_compile tools/run_p125_context_corpus_ab.py
+          python3 tests/test_context_corpus_artifact.py
           make test
           make test-poly-square
           make test-atkin
@@ -77,29 +56,3 @@ jobs:
           make test-exact-smooth
           make test-search-checkpoint
           make test-search-pipeline
-
-      - name: Run exact interleaved p125 polynomial A/B
-        shell: bash
-        run: |
-          set -euo pipefail
-          run_case() {
-            local label="$1"
-            local binary="$2"
-            local degree="$3"
-            local sequence="$4"
-            "$binary" frobenius "$degree" 1 \
-              > "/tmp/${degree}-${sequence}-${label}.out" \
-              2> "/tmp/${degree}-${sequence}-${label}.err"
-            printf '%s degree=%s sequence=%s ' "$label" "$degree" "$sequence"
-            grep '^timing.elapsed_us=' "/tmp/${degree}-${sequence}-${label}.err"
-            sha256sum "/tmp/${degree}-${sequence}-${label}.out"
-          }
-          for degree in 194 277; do
-            run_case baseline /tmp/benchmark-p125-baseline "$degree" 1
-            run_case candidate ./build/benchmark_p125_poly_trusted "$degree" 1
-            run_case candidate ./build/benchmark_p125_poly_trusted "$degree" 2
-            run_case baseline /tmp/benchmark-p125-baseline "$degree" 2
-            cmp "/tmp/${degree}-1-baseline.out" "/tmp/${degree}-1-candidate.out"
-            cmp "/tmp/${degree}-1-baseline.out" "/tmp/${degree}-2-candidate.out"
-            cmp "/tmp/${degree}-1-baseline.out" "/tmp/${degree}-2-baseline.out"
-          done

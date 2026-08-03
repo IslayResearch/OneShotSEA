@@ -1,0 +1,262 @@
+{
+  "builds": {
+    "off": {
+      "binary_sha256": "6c683fe5b298b56204e7d089113022de35ba57494f918633015b722154e582ba",
+      "macro": "ONESHOTSEA_QUOTIENT_CONTEXT_REUSE=0"
+    },
+    "on": {
+      "binary_sha256": "34404e3fcd52c8d1e20d38179cac85fd0dd8965ea54a3b261696d06e546be4fe",
+      "macro": "ONESHOTSEA_QUOTIENT_CONTEXT_REUSE=1"
+    }
+  },
+  "classification": "accepted level-dependent prepared quotient-context corpus A/B",
+  "common_configuration": {
+    "exact_projection_comparison": "byte-for-byte",
+    "family": "X1(27) point-four",
+    "run_order_per_index": [
+      "off",
+      "on",
+      "on",
+      "off"
+    ],
+    "sea_threads": 1,
+    "target": "nextprime(10^125), 416 bits",
+    "trace_cap": 16
+  },
+  "date": "2026-08-03",
+  "fields": [
+    "sea_us",
+    "total_us",
+    "modular_roots_us",
+    "bmss_us",
+    "eigenvalue_us"
+  ],
+  "host": {
+    "available_cpus": 5,
+    "compiler": "g++ 14.2.0",
+    "cpu": "Intel Xeon Platinum 8370C @ 2.80GHz",
+    "glibc": "2.41",
+    "kernel": "Linux 6.12.13 x86_64",
+    "timed_cpu_affinity": 0
+  },
+  "interpretation": {
+    "level_193": "neutral: prepared-context setup and reuse are below the measurable crossover on this three-curve corpus",
+    "level_277": "positive: the gain is isolated to eigenvalue quotient arithmetic, while modular-root and BMSS stages act as controls"
+  },
+  "levels": {
+    "193": {
+      "aggregate_summary": {
+        "bmss_us": {
+          "off_mean": 5523191.833333333,
+          "on_mean": 5562445.333333333,
+          "speedup": 0.9929431216582443
+        },
+        "eigenvalue_us": {
+          "off_mean": 9045372.333333334,
+          "on_mean": 9061159.5,
+          "speedup": 0.9982577101013765
+        },
+        "modular_roots_us": {
+          "off_mean": 15437733.833333334,
+          "on_mean": 15389453.166666666,
+          "speedup": 1.0031372568046306
+        },
+        "sea_us": {
+          "off_mean": 30197249.5,
+          "on_mean": 30200721.833333332,
+          "speedup": 0.999885024823165
+        },
+        "total_us": {
+          "off_mean": 34260609.666666664,
+          "on_mean": 34284229.333333336,
+          "speedup": 0.9993110632169379
+        }
+      },
+      "all_projections_identical": true,
+      "index_order": [
+        1000030,
+        1000031,
+        1000032
+      ],
+      "indices": {
+        "1000030": {
+          "off": {
+            "bmss_us": [4236139, 4449856],
+            "eigenvalue_us": [6163916, 6434375],
+            "modular_roots_us": [15231758, 15334754],
+            "sea_us": [25814114, 26379078],
+            "total_us": [31974280, 32403442]
+          },
+          "on": {
+            "bmss_us": [4231971, 4297323],
+            "eigenvalue_us": [6139436, 6316634],
+            "modular_roots_us": [15271787, 15258771],
+            "sea_us": [25816782, 26030327],
+            "total_us": [31820663, 32080285]
+          },
+          "projection_sha256": "cbabcfd915819d49e41880ee0bd553d4f81e4aae49f21021c5b22115bd8d2ddd",
+          "summary": {
+            "bmss_us": {"off_mean": 4342997.5, "on_mean": 4264647, "speedup": 1.018372095040926},
+            "eigenvalue_us": {"off_mean": 6299145.5, "on_mean": 6228035, "speedup": 1.011417806740007},
+            "modular_roots_us": {"off_mean": 15283256, "on_mean": 15265279, "speedup": 1.001177639792892},
+            "sea_us": {"off_mean": 26096596, "on_mean": 25923554.5, "speedup": 1.0066750684208834},
+            "total_us": {"off_mean": 32188861, "on_mean": 31950474, "speedup": 1.0074611412650716}
+          }
+        },
+        "1000031": {
+          "off": {
+            "bmss_us": [7547019, 7439437],
+            "eigenvalue_us": [12369995, 12157873],
+            "modular_roots_us": [15601566, 15485905],
+            "sea_us": [35730295, 35303518],
+            "total_us": [41503776, 41132876]
+          },
+          "on": {
+            "bmss_us": [7488144, 7640090],
+            "eigenvalue_us": [12269270, 12413342],
+            "modular_roots_us": [15489753, 15399586],
+            "sea_us": [35448469, 35672057],
+            "total_us": [41293138, 41686972]
+          },
+          "projection_sha256": "40cdd20805fe24c9c5c5b84262de9d0f6b7b3761858549b4ac04edbc8efa6572",
+          "summary": {
+            "bmss_us": {"off_mean": 7493228, "on_mean": 7564117, "speedup": 0.9906282517840483},
+            "eigenvalue_us": {"off_mean": 12263934, "on_mean": 12341306, "speedup": 0.9937306473075054},
+            "modular_roots_us": {"off_mean": 15543735.5, "on_mean": 15444669.5, "speedup": 1.006414251855632},
+            "sea_us": {"off_mean": 35516906.5, "on_mean": 35560263, "speedup": 0.9987807598610843},
+            "total_us": {"off_mean": 41318326, "on_mean": 41490055, "speedup": 0.9958609599336515}
+          }
+        },
+        "1000032": {
+          "off": {
+            "bmss_us": [4694384, 4772316],
+            "eigenvalue_us": [8509699, 8636376],
+            "modular_roots_us": [15374357, 15598063],
+            "sea_us": [28765542, 29190950],
+            "total_us": [29049737, 29499547]
+          },
+          "on": {
+            "bmss_us": [4783154, 4933990],
+            "eigenvalue_us": [8432599, 8795676],
+            "modular_roots_us": [15211159, 15705663],
+            "sea_us": [28611762, 29624934],
+            "total_us": [28901014, 29923304]
+          },
+          "projection_sha256": "50680f4bb7ffe15aff8b4067330f69831b96dbf96033928e4f0a68358f8397f0",
+          "summary": {
+            "bmss_us": {"off_mean": 4733350, "on_mean": 4858572, "speedup": 0.9742265834487993},
+            "eigenvalue_us": {"off_mean": 8573037.5, "on_mean": 8614137.5, "speedup": 0.995228773629397},
+            "modular_roots_us": {"off_mean": 15486210, "on_mean": 15458411, "speedup": 1.0017983090241294},
+            "sea_us": {"off_mean": 28978246, "on_mean": 29118348, "speedup": 0.9951885319867734},
+            "total_us": {"off_mean": 29274642, "on_mean": 29412159, "speedup": 0.9953244846799584}
+          }
+        }
+      },
+      "max_level": 193
+    },
+    "277": {
+      "aggregate_summary": {
+        "bmss_us": {"off_mean": 14894738.833333334, "on_mean": 14901901.166666666, "speedup": 0.9995193678139972},
+        "eigenvalue_us": {"off_mean": 25016835.333333332, "on_mean": 23500073, "speedup": 1.0645428775192882},
+        "modular_roots_us": {"off_mean": 32356015, "on_mean": 32537771.5, "speedup": 0.9944139843750516},
+        "sea_us": {"off_mean": 72569333, "on_mean": 71241489.83333333, "speedup": 1.0186386215360335},
+        "total_us": {"off_mean": 76642707.16666667, "on_mean": 75351885, "speedup": 1.0171305889251034}
+      },
+      "all_projections_identical": true,
+      "index_order": [1000030, 1000031, 1000032],
+      "indices": {
+        "1000030": {
+          "off": {
+            "bmss_us": [19517445, 19474654],
+            "eigenvalue_us": [33285781, 32832934],
+            "modular_roots_us": [32816918, 33111864],
+            "sea_us": [85949950, 85753840],
+            "total_us": [91935930, 91742135]
+          },
+          "on": {
+            "bmss_us": [19555596, 19669265],
+            "eigenvalue_us": [30101104, 30562477],
+            "modular_roots_us": [33369241, 33650475],
+            "sea_us": [83370312, 84212446],
+            "total_us": [89608209, 90470470]
+          },
+          "projection_sha256": "c6ea9cfa39ebb1927eb9b2c9061f86ed49086d8526f3f1816beb302659a394a6",
+          "summary": {
+            "bmss_us": {"off_mean": 19496049.5, "on_mean": 19612430.5, "speedup": 0.9940659573019265},
+            "eigenvalue_us": {"off_mean": 33059357.5, "on_mean": 30331790.5, "speedup": 1.0899243649991581},
+            "modular_roots_us": {"off_mean": 32964391, "on_mean": 33509858, "speedup": 0.983722193033465},
+            "sea_us": {"off_mean": 85851895, "on_mean": 83791379, "speedup": 1.0245910262438813},
+            "total_us": {"off_mean": 91839032.5, "on_mean": 90039339.5, "speedup": 1.0199878520876977}
+          }
+        },
+        "1000031": {
+          "off": {
+            "bmss_us": [12510355, 12455629],
+            "eigenvalue_us": [21568354, 21311187],
+            "modular_roots_us": [28985744, 28328815],
+            "sea_us": [63333850, 62367078],
+            "total_us": [69317423, 68252259]
+          },
+          "on": {
+            "bmss_us": [12417941, 12588220],
+            "eigenvalue_us": [20844595, 20822853],
+            "modular_roots_us": [28882029, 28734328],
+            "sea_us": [62420320, 62412710],
+            "total_us": [68226969, 68137509]
+          },
+          "projection_sha256": "622bffec4cc0f6dafa6604578b0c66a02a0d89192d6b841c54f72e793352cbd8",
+          "summary": {
+            "bmss_us": {"off_mean": 12482992, "on_mean": 12503080.5, "speedup": 0.9983933159512169},
+            "eigenvalue_us": {"off_mean": 21439770.5, "on_mean": 20833724, "speedup": 1.0290896865101986},
+            "modular_roots_us": {"off_mean": 28657279.5, "on_mean": 28808178.5, "speedup": 0.9947619388709356},
+            "sea_us": {"off_mean": 62850464, "on_mean": 62416515, "speedup": 1.006952470832439},
+            "total_us": {"off_mean": 68784841, "on_mean": 68182239, "speedup": 1.0088381081178635}
+          }
+        },
+        "1000032": {
+          "off": {
+            "bmss_us": [12613673, 12796677],
+            "eigenvalue_us": [20404341, 20698415],
+            "modular_roots_us": [35026315, 35866434],
+            "sea_us": [68349745, 69661535],
+            "total_us": [68637626, 69970870]
+          },
+          "on": {
+            "bmss_us": [12595784, 12584601],
+            "eigenvalue_us": [19151342, 19518067],
+            "modular_roots_us": [34974418, 35616138],
+            "sea_us": [67029526, 68003625],
+            "total_us": [67363543, 68304610]
+          },
+          "projection_sha256": "ee60a75bbbd2a9edc10bc4473ff1b3e133a579a1e400cc31e4d54b0bb9e11453",
+          "summary": {
+            "bmss_us": {"off_mean": 12705175, "on_mean": 12590192.5, "speedup": 1.009132703888364},
+            "eigenvalue_us": {"off_mean": 20551378, "on_mean": 19334704.5, "speedup": 1.062926925001621},
+            "modular_roots_us": {"off_mean": 35446374.5, "on_mean": 35295278, "speedup": 1.004280926757398},
+            "sea_us": {"off_mean": 69005640, "on_mean": 67516575.5, "speedup": 1.0220547989730315},
+            "total_us": {"off_mean": 69304248, "on_mean": 67834076.5, "speedup": 1.021673052481226}
+          }
+        }
+      },
+      "max_level": 277
+    }
+  },
+  "limitations": [
+    "This is a multi-curve SEA arithmetic corpus, not the 5.4 GB exact-smooth scan or end-to-end certificate-yield measurement.",
+    "The level-277 corpus contains three deterministic curves and should not be treated as a population estimate.",
+    "CPU frequency and host contention remain timing noise; B/A/A/B ordering and stage controls reduce but do not eliminate it."
+  ],
+  "schema": "oneshotsea.p125-context-corpus-ab.v2",
+  "source": {
+    "arithmetic_base_commit": "fecf5a5d0824f114137b1272f9aa73d2c86d35df",
+    "arithmetic_source_sha256": {
+      "Makefile": "3ad6d1f11fe9647088831f1bd807a167d238e3726a70b4350f24efc6134f4cf3",
+      "src/poly.cpp": "ea00462118a4786ed97a5243d05caafdb6cb42cd5de9fc67916baac2ecfe6108",
+      "src/schoof.cpp": "5301b33e4757eaa33bd56ed37ea84813b3497421b9216d16f6fa17402a0c5f29"
+    },
+    "benchmark_harness_sha256": "4b19864a2b42878df65bba21d78775c1c2d15896630e5c84222e0daad665f13c",
+    "source_snapshot_pull_request_merge_head": "4d140990d0e145a253dcba157e2e21e37f4addbc",
+    "source_snapshot_tgz_sha256": "def1767ce213abbc644f4df6ea84e19dbfe255d323304899ac889402dd7b0fe1",
+    "source_snapshot_zip_sha256": "8cc0476064a09e4fc72bdb1e37160f9f0b047724eb1e8869a6bfd7bc65f3d14d"
+  }
+}

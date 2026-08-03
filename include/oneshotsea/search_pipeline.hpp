@@ -260,9 +260,10 @@ struct SearchPipelineRunOptions {
     // Level telemetry is diagnostic and never advances the checkpoint.
     SearchSeaLevelCallback sea_level_callback;
     SearchClassicalDirectLevelCallback classical_direct_level_callback;
-    // Optional externally authenticated, fully materialized direct context.
-    // Ownership remains with the caller for the duration of the run. When
-    // supplied, expected_classical_direct_context_sha256 must be nonempty.
+    // Optional externally authenticated, structurally indexed direct context.
+    // Its caller-configured cache residency policy is resource-only. Ownership
+    // remains with the caller for the duration of the run. When supplied,
+    // expected_classical_direct_context_sha256 must be nonempty.
     const ClassicalDirectSeaContext* classical_direct_context = nullptr;
 };
 
@@ -295,9 +296,10 @@ struct SearchPipelineRunResult {
     std::optional<SearchCurveReport> verified;
     // Curve-independent direct-SEA levels generated lazily at most once by an
     // uncached invocation and then shared read-only across curve workers. An
-    // authenticated cache instead indexes the whole schedule and temporarily
-    // shares only each currently reached level. Aggregate generation and lazy
-    // materialization telemetry are reported separately.
+    // authenticated cache instead indexes the whole schedule and shares each
+    // reached level while active; an optional resource-only LRU may retain
+    // recent levels across curves. Aggregate generation, lazy materialization,
+    // and retained-payload telemetry are reported separately.
     std::size_t classical_direct_context_count = 0U;
     std::uint64_t classical_direct_preparation_us = 0U;
     // Exact payload of the two compact uint64 interpolation matrices. This
@@ -310,6 +312,11 @@ struct SearchPipelineRunResult {
     std::uint64_t classical_direct_cached_level_load_us = 0U;
     std::size_t classical_direct_peak_cached_resident_context_count = 0U;
     std::size_t classical_direct_final_cached_resident_context_count = 0U;
+    std::size_t classical_direct_cache_residency_budget_bytes = 0U;
+    std::size_t classical_direct_final_cached_retained_context_count = 0U;
+    std::size_t classical_direct_final_cached_retained_payload_bytes = 0U;
+    std::size_t classical_direct_peak_cached_retained_payload_bytes = 0U;
+    std::uint64_t classical_direct_cached_context_eviction_count = 0U;
     // True only when this invocation actually constructed the resource-only
     // cross-curve exact-smooth coordinator pool.
     bool smooth_batch_coordinator_enabled = false;

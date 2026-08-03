@@ -695,6 +695,111 @@ void test_classical_direct_context_cache() {
               loaded.peak_cached_resident_context_count() == 1U,
           "concurrent lazy-cache reuse never retains duplicate same-level contexts");
 
+    check(rejects([&] {
+              source.set_cached_context_residency_budget_bytes(1U);
+          }),
+          "cache residency cannot be applied to freshly generated contexts");
+    auto retained = oneshotsea::load_classical_direct_context_cache(
+        field, levels, prime_cap, x_cap, 1U, cache, digest);
+    const std::size_t retained_payload =
+        retained.interpolation_storage_bytes();
+    retained.set_cached_context_residency_budget_bytes(retained_payload);
+    for (std::size_t iteration = 0U; iteration < 2U; ++iteration) {
+        oneshotsea::TraceConstraints retained_initial(field.modulus());
+        oneshotsea::WeberSeaResult retained_state{
+            retained_initial, retained_initial, {}, {}, {}, {},
+            std::nullopt, {}};
+        oneshotsea::extend_sea_with_prepared_classical_direct(
+            curve, retained_state, retained, 16U);
+        check(retained_state.classical_direct_levels.size() == 1U,
+              "retained cached context preserves direct SEA output");
+    }
+    check(retained.cached_level_load_count() == 1U &&
+              retained.cached_context_residency_budget_bytes() ==
+                  retained_payload &&
+              retained.cached_resident_context_count() == 1U &&
+              retained.cached_retained_context_count() == 1U &&
+              retained.cached_retained_payload_bytes() ==
+                  retained_payload &&
+              retained.peak_cached_retained_payload_bytes() ==
+                  retained_payload &&
+              retained.cached_context_eviction_count() == 0U,
+          "a sufficient residency budget materializes one level once across sequential curves");
+    retained.set_cached_context_residency_budget_bytes(
+        retained_payload - 1U);
+    check(retained.cached_resident_context_count() == 0U &&
+              retained.cached_retained_context_count() == 0U &&
+              retained.cached_retained_payload_bytes() == 0U &&
+              retained.cached_context_eviction_count() == 1U,
+          "lowering the residency budget evicts the least-recently-used payload immediately");
+    oneshotsea::TraceConstraints undersized_initial(field.modulus());
+    oneshotsea::WeberSeaResult undersized_state{
+        undersized_initial, undersized_initial, {}, {}, {}, {},
+        std::nullopt, {}};
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        curve, undersized_state, retained, 16U);
+    check(retained.cached_level_load_count() == 2U &&
+              retained.cached_resident_context_count() == 0U &&
+              retained.cached_retained_context_count() == 0U &&
+              retained.cached_context_eviction_count() == 2U,
+          "a payload larger than the budget remains load-use-release rather than exceeding the cap");
+    retained.set_cached_context_residency_budget_bytes(retained_payload);
+    std::vector<std::future<bool>> retained_concurrent;
+    for (std::size_t index = 0U; index < 4U; ++index) {
+        retained_concurrent.push_back(std::async(
+            std::launch::async, [&, index] {
+                const mpz_class invariant = index % 2U == 0U ? 20 : 4;
+                oneshotsea::TraceConstraints thread_initial(field.modulus());
+                oneshotsea::WeberSeaResult thread_state{
+                    thread_initial, thread_initial, {}, {}, {}, {},
+                    std::nullopt, {}};
+                const oneshotsea::Curve thread_curve =
+                    oneshotsea::short_weierstrass_curve_from_j(
+                        field, invariant);
+                oneshotsea::extend_sea_with_prepared_classical_direct(
+                    thread_curve, thread_state, retained, 16U);
+                return thread_state.classical_direct_levels.size() == 1U;
+            }));
+    }
+    for (std::future<bool>& future : retained_concurrent) {
+        check(future.get(),
+              "concurrent retained-cache reuse preserves direct output");
+    }
+    check(retained.cached_level_load_count() == 3U &&
+              retained.cached_resident_context_count() == 1U &&
+              retained.cached_retained_context_count() == 1U &&
+              retained.cached_context_eviction_count() == 2U,
+          "concurrent workers share one retained materialization without duplicate loads or evictions");
+
+    const std::vector<std::uint64_t> lru_levels{7U, 11U};
+    const std::filesystem::path lru_cache =
+        temporary.path() / "direct-lru.ctx";
+    const auto lru_build = oneshotsea::prepare_classical_direct_context_cache(
+        field, lru_levels, prime_cap, x_cap, 2U, lru_cache);
+    auto lru = oneshotsea::load_classical_direct_context_cache(
+        field, lru_levels, prime_cap, x_cap, 1U, lru_cache,
+        lru_build.sha256);
+    const std::size_t level11_payload =
+        lru.interpolation_storage_bytes(1U);
+    check(level11_payload > lru.interpolation_storage_bytes(0U),
+          "LRU fixture has a larger second level");
+    lru.set_cached_context_residency_budget_bytes(level11_payload);
+    for (std::size_t iteration = 0U; iteration < 2U; ++iteration) {
+        oneshotsea::TraceConstraints lru_initial(field.modulus());
+        oneshotsea::WeberSeaResult lru_state{
+            lru_initial, lru_initial, {}, {}, {}, {}, std::nullopt, {}};
+        oneshotsea::extend_sea_with_prepared_classical_direct(
+            curve, lru_state, lru, 1U);
+        check(lru_state.classical_direct_levels.size() == 2U,
+              "LRU fixture reaches both direct levels");
+    }
+    check(lru.cached_level_load_count() == 4U &&
+              lru.cached_retained_context_count() == 1U &&
+              lru.cached_retained_payload_bytes() == level11_payload &&
+              lru.peak_cached_retained_payload_bytes() == level11_payload &&
+              lru.cached_context_eviction_count() == 3U,
+          "bounded LRU evicts in deterministic least-recently-used order across repeated schedules");
+
     const std::filesystem::path duplicate =
         temporary.path() / "direct-duplicate.ctx";
     const std::string duplicate_digest =

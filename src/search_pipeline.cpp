@@ -1889,6 +1889,21 @@ SearchPipelineRunResult run_search_pipeline(
         result.classical_direct_final_cached_resident_context_count =
             prepared_classical_direct_context
                 ->cached_resident_context_count();
+        result.classical_direct_cache_residency_budget_bytes =
+            prepared_classical_direct_context
+                ->cached_context_residency_budget_bytes();
+        result.classical_direct_final_cached_retained_context_count =
+            prepared_classical_direct_context
+                ->cached_retained_context_count();
+        result.classical_direct_final_cached_retained_payload_bytes =
+            prepared_classical_direct_context
+                ->cached_retained_payload_bytes();
+        result.classical_direct_peak_cached_retained_payload_bytes =
+            prepared_classical_direct_context
+                ->peak_cached_retained_payload_bytes();
+        result.classical_direct_cached_context_eviction_count =
+            prepared_classical_direct_context
+                ->cached_context_eviction_count();
     }
     result.exhausted_assigned_range = state.complete();
     return result;

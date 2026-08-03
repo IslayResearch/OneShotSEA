@@ -13,6 +13,7 @@
 #include <chrono>
 #include <exception>
 #include <filesystem>
+#include <list>
 #include <limits>
 #include <map>
 #include <memory>
@@ -646,6 +647,9 @@ struct ClassicalDirectSeaContext::LevelSlot {
     std::once_flag once;
     std::shared_ptr<const ClassicalDirectLevelContext> context;
     std::weak_ptr<const ClassicalDirectLevelContext> cached_context;
+    // Protected by CacheTelemetry::residency_mutex, not cached_mutex.
+    std::shared_ptr<const ClassicalDirectLevelContext>
+        retained_cached_context;
     std::function<std::unique_ptr<ClassicalDirectLevelContext>()>
         cached_loader;
     std::mutex cached_mutex;
@@ -660,6 +664,14 @@ struct ClassicalDirectSeaContext::CacheTelemetry {
     std::atomic<std::uint64_t> load_us{0U};
     std::atomic<std::size_t> resident_contexts{0U};
     std::atomic<std::size_t> peak_resident_contexts{0U};
+    mutable std::mutex residency_mutex;
+    std::size_t residency_budget_bytes = 0U;
+    std::size_t retained_context_count = 0U;
+    std::size_t retained_payload_bytes = 0U;
+    std::size_t peak_retained_payload_bytes = 0U;
+    std::uint64_t eviction_count = 0U;
+    // Front is most recently used. A level appears at most once.
+    std::list<std::size_t> retained_lru;
 };
 
 ClassicalDirectSeaContext::~ClassicalDirectSeaContext() = default;
@@ -713,6 +725,7 @@ ClassicalDirectSeaContext::level_context(std::size_t index) const {
         const std::lock_guard<std::mutex> lock(slot.cached_mutex);
         if (std::shared_ptr<const ClassicalDirectLevelContext> resident =
                 slot.cached_context.lock()) {
+            retain_cached_context(index, resident);
             return resident;
         }
         const Clock::time_point start = Clock::now();
@@ -747,6 +760,7 @@ ClassicalDirectSeaContext::level_context(std::size_t index) const {
                 }
             });
         slot.cached_context = shared;
+        retain_cached_context(index, shared);
         checked_atomic_add(
             telemetry->load_count, 1U,
             "classical direct cached-level load count overflow");
@@ -789,6 +803,71 @@ ClassicalDirectSeaContext::level_context(std::size_t index) const {
             "classical direct SEA level preparation produced no context");
     }
     return slot.context;
+}
+
+void ClassicalDirectSeaContext::retain_cached_context(
+    std::size_t index,
+    const std::shared_ptr<const ClassicalDirectLevelContext>& context) const {
+    if (!context || index >= level_slots_.size()) {
+        throw std::logic_error(
+            "classical direct cache retention received an invalid level");
+    }
+    CacheTelemetry& telemetry = *cache_telemetry_;
+    const std::lock_guard<std::mutex> lock(telemetry.residency_mutex);
+    if (telemetry.residency_budget_bytes == 0U) {
+        return;
+    }
+    LevelSlot& slot = *level_slots_[index];
+    if (slot.retained_cached_context &&
+        slot.retained_cached_context.get() != context.get()) {
+        throw std::logic_error(
+            "classical direct cache retained two instances of one level");
+    }
+    telemetry.retained_lru.remove(index);
+    telemetry.retained_lru.push_front(index);
+    if (!slot.retained_cached_context) {
+        const std::size_t bytes = interpolation_storage_bytes(index);
+        if (bytes > std::numeric_limits<std::size_t>::max() -
+                        telemetry.retained_payload_bytes ||
+            telemetry.retained_context_count ==
+                std::numeric_limits<std::size_t>::max()) {
+            telemetry.retained_lru.pop_front();
+            throw std::overflow_error(
+                "classical direct retained-cache telemetry overflow");
+        }
+        slot.retained_cached_context = context;
+        telemetry.retained_payload_bytes += bytes;
+        ++telemetry.retained_context_count;
+    }
+    while (telemetry.retained_payload_bytes >
+               telemetry.residency_budget_bytes &&
+           !telemetry.retained_lru.empty()) {
+        const std::size_t victim = telemetry.retained_lru.back();
+        telemetry.retained_lru.pop_back();
+        LevelSlot& victim_slot = *level_slots_[victim];
+        if (!victim_slot.retained_cached_context ||
+            telemetry.retained_context_count == 0U) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU lost synchronization");
+        }
+        const std::size_t victim_bytes = interpolation_storage_bytes(victim);
+        if (victim_bytes > telemetry.retained_payload_bytes) {
+            throw std::logic_error(
+                "classical direct retained-cache byte count underflow");
+        }
+        victim_slot.retained_cached_context.reset();
+        telemetry.retained_payload_bytes -= victim_bytes;
+        --telemetry.retained_context_count;
+        if (telemetry.eviction_count ==
+            std::numeric_limits<std::uint64_t>::max()) {
+            throw std::overflow_error(
+                "classical direct retained-cache eviction count overflow");
+        }
+        ++telemetry.eviction_count;
+    }
+    telemetry.peak_retained_payload_bytes = std::max(
+        telemetry.peak_retained_payload_bytes,
+        telemetry.retained_payload_bytes);
 }
 
 void ClassicalDirectSeaContext::install_cached_contexts(
@@ -930,6 +1009,76 @@ std::size_t
 ClassicalDirectSeaContext::peak_cached_resident_context_count() const {
     return cache_telemetry_->peak_resident_contexts.load(
         std::memory_order_acquire);
+}
+
+void ClassicalDirectSeaContext::set_cached_context_residency_budget_bytes(
+    std::size_t bytes) {
+    if (!loaded_from_cache_) {
+        throw std::logic_error(
+            "classical direct cache residency requires an authenticated cache");
+    }
+    CacheTelemetry& telemetry = *cache_telemetry_;
+    const std::lock_guard<std::mutex> lock(telemetry.residency_mutex);
+    telemetry.residency_budget_bytes = bytes;
+    while (telemetry.retained_payload_bytes > bytes &&
+           !telemetry.retained_lru.empty()) {
+        const std::size_t victim = telemetry.retained_lru.back();
+        telemetry.retained_lru.pop_back();
+        LevelSlot& victim_slot = *level_slots_[victim];
+        if (!victim_slot.retained_cached_context ||
+            telemetry.retained_context_count == 0U) {
+            throw std::logic_error(
+                "classical direct retained-cache LRU lost synchronization");
+        }
+        const std::size_t victim_bytes = interpolation_storage_bytes(victim);
+        if (victim_bytes > telemetry.retained_payload_bytes) {
+            throw std::logic_error(
+                "classical direct retained-cache byte count underflow");
+        }
+        victim_slot.retained_cached_context.reset();
+        telemetry.retained_payload_bytes -= victim_bytes;
+        --telemetry.retained_context_count;
+        if (telemetry.eviction_count ==
+            std::numeric_limits<std::uint64_t>::max()) {
+            throw std::overflow_error(
+                "classical direct retained-cache eviction count overflow");
+        }
+        ++telemetry.eviction_count;
+    }
+}
+
+std::size_t
+ClassicalDirectSeaContext::cached_context_residency_budget_bytes() const {
+    const std::lock_guard<std::mutex> lock(
+        cache_telemetry_->residency_mutex);
+    return cache_telemetry_->residency_budget_bytes;
+}
+
+std::size_t
+ClassicalDirectSeaContext::cached_retained_context_count() const {
+    const std::lock_guard<std::mutex> lock(
+        cache_telemetry_->residency_mutex);
+    return cache_telemetry_->retained_context_count;
+}
+
+std::size_t ClassicalDirectSeaContext::cached_retained_payload_bytes() const {
+    const std::lock_guard<std::mutex> lock(
+        cache_telemetry_->residency_mutex);
+    return cache_telemetry_->retained_payload_bytes;
+}
+
+std::size_t
+ClassicalDirectSeaContext::peak_cached_retained_payload_bytes() const {
+    const std::lock_guard<std::mutex> lock(
+        cache_telemetry_->residency_mutex);
+    return cache_telemetry_->peak_retained_payload_bytes;
+}
+
+std::uint64_t
+ClassicalDirectSeaContext::cached_context_eviction_count() const {
+    const std::lock_guard<std::mutex> lock(
+        cache_telemetry_->residency_mutex);
+    return cache_telemetry_->eviction_count;
 }
 
 void extend_sea_with_prepared_classical_direct(

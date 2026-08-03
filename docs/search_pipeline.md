@@ -162,16 +162,22 @@ The command prints the artifact SHA-256. A matching search may supply
 `--classical-direct-context-sha256 TRUSTED_DIGEST`. Both options are required
 together. The loader authenticates the complete file, re-derives the order,
 bound, and deterministic witness stream, validates compact matrix structure,
-and then injects a fully materialized immutable context. It never silently
-falls back to reconstruction when a supplied artifact fails. The digest is
-included in the schedule identity, so cached and uncached checkpoints cannot
-be substituted. Full format and trust details are in
+and structurally indexes the artifact without retaining its matrices. Reached
+levels are reauthenticated and materialized lazily. The default releases each
+level after its active workers finish; the resource-only
+`--classical-direct-cache-resident-bytes N` option retains a bounded LRU of
+logical matrix payload across curves. It never silently falls back to
+reconstruction when a supplied artifact fails. The digest is included in the
+schedule identity, while the residency budget is not, so cached and uncached
+checkpoints cannot be substituted and resource tuning remains resumable. Full
+format and trust details are in
 [the authenticated direct-context cache note](direct_context_cache.md).
 
 `oneshotsea.search-summary.v1` adds
 `classical_direct_preparation.context_count`, `elapsed_us`, `thread_limit`,
 `matrix_coefficients`, `matrix_payload_bytes`, `cache_loaded`, and
-`cache_load_us` only when the direct schedule is configured. The matrix fields
+`cache_load_us`, lazy level-load counters, and retained-context/LRU telemetry
+only when the direct schedule is configured. The matrix fields
 report the exact compact `uint64_t` payload, excluding witness metadata,
 vector headers, and allocator overhead. A cached run reports zero preparation
 time and the separately measured authenticated load time.

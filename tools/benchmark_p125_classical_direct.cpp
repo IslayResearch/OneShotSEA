@@ -120,6 +120,7 @@ int main(int argc, char** argv) {
 #if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
         std::string cache_path;
         std::string cache_sha256;
+        std::uint64_t cache_resident_bytes = 0U;
 #endif
         for (int index = 1; index < argc; ++index) {
             const std::string argument(argv[index]);
@@ -159,6 +160,20 @@ int main(int argc, char** argv) {
                 cache_sha256 = argv[index];
                 continue;
             }
+            if (argument == "--cache-resident-bytes") {
+                if (++index >= argc) {
+                    throw std::invalid_argument(
+                        "--cache-resident-bytes requires a value");
+                }
+                cache_resident_bytes = parse_u64(
+                    argv[index], "cache residency budget");
+                if (cache_resident_bytes >
+                    std::numeric_limits<std::size_t>::max()) {
+                    throw std::invalid_argument(
+                        "cache residency budget exceeds size_t");
+                }
+                continue;
+            }
 #endif
             const std::uint64_t level = parse_u64(argument, "SEA level");
             if (level <= 3U ||
@@ -172,7 +187,9 @@ int main(int argc, char** argv) {
         if (levels.empty()) {
             std::cerr << "usage: benchmark_p125_classical_direct "
                          "[--threads N] [--cache PATH "
-                         "--cache-sha256 DIGEST] [--skip-schoof] ELL...\n";
+                         "--cache-sha256 DIGEST "
+                         "[--cache-resident-bytes N]] "
+                         "[--skip-schoof] ELL...\n";
             return 2;
         }
 #if !defined(ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT)
@@ -180,6 +197,10 @@ int main(int argc, char** argv) {
             (!cache_path.empty() && levels.size() != 1U)) {
             throw std::invalid_argument(
                 "cache path and digest require exactly one benchmark level");
+        }
+        if (cache_resident_bytes != 0U && cache_path.empty()) {
+            throw std::invalid_argument(
+                "cache residency requires a cache path and digest");
         }
 #endif
 
@@ -200,12 +221,16 @@ int main(int argc, char** argv) {
                 oneshotsea::make_classical_direct_sea_context(
                     field, {ell}, 10000000U, 1000000U, threads);
 #else
-            const auto context = cache_path.empty()
+            auto context = cache_path.empty()
                 ? oneshotsea::make_classical_direct_sea_context(
                       field, {ell}, 10000000U, 1000000U, threads)
                 : oneshotsea::load_classical_direct_context_cache(
                       field, {ell}, 10000000U, 1000000U, threads,
                       cache_path, cache_sha256);
+            if (!cache_path.empty()) {
+                context.set_cached_context_residency_budget_bytes(
+                    static_cast<std::size_t>(cache_resident_bytes));
+            }
 #endif
             const Clock::time_point cold_start = Clock::now();
             const oneshotsea::WeberSeaResult cold =
@@ -249,6 +274,16 @@ int main(int argc, char** argv) {
                 << context.peak_cached_resident_context_count()
                 << "\",\"final_cached_resident_contexts\":\""
                 << context.cached_resident_context_count()
+                << "\",\"cache_residency_budget_bytes\":\""
+                << context.cached_context_residency_budget_bytes()
+                << "\",\"final_cached_retained_contexts\":\""
+                << context.cached_retained_context_count()
+                << "\",\"final_cached_retained_payload_bytes\":\""
+                << context.cached_retained_payload_bytes()
+                << "\",\"peak_cached_retained_payload_bytes\":\""
+                << context.peak_cached_retained_payload_bytes()
+                << "\",\"cached_context_evictions\":\""
+                << context.cached_context_eviction_count()
 #endif
                 << "\",\"cold_us\":\"" << cold_us
                 << "\",\"warm_distinct_j_us\":\"" << warm_us

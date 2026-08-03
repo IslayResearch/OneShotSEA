@@ -826,7 +826,15 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
               result.classical_direct_peak_cached_resident_context_count ==
                   1U &&
               result.classical_direct_final_cached_resident_context_count ==
-                  0U,
+                  0U &&
+              result.classical_direct_cache_residency_budget_bytes == 0U &&
+              result
+                      .classical_direct_final_cached_retained_context_count ==
+                  0U &&
+              result
+                      .classical_direct_final_cached_retained_payload_bytes ==
+                  0U &&
+              result.classical_direct_cached_context_eviction_count == 0U,
           "search streams an authenticated direct cache without rebuilding or retaining its level context");
 
     oneshotsea::SearchPipelineRunOptions no_cache_options;

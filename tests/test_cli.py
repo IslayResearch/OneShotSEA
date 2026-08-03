@@ -628,6 +628,65 @@ class CliTests(unittest.TestCase):
                 int(summary["matrix_coefficients"]) * 8,
             )
 
+            smooth_digest = start["smooth_cache_sha256"]
+            resident_budget = int(record["matrix_payload_bytes"])
+            resident_searched = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 4,
+                "--range-start", 1,
+                "--range-end", 2,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 5,
+                "--trace-cap", 16,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--smooth-cache-sha256", smooth_digest,
+                "--checkpoint", root / "resident-checkpoint.json",
+                "--classical-direct-levels", "7,11",
+                "--classical-direct-context-cache", cache,
+                "--classical-direct-context-sha256", digest,
+                "--classical-direct-cache-resident-bytes", resident_budget,
+                "--sea-threads", 2,
+                "--max-curves", 1,
+            )
+            self.assertEqual(
+                resident_searched.returncode, 0, resident_searched.stderr,
+            )
+            resident_records = [
+                json.loads(line)
+                for line in resident_searched.stdout.splitlines()
+            ]
+            self.assertEqual(
+                resident_records[0]["resources"]
+                    ["classical_direct_cache_resident_bytes"],
+                str(resident_budget),
+            )
+            resident_summary = resident_records[-1][
+                "classical_direct_preparation"
+            ]
+            self.assertEqual(
+                resident_summary["cache_residency_budget_bytes"],
+                str(resident_budget),
+            )
+            self.assertGreater(
+                int(resident_summary["final_cached_retained_contexts"]), 0,
+            )
+            self.assertEqual(
+                resident_summary["final_cached_resident_contexts"],
+                resident_summary["final_cached_retained_contexts"],
+            )
+            self.assertLessEqual(
+                int(resident_summary[
+                    "final_cached_retained_payload_bytes"
+                ]),
+                resident_budget,
+            )
+            self.assertEqual(
+                resident_summary["cached_context_evictions"], "0",
+            )
+
             self.assert_rejected(
                 "search",
                 "--p", 101,
@@ -653,6 +712,18 @@ class CliTests(unittest.TestCase):
                 "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
                 "--classical-direct-levels", "7,11",
                 "--classical-direct-context-cache", cache,
+            )
+
+            resident_without_cache = self.run_cli(
+                "search", "--p", 101, "--seed", 4,
+                "--max-level", 5,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--classical-direct-cache-resident-bytes", 1,
+            )
+            self.assertNotEqual(resident_without_cache.returncode, 0)
+            self.assertIn(
+                "requires an authenticated classical direct context cache",
+                resident_without_cache.stderr,
             )
 
     def test_x1_search_family_is_explicit_and_identity_bound(self) -> None:

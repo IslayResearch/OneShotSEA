@@ -237,7 +237,7 @@ void usage() {
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
         << "  oneshotsea prepare-classical-direct-context --p P --classical-direct-levels L1,L2,... --output PATH [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--sea-threads N]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST [--classical-direct-cache-resident-bytes N]] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -453,6 +453,8 @@ int main(int argc, char** argv) {
                 options, "skip-incomplete-curves", 0U);
             const std::uint64_t schoof_fallback = optional_u64(
                 options, "schoof-fallback", 0U);
+            const std::uint64_t direct_cache_resident_bytes = optional_u64(
+                options, "classical-direct-cache-resident-bytes", 0U);
             config.classical_direct_levels = optional_u64_list(
                 options, "classical-direct-levels");
             config.classical_direct_maximum_prime_candidates = optional_u64(
@@ -481,6 +483,8 @@ int main(int argc, char** argv) {
                 curve_threads > std::numeric_limits<std::size_t>::max() ||
                 smooth_coordinators > curve_threads ||
                 sea_threads > std::numeric_limits<std::size_t>::max() ||
+                direct_cache_resident_bytes >
+                    std::numeric_limits<std::size_t>::max() ||
                 assembly_attempts > std::numeric_limits<std::size_t>::max() ||
                 max_certificate_candidates == 0U ||
                 max_certificate_candidates >
@@ -501,6 +505,12 @@ int main(int argc, char** argv) {
             if (has_direct_context_path != has_direct_context_digest) {
                 throw std::invalid_argument(
                     "--classical-direct-context-cache and --classical-direct-context-sha256 must be supplied together");
+            }
+            if (options.contains(
+                    "classical-direct-cache-resident-bytes") &&
+                !has_direct_context_path) {
+                throw std::invalid_argument(
+                    "--classical-direct-cache-resident-bytes requires an authenticated classical direct context cache");
             }
             std::optional<std::filesystem::path> direct_context_path;
             std::optional<std::string> direct_context_sha;
@@ -646,6 +656,9 @@ int main(int argc, char** argv) {
                             .classical_direct_maximum_x_candidates_per_surface,
                         config.sea_threads, *direct_context_path,
                         *direct_context_sha));
+                direct_context->set_cached_context_residency_budget_bytes(
+                    static_cast<std::size_t>(
+                        direct_cache_resident_bytes));
             }
             std::string build_id = optional_string(options, "build-id", "");
             if (build_id.empty()) {
@@ -778,6 +791,8 @@ int main(int argc, char** argv) {
                       << ",\"sea_level_telemetry\":"
                       << (sea_level_telemetry ? "true" : "false")
                       << ",\"sea_threads\":\"" << config.sea_threads
+                      << "\",\"classical_direct_cache_resident_bytes\":\""
+                      << direct_cache_resident_bytes
                       << "\",\"assembly_attempts\":\""
                       << config.assembly_attempts << "\",\"trace_cap\":\""
                       << config.early_trace_cap
@@ -831,6 +846,21 @@ int main(int argc, char** argv) {
                           << "\",\"final_cached_resident_contexts\":\""
                           << result
                                  .classical_direct_final_cached_resident_context_count
+                          << "\",\"cache_residency_budget_bytes\":\""
+                          << result
+                                 .classical_direct_cache_residency_budget_bytes
+                          << "\",\"final_cached_retained_contexts\":\""
+                          << result
+                                 .classical_direct_final_cached_retained_context_count
+                          << "\",\"final_cached_retained_payload_bytes\":\""
+                          << result
+                                 .classical_direct_final_cached_retained_payload_bytes
+                          << "\",\"peak_cached_retained_payload_bytes\":\""
+                          << result
+                                 .classical_direct_peak_cached_retained_payload_bytes
+                          << "\",\"cached_context_evictions\":\""
+                          << result
+                                 .classical_direct_cached_context_eviction_count
                           << "\"}";
             }
             std::cout

@@ -70,8 +70,10 @@ prepare_classical_direct_context_cache(
 // validates matrix dimensions, canonical residues, Lagrange partition of
 // unity, and neighbor monicity; and rejects trailing data. Each reached level
 // is reauthenticated, materialized, shared by overlapping workers, and
-// released after interpolation. The caller-supplied digest is an external
-// authenticity anchor, not merely a corruption check.
+// released after interpolation by default. The returned context may instead
+// be configured with a resource-only bounded LRU before evaluation. The
+// caller-supplied digest is an external authenticity anchor, not merely a
+// corruption check.
 ClassicalDirectSeaContext load_classical_direct_context_cache(
     const Field& target_field, const std::vector<std::uint64_t>& levels,
     std::uint64_t maximum_prime_candidates,

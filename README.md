@@ -42,9 +42,10 @@ never converted into a mathematical rejection.
 Curve-independent preparation is reusable. A combined cache is authenticated
 before use, structurally indexed without retaining its interpolation matrices,
 and materialized one level at a time. Concurrent curve workers share a live
-level; its payload is released after the last worker leaves it. Cache
-generation likewise prepares, writes, and releases one level at a time while
-preserving the canonical v1 artifact format.
+level; by default its payload is released after the last worker leaves it, or
+an optional resource-only LRU retains it across curves. Cache generation
+likewise prepares, writes, and releases one level at a time while preserving
+the canonical v1 artifact format.
 
 ## What is not implemented yet
 
@@ -130,6 +131,20 @@ segments, mathematical witnesses, canonical matrices, interpolation
 identities, and CRT bounds before allowing a level to affect search state. See
 the [context-cache contract](docs/direct_context_cache.md) for the complete
 trust boundary.
+
+By default each authenticated level is released after its active curve workers
+finish. A multi-curve run may instead retain recently used levels under a
+resource-only logical matrix budget:
+
+```sh
+--classical-direct-cache-resident-bytes 5776130752
+```
+
+This example is approximately the compact payload of the retained 30-level
+p125 schedule. Active evaluations and object/GMP overhead are additional, so
+the value must be chosen together with curve concurrency and smooth-cache
+memory. It affects performance and memory only, not checkpoint identity or
+mathematical output.
 
 Without a cache, search can prepare its explicit levels locally:
 

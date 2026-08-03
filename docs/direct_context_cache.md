@@ -12,9 +12,10 @@ they were rebuilt by every new process.
 immutable matrices. A search authenticates and structurally indexes the
 artifact once without retaining its matrix payload. Each reached level is
 then reauthenticated, materialized, shared by overlapping curve workers, and
-released before the worker continues into BMSS/Frobenius work. The uncached
-path remains available and retains sticky lazy preparation for cross-curve
-reuse.
+released before the worker continues into BMSS/Frobenius work by default. An
+optional resource-only LRU retains bounded logical matrix payload across
+curves. The uncached path remains available and retains sticky lazy
+preparation for cross-curve reuse.
 
 ## Trust model
 
@@ -112,7 +113,32 @@ the largest level rather than the schedule sum. Search-start telemetry reports
 the trusted digest and indexing time. Search summary telemetry reports
 `cache_loaded`, `cache_load_us`, zero preparation time, logical matrix counts,
 per-level load count/time, and peak/final resident context counts. A completed
-run must report `final_cached_resident_contexts=0`.
+run using the default zero-retention policy must report
+`final_cached_resident_contexts=0`.
+
+For a multi-curve cohort, callers may retain recently used authenticated
+levels across curves with a resource-only logical payload budget:
+
+```sh
+--classical-direct-cache-resident-bytes 5776130752
+```
+
+The LRU accounts exactly the two compact `uint64_t` interpolation matrices;
+witness metadata, object/vector overhead, active evaluations, and concurrent
+in-flight materializations are additional. A level larger than the budget is
+still authenticated, loaded, used, and released without being retained.
+Lowering the budget evicts least-recently-used strong references immediately.
+This setting changes only I/O and memory residency, so it is reported with
+resources and deliberately absent from checkpoint identity.
+
+Summary telemetry distinguishes total live materializations from the LRU:
+`cache_residency_budget_bytes`, `final_cached_retained_contexts`,
+`final_cached_retained_payload_bytes`,
+`peak_cached_retained_payload_bytes`, and `cached_context_evictions`. The
+retained payload never exceeds the configured budget. A budget large enough
+for the complete retained p125 direct schedule is about 5.38 GiB; whether that
+is appropriate depends on the smooth cache, curve concurrency, and host
+memory.
 
 The fixed p125 validator labels every level with `timing_scope`. Fresh-level
 `total_us` covers preparation plus evaluation. Cached-level `total_us` covers
@@ -211,6 +237,25 @@ exercised one Atkin/no-root and one exact curve. These are same-host memory and
 I/O development brackets, not retained validation or certificate-yield
 measurements.
 
+## Unretained level-101 residency bracket
+
+The level-101 p125 artifact has a 35,646,240-byte logical matrix payload. In a
+same-binary `release, retain, retain, release` development bracket over two
+fixed distinct target `j`-invariants:
+
+```text
+policy             level materializations   final retained bytes   evictions
+release (2 runs)              2 each                    0              0
+retain  (2 runs)              1 each           35,646,240              0
+```
+
+The retained runs therefore remove exactly the second authenticated
+materialization while staying at the configured logical byte budget. The four
+runs showed large thermal variation in BMSS/no-root evaluation, so no
+end-to-end wall-time speedup is claimed. The avoided second materialization
+itself measured roughly 0.4--0.8 seconds on this host. As with the development
+brackets above, the raw streams and binary/host identities were not retained.
+
 Promotion of any cache benchmark to retained release evidence requires a
 checksummed bundle containing the exact generation and consumption commands
 (target, ordered levels, both execution caps, and thread limits), raw
@@ -225,6 +270,9 @@ the raw records.
 
 - An uncached search still retains every reached generated level in memory;
   schedule-scale bounded residency currently requires a prepared cache.
+- A cached LRU budget accounts compact matrix payload, not total process RSS;
+  operators must separately budget active curves, the exact-smooth cache,
+  GMP scratch, metadata, and allocator overhead.
 - Trust-anchor distribution is manual, and cloud launchers do not yet admit
   the cache options.
 - Version 1 is a whole-schedule artifact. It is lazily indexed and consumed,

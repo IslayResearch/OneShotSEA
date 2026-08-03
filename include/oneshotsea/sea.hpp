@@ -211,6 +211,16 @@ public:
     std::uint64_t cached_level_load_us() const;
     std::size_t cached_resident_context_count() const;
     std::size_t peak_cached_resident_context_count() const;
+    // Resource-only policy for authenticated caches. Zero retains the
+    // bounded-memory load/use/release behavior. A positive budget keeps the
+    // most recently used level payloads strongly referenced up to the exact
+    // logical interpolation-matrix byte count supplied by cache metadata.
+    void set_cached_context_residency_budget_bytes(std::size_t bytes);
+    std::size_t cached_context_residency_budget_bytes() const;
+    std::size_t cached_retained_context_count() const;
+    std::size_t cached_retained_payload_bytes() const;
+    std::size_t peak_cached_retained_payload_bytes() const;
+    std::uint64_t cached_context_eviction_count() const;
 
 private:
     ClassicalDirectSeaContext(
@@ -235,6 +245,10 @@ private:
     };
     std::shared_ptr<const ClassicalDirectLevelContext> level_context(
         std::size_t index) const;
+    void retain_cached_context(
+        std::size_t index,
+        const std::shared_ptr<const ClassicalDirectLevelContext>& context)
+        const;
     void install_cached_contexts(
         std::vector<CachedLevelSource> sources,
         std::uint64_t load_us);

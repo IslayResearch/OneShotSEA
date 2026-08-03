@@ -84,10 +84,13 @@ class YieldModelTests(unittest.TestCase):
         expected_divisors = {
             "current_generator": (4, 4),
             "x1_11_cyclic": (44, 4),
-            "x1_11_group": (88, 4),
             "x1_25_cyclic": (100, 4),
+            "x1_27_cyclic": (108, 4),
+            "x1_11_group": (176, 4),
             "x1_25_group": (200, 4),
+            "x1_27_group": (432, 4),
         }
+        self.assertEqual(set(scenarios), set(expected_divisors))
         prior_probability = 0.0
         prior_multiplier = 0.0
         for identifier, (divisor, paired_divisor) in expected_divisors.items():

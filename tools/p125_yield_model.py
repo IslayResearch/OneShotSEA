@@ -37,9 +37,11 @@ MEASURED_K10_WARM_SECONDS_PER_CURVE = 27.071228
 FORCED_DIVISOR_SCENARIOS = (
     ("current_generator", "production full rational 2-torsion", 4),
     ("x1_11_cyclic", "X1(11) selected-side cyclic divisor", 44),
-    ("x1_11_group", "X1(11) selected-side group-order divisor", 88),
+    ("x1_11_group", "X1(11) selected-side group-order divisor", 176),
     ("x1_25_cyclic", "X1(25) selected-side cyclic divisor", 100),
+    ("x1_27_cyclic", "X1(27) selected-side cyclic divisor", 108),
     ("x1_25_group", "X1(25) selected-side group-order divisor", 200),
+    ("x1_27_group", "X1(27) selected-side group-order divisor", 432),
 )
 
 

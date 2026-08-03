@@ -56,21 +56,21 @@
       },
       "x1_11_group": {
         "description": "X1(11) selected-side group-order divisor",
-        "optimistic_expected_curves": 97219.0,
-        "optimistic_expected_days_at_measured_k10_warm": 30.461,
-        "optimistic_paired_smooth_opportunity_probability": 1.0286e-05,
-        "optimistic_paired_yield_multiplier_over_current": 1.2394,
+        "optimistic_expected_curves": 92204.0,
+        "optimistic_expected_days_at_measured_k10_warm": 28.89,
+        "optimistic_paired_smooth_opportunity_probability": 1.0846e-05,
+        "optimistic_paired_yield_multiplier_over_current": 1.3068,
         "paired_twist_forced_divisor": 4,
         "paired_twist_order_residue_mod_selected_divisor": 12,
         "paired_twist_rho": 2.5866e-05,
         "paired_twist_smooth_opportunity_probability": 4.1498e-06,
         "paired_twist_tail_integral": 8.4633e-06,
         "paired_twist_u_log_L_over_D_log_y": 5.9083,
-        "selected_side_forced_divisor": 88,
-        "selected_side_rho": 3.7866e-05,
-        "selected_side_smooth_opportunity_probability": 6.1364e-06,
-        "selected_side_tail_integral": 1.2499e-05,
-        "selected_side_u_log_L_over_D_log_y": 5.7802
+        "selected_side_forced_divisor": 176,
+        "selected_side_rho": 4.1223e-05,
+        "selected_side_smooth_opportunity_probability": 6.6958e-06,
+        "selected_side_tail_integral": 1.3635e-05,
+        "selected_side_u_log_L_over_D_log_y": 5.7515
       },
       "x1_25_cyclic": {
         "description": "X1(25) selected-side cyclic divisor",
@@ -107,6 +107,42 @@
         "selected_side_smooth_opportunity_probability": 6.8043e-06,
         "selected_side_tail_integral": 1.3855e-05,
         "selected_side_u_log_L_over_D_log_y": 5.7462
+      },
+      "x1_27_cyclic": {
+        "description": "X1(27) selected-side cyclic divisor",
+        "optimistic_expected_curves": 95726.0,
+        "optimistic_expected_days_at_measured_k10_warm": 29.993,
+        "optimistic_paired_smooth_opportunity_probability": 1.0446e-05,
+        "optimistic_paired_yield_multiplier_over_current": 1.2587,
+        "paired_twist_forced_divisor": 4,
+        "paired_twist_order_residue_mod_selected_divisor": 28,
+        "paired_twist_rho": 2.5866e-05,
+        "paired_twist_smooth_opportunity_probability": 4.1498e-06,
+        "paired_twist_tail_integral": 8.4633e-06,
+        "paired_twist_u_log_L_over_D_log_y": 5.9083,
+        "selected_side_forced_divisor": 108,
+        "selected_side_rho": 3.8829e-05,
+        "selected_side_smooth_opportunity_probability": 6.2967e-06,
+        "selected_side_tail_integral": 1.2825e-05,
+        "selected_side_u_log_L_over_D_log_y": 5.7717
+      },
+      "x1_27_group": {
+        "description": "X1(27) selected-side group-order divisor",
+        "optimistic_expected_curves": 85875.0,
+        "optimistic_expected_days_at_measured_k10_warm": 26.907,
+        "optimistic_paired_smooth_opportunity_probability": 1.1645e-05,
+        "optimistic_paired_yield_multiplier_over_current": 1.4031,
+        "paired_twist_forced_divisor": 4,
+        "paired_twist_order_residue_mod_selected_divisor": 28,
+        "paired_twist_rho": 2.5866e-05,
+        "paired_twist_smooth_opportunity_probability": 4.1498e-06,
+        "paired_twist_tail_integral": 8.4633e-06,
+        "paired_twist_u_log_L_over_D_log_y": 5.9083,
+        "selected_side_forced_divisor": 432,
+        "selected_side_rho": 4.6007e-05,
+        "selected_side_smooth_opportunity_probability": 7.4951e-06,
+        "selected_side_tail_integral": 1.5257e-05,
+        "selected_side_u_log_L_over_D_log_y": 5.7142
       }
     }
   },
@@ -149,7 +185,7 @@
   "producer": {
     "runtime": "Python standard library only",
     "script": "tools/p125_yield_model.py",
-    "script_sha256": "eb8d6597acc8304d51a388c91e8fb4f2ec8256cfd10d389cead24aa811817cf3"
+    "script_sha256": "e92b5c3c64e3d04cea10bac16b41f0744bddf4011f907b03ca600bafc05af138"
   },
   "retained_search_interpretation": {
     "actual_curve_twist_order_opportunities": 24,

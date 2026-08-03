@@ -24,6 +24,20 @@ its twist has a `B`-smooth divisor greater than `L` with probability
 smoothness and group-structure heuristic, not a theorem supplied by SEA and
 not a runtime guarantee.
 
+The exponent follows from the standard Dickman heuristic rather than from a
+fit to these benchmarks. With `y=B=(log p)^4` and `L=p^(1/2+o(1))`,
+
+```text
+u = log L / log y = (1/8+o(1)) log p / loglog p.
+```
+
+The Dickman estimate `log rho(u)=-(1+o(1))u log u` then gives
+`log rho(u)=-(1/8+o(1))log p`. A fixed forced divisor such as the X1(27)
+cyclic divisor 108 replaces `L` by `L/108`; this can materially improve the
+finite-p constant but cannot change the leading exponent. The group-order
+divisor 432 is a useful sensitivity only because it need not occur in the
+group exponent or as the order of one point.
+
 The comparison `p^(1/4+o(1))` for the CM approach likewise describes its
 heuristic discriminant-search term. A crossover near 400 bits depends on
 constants, curve-family yield, group-exponent constraints, certificate
@@ -129,6 +143,14 @@ The next convincing checkpoints are:
    inputs.
 6. Compare end-to-end SEA and CM runs under the same target, hardware,
    certificate definition, and stopping rule.
+
+At the current 416-bit target, the checked Dickman--Mertens model predicts
+120,490 curves for the optimistic full-E[2] baseline, 95,726 for the
+conservative X1(27) cyclic-divisor scenario, and 85,875 for the X1(27)
+group-divisor sensitivity. These are smooth-factor opportunities, not
+certificate-success estimates. They use the older measured 27.07-second
+ten-curve throughput only as a planning input; concurrent production
+throughput for the selected-20 direct-first policy remains unmeasured.
 
 Until then, the precise claim is: the branch implements the right direct-SEA
 architecture and demonstrates a practical complete point count at 416 bits;

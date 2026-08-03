@@ -661,17 +661,19 @@ AWS worker.
 
 The same model shifts the selected-side threshold for the torsion families
 under evaluation.  It also uses the exact relation
-`#E + #E_twist = 2p+2`: for `p125`, selected-side divisibility by 44, 88, 100,
-or 200 forces the paired order to be divisible by four.  At the measured K=10
-warm rate:
+`#E + #E_twist = 2p+2`: for `p125`, selected-side divisibility by 44, 100, 108,
+176, 200, or 432 forces the paired order to be divisible by four. At the
+measured K=10 warm rate:
 
 | Optimistic selected-side guarantee | Paired-yield multiplier | Expected days |
 |---|---:|---:|
 | Current full-E[2] divisor 4 | 1.000x | 37.75 |
 | X1(11), cyclic divisor 44 | 1.177x | 32.06 |
-| X1(11), group divisor 88 | 1.239x | 30.46 |
+| X1(11), group divisor 176 | 1.307x | 28.89 |
 | X1(25), cyclic divisor 100 | 1.251x | 30.17 |
+| X1(27), cyclic divisor 108 | 1.259x | 29.99 |
 | X1(25), group divisor 200 | 1.320x | 28.60 |
+| X1(27), group divisor 432 | 1.403x | 26.91 |
 
 These are smooth-factor opportunity models, not certificate rates: a group
 divisor need not divide the group exponent, and exact point assembly remains a

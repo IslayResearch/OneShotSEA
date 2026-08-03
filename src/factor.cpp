@@ -45,10 +45,15 @@ public:
             powers_.push_back(modular_.pow(
                 x_, monic.field().modulus()));
         }
+        const std::size_t maximum_outer_coefficients =
+            static_cast<std::size_t>(monic.degree());
+        compositions_.push_back(modular_.prepare_composition(
+            powers_.back(), maximum_outer_coefficients));
         unsigned int represented_exponent = 1U;
         while (represented_exponent <= maximum_exponent / 2U) {
-            powers_.push_back(modular_.compose(
-                powers_.back(), powers_.back()));
+            powers_.push_back(compositions_.back().compose(powers_.back()));
+            compositions_.push_back(modular_.prepare_composition(
+                powers_.back(), maximum_outer_coefficients));
             represented_exponent *= 2U;
         }
     }
@@ -64,7 +69,7 @@ public:
                     throw std::logic_error(
                         "Frobenius composition power table is incomplete");
                 }
-                result = modular_.compose(result, powers_[bit]);
+                result = compositions_[bit].compose(result);
             }
             exponent >>= 1U;
             ++bit;
@@ -76,6 +81,7 @@ private:
     PolyModContext modular_;
     Poly x_;
     std::vector<Poly> powers_;
+    std::vector<PolyModCompositionPlan> compositions_;
 };
 
 void require_probable_prime_field(const Poly& polynomial) {

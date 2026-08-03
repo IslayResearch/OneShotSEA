@@ -283,6 +283,29 @@ void test_polynomial() {
               horner_compose_mod_reference(
                   composition_outer, right, modulus)),
           "baby-step giant-step composition matches Horner reference");
+    const auto prepared_composition =
+        composition_context.prepare_composition(
+            right, composition_outer.coefficients().size());
+    check(prepared_composition.maximum_outer_coefficients() ==
+              composition_outer.coefficients().size() &&
+              oneshotsea::equal(
+                  prepared_composition.compose(composition_outer),
+                  composition_context.compose(composition_outer, right)) &&
+              prepared_composition.compose(oneshotsea::Poly(field))
+                  .is_zero() &&
+              oneshotsea::equal(
+                  prepared_composition.compose(
+                      oneshotsea::Poly::constant(field, 37)),
+                  oneshotsea::Poly::constant(field, 37)),
+          "prepared composition reuses fixed-inner baby powers exactly");
+    const auto temporary_context_composition =
+        oneshotsea::PolyModContext(modulus).prepare_composition(
+            right, composition_outer.coefficients().size());
+    check(oneshotsea::equal(
+              temporary_context_composition.compose(composition_outer),
+              horner_compose_mod_reference(
+                  composition_outer, right, modulus)),
+          "prepared composition owns its quotient context lifetime");
     check(composition_context.compose(oneshotsea::Poly(field), right)
                   .is_zero() &&
               oneshotsea::equal(
@@ -348,6 +371,17 @@ void test_polynomial() {
                   high_degree_composition_outer, high_degree_pow_base,
                   high_degree_pow_modulus)),
           "p125 baby-step giant-step composition matches Horner reference");
+    const auto high_degree_composition_plan =
+        high_degree_composition_context.prepare_composition(
+            high_degree_pow_base,
+            high_degree_composition_outer.coefficients().size());
+    check(oneshotsea::equal(
+              high_degree_composition_plan.compose(
+                  high_degree_composition_outer),
+              horner_compose_mod_reference(
+                  high_degree_composition_outer, high_degree_pow_base,
+                  high_degree_pow_modulus)),
+          "p125 prepared composition matches the independent Horner reference");
 
     // The reusable reverse-polynomial reducer is enabled only for large monic
     // quotient rings.  Differentially straddle its production threshold and
@@ -457,6 +491,12 @@ void test_polynomial() {
     check(oneshotsea::PolyModContext(constant_modulus)
               .compose(composition_outer, right).is_zero(),
           "composition modulo a nonzero constant returns zero");
+    check(oneshotsea::PolyModContext(constant_modulus)
+              .prepare_composition(
+                  right, composition_outer.coefficients().size())
+              .compose(composition_outer)
+              .is_zero(),
+          "prepared composition modulo a nonzero constant returns zero");
     bool zero_composition_modulus_rejected = false;
     try {
         static_cast<void>(oneshotsea::PolyModContext(
@@ -466,6 +506,54 @@ void test_polynomial() {
     }
     check(zero_composition_modulus_rejected,
           "modular composition rejects a zero modulus");
+    bool zero_prepared_composition_modulus_rejected = false;
+    try {
+        static_cast<void>(oneshotsea::PolyModContext(
+            oneshotsea::Poly(field)).prepare_composition(right, 1U));
+    } catch (const std::domain_error&) {
+        zero_prepared_composition_modulus_rejected = true;
+    }
+    check(zero_prepared_composition_modulus_rejected,
+          "prepared composition rejects a zero modulus");
+    bool zero_prepared_composition_bound_rejected = false;
+    try {
+        static_cast<void>(composition_context.prepare_composition(right, 0U));
+    } catch (const std::invalid_argument&) {
+        zero_prepared_composition_bound_rejected = true;
+    }
+    check(zero_prepared_composition_bound_rejected,
+          "prepared composition rejects a zero outer bound");
+    bool prepared_composition_bound_enforced = false;
+    try {
+        static_cast<void>(
+            composition_context
+                .prepare_composition(
+                    right, composition_outer.coefficients().size() - 1U)
+                .compose(composition_outer));
+    } catch (const std::invalid_argument&) {
+        prepared_composition_bound_enforced = true;
+    }
+    check(prepared_composition_bound_enforced,
+          "prepared composition enforces its outer coefficient bound");
+    const oneshotsea::Field other_composition_field(103);
+    bool prepared_composition_inner_field_rejected = false;
+    try {
+        static_cast<void>(composition_context.prepare_composition(
+            oneshotsea::Poly::x(other_composition_field), 1U));
+    } catch (const std::invalid_argument&) {
+        prepared_composition_inner_field_rejected = true;
+    }
+    check(prepared_composition_inner_field_rejected,
+          "prepared composition rejects a mismatched inner field");
+    bool prepared_composition_outer_field_rejected = false;
+    try {
+        static_cast<void>(prepared_composition.compose(
+            oneshotsea::Poly::x(other_composition_field)));
+    } catch (const std::invalid_argument&) {
+        prepared_composition_outer_field_rejected = true;
+    }
+    check(prepared_composition_outer_field_rejected,
+          "prepared composition rejects a mismatched outer field");
     bool negative_pow_rejected = false;
     try {
         static_cast<void>(oneshotsea::powmod(pow_base, -1, pow_modulus));

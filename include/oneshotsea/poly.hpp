@@ -9,6 +9,7 @@
 namespace oneshotsea {
 
 class PolyModContext;
+class PolyModCompositionPlan;
 class CertifiedLinearRoots;
 
 class Poly {
@@ -76,12 +77,38 @@ public:
     // Compute outer(inner(x)) modulo this context's modulus with a
     // baby-step/giant-step composition. Both inputs may have arbitrary degree.
     Poly compose(const Poly& outer, const Poly& inner) const;
+    // Prepare the baby powers of one fixed inner polynomial once. The returned
+    // plan owns a copy of this quotient context, so it remains valid after the
+    // source context is destroyed or moved. Calls reject outer polynomials
+    // whose coefficient count exceeds the declared bound.
+    PolyModCompositionPlan prepare_composition(
+        const Poly& inner,
+        std::size_t maximum_outer_coefficients) const;
 
 private:
     Poly modulus_;
     std::vector<mpz_class> reciprocal_;
 
     void reduce_coefficients(std::vector<mpz_class>& coefficients) const;
+};
+
+class PolyModCompositionPlan {
+public:
+    Poly compose(const Poly& outer) const;
+    std::size_t maximum_outer_coefficients() const {
+        return maximum_outer_coefficients_;
+    }
+
+private:
+    friend class PolyModContext;
+
+    PolyModCompositionPlan(PolyModContext context, const Poly& inner,
+                           std::size_t maximum_outer_coefficients);
+
+    PolyModContext context_;
+    std::size_t maximum_outer_coefficients_;
+    std::size_t block_width_;
+    std::vector<Poly> inner_powers_;
 };
 
 Poly add(const Poly& lhs, const Poly& rhs);

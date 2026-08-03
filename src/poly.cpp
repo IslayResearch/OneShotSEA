@@ -881,6 +881,104 @@ Poly PolyModContext::pow(Poly base, mpz_class exponent) const {
     return apply_powmod_plan(base, make_powmod_plan(exponent), *this);
 }
 
+namespace {
+
+std::size_t composition_block_width(std::size_t coefficient_count) {
+    if (coefficient_count == 0U) {
+        throw std::invalid_argument(
+            "composition coefficient bound must be positive");
+    }
+    std::size_t block_width = 1U;
+    while (block_width < coefficient_count / block_width ||
+           (block_width == coefficient_count / block_width &&
+            coefficient_count % block_width != 0U)) {
+        ++block_width;
+    }
+    return block_width;
+}
+
+std::size_t composition_block_count(std::size_t coefficient_count,
+                                    std::size_t block_width) {
+    return coefficient_count / block_width +
+           static_cast<std::size_t>(
+               coefficient_count % block_width != 0U);
+}
+
+std::vector<Poly> prepare_composition_inner_powers(
+    const PolyModContext& context, const Poly& inner,
+    std::size_t maximum_outer_coefficients, std::size_t block_width) {
+    const Field& field = context.modulus().field();
+    const std::size_t block_count = composition_block_count(
+        maximum_outer_coefficients, block_width);
+    const std::size_t maximum_power = block_count > 1U
+        ? block_width
+        : maximum_outer_coefficients - 1U;
+    std::vector<Poly> inner_powers;
+    inner_powers.reserve(maximum_power + 1U);
+    inner_powers.push_back(Poly::constant(field, 1));
+    const Poly reduced_inner = context.reduce(inner);
+    for (std::size_t exponent = 1U; exponent <= maximum_power; ++exponent) {
+        inner_powers.push_back(context.multiply(
+            inner_powers.back(), reduced_inner));
+    }
+    return inner_powers;
+}
+
+Poly apply_composition_inner_powers(
+    const PolyModContext& context, const Poly& outer,
+    std::size_t maximum_outer_coefficients, std::size_t block_width,
+    const std::vector<Poly>& inner_powers) {
+    const Poly& modulus = context.modulus();
+    require_same_field(outer, modulus);
+    const Field& field = modulus.field();
+    if (outer.coefficients().size() > maximum_outer_coefficients) {
+        throw std::invalid_argument(
+            "composition outer polynomial exceeds its prepared bound");
+    }
+    if (modulus.degree() == 0 || outer.is_zero()) {
+        return Poly(field);
+    }
+
+    const std::size_t coefficient_count = outer.coefficients().size();
+    const std::size_t block_count = composition_block_count(
+        coefficient_count, block_width);
+    Poly result(field);
+    for (std::size_t block = block_count; block-- > 0U;) {
+        if (!result.is_zero()) {
+            result = context.multiply(result, inner_powers[block_width]);
+        }
+        std::vector<mpz_class> block_coefficients(
+            static_cast<std::size_t>(modulus.degree()), 0);
+        const std::size_t begin = block * block_width;
+        const std::size_t remaining = coefficient_count - begin;
+        const std::size_t end = remaining < block_width
+            ? coefficient_count
+            : begin + block_width;
+        for (std::size_t index = begin; index < end; ++index) {
+            const mpz_class& coefficient = outer.coefficients()[index];
+            if (coefficient == 0) {
+                continue;
+            }
+            const std::vector<mpz_class>& power_coefficients =
+                inner_powers[index - begin].coefficients();
+            for (std::size_t power_index = 0U;
+                 power_index < power_coefficients.size(); ++power_index) {
+                if (power_coefficients[power_index] != 0) {
+                    mpz_addmul(
+                        block_coefficients[power_index].get_mpz_t(),
+                        power_coefficients[power_index].get_mpz_t(),
+                        coefficient.get_mpz_t());
+                }
+            }
+        }
+        result = add(
+            result, Poly(field, std::move(block_coefficients)));
+    }
+    return result;
+}
+
+}  // namespace
+
 Poly PolyModContext::compose(const Poly& outer, const Poly& inner) const {
     require_same_field(outer, inner);
     require_same_field(outer, modulus_);
@@ -893,60 +991,47 @@ Poly PolyModContext::compose(const Poly& outer, const Poly& inner) const {
     }
 
     const std::size_t coefficient_count = outer.coefficients().size();
-    std::size_t block_width = 1U;
-    while (block_width < coefficient_count / block_width ||
-           (block_width == coefficient_count / block_width &&
-            coefficient_count % block_width != 0U)) {
-        ++block_width;
-    }
-    const std::size_t block_count =
-        coefficient_count / block_width +
-        static_cast<std::size_t>(
-            coefficient_count % block_width != 0U);
-    const std::size_t maximum_power =
-        block_count > 1U ? block_width : coefficient_count - 1U;
+    const std::size_t block_width =
+        composition_block_width(coefficient_count);
+    const std::vector<Poly> inner_powers =
+        prepare_composition_inner_powers(
+            *this, inner, coefficient_count, block_width);
+    return apply_composition_inner_powers(
+        *this, outer, coefficient_count, block_width, inner_powers);
+}
 
-    std::vector<Poly> inner_powers;
-    inner_powers.reserve(maximum_power + 1U);
-    inner_powers.push_back(Poly::constant(field, 1));
-    const Poly reduced_inner = reduce(inner);
-    for (std::size_t exponent = 1U; exponent <= maximum_power; ++exponent) {
-        inner_powers.push_back(multiply(
-            inner_powers.back(), reduced_inner));
+PolyModCompositionPlan PolyModContext::prepare_composition(
+    const Poly& inner,
+    std::size_t maximum_outer_coefficients) const {
+    require_same_field(inner, modulus_);
+    if (modulus_.is_zero()) {
+        throw std::domain_error("polynomial composition modulus is zero");
     }
+    return PolyModCompositionPlan(
+        *this, inner, maximum_outer_coefficients);
+}
 
-    Poly result(field);
-    for (std::size_t block = block_count; block-- > 0U;) {
-        if (!result.is_zero()) {
-            result = multiply(result, inner_powers[block_width]);
-        }
-        std::vector<mpz_class> block_coefficients(
-            static_cast<std::size_t>(modulus_.degree()), 0);
-        const std::size_t begin = block * block_width;
-        const std::size_t remaining = coefficient_count - begin;
-        const std::size_t end = remaining < block_width
-            ? coefficient_count
-            : begin + block_width;
-        for (std::size_t index = begin; index < end; ++index) {
-            const mpz_class& coefficient = outer.coefficients()[index];
-            if (coefficient != 0) {
-                const std::vector<mpz_class>& power_coefficients =
-                    inner_powers[index - begin].coefficients();
-                for (std::size_t power_index = 0U;
-                     power_index < power_coefficients.size(); ++power_index) {
-                    if (power_coefficients[power_index] != 0) {
-                        mpz_addmul(
-                            block_coefficients[power_index].get_mpz_t(),
-                            power_coefficients[power_index].get_mpz_t(),
-                            coefficient.get_mpz_t());
-                    }
-                }
-            }
-        }
-        Poly block_value(field, std::move(block_coefficients));
-        result = add(result, block_value);
+PolyModCompositionPlan::PolyModCompositionPlan(
+    PolyModContext context, const Poly& inner,
+    std::size_t maximum_outer_coefficients)
+    : context_(std::move(context)),
+      maximum_outer_coefficients_(maximum_outer_coefficients),
+      block_width_(composition_block_width(maximum_outer_coefficients)) {
+    require_same_field(inner, context_.modulus());
+    if (context_.modulus().is_zero()) {
+        throw std::domain_error("polynomial composition modulus is zero");
     }
-    return result;
+    if (context_.modulus().degree() > 0) {
+        inner_powers_ = prepare_composition_inner_powers(
+            context_, inner, maximum_outer_coefficients_, block_width_);
+    }
+}
+
+Poly PolyModCompositionPlan::compose(const Poly& outer) const {
+    require_same_field(outer, context_.modulus());
+    return apply_composition_inner_powers(
+        context_, outer, maximum_outer_coefficients_, block_width_,
+        inner_powers_);
 }
 
 Poly mulmod(const Poly& lhs, const Poly& rhs, const Poly& modulus) {

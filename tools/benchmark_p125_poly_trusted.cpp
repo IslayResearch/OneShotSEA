@@ -306,7 +306,8 @@ void print_constraints(const char* label,
                  constraints.residues());
 }
 
-int run_sea(const std::string& table_directory, std::uint64_t max_level) {
+int run_sea(const std::string& table_directory, std::uint64_t max_level,
+            std::uint64_t global_index) {
     if (max_level < 5U ||
         max_level > static_cast<std::uint64_t>(
                         std::numeric_limits<unsigned>::max())) {
@@ -323,7 +324,7 @@ int run_sea(const std::string& table_directory, std::uint64_t max_level) {
     const Clock::time_point generation_started = Clock::now();
     const oneshotsea::X127ProbeResult generated =
         oneshotsea::deterministic_x1_27_search_curve(
-            prime, kSeed, kGlobalIndex, true);
+            prime, kSeed, global_index, true);
     const std::uint64_t generation_us = elapsed_us(generation_started);
     if (!generated.sample.has_value()) {
         throw std::runtime_error("fixed X1(27) input did not admit a sample");
@@ -356,7 +357,7 @@ int run_sea(const std::string& table_directory, std::uint64_t max_level) {
               << "projection.mode=sea\n"
               << "prime=" << prime << '\n'
               << "seed=" << kSeed << '\n'
-              << "global_index=" << kGlobalIndex << '\n'
+              << "global_index=" << global_index << '\n'
               << "point_four_required=true\n"
               << "sea.max_level=" << max_level << '\n'
               << "sea.trace_cap=" << kTraceCap << '\n'
@@ -433,7 +434,7 @@ void usage(const char* executable) {
     std::cerr << "usage: " << executable
               << " frobenius DEGREE REPETITIONS\n"
               << "       " << executable
-              << " sea TABLE_DIRECTORY [MAX_LEVEL]\n";
+              << " sea TABLE_DIRECTORY [MAX_LEVEL] [GLOBAL_INDEX]\n";
 }
 
 }  // namespace
@@ -449,13 +450,16 @@ int main(int argc, char** argv) {
                                   parse_u64(argv[3], "REPETITIONS"));
         }
         if (argc >= 2 && std::string_view(argv[1]) == "sea") {
-            if (argc != 3 && argc != 4) {
+            if (argc < 3 || argc > 5) {
                 usage(argv[0]);
                 return 2;
             }
             const std::uint64_t max_level =
-                argc == 4 ? parse_u64(argv[3], "MAX_LEVEL") : kMaxLevel;
-            return run_sea(argv[2], max_level);
+                argc >= 4 ? parse_u64(argv[3], "MAX_LEVEL") : kMaxLevel;
+            const std::uint64_t global_index =
+                argc == 5 ? parse_u64(argv[4], "GLOBAL_INDEX")
+                          : kGlobalIndex;
+            return run_sea(argv[2], max_level, global_index);
         }
         usage(argv[0]);
         return 2;

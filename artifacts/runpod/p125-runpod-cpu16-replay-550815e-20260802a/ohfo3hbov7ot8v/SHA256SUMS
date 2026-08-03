@@ -1,0 +1,10 @@
+5dc4bd86c9ba1bb3474b468b89c0db3dcda23a3a14a02a113d14ca9ccdfa89fd  ./fetch-metadata.json
+775c9ee8aa5548740838a1f24f6639ceb619cb4323f52a486ed98db9a1e94604  ./audit.py
+0a31e13988d040fbeaa70fa218e8bfa580747f3f4da59f53fee13e7849e84fed  ./result.json
+6b3cae61d068dc30b416095d00fab9de957ed180c3c4fa5b523af190ab05d75d  ./worker-0/checkpoint.json
+a454b7aae703246ed5822fcb1ee5c40354d045d233ee422b5c40aefdc66d20ff  ./worker-0/progress.jsonl
+2a836754aa0f24e35ae35522507293889ca77957404e11df7e0d283bf36b21f6  ./worker-0/worker.log
+9bd609ac16d6e48c6c1b156f57fdce8906b4d82dfaadc77d035225124889b930  ./worker-0/manifest.json
+be3a3c6ed430f14cf319e9535c296476da93f6011a598bbb63a30e9c10e30a56  ./worker-0/command.sh
+f1597f8b9b4eaeb2249585e68b1f2248ac2609cc2f0cafedd8e07529f518386b  ./worker-0/attempts.jsonl
+5e09d94c6e4880805d0c34284401e70345aa6dc336f786dfc18adafab0868c00  ./worker-0/resource-usage.txt

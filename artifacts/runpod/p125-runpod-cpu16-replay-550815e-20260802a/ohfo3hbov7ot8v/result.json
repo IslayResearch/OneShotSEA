@@ -1,0 +1,113 @@
+{
+  "schema": "oneshotsea.runpod-p125-replay.v1",
+  "classification": "exact same-30 production-path promotion gate; not a certificate-rate estimate",
+  "baseline": {
+    "artifact": "artifacts/runpod/p125-runpod-cpu16-probe-20260802b/ohfo3hbov7ot8v",
+    "run_id": "p125-runpod-cpu16-probe-20260802b",
+    "deployment_commit": "c08f0ed82923b7aee3a5a3c9326deb4d5e439b4c",
+    "binary_sha256": "383207a8c0b1f0c05a26183e2073afbbf8fe6a7c771eac4a194077e2175aecaf",
+    "start_utc": "2026-08-02T18:23:12Z",
+    "end_utc": "2026-08-02T18:36:33Z",
+    "elapsed_seconds": 800.92,
+    "average_cpu_percent": 895,
+    "maximum_resident_set_kbytes": 10552336,
+    "maximum_resident_set_bytes": 10805592064,
+    "swaps": 0,
+    "exit_status": 0
+  },
+  "candidate": {
+    "artifact": "artifacts/runpod/p125-runpod-cpu16-replay-550815e-20260802a/ohfo3hbov7ot8v",
+    "run_id": "p125-runpod-cpu16-replay-550815e-20260802a",
+    "deployment_commit": "550815e0013361f5eee4cdb6b044f5cec1a9ae2c",
+    "binary_sha256": "550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737",
+    "start_utc": "2026-08-02T23:56:21Z",
+    "end_utc": "2026-08-03T00:05:35Z",
+    "elapsed_seconds": 554.18,
+    "average_cpu_percent": 899,
+    "maximum_resident_set_kbytes": 10551336,
+    "maximum_resident_set_bytes": 10804568064,
+    "swaps": 0,
+    "exit_status": 0,
+    "recorded_hourly_rate_usd": 0.643,
+    "estimated_attempt_compute_cost_usd": 0.09898270555555555
+  },
+  "configuration": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "range_start_inclusive": "1000000",
+    "range_end_exclusive": "1000030",
+    "curve_count": 30,
+    "curve_family": "x1-27",
+    "x1_require_point_four": true,
+    "max_level": 401,
+    "trace_cap": 16,
+    "schoof_fallback": true,
+    "skip_incomplete_curves": false,
+    "curve_threads": 16,
+    "sea_threads": 1,
+    "smooth_threads": 1,
+    "smooth_coordinators": 0,
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551"
+  },
+  "outcome": {
+    "curves_attempted": 30,
+    "sound_smoothness_rejections": 30,
+    "heuristic_rejections": 0,
+    "full_point_counts_completed": 14,
+    "candidates_reaching_smoothness": 30,
+    "candidate_attempts": 0,
+    "certificate_assembly_calls": 0,
+    "certificates_found": 0,
+    "range_exhausted": true,
+    "checkpoint_next_index": "1000030"
+  },
+  "semantic_gate": {
+    "projection_excludes": [
+      "peak_rss_bytes",
+      "timings_us",
+      "state.build_id"
+    ],
+    "baseline_projection_sha256": "0eacf10cd8524641896755ad5e540a7e24542d23527993880606c989485f1459",
+    "candidate_projection_sha256": "0eacf10cd8524641896755ad5e540a7e24542d23527993880606c989485f1459",
+    "records_identical": true,
+    "generator_rejections": 4457,
+    "sea_levels": 1733,
+    "exact_sea_levels": 907,
+    "atkin_sea_levels": 29
+  },
+  "timing_totals_us": {
+    "baseline": {
+      "generation": 183940689,
+      "sea": 5639913862,
+      "smoothness": 1790170138,
+      "candidate": 0,
+      "assembly": 0,
+      "verifier": 0,
+      "total": 7614025060
+    },
+    "candidate": {
+      "generation": 317150307,
+      "sea": 3001314083,
+      "smoothness": 1610242718,
+      "candidate": 0,
+      "assembly": 0,
+      "verifier": 0,
+      "total": 4928707429
+    }
+  },
+  "promotion_gate": {
+    "minimum_exclusive_wall_speedup": 1.05,
+    "maximum_inclusive_rss_ratio": 1.05,
+    "wall_speedup": 1.4452344003753295,
+    "embedded_total_speedup": 1.5448320213124989,
+    "embedded_sea_speedup": 1.879148168445788,
+    "rss_ratio": 0.9999052342533444,
+    "rss_delta_kbytes": -1000,
+    "semantic_gate_passed": true,
+    "wall_speed_gate_passed": true,
+    "rss_gate_passed": true,
+    "zero_swap_gate_passed": true,
+    "accepted": true,
+    "decision": "Promote the combined Kronecker-substitution and reciprocal-reduction production path with quotient-context reuse disabled by default."
+  }
+}

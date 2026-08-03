@@ -399,5 +399,5 @@ if PATH="${tmp_dir}/bin:${PATH}" python3 "${SCRIPT_DIR}/remote_worker.py" \
 fi
 
 bash -n "${SCRIPT_DIR}"/*.sh
-python3 -m py_compile "${SCRIPT_DIR}"/*.py
+PYTHONPYCACHEPREFIX="${tmp_dir}/pycache" python3 -m py_compile "${SCRIPT_DIR}"/*.py
 printf 'ok: AWS dry-run, cost tags, bounded launch, exact sharding, semantic argv, SSM polling, and immutable worker tests passed\n'

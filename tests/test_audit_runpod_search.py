@@ -613,6 +613,24 @@ class RunPodSearchAuditTests(unittest.TestCase):
         self.assertEqual(recomputed["outcome"]["counters"]["rejected_heuristic"], 0)
         self.assertEqual(recomputed["outcome"]["certificates"], [])
 
+    def test_retained_exact_recovery_matches_external_profile_and_result(self):
+        parent = ROOT / (
+            "artifacts/runpod/"
+            "p125-recovery-1001373-batch15x1024-550815e-20260803a")
+        root = parent / "ohfo3hbov7ot8v"
+        profile = parent / "audit-profile.json"
+        retained = json.loads((parent / "audit-result.json").read_text())
+        recomputed = self._audit(root, profile)
+        self.assertEqual(recomputed, retained)
+        self.assertTrue(recomputed["accepted"])
+        self.assertTrue(recomputed["outcome"]["all_assigned_ranges_exhausted"])
+        self.assertEqual(recomputed["outcome"]["completed_intervals"], [
+            {"start": 1001373, "end": 1001374},
+        ])
+        self.assertEqual(
+            recomputed["outcome"]["counters"]["rejected_heuristic"], 0)
+        self.assertEqual(recomputed["outcome"]["certificates"], [])
+
     def test_command_wrapper_option_path_and_identity_rehash_attacks(self):
         mutators = []
 
@@ -806,68 +824,172 @@ class RunPodSearchAuditTests(unittest.TestCase):
             "ohfo3hbov7ot8v/worker-0/worker.log")
         summary = json.loads(path.read_text().splitlines()[-1])
         batch = summary["smooth_batch"]
-        parsed = search_audit._validate_smooth_batch(batch, "retained recovery")
+        parsed = search_audit._validate_smooth_batch(
+            batch, "retained recovery", 1024)
         self.assertEqual(parsed["submitted_orders"], 7590)
         self.assertEqual(parsed["successful_cache_scan_chunks"], 8)
 
         forged = json.loads(json.dumps(batch))
         forged["cohorts"][0]["submitted_orders"] = "7589"
         with self.assertRaisesRegex(search_audit.AuditError, "total differs"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["cohorts"][0]["successful_scan_chunk_size_histogram"][1][
             "scan_chunks"] = "6"
         with self.assertRaisesRegex(search_audit.AuditError, "does not cover"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["submitted_orders"] = "1"
         forged["cohorts"][0]["submitted_orders"] = "1"
         with self.assertRaisesRegex(search_audit.AuditError, "order total differs"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["max_orders_per_successful_scan_chunk_in_any_cohort"] = "1"
         forged["cohorts"][0]["max_orders_per_successful_scan_chunk"] = "1"
         with self.assertRaisesRegex(search_audit.AuditError, "histogram maximum differs"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["coordinator_batches"] = "999"
         forged["cohorts"][0]["coordinator_batches"] = "999"
         with self.assertRaisesRegex(search_audit.AuditError, "too many batches"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["max_queued_requests_in_any_cohort"] = "999"
         forged["cohorts"][0]["max_queued_requests"] = "999"
         with self.assertRaisesRegex(search_audit.AuditError, "queue maximum"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["max_requests_per_batch_in_any_cohort"] = "999"
         forged["cohorts"][0]["max_requests_per_batch"] = "999"
         with self.assertRaisesRegex(search_audit.AuditError, "batch maximum"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["coordinator_batches"] = "0"
         forged["cohorts"][0]["coordinator_batches"] = "0"
         with self.assertRaisesRegex(search_audit.AuditError, "batch lower bounds"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["max_requests_per_batch_in_any_cohort"] = "0"
         forged["cohorts"][0]["max_requests_per_batch"] = "0"
         with self.assertRaisesRegex(search_audit.AuditError, "batch lower bounds"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
 
         forged = json.loads(json.dumps(batch))
         forged["max_queued_requests_in_any_cohort"] = "0"
         forged["cohorts"][0]["max_queued_requests"] = "0"
         with self.assertRaisesRegex(search_audit.AuditError, "queue lower bound"):
-            search_audit._validate_smooth_batch(forged, "forged recovery")
+            search_audit._validate_smooth_batch(forged, "forged recovery", 1024)
+
+        impossible = json.loads(json.dumps(batch))
+        impossible.update({
+            "submitted_requests": "2", "completed_requests": "2",
+            "coordinator_batches": "2", "submitted_orders": "7590",
+            "max_queued_requests_in_any_cohort": "2",
+            "max_requests_per_batch_in_any_cohort": "2",
+        })
+        impossible["cohorts"][0].update({
+            "submitted_requests": "2", "completed_requests": "2",
+            "coordinator_batches": "2", "submitted_orders": "7590",
+            "max_queued_requests": "2", "max_requests_per_batch": "2",
+        })
+        with self.assertRaisesRegex(search_audit.AuditError, "batch upper bound"):
+            search_audit._validate_smooth_batch(
+                impossible, "impossible partition", 1024)
+
+        impossible_first_batch = json.loads(json.dumps(batch))
+        impossible_first_batch.update({
+            "submitted_requests": "2", "completed_requests": "2",
+            "submitted_orders": "7590",
+            "max_queued_requests_in_any_cohort": "2",
+            "max_requests_per_batch_in_any_cohort": "2",
+        })
+        impossible_first_batch["cohorts"][0].update({
+            "submitted_requests": "2", "completed_requests": "2",
+            "submitted_orders": "7590", "max_queued_requests": "2",
+            "max_requests_per_batch": "2",
+        })
+        with self.assertRaisesRegex(search_audit.AuditError, "batch lower bounds"):
+            search_audit._validate_smooth_batch(
+                impossible_first_batch, "impossible first batch", 1024)
+
+        failed_without_orders = json.loads(json.dumps(batch))
+        failed_without_orders.update({
+            "submitted_requests": "2", "failed_requests": "1",
+            "coordinator_batches": "2", "max_queued_requests_in_any_cohort": "2",
+        })
+        failed_without_orders["cohorts"][0].update({
+            "submitted_requests": "2", "failed_requests": "1",
+            "coordinator_batches": "2", "max_queued_requests": "2",
+        })
+        with self.assertRaisesRegex(search_audit.AuditError, "order/request lower bounds"):
+            search_audit._validate_smooth_batch(
+                failed_without_orders, "failed request without orders", 1024)
+
+        failed_with_one_order = json.loads(json.dumps(failed_without_orders))
+        failed_with_one_order["submitted_orders"] = "7591"
+        failed_with_one_order["cohorts"][0]["submitted_orders"] = "7591"
+        with self.assertRaisesRegex(search_audit.AuditError, "order/request lower bounds"):
+            search_audit._validate_smooth_batch(
+                failed_with_one_order, "failed request with one order", 1024)
+
+        oversized_chunk = json.loads(json.dumps(batch))
+        oversized_chunk["successful_scan_chunk_size_histogram"] = [
+            {"orders": "7590", "scan_chunks": "1"}]
+        oversized_chunk["successful_cache_scan_chunks"] = "1"
+        oversized_chunk["max_orders_per_successful_scan_chunk_in_any_cohort"] = "7590"
+        oversized_chunk["cohorts"][0]["successful_scan_chunk_size_histogram"] = [
+            {"orders": "7590", "scan_chunks": "1"}]
+        oversized_chunk["cohorts"][0]["successful_cache_scan_chunks"] = "1"
+        oversized_chunk["cohorts"][0]["max_orders_per_successful_scan_chunk"] = "7590"
+        with self.assertRaisesRegex(search_audit.AuditError, "configured smooth batch cap"):
+            search_audit._validate_smooth_batch(
+                oversized_chunk, "oversized scan chunk", 1024)
+
+        completed_without_scan = json.loads(json.dumps(batch))
+        completed_without_scan.update({
+            "successful_cache_scan_chunks": "0", "submitted_orders": "0",
+            "max_orders_per_successful_scan_chunk_in_any_cohort": "0",
+            "successful_scan_chunk_size_histogram": [],
+        })
+        completed_without_scan["cohorts"][0].update({
+            "successful_cache_scan_chunks": "0", "submitted_orders": "0",
+            "max_orders_per_successful_scan_chunk": "0",
+            "successful_scan_chunk_size_histogram": [],
+        })
+        with self.assertRaisesRegex(search_audit.AuditError, "order/request lower bounds"):
+            search_audit._validate_smooth_batch(
+                completed_without_scan, "completed request without scan", 1024)
+
+        too_few_scan_chunks = json.loads(json.dumps(batch))
+        too_few_scan_chunks.update({
+            "submitted_requests": "3", "completed_requests": "3",
+            "coordinator_batches": "2", "successful_cache_scan_chunks": "1",
+            "submitted_orders": "6", "max_queued_requests_in_any_cohort": "3",
+            "max_requests_per_batch_in_any_cohort": "2",
+            "max_orders_per_successful_scan_chunk_in_any_cohort": "6",
+            "successful_scan_chunk_size_histogram": [
+                {"orders": "6", "scan_chunks": "1"}],
+        })
+        too_few_scan_chunks["cohorts"][0].update({
+            "submitted_requests": "3", "completed_requests": "3",
+            "coordinator_batches": "2", "successful_cache_scan_chunks": "1",
+            "submitted_orders": "6", "max_queued_requests": "3",
+            "max_requests_per_batch": "2",
+            "max_orders_per_successful_scan_chunk": "6",
+            "successful_scan_chunk_size_histogram": [
+                {"orders": "6", "scan_chunks": "1"}],
+        })
+        with self.assertRaisesRegex(search_audit.AuditError, "too few successful"):
+            search_audit._validate_smooth_batch(
+                too_few_scan_chunks, "too few successful chunks", 1024)
 
     def test_certificate_requires_local_pinned_verifier_and_rejects_invalid(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -1560,7 +1560,12 @@ def _expected_start_profile(
     }
 
 
-def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
+def _validate_smooth_batch(
+    value: Any, label: str, smooth_max_batch: int,
+) -> Dict[str, int]:
+    if smooth_max_batch < 1:
+        raise AuditError("{} smooth batch cap is not positive".format(label))
+
     def histogram_counts(raw: Any, histogram_label: str) -> Dict[int, int]:
         if not isinstance(raw, list):
             raise AuditError("{} is not an array".format(histogram_label))
@@ -1574,6 +1579,10 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
                 item["orders"], histogram_label + " orders", minimum=1)
             chunks = _string_uint(
                 item["scan_chunks"], histogram_label + " chunks", minimum=1)
+            if orders > smooth_max_batch:
+                raise AuditError(
+                    "{} exceeds the configured smooth batch cap".format(
+                        histogram_label))
             if orders <= previous_orders:
                 raise AuditError(
                     "{} is not strictly ordered".format(histogram_label))
@@ -1615,6 +1624,13 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
         histogram_orders != parsed["submitted_orders"]
     ):
         raise AuditError("{} smooth histogram order total differs".format(label))
+    if parsed["submitted_orders"] % 2 != 0 or histogram_orders % 2 != 0 or (
+        parsed["submitted_orders"] < 2 * parsed["submitted_requests"]
+    ) or histogram_orders < 2 * parsed["completed_requests"] or (
+        parsed["submitted_orders"] - histogram_orders <
+        2 * (parsed["failed_requests"] + parsed["cancelled_requests"])
+    ):
+        raise AuditError("{} smooth order/request lower bounds differ".format(label))
     if max(histogram, default=0) != parsed[
         "max_orders_per_successful_scan_chunk_in_any_cohort"
     ]:
@@ -1654,7 +1670,7 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
             parsed_cohort["coordinator_batches"] == 0 or
             parsed_cohort["max_requests_per_batch"] == 0 or
             processed_requests > (
-                parsed_cohort["coordinator_batches"] *
+                1 + (parsed_cohort["coordinator_batches"] - 1) *
                 parsed_cohort["max_requests_per_batch"])
         ):
             raise AuditError("{} smooth cohort batch lower bounds are impossible".format(label))
@@ -1669,6 +1685,10 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
             parsed_cohort["max_queued_requests"]
         ):
             raise AuditError("{} smooth cohort batch maximum is impossible".format(label))
+        if processed_requests != 0 and parsed_cohort["max_requests_per_batch"] > (
+            processed_requests - parsed_cohort["coordinator_batches"] + 1
+        ):
+            raise AuditError("{} smooth cohort batch upper bound is impossible".format(label))
         one_histogram = histogram_counts(
             cohort["successful_scan_chunk_size_histogram"],
             "{} smooth cohort {} histogram".format(label, number))
@@ -1682,6 +1702,27 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
             one_histogram_orders != parsed_cohort["submitted_orders"]
         ):
             raise AuditError("{} smooth cohort histogram order total differs".format(label))
+        if parsed_cohort["submitted_orders"] % 2 != 0 or (
+            one_histogram_orders % 2 != 0
+        ) or parsed_cohort["submitted_orders"] < (
+            2 * parsed_cohort["submitted_requests"]
+        ) or one_histogram_orders < 2 * parsed_cohort["completed_requests"] or (
+            parsed_cohort["submitted_orders"] - one_histogram_orders <
+            2 * (
+                parsed_cohort["failed_requests"] +
+                parsed_cohort["cancelled_requests"])
+        ):
+            raise AuditError(
+                "{} smooth cohort order/request lower bounds differ".format(label))
+        if parsed_cohort["completed_requests"] != 0 and (
+            parsed_cohort["successful_cache_scan_chunks"] <
+            (
+                parsed_cohort["completed_requests"] +
+                parsed_cohort["max_requests_per_batch"] - 1
+            ) // parsed_cohort["max_requests_per_batch"]
+        ):
+            raise AuditError(
+                "{} smooth cohort has too few successful scan chunks".format(label))
         if max(one_histogram, default=0) != parsed_cohort[
             "max_orders_per_successful_scan_chunk"
         ]:
@@ -1817,7 +1858,9 @@ def _worker_log_profile(
                 raise AuditError("{} successful attempt processed no curve records".format(label))
             if summary["state"] != wanted_state:
                 raise AuditError("{} summary state differs from durable progress".format(label))
-            _validate_smooth_batch(summary["smooth_batch"], label + " summary")
+            _validate_smooth_batch(
+                summary["smooth_batch"], label + " summary",
+                int(profile["option_policy"]["--smooth-max-batch"]))
         elif status == 124:
             if segment_summaries:
                 raise AuditError("{} timed-out attempt has a summary".format(label))

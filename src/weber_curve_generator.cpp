@@ -20,15 +20,6 @@ void require_search_prime(const mpz_class& prime) {
     }
 }
 
-mpz_class least_quadratic_nonsquare(const Field& field) {
-    for (mpz_class candidate = 2; candidate < field.modulus(); ++candidate) {
-        if (field.legendre(candidate) == -1) {
-            return candidate;
-        }
-    }
-    throw std::logic_error("prime field has no quadratic nonsquare");
-}
-
 WeberCurvePair pair_from_admitted_f(const Field& field,
                                     const mpz_class& normalized_f,
                                     std::uint64_t rejected_samples) {
@@ -41,14 +32,7 @@ WeberCurvePair pair_from_admitted_f(const Field& field,
             "ramified Weber image j=0 or j=1728 is not a search curve");
     }
 
-    // For k=j/(1728-j), y^2=x^3+3kx+2k has invariant
-    // 1728*k/(k+1)=j.  The exclusions above make every denominator and the
-    // discriminant nonzero in characteristic greater than 3.
-    const mpz_class k = field.divide(j, field.sub(1728, j));
-    Curve curve(field, field.mul(3, k), field.mul(2, k));
-    if (curve.is_singular() || curve.j_invariant() != j) {
-        throw std::logic_error("Weber-derived curve validation failed");
-    }
+    Curve curve = short_weierstrass_curve_from_j(field, j);
 
     const mpz_class nonsquare = least_quadratic_nonsquare(field);
     Curve twist = curve.quadratic_twist(nonsquare);

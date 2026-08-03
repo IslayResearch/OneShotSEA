@@ -44,6 +44,10 @@ private:
 Curve deterministic_curve(const mpz_class& prime, std::uint64_t seed, std::uint64_t index);
 MontgomeryCurve deterministic_montgomery_curve(const mpz_class& prime, std::uint64_t seed,
                                                 std::uint64_t index);
+// Canonical nonexceptional short-Weierstrass model with the supplied
+// j-invariant.  The ramified values 0 and 1728 are deliberately rejected.
+Curve short_weierstrass_curve_from_j(const Field& field,
+                                     const mpz_class& j_invariant);
 mpz_class count_points_bruteforce(const Curve& curve, unsigned long limit = 10000000UL);
 
 // True iff j is the invariant of a nonsingular Montgomery model

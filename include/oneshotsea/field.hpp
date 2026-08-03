@@ -41,5 +41,6 @@ private:
 std::uint64_t splitmix64(std::uint64_t value);
 mpz_class deterministic_residue(const Field& field, std::uint64_t seed,
                                 std::uint64_t index, std::uint64_t domain);
+mpz_class least_quadratic_nonsquare(const Field& field);
 
 }  // namespace oneshotsea

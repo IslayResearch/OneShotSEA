@@ -218,4 +218,17 @@ mpz_class deterministic_residue(const Field& field, std::uint64_t seed,
     return field.normalize(value);
 }
 
+mpz_class least_quadratic_nonsquare(const Field& field) {
+    if (mpz_probab_prime_p(field.modulus().get_mpz_t(), 25) == 0) {
+        throw std::invalid_argument(
+            "quadratic-nonsquare search requires prime characteristic");
+    }
+    for (mpz_class candidate = 2; candidate < field.modulus(); ++candidate) {
+        if (field.legendre(candidate) == -1) {
+            return candidate;
+        }
+    }
+    throw std::logic_error("prime field has no quadratic nonsquare");
+}
+
 }  // namespace oneshotsea

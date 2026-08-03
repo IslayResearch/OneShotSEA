@@ -1,10 +1,12 @@
 # Explicit-CRT direct-specialization scaffold
 
-Status: implemented and differentially tested through its streamed residue
-boundary.  Native auxiliary-field subgroup enumeration and Vélu quotients now
-cover the surface-to-floor edge operation.  The Hilbert-class-polynomial and
-complete per-prime Weber volcano evaluator that must supply residues is not
-implemented.
+Status: implemented and differentially tested through a native classical
+`j`-residue at one auxiliary prime.  Given validated `H_O mod p` state, the
+producer admits trace-signed CM surface curves, enumerates every rational
+`ell`-kernel and Vélu quotient, and interpolates both required channels without
+loading the target-level bivariate modular polynomial.  HCP
+generation/authentication, consistent Weber surface/floor signs, and the
+proved Weber height bound are not implemented.
 
 ## Purpose
 
@@ -22,8 +24,10 @@ partial Phi_ell^f/partial X (f,Y).
 a validated quadratic order through exact CRT reconstruction.  Its callback
 receives one checked `SutherlandCrtPrime {p,t,v}` plus the canonical integer
 lifts of all required target-field powers, and must return the two specialized
-coefficient vectors modulo `p`.  This is the sole missing per-prime producer
-seam.
+coefficient vectors modulo `p`.  `specialize_classical_from_cm_surfaces`
+implements the geometric and interpolation core of that callback in the
+classical `j` normalization.  The remaining producer seam is the independently
+authenticated HCP input and signed Weber conversion required by production.
 
 ## Checked pipeline
 
@@ -109,7 +113,29 @@ following the algorithm require `i*a_ij*x_(i-1)`.  The implementation uses the
 algebraic derivative with `x_(i-1)` and differentially checks it against direct
 symbolic table differentiation.
 
-### 4. Exact CRT and height check
+### 4. CM surface admission and direct interpolation
+
+`enumerate_cm_interpolation_surfaces` accepts a checked suitable order and
+auxiliary-prime witness plus a caller-supplied `H_O mod p`.  It revalidates the
+prime equation, field, degree, monicity, square-freeness, and complete splitting
+into `h(O)` roots.  For the first `ell+2` roots it constructs the canonical
+`j`-curve and its quadratic twist, requires exactly one twist to expose all
+`ell+1` rational kernels for order `p+1-t`, and checks the expected
+`1+(D/ell)` horizontal-edge count.
+
+`specialize_classical_from_cm_surfaces` forms every neighbor polynomial from
+the table-free Vélu codomains.  It does not materialize the interpolated
+bivariate polynomial: for each Lagrange basis row it computes only evaluation
+against the lifted target powers and the corresponding algebraic derivative
+functional.  The result is the two classical `j` residue vectors expected by
+the CRT interface.
+
+The function validates the finite-field consequences of the supplied class
+polynomial but does not establish its mathematical provenance.  An opaque,
+authenticated HCP producer type is still required before this state can cross
+a production no-root trust boundary.
+
+### 5. Exact CRT and height check
 
 The high-level Weber wrapper accepts a `CrtCoefficientBound`, not a raw
 integer.  Its constructor is private.  At present, the only available evidence
@@ -170,11 +196,15 @@ value and X-derivative channels.
 Run it with:
 
 ```sh
-make test-direct-modpoly
+make test-direct-modpoly test-prime-isogeny test-cm-surface
 ```
 
-The full-table adapter exists only to provide an independent fixture.  It must
-not be substituted for the missing volcano callback in a production claim.
+`tests/test_cm_surface.cpp` additionally checks complete splitting of
+`H_-71 mod 1811`, all seven surface invariants, unique trace-sign admission,
+two horizontal and four descending edges in every row, and exact agreement of
+both native residue channels with an authenticated classical `Phi_5` oracle.
+The full-table adapter exists only as this independent fixture; it is not used
+by the native producer and cannot supply a production claim.
 
 ## Complexity and the asymptotic claim
 
@@ -193,10 +223,10 @@ particular:
   class-number validator is not an optimized class-group routine;
 - the fixed-`v` practical prime search is not the randomized selector used by
   the asymptotic theorem;
-- no Hilbert class polynomial state is generated;
-- the surface/floor CM torsors are not enumerated (all `ell+1` rational
-  subgroups and their Vélu quotients can now be generated once a checked
-  surface curve is supplied); and
+- no Hilbert class polynomial state is generated or authenticated (a supplied
+  split polynomial is checked and its `j` roots are consumed);
+- classical `j` surface/floor rows are enumerated, but consistent Weber lifts
+  and their relative sign rules are not; and
 - the high-level API rejects untyped/empirical bounds, but a proved,
   normalization-specific Weber coefficient bound `H` is not yet implemented.
 
@@ -208,17 +238,16 @@ implementation theorem.
 
 ## Next implementation gate
 
-Implement the callback for one small level first:
+Complete the Weber callback for one small level first:
 
 1. implement a proved Weber-specific height derivation, then derive or load
    independently authenticated Hilbert-class-polynomial state
    for the validated order;
-2. find a surface curve with endomorphism ring `O` modulo the supplied `p`;
-3. enumerate the required surface and floor Weber torsors, using the checked
-   table-free subgroup/Vélu primitive for every surface-to-floor edge;
-4. accumulate the two specialization coefficient vectors without loading
-   `Phi_ell^f(X,Y)`; and
-5. compare every per-prime residue and final target specialization with the
+2. convert the admitted classical surface and floor rows to Weber invariants
+   with consistent surface/floor signs, failing closed on ambiguity;
+3. apply the already implemented two interpolation functionals in the Weber
+   normalization without loading `Phi_ell^f(X,Y)`; and
+4. compare every per-prime residue and final target specialization with the
    authenticated table oracle before permitting any no-root result.
 
 The first production connection must use the future proved-Weber evidence kind;
@@ -238,9 +267,10 @@ formulas, without a target-level modular polynomial.  Level-5 tests over the
 CM discriminants `-19` and `-11` exercise both modular-square-root branches and
 compare all twelve quotients with the independent division-kernel Vélu path,
 authenticated classical modular-polynomial roots, and brute-force group
-orders.  This implements the vertical-edge operation but does not find the
-initial CM surface curve, enumerate either class-group torsor, choose consistent
-Weber signs, or interpolate the requested coefficient channels.
+orders.  The CM-surface layer now consumes all roots of a supplied split HCP,
+selects the correct trace twist, classifies the edges, and interpolates both
+classical `j` channels.  It does not generate or authenticate the HCP or choose
+consistent Weber surface/floor signs.
 
 ## Focused review checklist
 

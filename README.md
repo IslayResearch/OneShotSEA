@@ -1,195 +1,181 @@
-# OneShotSEA: direct specialization milestone
+# OneShotSEA: direct SEA specialization branch
 
-This branch is a correctness-first implementation milestone toward a custom,
-unbounded SEA point counter for one-shot primality proofs.  Its new work is the
-front half and back half of Sutherland's direct modular-polynomial evaluation
-path: it discovers and validates suitable quadratic orders, selects witnessed
-auxiliary primes, and reconstructs a Weber-f specialization with exact CRT.
+This branch develops the part of OneShotSEA that must replace finite
+modular-polynomial tables if the one-shot primality search is to scale past
+the current catalog.  It is a correctness-first implementation of
+Sutherland-style direct modular-polynomial evaluation, specialized to the two
+univariate polynomials that SEA actually consumes:
 
-It does **not** yet implement the Hilbert-class-polynomial/Weber-volcano
-callback that produces the residue at each auxiliary prime.  Consequently the
-production search still obtains modular-polynomial data from an authenticated,
-finite table catalog.  No new `nextprime(10^125)` (`p125`, 416-bit) certificate
-is claimed here.
-
-## Branch status
-
-| Component | Status on this branch | Production consequence |
-|---|---|---|
-| Specialized SEA consumer for `Phi_ell^f(f,Y)` and `Phi_X^f(f,Y)` | Implemented and differentially tested | SEA no longer requires a bivariate table at its consumer boundary |
-| Suitable-order discovery and validation | Implemented as a bounded deterministic search | Correct for accepted results; not the theorem-oriented asymptotic selector |
-| Auxiliary CRT-prime selection | Implemented with exact `(p,t,v,D)` witnesses and proved 64-bit primes | Safe bounded practical heuristic; fixed `v` has no GRH existence guarantee |
-| Target-field power lifting | Implemented | Preserves the ordering required by Algorithm 1 |
-| Explicit CRT reconstruction | Implemented with strict product and coefficient-bound checks | Reconstructs both required specialization channels and fails closed |
-| Surface cyclic-subgroup enumeration and Vélu quotients | Implemented and independently checked at level 5 | Supplies the table-free surface-to-floor edge primitive; CM surface/floor enumeration is still missing |
-| Weber coefficient-height bound | Exact table-derived test evidence only | A proved normalization-specific bound is still required |
-| Per-prime HCP/Weber-volcano residue producer | Not implemented | Direct specialization cannot yet replace tables in production |
-| Unbounded SEA search or `p125` certificate | Not demonstrated | The intended asymptotic path remains incomplete |
-
-## What this branch adds
-
-The branch-specific implementation is concentrated in
-[`include/oneshotsea/direct_modpoly.hpp`](include/oneshotsea/direct_modpoly.hpp)
-and [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp).  It provides:
-
-1. `discover_sutherland_suitable_order`, a capped deterministic search over
-   fundamental discriminants and conductors.  A ring-class-number formula is
-   used as a filter, then independently checked by primitive reduced-form
-   enumeration before an order is accepted.
-2. `validate_sutherland_suitable_order`, the only construction path for the
-   checked order object.  It enforces Sutherland's size, class-number,
-   conductor, and prime-level conditions, plus the necessary Weber-f order
-   congruences where the Weber wrapper is used.
-3. `select_sutherland_crt_primes`, which retains every equation witness
-   satisfying
-
-   ```text
-   4p = t^2 - ell^2 v^2 D
-   ```
-
-   and stops only when the product of distinct auxiliary primes is strictly
-   greater than four times the declared coefficient bound.
-4. `reconstruct_weber_specialization_algorithm1`, which computes powers in
-   the target field before lifting them, streams one residue at a time, and
-   uses exact integer CRT rounding to reconstruct `Phi_ell^f(f,Y)` and its X
-   derivative.  Each centered coefficient is checked against the same bound
-   and cross-checked modulo the target.
-5. `enumerate_rational_prime_isogenies`, which projects deterministically
-   sampled auxiliary-field points with the exact CM group order, proves each
-   retained generator has order `ell`, distinguishes subgroups by their kernel
-   polynomials, requires all `ell+1` rational subgroups, and applies Vélu
-   directly without consulting `Phi_ell`.
-
-The residue provider is an explicit callback.  The table-backed implementation
-used by the tests is an oracle for differential validation, not the missing
-production evaluator.
-
-## What is inherited
-
-The repository already contains the table-backed Weber SEA and one-shot
-certificate search path: curve generation, modular-polynomial authentication,
-BMSS isogeny recovery, Frobenius trace residues, certified Atkin constraints,
-complete-trace early abort, exact smoothness checks, certificate assembly, and
-the pinned upstream verifier.
-
-Those components are important integration context, but they are not the new
-claim of this branch.  They supply the independently exercised consumer against
-which the direct-specialization boundary is tested.  Production continues to
-use them with the finite authenticated table schedule until the missing
-per-prime producer and proved height bound are complete.
-
-## Build and validate this milestone
-
-The native build requires a C++20 compiler and GMP.  Run the focused test with:
-
-```sh
-make test-direct-modpoly test-prime-isogeny
+```text
+Phi_ell(x,Y)       and       d/dX Phi_ell(x,Y).
 ```
 
-That test independently checks:
+The current milestone reaches from checked quadratic-order selection through
+table-free auxiliary-field `j`-specialization.  It does **not** yet provide the
+signed Weber surface/floor evaluator or a proved Weber coefficient-height
+bound, so the production point counter still uses authenticated tables.  This
+branch does not claim a new `nextprime(10^125)` certificate.
 
-- known class numbers and invalid-order rejection;
-- deterministic suitable-order discovery for all 166 admissible catalog
-  levels through 997, including formula/enumeration agreement and cap failure;
-- both trace-parity branches and every retained CRT-prime equation;
-- deterministic rejection of composites, a strong pseudoprime, duplicates,
-  and auxiliary inputs outside the proved 64-bit range;
-- signed exact-CRT reconstruction over `F_1009` and the 416-bit `p125` field;
-- insufficient coverage, malformed or corrupted provider output, and the
-  target-power lift subtlety; and
-- coefficient-for-coefficient agreement of the complete level-5 path with an
-  authenticated Weber table oracle.
+## What this branch implements
 
-`test-prime-isogeny` uses two independent CM fixtures, including both modular
-square-root branches.  It checks all six level-5 cyclic kernels against the
-SEA division polynomial, compares point-sum Vélu coefficients with the
-independent kernel-power-sum implementation, verifies every codomain against
-an authenticated classical modular polynomial, and confirms the exact group
-order by brute force.
+For one SEA level `ell`, the new path now performs these steps:
 
-The inherited core, Atkin, eigenvalue, search, and certificate suites remain
-available through the Makefile.  The full suite can additionally use Magma as
-an independent point-count oracle:
+1. Discover and independently validate a suitable imaginary quadratic order
+   using the ring-class formula and primitive reduced-form enumeration.
+2. Select deterministically proved 64-bit auxiliary primes with retained
+   `(p,t,v,D)` witnesses satisfying
+
+   ```text
+   4p = t^2 - ell^2 v^2 D.
+   ```
+
+3. Compute powers in the target field first and lift their canonical integer
+   representatives, as required by the direct-evaluation algorithm.
+4. Validate a supplied `H_O mod p`, require complete square-free splitting,
+   choose the unique trace-signed twist for each interpolation root, and check
+   the expected horizontal/descending edge counts.
+5. Enumerate all `ell+1` rational cyclic kernels and construct every Vélu
+   quotient over the auxiliary field without consulting `Phi_ell`.
+6. Build each neighbor polynomial and apply only the two Lagrange linear
+   functionals needed for `Phi_ell(x,Y)` and its X derivative.  The producer
+   never constructs or loads the bivariate target-level modular polynomial.
+7. Stream checked residues into exact centered CRT reconstruction, with strict
+   coverage, normalization, and coefficient-bound checks.
+
+The level-5 fixture exercises steps 1--6 end to end.  The CRT layer is
+independently exercised with signed synthetic data, the 416-bit `p125` target,
+and authenticated-table differential oracles.
+
+## Current boundary
+
+| Component | State |
+|---|---|
+| Suitable-order discovery and validation | Implemented, bounded, and deterministic |
+| Witnessed auxiliary-prime selection | Implemented for proved 64-bit primes |
+| Target-field power lifting | Implemented |
+| Complete rational-kernel enumeration and Vélu quotients | Implemented |
+| CM `j`-surface admission and trace-sign selection | Implemented |
+| Table-free classical `j` residue at an auxiliary prime | Implemented and differentially tested at `ell=5` |
+| Exact CRT reconstruction | Implemented and corruption-tested |
+| Hilbert class polynomial generation/authentication | Not implemented; current API validates caller-supplied state |
+| Signed Weber surface/floor enumeration | Not implemented |
+| Proved normalization-specific Weber height bound | Not implemented |
+| Production replacement of the table catalog | Not enabled |
+| Unbounded search or new `p125` certificate | Not demonstrated |
+
+“Table-free” here refers to the native auxiliary-prime producer.  Tests still
+load an authenticated classical `Phi_5` as an independent oracle and demand
+coefficient-for-coefficient agreement; production code does not use that
+oracle.
+
+## Build and validate
+
+The native build requires a C++20 compiler and GMP.  Run the branch-focused
+tests with:
+
+```sh
+make test-direct-modpoly test-prime-isogeny test-cm-surface
+```
+
+These tests independently check:
+
+- suitable orders at every odd prime level through 997, including agreement
+  between two class-number computations and explicit cap failures;
+- both trace-parity branches and every retained `(p,t,v,D)` equation;
+- rejection of composites, a strong pseudoprime, duplicates, malformed
+  residues, insufficient CRT coverage, and inputs outside the proved range;
+- exact reconstruction over `F_1009` and the 416-bit `p125` field;
+- all six level-5 cyclic kernels on two unrelated CM fixtures, using an
+  independent division-polynomial kernel path and an independent Vélu
+  coefficient computation;
+- complete splitting of `H_-71 mod 1811`, the seven expected surface
+  invariants, unique trace-sign admission, and two horizontal plus four
+  descending edges at every interpolation point; and
+- exact agreement of the native value and X-derivative residues with an
+  authenticated classical `Phi_5` oracle.
+
+The inherited integration, Atkin, eigenvalue, search, certificate, and verifier
+tests remain available through `make test-all`.  Magma can optionally be used
+as a separate point-count oracle:
 
 ```sh
 MAGMA=/path/to/magma make test-all
 ```
 
-Magma is optional test infrastructure; the production point counter does not
-call Magma, Sage, PARI/GP, or another SEA implementation.
+Magma, Sage, PARI/GP, and external SEA implementations are not called by the
+native producer.
 
 ## Soundness boundary
 
-A positive Elkies result is protected downstream by normalized-codomain,
-BMSS-isogeny, and Frobenius identities.  A no-root/Atkin result cannot carry
-the same local witness and therefore depends on the authenticity of the
-specialization coefficients.  The new CRT path must not influence production
-no-root conclusions until its volcano producer and proved Weber height bound
-pass the differential gates.
+A positive Elkies result has strong downstream BMSS-isogeny and Frobenius
+checks.  An Atkin/no-root classification cannot carry the same local witness,
+so it depends directly on the authenticity of the specialization.  For that
+reason, the new path fails closed and remains outside production until the
+Weber sign rules, class-invariant provenance, and coefficient-height proof are
+implemented and differentially validated.
 
-Likewise, search heuristics may schedule work but may not reject a curve.
-Early smoothness rejection is sound only after enumerating the complete
-Hasse-compatible trace set and computing exact smooth parts for both the curve
-and its twist.
+Search heuristics may reorder work, but they may not reject curves.  A
+smoothness early abort is sound only after the complete Hasse-compatible trace
+set has been enumerated and both the curve and twist orders have been checked.
 
-## Asymptotic scope
+## Asymptotic status
 
 Let `n = ceil(log2 p)`, use the verifier's smoothness bound `B=n^4`, and require
 a certified divisor of size `p^(1/2+o(1))`.  Under the usual
-Dickman--Mertens model, a random order succeeds with probability
-`p^(-1/8+o(1))`, giving an expected `p^(1/8+o(1))` curves.  A custom SEA point
-count whose cost is polynomial in `n` is absorbed into the `o(1)` exponent;
-this is the intended heuristic advantage over the CM search term
-`p^(1/4+o(1))`.
+Dickman--Mertens heuristic, a random curve order succeeds with probability
+`p^(-1/8+o(1))`, so the expected search is `p^(1/8+o(1))` curves.  If each SEA
+count costs only `poly(n)`, that cost is absorbed into the `o(1)` exponent.
+This is the intended advantage over the CM search term `p^(1/4+o(1))`.
 
-This branch does not yet establish that end-to-end property.  Its order search
-is bounded and correctness-oriented, its practical fixed-`v` prime selector is
-not the randomized selector used in Sutherland's GRH analysis, and the
-HCP/volcano producer plus a proved Weber height bound are absent.  Until those
-pieces are implemented with polynomial-in-`n` cost, the exponent is a design
-target supported by the smoothness heuristic—not a measured or proved scaling
-property of the current production program.
+The branch architecture is compatible with that target: it streams
+specializations, avoids a bivariate target-level table, and uses work
+polynomial in the interpolation and CRT sizes.  The repository does not yet
+establish the end-to-end claim.  Its order and auxiliary-prime searches are
+bounded practical selectors, and the missing HCP/Weber producer and proved
+height bound still have to meet the cited polynomial-time analysis.
 
-## Why review is useful now
+## Why this milestone is worth reviewing
 
-This is a useful point for Drew to review because the branch isolates a small
-mathematical trust boundary before the much larger volcano evaluator is built.
-The review can answer five concrete questions:
+This is a useful, bounded review point for Drew because the branch now has a
+complete auxiliary-field `j` fixture and a narrow producer contract.  A review
+can confirm the mathematical invariants before Weber sign propagation makes
+the implementation substantially larger:
 
-1. Are the suitable-order predicates and independent class-number checks
-   faithful to the cited algorithm?
-2. Are the parity cases and `(p,t,v,D)` prime witnesses correct?
-3. Are target powers computed in the target field and only then lifted, as
-   Algorithm 1 requires?
-4. Do the strict CRT coverage, centered rounding, and common coefficient bound
-   justify every reconstructed coefficient?
-5. Does the callback return exactly the value and X-derivative polynomials
-   required by the already validated BMSS/Frobenius consumer?
+1. Are the suitable-order and `(p,t,v,D)` predicates faithful to the direct
+   evaluation algorithm?
+2. Does complete HCP splitting plus unique trace-signed twist admission place
+   every interpolation curve on the intended CM surface?
+3. Are all `ell+1` kernels complete, distinct, and converted to the correct
+   Vélu codomains?
+4. Do the two interpolation functionals compute exactly the required value
+   and X-derivative channels?
+5. Are target-field lifting, strict CRT coverage, centered reconstruction, and
+   the no-root trust boundary sound?
 
-Agreement on these invariants now fixes the producer API and prevents the
-remaining implementation from being built against a wrong normalization.  It
-is not a request to endorse a completed direct evaluator, an unbounded
-complexity claim, or a `p125` proof.
+If those answers are yes, the milestone validates the geometric and CRT core
+needed by the intended one-shot SEA path.  It does not ask the reviewer to
+endorse a finished Weber evaluator, the claimed asymptotic crossover, or a new
+large certificate.
 
-## Review map
+## Code map
 
-- [`include/oneshotsea/direct_modpoly.hpp`](include/oneshotsea/direct_modpoly.hpp):
-  public checked types and the residue-provider contract.
-- [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp): order discovery,
-  validation, prime selection, power lifts, and exact CRT.
+- [`include/oneshotsea/direct_modpoly.hpp`](include/oneshotsea/direct_modpoly.hpp)
+  and [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp): checked orders,
+  auxiliary primes, target lifts, residue contracts, and exact CRT.
 - [`include/oneshotsea/prime_isogeny.hpp`](include/oneshotsea/prime_isogeny.hpp)
-  and [`src/prime_isogeny.cpp`](src/prime_isogeny.cpp): native auxiliary-field
-  group arithmetic, complete rational subgroup enumeration, and Vélu edges.
-- [`tests/test_direct_modpoly.cpp`](tests/test_direct_modpoly.cpp): focused
-  positive, negative, corruption, and table-differential evidence.
-- [`tests/test_prime_isogeny.cpp`](tests/test_prime_isogeny.cpp): independent
-  CM, division-polynomial, Vélu, modular-polynomial, and exact-order checks.
+  and [`src/prime_isogeny.cpp`](src/prime_isogeny.cpp): auxiliary-field point
+  arithmetic, complete cyclic-kernel enumeration, and Vélu edges.
+- [`include/oneshotsea/cm_surface.hpp`](include/oneshotsea/cm_surface.hpp) and
+  [`src/cm_surface.cpp`](src/cm_surface.cpp): HCP splitting, trace-sign CM
+  admission, edge classification, and table-free interpolation.
+- [`tests/test_direct_modpoly.cpp`](tests/test_direct_modpoly.cpp),
+  [`tests/test_prime_isogeny.cpp`](tests/test_prime_isogeny.cpp), and
+  [`tests/test_cm_surface.cpp`](tests/test_cm_surface.cpp): focused positive,
+  negative, and independent differential evidence.
 - [`docs/explicit_crt_producer.md`](docs/explicit_crt_producer.md): equations,
-  proof obligations, limitations, and the next implementation gate.
-- [`docs/direct_specialization_boundary.md`](docs/direct_specialization_boundary.md):
-  exact handoff to Weber/BMSS/Frobenius SEA.
-- [`docs/sea_design.md`](docs/sea_design.md): inherited as-built SEA/search
-  design and the detailed asymptotic model.
+  proof obligations, and the remaining Weber producer gate.
+- [`docs/sea_design.md`](docs/sea_design.md): the integrated SEA/search design
+  outside this branch-specific milestone.
 
 ## Primary references
 

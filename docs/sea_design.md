@@ -410,10 +410,13 @@ bits.  The order discovery is bounded and correctness-first rather than the
 asymptotically optimized selector.  The producer now has the table-free
 surface-edge primitive: exact-order rational `ell`-subgroups are distinguished
 by kernel polynomial, all `ell+1` are required, and direct point-sum Vélu
-quotients are independently checked.  A proved Weber height bound, the CM
-surface/floor torsor walks, consistent Weber lifts, and coefficient
-interpolation remain open.  Until they are implemented, the authenticated
-finite Weber catalog is still the production source.  See
+quotients are independently checked.  Given a split caller-supplied HCP, the
+producer now admits the correct trace-signed CM `j` surfaces, classifies their
+horizontal and descending edges, and interpolates both classical residue
+channels without a target-level bivariate table.  A proved Weber height bound,
+authenticated HCP production, and consistent Weber surface/floor signs remain
+open.  Until they are implemented, the authenticated finite Weber catalog is
+still the production source.  See
 `docs/explicit_crt_producer.md` and
 `docs/direct_specialization_boundary.md` for the exact contract, validation,
 complexity boundary, and remaining work.

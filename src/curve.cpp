@@ -88,6 +88,21 @@ MontgomeryCurve deterministic_montgomery_curve(const mpz_class& prime, std::uint
     return MontgomeryCurve(std::move(field), coefficient);
 }
 
+Curve short_weierstrass_curve_from_j(const Field& field,
+                                     const mpz_class& j_invariant) {
+    const mpz_class j = field.normalize(j_invariant);
+    if (j == 0 || j == field.normalize(1728)) {
+        throw std::domain_error(
+            "short-Weierstrass j model excludes j=0 and j=1728");
+    }
+    const mpz_class k = field.divide(j, field.sub(1728, j));
+    Curve curve(field, field.mul(3, k), field.mul(2, k));
+    if (curve.is_singular() || curve.j_invariant() != j) {
+        throw std::logic_error("short-Weierstrass j model validation failed");
+    }
+    return curve;
+}
+
 mpz_class count_points_bruteforce(const Curve& curve, unsigned long limit) {
     if (curve.is_singular()) {
         throw std::invalid_argument("cannot count points on a singular curve");

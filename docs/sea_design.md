@@ -607,8 +607,12 @@ after the certified-singleton audit, may identify the final trace when the
 intersection of every exact and certified constraint with the Hasse interval
 has cardinality exactly one. Telemetry continues to report exact-Elkies and
 effective candidate counts separately, so this does not relabel Atkin evidence
-as an exact residue. Full Weber-to-`j` descent remains the route to extending
-this optimization beyond authenticated classical specializations.
+as an exact residue. The fixed-p125 audit reaches one effective candidate while
+221,262 exact-only candidates remain and matches an independent PARI point
+count; see the
+[certified-singleton artifact](../artifacts/local/p125-certified-atkin-singleton-20260803/README.md).
+Full Weber-to-`j` descent remains the route to extending this optimization
+beyond authenticated classical specializations.
 
 Atkin constraints are ranked by
 
@@ -618,9 +622,10 @@ score = measured_information_probability / measured_cost.
 ```
 
 A meet-in-the-middle CRT enumerator combines only the selected constraints and
-intersects the Hasse interval.  Final trace certification does not depend on
-them: require `M > 2*floor(sqrt(4p))` from exact Elkies residues.  This policy
-can later be relaxed only after a separate audit.
+intersects the Hasse interval. An exact-Elkies modulus
+`M > 2*floor(sqrt(4p))` remains a sufficient singleton condition, but is no
+longer necessary: a cardinality-one intersection of the exact and certified
+Atkin components is itself a proof of the unique Hasse-compatible trace.
 
 ## 7. Early abort tailored to the certificate
 

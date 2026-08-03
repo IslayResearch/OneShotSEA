@@ -72,6 +72,12 @@ What has been demonstrated at the 416-bit p125 target:
   all four screenings with candidate counts 1, 13, 4, and 5; independent PARI
   counts were contained in every retained set. See the
   [cohort evidence](artifacts/local/p125-direct-first-cohort-20260803/README.md).
+- On the cohort's difficult curve at cap one, the old policy continued past a
+  certified effective singleton and exhausted the table. The audited policy
+  stops at `ell=379`, avoids four Weber levels, recovers the independently
+  counted PARI trace, and reaches sound smoothness screening while reporting
+  221,262 exact-only candidates separately. See the
+  [certified-singleton evidence](artifacts/local/p125-certified-atkin-singleton-20260803/README.md).
 - A 240-record Atkin A/B produced identical results while improving direct
   evaluation by 10.96x and peak RSS by 28.71x. See the
   [Atkin evidence](artifacts/local/p125-direct-atkin-mitm-20260803/README.md).

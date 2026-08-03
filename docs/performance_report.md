@@ -163,6 +163,27 @@ screening and the certified unique-trace gate, is emitted in curve telemetry, an
 changes the schedule digest.  The retained family A/B predates this policy, so
 it does not measure the policy's additional SEA reduction.
 
+### Certified Atkin singleton completion at p125
+
+The selected-20 direct-first schedule exposed a cap-one policy gap on p125
+index 2,000,004. At Weber level 379 the exact-Elkies state still represented
+221,262 Hasse traces, while the complete exact-plus-certified-Atkin
+intersection represented one. The old policy ignored the effective singleton,
+evaluated levels 383, 389, 397, and 401, and stopped as `sea_level_limit`
+without advancing the cursor.
+
+The audited policy accepts only a cardinality-one effective intersection,
+keeps exact/effective telemetry separate, and emits that trace for the normal
+smoothness and certificate gates. It stopped at level 379, matched the retained
+independent PARI trace, screened both orders, and ended in
+`sound_smoothness_reject`. The four avoided levels are 7.02% of the old
+57-level continuation and accounted for 15.764 seconds of baseline level work.
+Because the two executions had different thermal conditions, the observed
+1.019x total and 1.131x SEA ratios are not claimed as controlled speedups.
+The reproducible result is the coverage transition from an implementation
+limit to sound screening. See the
+[certified-singleton artifact](../artifacts/local/p125-certified-atkin-singleton-20260803/README.md).
+
 The controlled threshold study on production index 0 found candidate counts
 of 55,089 at level 281, 195 at level 283, and one at level 307.  Screening the
 195 traces meant extracting 390 order smooth parts and took 99.722 s.  The two

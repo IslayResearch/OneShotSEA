@@ -1,0 +1,125 @@
+{
+  "schema": "oneshotsea.p125-certified-atkin-singleton.v1",
+  "implementation": {
+    "commit": "78a4ec5f615aaa836cdc9d8cb308fb572c526b1b",
+    "tree": "4f527198830cdfd1e2a80fe0614931f08276f163",
+    "binary_sha256": "159bddd17e799b0178ee0a9a6731bae951e9c92d3a46442f9a63cb530849f39d",
+    "direct_policy": "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-v3"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416,
+    "seed": "202607300000",
+    "curve_family": "x1-27",
+    "x1_require_point4": true,
+    "index": "2000004",
+    "range_end": "2000005",
+    "trace_cap": 1,
+    "max_level": 401
+  },
+  "authenticated_inputs": {
+    "direct_levels": [7, 5, 11, 13, 19, 17, 23, 29, 31, 37, 41, 43, 47, 53, 67, 71, 79, 61, 73, 59],
+    "direct_context_sha256": "d9848275c04d77c5a40f96eb06f113100ebc7a1b3ac0bc6c15d207677be41a53",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5"
+  },
+  "baseline": {
+    "implementation_commit": "152126cd6b195ae1b2408d9bfb0ebe9316133997",
+    "implementation_tree": "fc12baecf184c8f37ec524e0a331ed7f7ea45a4a",
+    "build_id": "local:152126c-selected20-cap1-index2000004",
+    "schedule_sha256": "b4a91a8b0d2b516d36949d151cba69d118431aef944af1d5ddb8b644191bfc6b",
+    "progress_sha256": "3dba70b7de0cf5b1fa90b83df0f767195cdfe726e8400f377bfc5d18a8f81411",
+    "status": "sea_level_limit",
+    "full_point_count": false,
+    "reached_smoothness": false,
+    "sea_levels": 57,
+    "exact_sea_levels": 18,
+    "exact_direct_levels": 10,
+    "atkin_direct_levels": 10,
+    "ell_379": {
+      "exact_modulus": "5716798406559269519820163879227782219017194597814310081616",
+      "effective_modulus": "471499262003586712111995681079291450683031449806373782122450200668765520",
+      "exact_trace_candidates": 221262,
+      "effective_trace_candidates": 1,
+      "trace_residue": 71
+    },
+    "final_exact_modulus": "2269568967404029999368605060053429540949826255332281102401552",
+    "final_effective_modulus": "187185207015423924708462285388478705921163485573130391502612729665499911440",
+    "final_exact_trace_candidates": 557,
+    "final_effective_trace_candidates": 1,
+    "tail_levels": [373, 379, 383, 389, 397, 401],
+    "post_singleton_levels": [383, 389, 397, 401],
+    "post_singleton_level_work_us": [2149637, 2100115, 9602628, 1911377],
+    "next_index": "2000004",
+    "complete": false,
+    "timings_us": {
+      "generation": 25427616,
+      "sea": 151448610,
+      "direct": 9908069,
+      "weber": 141540541,
+      "smoothness": 0,
+      "total": 176876241
+    }
+  },
+  "candidate": {
+    "build_id": "local:atkin-singleton-v3-index2000004",
+    "schedule_sha256": "3af75af1123e4c4d25233921aefc32a5675b496b82452213b42923794b530de2",
+    "progress_sha256": "cc1d660a39b958a867d1c7e9785302eddc90bb4e0e5fa5ae6a946e300a2af220",
+    "status": "sound_smoothness_reject",
+    "outcome_class": "sound_rejection",
+    "sound_early_abort": true,
+    "full_point_count": true,
+    "reached_smoothness": true,
+    "sea_levels": 53,
+    "exact_sea_levels": 17,
+    "exact_direct_levels": 10,
+    "atkin_direct_levels": 10,
+    "final_exact_modulus": "5716798406559269519820163879227782219017194597814310081616",
+    "final_effective_modulus": "471499262003586712111995681079291450683031449806373782122450200668765520",
+    "final_exact_trace_candidates": 221262,
+    "final_effective_trace_candidates": 1,
+    "trace": "432966650303160993124127306120296021107647349914430129038843294",
+    "last_levels": [349, 353, 359, 367, 373, 379],
+    "last_exact_residues": {
+      "373": 13,
+      "379": 71
+    },
+    "curve_order": "99999999999999999999999999999999999999999999999999999999999999567033349696839006875872693879703978892352650085569870961156944",
+    "twist_order": "100000000000000000000000000000000000000000000000000000000000000432966650303160993124127306120296021107647349914430129038843532",
+    "next_index": "2000005",
+    "complete": true,
+    "timings_us": {
+      "generation": 31383380,
+      "sea": 133851176,
+      "direct": 12998309,
+      "weber": 120852867,
+      "smoothness": 8316033,
+      "total": 173550629
+    }
+  },
+  "comparison": {
+    "avoided_weber_levels": 4,
+    "avoided_weber_level_fraction": 0.07017543859649122,
+    "baseline_post_singleton_work_us": 15763757,
+    "observed_total_ratio": 1.0191622007892578,
+    "observed_sea_ratio": 1.1314701486074354,
+    "controlled_timing_speedup_claimed": false,
+    "functional_change": "implementation_limit_to_sound_screening"
+  },
+  "independent_point_count": {
+    "system": "PARI/GP 2.17.4",
+    "path": "artifacts/local/p125-direct-first-cohort-20260803/raw/pari-point-counts.txt",
+    "sha256": "3f7b1849862acdf40a4cc58b98efd10181923e17f664bfb2f9e15e9427683e53",
+    "line": 4,
+    "index": "2000004",
+    "order": "99999999999999999999999999999999999999999999999999999999999999567033349696839006875872693879703978892352650085569870961156944",
+    "trace": "432966650303160993124127306120296021107647349914430129038843294"
+  },
+  "claims": {
+    "fixed_curve_correctness_and_coverage": true,
+    "certificate_found": false,
+    "yield_measured": false,
+    "cm_crossover_established": false,
+    "asymptotic_exponent_changed": false
+  }
+}

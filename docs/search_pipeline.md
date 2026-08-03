@@ -119,6 +119,13 @@ cap-one gate. It neither repeats the table pass nor treats Atkin evidence as an
 exact residue. The exact/Atkin constraints then flow through the unchanged
 smoothness, certificate, and canonical-verifier gates.
 
+The cap-one relaxation is source-bound and independently checked at p125: a
+curve with 221,262 exact-only candidates but one effective candidate stops at
+Weber level 379, matches the retained PARI point count, and reaches sound
+smoothness screening. The old policy continued through four additional levels
+and failed at the catalog limit. See the
+[certified-singleton audit](../artifacts/local/p125-certified-atkin-singleton-20260803/README.md).
+
 The direct policy version, ordered level list, auxiliary-prime candidate cap,
 and per-surface x-candidate cap are semantic and included in the schedule
 digest. Post-identity mutation therefore fails before curve processing. An

@@ -30,7 +30,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-direct-modpoly test-prime-isogeny test-cm-surface test-p125-direct-trace test-p125-direct-atkin-mitm-audit test-profile-classical-direct-cohort test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-direct-modpoly test-prime-isogeny test-cm-surface test-p125-direct-trace test-p125-direct-atkin-mitm-audit test-p125-certified-atkin-singleton-audit test-profile-classical-direct-cohort test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -197,6 +197,9 @@ test-p125-direct-trace: $(BUILD_DIR)/validate_p125_direct_trace $(BUILD_DIR)/one
 test-p125-direct-atkin-mitm-audit:
 	python3 artifacts/local/p125-direct-atkin-mitm-20260803/audit.py
 
+test-p125-certified-atkin-singleton-audit:
+	python3 artifacts/local/p125-certified-atkin-singleton-20260803/audit.py
+
 test-profile-classical-direct-cohort: $(BUILD_DIR)/oneshotsea \
 		$(BUILD_DIR)/profile_classical_direct_cohort
 	ONESHOTSEA_BINARY=$(BUILD_DIR)/oneshotsea \
@@ -224,7 +227,7 @@ test-runpod-search-audit:
 test-p125-topology-audit:
 	python3 -m unittest -v tests.test_p125_topology_audit
 
-test-performance-artifacts: test-p125-direct-atkin-mitm-audit
+test-performance-artifacts: test-p125-direct-atkin-mitm-audit test-p125-certified-atkin-singleton-audit
 	python3 tools/audit_performance_artifacts.py
 	python3 artifacts/local/p125-weber-catalog-magma-20260802/audit.py
 	python3 artifacts/local/weber-oracle-v2-10000-20260802/audit.py
@@ -323,7 +326,7 @@ test-runpod: all
 test-aws:
 	scripts/aws/test.sh
 
-test-all: test test-direct-modpoly test-prime-isogeny test-cm-surface test-p125-direct-trace test-p125-direct-atkin-mitm-audit test-profile-classical-direct-cohort test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
+test-all: test test-direct-modpoly test-prime-isogeny test-cm-surface test-p125-direct-trace test-p125-direct-atkin-mitm-audit test-p125-certified-atkin-singleton-audit test-profile-classical-direct-cohort test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

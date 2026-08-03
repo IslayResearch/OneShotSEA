@@ -1,0 +1,8 @@
+375113a1e44de57c0f428ce53a6e89046d2b9d686cb43d09d42812ce2b240f2b  ./fetch-metadata.json
+d7940ace2ff15112942def7d778f9e9ce7eb7176770111091068ad094a23b340  ./worker-0/checkpoint.json
+e50ec0dce68ed1c1a830b7e2f19101091f1f92228d45d97c446ead49c7f7f6ed  ./worker-0/progress.jsonl
+1cf484bb9904968e7940b009f142f4067a256e226dff12f025e363317f55af2b  ./worker-0/worker.log
+fdf121cde6a252c64e1bb513f6ea93c1459ebcd3136f366d9c1cd709190d182c  ./worker-0/manifest.json
+930444f5204cca8ae9b2cc209c0d12dd34dece92b951d417e18ce2a166ed31b7  ./worker-0/command.sh
+6919ee9b912c3fe6c33ab4886dfba669ef67ea1a2583dcf3c09532244d28a0f6  ./worker-0/attempts.jsonl
+7fcd22a288ffb4c429a354e9812856771c531d80c0378efb8995b3adfcabb462  ./worker-0/resource-usage.txt

@@ -30,7 +30,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-direct-modpoly test-prime-isogeny test-cm-surface test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-direct-modpoly test-prime-isogeny test-cm-surface test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -174,10 +174,26 @@ test-progress-audit:
 test-yield-model:
 	python3 tests/test_yield_model.py -v
 
+test-runpod-search-audit:
+	python3 -m unittest -v tests.test_audit_runpod_search
+
+test-p125-topology-audit:
+	python3 -m unittest -v tests.test_p125_topology_audit
+
 test-performance-artifacts:
 	python3 tools/audit_performance_artifacts.py
 	python3 artifacts/local/p125-weber-catalog-magma-20260802/audit.py
+	python3 artifacts/local/weber-oracle-v2-10000-20260802/audit.py
 	python3 artifacts/runpod/p125-runpod-cpu16-replay-550815e-20260802a/ohfo3hbov7ot8v/audit.py
+	python3 tools/audit_p125_topology.py \
+		artifacts/runpod/p125-topology-bx-550815e-20260803a/ohfo3hbov7ot8v \
+		artifacts/runpod/p125-topology-ax-550815e-20260803a/ohfo3hbov7ot8v \
+		artifacts/runpod/p125-topology-ay-550815e-20260803a/ohfo3hbov7ot8v \
+		artifacts/runpod/p125-topology-by-550815e-20260803a/ohfo3hbov7ot8v \
+		--build-provenance artifacts/runpod/p125-topology-gate-550815e-20260803a/build-provenance.json \
+		--binary artifacts/runpod/p125-runpod-cpu16-replay-550815e-20260802a/ohfo3hbov7ot8v/binaries/candidate.bin \
+		--source-repo . \
+		--result artifacts/runpod/p125-topology-gate-550815e-20260803a/result.json >/dev/null
 
 test-cli: all
 	python3 tests/test_cli.py -v
@@ -263,7 +279,7 @@ test-runpod: all
 test-aws:
 	scripts/aws/test.sh
 
-test-all: test test-direct-modpoly test-prime-isogeny test-cm-surface test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
+test-all: test test-direct-modpoly test-prime-isogeny test-cm-surface test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

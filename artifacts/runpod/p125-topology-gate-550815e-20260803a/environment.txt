@@ -1,0 +1,25 @@
+captured_utc=2026-08-03T00:57:19Z
+pod_id=ohfo3hbov7ot8v
+recorded_hourly_rate_usd=0.643
+deployment_commit=550815e0013361f5eee4cdb6b044f5cec1a9ae2c
+deployment_worktree=/workspace/OneShotSEA-550815e
+binary_path=/workspace/OneShotSEA-550815e/build/oneshotsea
+binary_sha256=550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737
+smooth_cache_path=/workspace/OneShotSEA/caches/p125.cache
+smooth_cache_sha256=afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551
+table_directory=/workspace/OneShotSEA-550815e/data/modpoly/weber_f
+authenticated_table_set_sha256=ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5
+uname=Linux aff31c627ce5 6.8.0-71-generic #71~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Thu Jun 26 16:42:47 UTC 2 x86_64 x86_64 x86_64 GNU/Linux
+host_cpu_model=AMD EPYC 7702P 64-Core Processor
+host_cpu_sockets=1
+host_cpu_cores_per_socket=64
+host_cpu_threads_per_core=2
+host_logical_cpus=128
+container_visible_logical_cpus=16
+host_memory_bytes=540639567872
+swap_bytes=0
+gcc_version=gcc-11 (Ubuntu 11.5.0-10ubuntu1~20~ppa3) 11.5.0
+gxx_version=g++-11 (Ubuntu 11.5.0-10ubuntu1~20~ppa3) 11.5.0
+python_version=Python 3.8.10
+git_version=git version 2.25.1
+build_flags=-O2 -g -std=c++20

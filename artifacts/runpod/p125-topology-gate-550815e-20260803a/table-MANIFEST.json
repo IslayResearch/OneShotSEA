@@ -1,0 +1,477 @@
+{
+  "conversion": "tools/fetch_weber_tables.py",
+  "files": {
+    "phi_101.txt": {
+      "bytes": 10726,
+      "level": 101,
+      "sha256": "e1c5cf59668b699645beea2d905ca93fbaa15211231cee5e5bc320d2e19782d0"
+    },
+    "phi_103.txt": {
+      "bytes": 11325,
+      "level": 103,
+      "sha256": "b825c44a0ea8f1a0617762285a5d2f7ac9970962f382a9ef56763e0b23c0dbcf"
+    },
+    "phi_107.txt": {
+      "bytes": 13065,
+      "level": 107,
+      "sha256": "fdab9700af4b798ddcf2b34a35e70911262ea4a9501d119836b0caf69a0b9d0d"
+    },
+    "phi_109.txt": {
+      "bytes": 13529,
+      "level": 109,
+      "sha256": "173a54fd0182851a3d7cff83d26d77f83cddaa154fd12b4cd9543ceaca354f95"
+    },
+    "phi_11.txt": {
+      "bytes": 116,
+      "level": 11,
+      "sha256": "160f67e11318413a29936f4bb57ff39654fb6ebf0fc7fa078aaf085268f00039"
+    },
+    "phi_113.txt": {
+      "bytes": 15017,
+      "level": 113,
+      "sha256": "9156bd2bd12b69d5037322e447dd0d715c3b8655568c8f9263489ce7ee687746"
+    },
+    "phi_127.txt": {
+      "bytes": 20942,
+      "level": 127,
+      "sha256": "fe5878da149ffe954c5e66db3a4cc3f996518f31f87baaf145e87b784ed2a87c"
+    },
+    "phi_13.txt": {
+      "bytes": 132,
+      "level": 13,
+      "sha256": "c6bb6330c138e6f235bb94f60bd722c701a2f5060aee04f9f5498f54dca3cc97"
+    },
+    "phi_131.txt": {
+      "bytes": 22815,
+      "level": 131,
+      "sha256": "37f5a3e31804a13822fe311b6de4d416529cb441acebc4afc875a0d6beb98d98"
+    },
+    "phi_137.txt": {
+      "bytes": 26006,
+      "level": 137,
+      "sha256": "48133fdf56cb4e70cdb9099192679f610caab04a47833bdbdfce0e163e12021e"
+    },
+    "phi_139.txt": {
+      "bytes": 27014,
+      "level": 139,
+      "sha256": "3572752fed8510e33d48f8c4cb96f2833184bb51472829595dbc01b355582c86"
+    },
+    "phi_149.txt": {
+      "bytes": 32613,
+      "level": 149,
+      "sha256": "94deaa3b0b386b95dd496b5de2fe4c64fbd2d060c7767251298c39e9bbf5bc73"
+    },
+    "phi_151.txt": {
+      "bytes": 34501,
+      "level": 151,
+      "sha256": "34a48a5cd07f5c4e867a795f1548964eb413c1188d8ff56c6827e5591edc1a03"
+    },
+    "phi_157.txt": {
+      "bytes": 39474,
+      "level": 157,
+      "sha256": "d26d0ebcad25db89d473667b8e4376436154d1468bd555fe83a093c8a58c0464"
+    },
+    "phi_163.txt": {
+      "bytes": 43138,
+      "level": 163,
+      "sha256": "249a696c2ed9be062be55d0e06e008197ec97666000a3bf2e96d4d679987f338"
+    },
+    "phi_167.txt": {
+      "bytes": 53138,
+      "level": 167,
+      "sha256": "8bc6119a6bab6e98a48c2f1f7466bdbddf9c4a474a0feb42217500452afdb2ec"
+    },
+    "phi_17.txt": {
+      "bytes": 183,
+      "level": 17,
+      "sha256": "4a5af68afe25580c4bc7fea4ea88777e4ee373816e1c613a6cfc2578256e041b"
+    },
+    "phi_173.txt": {
+      "bytes": 51230,
+      "level": 173,
+      "sha256": "58969010a2f98eddc57ef04a2cea9affcccbb865ced78a28f30a13f4afe58e47"
+    },
+    "phi_179.txt": {
+      "bytes": 57483,
+      "level": 179,
+      "sha256": "2162b34b74b4f0993004f7017adfddf076c8b0a9b02f9f944335cef8023f03e1"
+    },
+    "phi_181.txt": {
+      "bytes": 60143,
+      "level": 181,
+      "sha256": "337207c50d9a597372af07f24d9d0615f18b48e9f04ea37b42c93c0e332283b2"
+    },
+    "phi_19.txt": {
+      "bytes": 213,
+      "level": 19,
+      "sha256": "a5250f94d2f35c0a4654939540ece1622f5330c016823c705a3b29da2a18e7bf"
+    },
+    "phi_191.txt": {
+      "bytes": 75421,
+      "level": 191,
+      "sha256": "bb80c537766de40d73398777629f7badc4a640e4e768628dd88f5f1f12683dde"
+    },
+    "phi_193.txt": {
+      "bytes": 78190,
+      "level": 193,
+      "sha256": "6891ad620a58975fc5407888afdd6b960182de7813060543dace70d0f8a06745"
+    },
+    "phi_197.txt": {
+      "bytes": 75175,
+      "level": 197,
+      "sha256": "e037f3dc92cd70fd49cb2b61fc1b904fed8683ae30f697b2208df42444b4f201"
+    },
+    "phi_199.txt": {
+      "bytes": 78682,
+      "level": 199,
+      "sha256": "f74ebef2263ea5795e4326722e777e9f931d390818a4ba6bd49c991d03444571"
+    },
+    "phi_211.txt": {
+      "bytes": 92945,
+      "level": 211,
+      "sha256": "c84793357cb3c94552484dd4c4608b40a4b74e450222d402dec8345c286c7027"
+    },
+    "phi_223.txt": {
+      "bytes": 108980,
+      "level": 223,
+      "sha256": "22f60a1bb58b02529676f5e388c1d7a77ba34e1b50cf2a711d3099eb8c00615c"
+    },
+    "phi_227.txt": {
+      "bytes": 116659,
+      "level": 227,
+      "sha256": "3fb5412edcdb080717768420117ef142288ec82ceb7cc4f5bba6bea02e0ec997"
+    },
+    "phi_229.txt": {
+      "bytes": 119437,
+      "level": 229,
+      "sha256": "dfadec796e03357609f74e7268377a41d009131930e5440e59e2a5b1ff1ab7ee"
+    },
+    "phi_23.txt": {
+      "bytes": 353,
+      "level": 23,
+      "sha256": "085fd96866798e31115eacd3da61a4d53012164b78972266069b04fab60bd3ca"
+    },
+    "phi_233.txt": {
+      "bytes": 124946,
+      "level": 233,
+      "sha256": "1b1209786e2f26367c43ad9911136717db16ea5a4b1eaa11a2e2ddfdd2d31656"
+    },
+    "phi_239.txt": {
+      "bytes": 148515,
+      "level": 239,
+      "sha256": "a82a68cf25583c2994479c9e4adc7df2e4eabc2ad7d7d6a5b78389bef2a10905"
+    },
+    "phi_241.txt": {
+      "bytes": 155526,
+      "level": 241,
+      "sha256": "d045c272e06004e5188b08d9ee2f27520526fa10db355b3b0ed6784d99bb9750"
+    },
+    "phi_251.txt": {
+      "bytes": 159571,
+      "level": 251,
+      "sha256": "5296ed0a8b5274f18866f842cc3c46e30ff6cc8b931eff6f53914fd325fd4ec5"
+    },
+    "phi_257.txt": {
+      "bytes": 170223,
+      "level": 257,
+      "sha256": "485c2d8dd00bbc0ef5a092fa13e718799f8e59ef638e945d1830a07a2c6b2923"
+    },
+    "phi_263.txt": {
+      "bytes": 195033,
+      "level": 263,
+      "sha256": "db6335396ded656786614e36eea21dbcaba217a0328f4e756ed7fbaf61606e3e"
+    },
+    "phi_269.txt": {
+      "bytes": 193013,
+      "level": 269,
+      "sha256": "89a40e678ae9c3a21ca1bf55319b2d6e6653b0d5451fcb3c3af9392e5c3108d4"
+    },
+    "phi_271.txt": {
+      "bytes": 197217,
+      "level": 271,
+      "sha256": "3894c855972bd6fc664e7eda5834149f1e13cd4f318730f6afdc3d552efd8144"
+    },
+    "phi_277.txt": {
+      "bytes": 215309,
+      "level": 277,
+      "sha256": "6c43ae2c22c9bbbd9041da009e5bbfb20d16603a792b7bb67320f55c4b100da6"
+    },
+    "phi_281.txt": {
+      "bytes": 222493,
+      "level": 281,
+      "sha256": "e4c723a8f7d34ec3428870b1e7d08fdf599a1c76f36982a52910a74181324d07"
+    },
+    "phi_283.txt": {
+      "bytes": 224417,
+      "level": 283,
+      "sha256": "dca01f6ffabec07c15ad4623af9739078b01b4e949a731c2e6118a56551515bd"
+    },
+    "phi_29.txt": {
+      "bytes": 414,
+      "level": 29,
+      "sha256": "135a2d7a7773781adfe80062e4cee6bcf8c89a55b8451e57190492d26d571f92"
+    },
+    "phi_293.txt": {
+      "bytes": 249721,
+      "level": 293,
+      "sha256": "ebc5d53ce5be25bce27da8a4cb478fb5d9d8e1a0078ea16791eafbe21ce97b63"
+    },
+    "phi_307.txt": {
+      "bytes": 290046,
+      "level": 307,
+      "sha256": "c6665eb432bd7a9209ae08423ee066091406b8486ad10b2299aa3d290518fdb9"
+    },
+    "phi_31.txt": {
+      "bytes": 537,
+      "level": 31,
+      "sha256": "281726eb3551f1801ab2c3dfe7ffc0e95b33ce1897b75790fbfdb9082fe34609"
+    },
+    "phi_311.txt": {
+      "bytes": 322676,
+      "level": 311,
+      "sha256": "ad3aa638a52de4b3ef103b73af195c8e9d81fc72e620e5ee18ac5d7b2926b878"
+    },
+    "phi_313.txt": {
+      "bytes": 337466,
+      "level": 313,
+      "sha256": "eff7e8ecf86156f1a6d3c871a3839f8c06faba6da5f134759a412c027bb52d07"
+    },
+    "phi_317.txt": {
+      "bytes": 319201,
+      "level": 317,
+      "sha256": "c436beca41f97326b8e1ad78b597df551750a0e33712cfa746e95ee5ebf237c4"
+    },
+    "phi_331.txt": {
+      "bytes": 361501,
+      "level": 331,
+      "sha256": "bdb94d971b480e74848d7b14a57fd75d1d831e87f2fcd9dbc99aa644a1537c28"
+    },
+    "phi_337.txt": {
+      "bytes": 407193,
+      "level": 337,
+      "sha256": "9000069e451b4b31e87dc1aa6def701ca9cd80a652afb9fbc5b2844322232475"
+    },
+    "phi_347.txt": {
+      "bytes": 417728,
+      "level": 347,
+      "sha256": "6dfc89ff583c56746ddc203fdd327837027022cbad017127ba134fafbf598646"
+    },
+    "phi_349.txt": {
+      "bytes": 435677,
+      "level": 349,
+      "sha256": "186e2d8c21eef6f342c8335c30b573b5cb9b4e6d9c3a8d4551d44e613bc0e1e1"
+    },
+    "phi_353.txt": {
+      "bytes": 445223,
+      "level": 353,
+      "sha256": "443f768cd53be756ea254bee82db7d5f49762cdcaf25dfd6529a24ec5c0ea92e"
+    },
+    "phi_359.txt": {
+      "bytes": 507025,
+      "level": 359,
+      "sha256": "c3ca3c7207b28df6c03715329797481a4e9cc7fe79e57e1e3dc2a621d74ceca8"
+    },
+    "phi_367.txt": {
+      "bytes": 500256,
+      "level": 367,
+      "sha256": "db1d27407b8665f77a3b0766b6167c5d727cc9e0294b856d07936e10c1c6e1eb"
+    },
+    "phi_37.txt": {
+      "bytes": 787,
+      "level": 37,
+      "sha256": "5bb3d2d3f77d7ed0e47371e51c1720a169e0c71567d507254196e161a8cae98a"
+    },
+    "phi_373.txt": {
+      "bytes": 523589,
+      "level": 373,
+      "sha256": "41756bb2ccdc48dbd7ffd35bebd9408d169f2b665d79e2698956ca25b6db0fb1"
+    },
+    "phi_379.txt": {
+      "bytes": 549079,
+      "level": 379,
+      "sha256": "184f346c119bf6ec67a62431f0279177d50cc0e5fa2ebe633573e930419e1474"
+    },
+    "phi_383.txt": {
+      "bytes": 618084,
+      "level": 383,
+      "sha256": "8d24301441fe0eaefc56d2cab6e7481df26034ba310654ccc2dc19b980411ff5"
+    },
+    "phi_389.txt": {
+      "bytes": 594119,
+      "level": 389,
+      "sha256": "4616974f7670a89a4a64b7307a3ca87bec03785b3e70096bc90c3c7fba39b594"
+    },
+    "phi_397.txt": {
+      "bytes": 629460,
+      "level": 397,
+      "sha256": "bcbbd667d0c29d942fba794a9a816fe4c6de9f85fcea8c86c68308f640203de9"
+    },
+    "phi_401.txt": {
+      "bytes": 653263,
+      "level": 401,
+      "sha256": "08b2056511728afa8636c88e50d02c5633a583dbc5a2652184cfe456d7db9692"
+    },
+    "phi_41.txt": {
+      "bytes": 999,
+      "level": 41,
+      "sha256": "45333770134bf44767791c8e2ff5e8b4bf6eff5f08cc11414a1f6e93b476e8d7"
+    },
+    "phi_43.txt": {
+      "bytes": 1105,
+      "level": 43,
+      "sha256": "ca2bb7fc60d0d647e665549e675b1eeda6f27b001a4ded9f92baa94b7cb660a2"
+    },
+    "phi_47.txt": {
+      "bytes": 1517,
+      "level": 47,
+      "sha256": "250da027b9ad063552f3fde32fc8ba22c9cd0c9b746fda7d43bdc2df147dc22f"
+    },
+    "phi_5.txt": {
+      "bytes": 80,
+      "level": 5,
+      "sha256": "d41cf91849e40aa1a76a8145af66500fa4e925477413eab12ea89f4dba0783fc"
+    },
+    "phi_53.txt": {
+      "bytes": 1834,
+      "level": 53,
+      "sha256": "72dae1949e7e015da272e45f6841a23cf3e657eff17c19c92619832147e7c0f1"
+    },
+    "phi_59.txt": {
+      "bytes": 2464,
+      "level": 59,
+      "sha256": "4c004d6e93b7125f6123aef17ec96aaa85d57ee0c2e2de271d0fb5c04d8b582d"
+    },
+    "phi_61.txt": {
+      "bytes": 2674,
+      "level": 61,
+      "sha256": "a3b5dbe7ed7fe971a10d8da31d9f076b171841d6f364fbe2691bce8ebe6f741e"
+    },
+    "phi_67.txt": {
+      "bytes": 3433,
+      "level": 67,
+      "sha256": "d174614b0108f5957a31dba60135ccd6fa3cddc2e6147cf115004e726b2e27bc"
+    },
+    "phi_7.txt": {
+      "bytes": 87,
+      "level": 7,
+      "sha256": "3585d1cc52bab178f800d655e75a4102cb2ed03809753c42d8ecf8637d967ab0"
+    },
+    "phi_71.txt": {
+      "bytes": 4645,
+      "level": 71,
+      "sha256": "b4549fe364bb6093fe5ab23dd7567ba2af659cd4258e435ce9665b4ad93db2a5"
+    },
+    "phi_73.txt": {
+      "bytes": 4852,
+      "level": 73,
+      "sha256": "5a579760da1d589decfcf12d23d210b6d28045791c1a1c4831e2ac0a7277908d"
+    },
+    "phi_79.txt": {
+      "bytes": 5342,
+      "level": 79,
+      "sha256": "92c76a8d33104d654a01c227af30184f2730f9d8e5668ceaa2ed53d31661eafd"
+    },
+    "phi_83.txt": {
+      "bytes": 6302,
+      "level": 83,
+      "sha256": "5414e067862704fb4aa9fdd7f7ce76b2a6347fe7af14d7801d71606b39cdf22a"
+    },
+    "phi_89.txt": {
+      "bytes": 7363,
+      "level": 89,
+      "sha256": "e906e055aa4b1c7fbcb931727a611e2c98ce7851ea59044a78b4aa4241f5e326"
+    },
+    "phi_97.txt": {
+      "bytes": 10760,
+      "level": 97,
+      "sha256": "b34affe34c7bb2cc1815666b5d12d10f62c43de0c8107e50f108a06272edbb4c"
+    }
+  },
+  "format": "full symmetric sparse rows: x_degree y_degree integer_coefficient",
+  "independent_q_expansion_cross_check": "tools/generate_weber_modpoly.py through level 43",
+  "levels": [
+    5,
+    7,
+    11,
+    13,
+    17,
+    19,
+    23,
+    29,
+    31,
+    37,
+    41,
+    43,
+    47,
+    53,
+    59,
+    61,
+    67,
+    71,
+    73,
+    79,
+    83,
+    89,
+    97,
+    101,
+    103,
+    107,
+    109,
+    113,
+    127,
+    131,
+    137,
+    139,
+    149,
+    151,
+    157,
+    163,
+    167,
+    173,
+    179,
+    181,
+    191,
+    193,
+    197,
+    199,
+    211,
+    223,
+    227,
+    229,
+    233,
+    239,
+    241,
+    251,
+    257,
+    263,
+    269,
+    271,
+    277,
+    281,
+    283,
+    293,
+    307,
+    311,
+    313,
+    317,
+    331,
+    337,
+    347,
+    349,
+    353,
+    359,
+    367,
+    373,
+    379,
+    383,
+    389,
+    397,
+    401
+  ],
+  "max_level": 401,
+  "normalization": "f=zeta_48^-1*eta((z+1)/2)/eta(z), r=q^(1/48)",
+  "source": "https://math.mit.edu/~drew/webermodpoly/phi1.tar.gz",
+  "source_archive_sha256": "4ecc78a3163ba7232d67e3b2f5e678a2dbc038c7ee4a9d2e8c00c9e0b5a58176",
+  "source_catalog_sha256": "031c35989f12d8f93c3a992014d6275edb93a21a3a9c70b4b78ce317e7db5dd5",
+  "source_page": "https://math.mit.edu/~drew/WeberModPolys.html"
+}

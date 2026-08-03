@@ -1,6 +1,70 @@
-# OneShotSEA: direct SEA specialization branch
+# OneShotSEA
 
-This branch develops the part of OneShotSEA that must replace finite
+OneShotSEA is a native C++20 search program for one-shot elliptic-curve
+primality certificates.  Its production path generates deterministic curve
+families, performs custom Schoof--Elkies--Atkin point counting over an
+arbitrary input prime, soundly screens the curve and its twist for a large
+`n^4`-smooth order divisor, assembles the required Montgomery certificate, and
+checks any candidate with the pinned unmodified `OneShotPrimalityProofs`
+verifier.
+
+The primary 416-bit `p125` search is still open: retained local and RunPod
+ranges contain only sound smoothness rejections so far.  No certificate is
+claimed in this repository until a newly searched tuple passes the canonical
+verifier locally.  The production implementation uses the authenticated
+sparse Weber-f catalog; the table-free direct evaluator described below is an
+experimental extension and is not enabled in production.
+
+## Build and test
+
+The native build requires a C++20 compiler, GMP, POSIX threads, Python 3, and
+OpenMP for the bounded smooth-part backend.  From a clean checkout:
+
+```sh
+make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)" all
+make test-all
+make test-performance-artifacts
+```
+
+`make test-all` runs the native correctness, search, checkpoint, certificate,
+and verifier integration suites.  When Magma is installed, pass its executable
+explicitly to include the independent oracle gate:
+
+```sh
+MAGMA=/absolute/path/to/magma make test-all
+```
+
+The search CLI accepts an arbitrary odd target, deterministic global range,
+seed, worker partition, and resource topology.  The production command is
+intentionally recorded by the RunPod launcher rather than shortened into an
+unsafe copy-and-paste example here:
+
+```sh
+build/oneshotsea  # prints the native command/option synopsis
+scripts/runpod/launch-worker.sh --help
+```
+
+Start with [the SEA design](docs/sea_design.md), [the search-pipeline
+contract](docs/search_pipeline.md), [the performance report](docs/performance_report.md),
+and [the RunPod operations guide](docs/runpod.md).  The dependency and outcome
+gates are tracked in [the bottleneck registry](docs/bottleneck_registry.md).
+
+## Repository map
+
+- `include/oneshotsea/` and `src/`: finite-field, polynomial, SEA, exact-smooth,
+  search, checkpoint, and certificate code.
+- `data/modpoly/weber_f/`: authenticated production Weber-f catalog and
+  provenance manifest.
+- `third_party/oneshot_primality_proofs/`: pinned canonical certificate verifier.
+- `tests/`: native, Python, oracle, artifact, and operational contract tests.
+- `scripts/runpod/`: dry-run-first deployment, launch, supervision, fetch, and
+  stop tooling.
+- `artifacts/`: checksummed retained benchmark and bounded-search evidence.
+- `docs/`: algorithm, trust-boundary, benchmark, and operations records.
+
+## Experimental direct SEA specialization
+
+This branch also develops the part of OneShotSEA that must replace finite
 modular-polynomial tables if the one-shot primality search is to scale past
 the current catalog.  It is a correctness-first implementation of
 Sutherland-style direct modular-polynomial evaluation, specialized to the two

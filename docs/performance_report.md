@@ -39,6 +39,57 @@ unrecovered synthetic timing transcript and baseline invocation-time file.
 The 5.4 GB exact-smooth cache remains an authenticated reproducible dependency
 rather than committed performance evidence.
 
+## Production hot-path replay gate
+
+The accepted arithmetic changes were replayed on the exact same 30 production
+curves `[1000000,1000030)` on the 16-vCPU RunPod worker, with the same seed,
+X1(27) point-four family, table and smooth-cache identities, fallback policy,
+and resource topology.  The candidate was the clean immutable commit
+`550815e0013361f5eee4cdb6b044f5cec1a9ae2c`, binary SHA-256
+`550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737`.
+Persistent quotient-context reuse remained disabled because its stronger
+full-SEA gate had missed the required `1.05x` threshold.
+
+| Measurement | Baseline | Candidate | Candidate gate |
+|---|---:|---:|---:|
+| Wall time | 800.92 s | 554.18 s | `1.4452344x` speedup |
+| Embedded total time | -- | -- | `1.544832x` speedup |
+| Embedded SEA time | -- | -- | `1.879148x` speedup |
+| Maximum RSS | 10,552,336 KiB | 10,551,336 KiB | `0.999905x` baseline |
+| Swaps | 0 | 0 | pass |
+| Exit status | 0 | 0 | pass |
+
+Both runs produced 30 sound smoothness rejections, 14 complete point counts,
+zero heuristic skips, and zero certificates.  Their exact non-timing semantic
+projections have the same SHA-256,
+`0eacf10cd8524641896755ad5e540a7e24542d23527993880606c989485f1459`.
+The candidate attempt cost an estimated `$0.0989827056` at the recorded
+`$0.643/hour` rate.  The retained binaries, manifests, commands, GNU-time
+records, progress, checkpoints, checksums, result, and independent replay
+auditor are in [the RunPod replay artifact](../artifacts/runpod/p125-runpod-cpu16-replay-550815e-20260802a/ohfo3hbov7ot8v/result.json).
+
+The promoted binary then ran a predeclared adjacent-range `B_X -> A_X -> A_Y
+-> B_Y` topology bracket.  `A` was one process with 16 curve threads and `B`
+was two concurrently launched processes with 8 curve threads each.  Every
+other workload and trust identity was fixed, each side of a pair produced the
+same 64 exact semantic records, and all four legs completed without swaps,
+heuristics, nonzero exits, or certificates.
+
+| Pair | Dual wall union | Single wall | Single / dual | Dual summed peak RSS |
+|---|---:|---:|---:|---:|
+| X `[1000827,1000891)` | 1020.39 s | 1158.62 s | `1.1354678111x` | 20.126 GiB |
+| Y `[1000891,1000955)` | 1145.04 s | 1204.37 s | `1.0518147837x` | 20.125 GiB |
+
+The geometric-mean speedup is `1.0928411733x`, strictly above the predeclared
+`1.05x` gate; both individual speedups are strictly above one and both dual
+RSS sums are below the 48 GiB limit.  The four effective intervals cost an
+estimated `$0.808826` at `$0.643/hour`.  The hardened auditor validates the
+commands, assignments, chronology, concurrency, manifests, logs, GNU-time
+records, checkpoints and CRCs, progress semantics, checksums, fetch metadata,
+build provenance, retained binary, and source commit.  Full reproduction and
+the conservative next-epoch calculation are in [the topology gate
+artifact](../artifacts/runpod/p125-topology-gate-550815e-20260803a/README.md).
+
 ## 1. Sound early abort
 
 The production rule is conservative.  SEA stops early only after its current
@@ -73,6 +124,10 @@ The corpus took 4,116 seconds on the local Apple M4; the streaming offline
 factor/replay pass took 3.61 seconds.  Compact identities, commands, hashes,
 and results are retained in
 [`artifacts/local/weber-oracle-v2-10000-20260802/result.json`](../artifacts/local/weber-oracle-v2-10000-20260802/result.json).
+The complete 94,301,494-byte record stream is also retained as a deterministic
+3.6 MiB gzip beside that result; its audit streams and parses all 10,000
+records and reproduces SHA-256
+`0e02c9cb090bc3292a37fd924a092e21bef5629a3140541ed83db51bad1dfe6e`.
 
 The implemented exact trace-prior policy narrows this complete set without a
 heuristic assumption.  Weber-f adds `t = p+1 (mod 4)` only after directly

@@ -1,9 +1,10 @@
-# OneShotSEA — a custom SEA path for one-shot primality proofs
+# OneShotSEA — direct classical-`j` SEA for one-shot proofs
 
-This branch builds the SEA side of the one-shot primality-proof experiment. It
-implements direct classical-`j` modular-polynomial specialization, connects it
-to retained SEA trace constraints and sound early aborts, and makes the
-curve-independent work reusable through authenticated context caches.
+This README describes the work unique to this branch. The branch turns the SEA
+approach to one-shot primality proofs into a reviewable C++ implementation: it
+builds specialized classical modular polynomials, feeds their trace information
+into the real retained-state and early-abort path, and amortizes the
+curve-independent work with authenticated caches.
 
 The direct path is custom C++: it does not call PARI/GP, Magma, Sage, or another
 SEA implementation. For a target invariant `j` and prime level `ell`, it
@@ -13,11 +14,12 @@ constructs only the two polynomials consumed by the point counter:
 Phi_ell(j,Y)       and       partial Phi_ell(X,Y) / partial X at X=j.
 ```
 
-This is a working point-counting and search-integration checkpoint, not yet an
-end-to-end proof that the SEA search beats the existing CM search. The largest
-completed validation is a full direct-SEA trace of a fixed 416-bit p125 curve.
+The current deliverable is a working point-counting and search-integration
+checkpoint. Its largest completed validation is a full direct-SEA trace of a
+fixed 416-bit p125 curve. It is not yet an end-to-end one-shot certificate, a
+measured CM crossover, or a proof of the heuristic asymptotic claim.
 
-## What is implemented
+## Delivered on this branch
 
 The direct level producer:
 
@@ -47,7 +49,7 @@ an optional resource-only LRU retains it across curves. Cache generation
 likewise prepares, writes, and releases one level at a time while preserving
 the canonical v1 artifact format.
 
-## What is not implemented yet
+## Remaining work and non-claims
 
 The branch still needs:
 

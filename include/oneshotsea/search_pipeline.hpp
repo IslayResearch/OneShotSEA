@@ -282,6 +282,12 @@ struct SearchPipelineRunResult {
     std::uint64_t curves_processed = 0;
     bool exhausted_assigned_range = false;
     std::optional<SearchCurveReport> verified;
+    // Curve-independent direct-SEA levels constructed lazily at most once by
+    // this invocation and then shared read-only across curve workers.  The
+    // aggregate preparation time is reported separately for amortization;
+    // the first worker's wall-clock SEA time necessarily includes its wait.
+    std::size_t classical_direct_context_count = 0U;
+    std::uint64_t classical_direct_preparation_us = 0U;
     // True only when this invocation actually constructed the resource-only
     // cross-curve exact-smooth coordinator pool.
     bool smooth_batch_coordinator_enabled = false;

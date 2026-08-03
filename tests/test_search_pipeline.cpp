@@ -642,6 +642,108 @@ void test_direct_tail_preserves_remaining_weber_levels() {
           "direct-enabled survivors exhaust the authenticated Weber schedule before the optional tail");
 }
 
+void test_pipeline_prepares_direct_contexts_once_per_run() {
+    TemporaryDirectory temporary;
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.max_level = 5U;
+    config.early_trace_cap = 16U;
+    config.classical_direct_levels = {7U, 11U};
+    config.skip_incomplete_curves = true;
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime,
+                                             {.thread_count = 1});
+    const std::filesystem::path smooth_cache =
+        temporary.path() / "prepared-smooth.cache";
+    smooth.save(smooth_cache);
+    const std::string cache_sha = oneshotsea::sha256_file(smooth_cache);
+    const std::string verifier_sha =
+        oneshotsea::sha256_file(config.canonical_verifier);
+    const oneshotsea::SearchIdentity identity =
+        oneshotsea::make_search_identity(
+            config, {1, 3}, 0, 1, cache_sha, verifier_sha,
+            "prepared-direct-pipeline-test-v1");
+    config.expected_schedule_sha256 = identity.schedule_sha256;
+    config.expected_smooth_cache_sha256 = cache_sha;
+    config.expected_table_manifest_sha256 = identity.table_manifest_sha256;
+    config.expected_verifier_sha256 = verifier_sha;
+
+    oneshotsea::SearchState state(identity);
+    oneshotsea::SearchPipelineRunOptions options;
+    options.max_curves = 2U;
+    options.curve_threads = 2U;
+    options.checkpoint_path = temporary.path() / "prepared.checkpoint";
+    options.progress_path = temporary.path() / "prepared.ndjson";
+    options.certificate_path = temporary.path() / "prepared.cert";
+    std::vector<oneshotsea::SearchCurveReport> reports;
+    const oneshotsea::SearchPipelineRunResult result =
+        oneshotsea::run_search_pipeline(
+            config, smooth, state, options,
+            [&](const oneshotsea::SearchCurveReport& report,
+                const oneshotsea::SearchState&) {
+                reports.push_back(report);
+            },
+            [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    std::size_t direct_records = 0U;
+    std::vector<std::uint64_t> prepared_levels;
+    for (const auto& report : reports) {
+        direct_records += report.classical_direct_levels.size();
+        for (const auto& level : report.classical_direct_levels) {
+            if (std::find(prepared_levels.begin(), prepared_levels.end(),
+                          level.ell) == prepared_levels.end()) {
+                prepared_levels.push_back(level.ell);
+            }
+        }
+    }
+    check(result.curves_processed == 2U &&
+              result.classical_direct_context_count ==
+                  prepared_levels.size() &&
+              result.classical_direct_preparation_us != 0U &&
+              reports.size() == 2U && direct_records != 0U,
+          "multi-curve search lazily prepares each used direct level once and shares it across workers");
+
+    oneshotsea::SearchState no_work_state(identity);
+    oneshotsea::SearchPipelineRunOptions no_work;
+    no_work.max_curves = 0U;
+    const oneshotsea::SearchPipelineRunResult no_work_result =
+        oneshotsea::run_search_pipeline(
+            config, smooth, no_work_state, no_work, {},
+            [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    check(no_work_result.curves_processed == 0U &&
+              no_work_result.classical_direct_context_count == 0U &&
+              no_work_result.classical_direct_preparation_us == 0U,
+          "zero-work search does not pay direct-context preparation cost");
+
+    oneshotsea::SearchPipelineConfig capped = config;
+    capped.classical_direct_maximum_prime_candidates = 1U;
+    const oneshotsea::SearchIdentity capped_identity =
+        oneshotsea::make_search_identity(
+            capped, {1, 2}, 0, 1, cache_sha, verifier_sha,
+            "prepared-direct-cap-test-v1");
+    capped.expected_schedule_sha256 = capped_identity.schedule_sha256;
+    capped.expected_smooth_cache_sha256 = cache_sha;
+    capped.expected_table_manifest_sha256 =
+        capped_identity.table_manifest_sha256;
+    capped.expected_verifier_sha256 = verifier_sha;
+    oneshotsea::SearchState capped_state(capped_identity);
+    oneshotsea::SearchPipelineRunOptions capped_options;
+    capped_options.max_curves = 1U;
+    capped_options.checkpoint_path = temporary.path() / "capped.checkpoint";
+    capped_options.progress_path = temporary.path() / "capped.ndjson";
+    capped_options.certificate_path = temporary.path() / "capped.cert";
+    bool preparation_failed = false;
+    try {
+        static_cast<void>(oneshotsea::run_search_pipeline(
+            capped, smooth, capped_state, capped_options, {},
+            [](const oneshotsea::MontgomeryCertificate&) { return false; }));
+    } catch (const std::runtime_error&) {
+        preparation_failed = true;
+    }
+    check(preparation_failed && capped_state.next_index() == 1U &&
+              !std::filesystem::exists(capped_options.checkpoint_path) &&
+              !std::filesystem::exists(capped_options.progress_path),
+          "direct-context preparation cap failure leaves the durable curve cursor untouched");
+}
+
 void test_parallel_curve_ordering_and_shared_checkpoint() {
     TemporaryDirectory temporary;
     oneshotsea::SearchPipelineConfig config = small_config();
@@ -1726,6 +1828,7 @@ int main() {
         test_search_uses_retained_schoof_fallback_without_second_sea_pass();
         test_search_uses_classical_direct_tail_after_weber_completion();
         test_direct_tail_preserves_remaining_weber_levels();
+        test_pipeline_prepares_direct_contexts_once_per_run();
         std::cout << "search pipeline tests passed\n";
         return 0;
     } catch (const std::exception& error) {

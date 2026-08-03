@@ -62,6 +62,44 @@ private:
     std::size_t horizontal_edges_per_surface_;
 };
 
+// Immutable curve-independent state for one classical direct SEA level over a
+// fixed target characteristic.  Construction internally selects every
+// witnessed CRT prime, derives its ring class polynomial, and admits the
+// complete interpolation surface.  Search workers may share this context;
+// only target-j interpolation, CRT combination, and the target-field SEA
+// consumer remain per curve.
+class ClassicalDirectLevelContext {
+public:
+    unsigned level() const { return order_.level(); }
+    const mpz_class& target_modulus() const { return target_modulus_; }
+    const mpz_class& order_discriminant() const {
+        return order_.discriminant();
+    }
+    std::uint64_t class_number() const { return order_.class_number(); }
+    std::size_t auxiliary_prime_count() const { return witnesses_.size(); }
+
+private:
+    ClassicalDirectLevelContext(
+        SutherlandSuitableOrder order, mpz_class target_modulus,
+        mpz_class coefficient_abs_bound,
+        std::vector<SutherlandCrtPrime> witnesses,
+        std::vector<CmSurfaceEnumeration> surfaces);
+
+    friend ClassicalDirectLevelContext
+    prepare_classical_direct_level_context(
+        const SutherlandSuitableOrder&, const Field&, std::uint64_t,
+        std::uint64_t);
+    friend CrtSpecializationResult
+    reconstruct_classical_specialization_from_prepared_context(
+        const ClassicalDirectLevelContext&, const Field&, const mpz_class&);
+
+    SutherlandSuitableOrder order_;
+    mpz_class target_modulus_;
+    mpz_class coefficient_abs_bound_;
+    std::vector<SutherlandCrtPrime> witnesses_;
+    std::vector<CmSurfaceEnumeration> surfaces_;
+};
+
 // Validate one H_O mod p instance against the checked order and CRT witness,
 // require complete square-free splitting into h(O) roots, and admit every
 // surface curve (the first ell+2 are used for interpolation).  For every curve,
@@ -99,5 +137,15 @@ CrtSpecializationResult reconstruct_classical_specialization_from_cm(
     const SutherlandSuitableOrder& order, const Field& target_field,
     const mpz_class& source_j, std::uint64_t maximum_prime_candidates,
     std::uint64_t maximum_x_candidates_per_surface);
+
+ClassicalDirectLevelContext prepare_classical_direct_level_context(
+    const SutherlandSuitableOrder& order, const Field& target_field,
+    std::uint64_t maximum_prime_candidates,
+    std::uint64_t maximum_x_candidates_per_surface);
+
+CrtSpecializationResult
+reconstruct_classical_specialization_from_prepared_context(
+    const ClassicalDirectLevelContext& context, const Field& target_field,
+    const mpz_class& source_j);
 
 }  // namespace oneshotsea

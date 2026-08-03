@@ -503,6 +503,18 @@ class CliTests(unittest.TestCase):
             self.assertEqual(curve["trace"], "-10")
             self.assertEqual((root / "certificate.txt").read_text(),
                              "101 35 25 28\n")
+            summary = next(
+                record for record in records
+                if record["schema"] == "oneshotsea.search-summary.v1"
+            )
+            self.assertEqual(
+                summary["classical_direct_preparation"]["context_count"],
+                "1",
+            )
+            self.assertGreater(
+                int(summary["classical_direct_preparation"]["elapsed_us"]),
+                0,
+            )
 
             digest = hashlib.sha256(
                 (root / "smooth.cache").read_bytes()

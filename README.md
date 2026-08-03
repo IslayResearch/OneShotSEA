@@ -37,7 +37,7 @@ large-prime search is finished.  In particular:
 | Classical CM surface construction | Internally derived `D=-7*3^(2n)` ring class polynomials from fixed exact `Phi_3` resultants, complete surface admission, and Vélu enumeration of all `ell+1` cyclic quotients |
 | SEA consumption | Direct BMSS/Frobenius Elkies residues and certified Atkin factor-degree constraints |
 | Retained-state runner | Strict increasing direct-level schedules, exact-versus-Atkin completion rules, transactional progress, and sound bounded early screening |
-| Production integration | Optional classical direct tail, checkpoint/schedule binding, live and retained telemetry, and continuation from table evidence without a second table pass |
+| Search integration | Optional classical direct tail, checkpoint/schedule binding, live and retained telemetry, retained-state continuation, and lazy cross-curve reuse of immutable CM/CRT contexts |
 | Independent validation | Differential table oracles, independent division-polynomial and Vélu checks, independent Schoof congruences, progress replay, corruption tests, and sanitizer coverage |
 
 The inherited curve generators, smoothness engine, certificate builder,
@@ -72,7 +72,7 @@ including malformed witnesses, insufficient CRT coverage, incomplete CM
 surfaces, mixed signs, duplicate relations, bad schedules, identity mutation,
 and incomplete point counts.
 
-## Use the production tail
+## Use the opt-in local search tail
 
 Add an increasing list of distinct primes greater than three to a normal
 `oneshotsea search` command:
@@ -89,6 +89,21 @@ The direct policy version, ordered level list, and both failure caps are
 included in the schedule digest.  Changing them invalidates an existing
 checkpoint.  Exhausting a cap is reported as an implementation limit; it is
 never treated as a mathematical rejection.
+
+This path is currently admitted only by the local `oneshotsea search` CLI.
+The checked RunPod and AWS launch/audit wrappers intentionally do not accept
+these options yet, so an operator must not add them to a remote production
+run until those wrappers and their strict artifact auditor are extended and
+requalified.  The current p125 RunPod search therefore remains on the audited
+default table-backed schedule.
+
+Within one local search invocation, each curve-independent CM/CRT level is
+prepared lazily at its first use and then shared read-only by all curve
+workers. Unused later levels are never prepared. The summary reports the
+number of contexts actually prepared and their cumulative setup time. The
+first-use curve timing already includes its preparation or wait, so honest
+benchmarks report both fields but do not add setup to end-to-end wall time a
+second time.
 
 Per-level direct records include the suitable-order discriminant and class
 number, auxiliary-prime count, exact residue or Atkin projective order,
@@ -123,9 +138,13 @@ command, checkpoint trust model, telemetry schema, and operational limits.
   trace, and passes the unchanged canonical certificate verifier without a
   repeated table pass or Schoof fallback.
 
-Local timings have been roughly 0.2 s, 0.5 s, and 2.6 s for direct levels 5,
-7, and 11 on the fixed 416-bit fixture.  These numbers identify engineering
-hot spots; they are not an asymptotic benchmark.
+On the current local 416-bit X1(27) fixture, preparing the shared level-7 and
+level-11 contexts takes about 3.1 s.  The first direct evaluation therefore
+takes about 3.2 s, while a second independently generated curve using the same
+contexts takes about 0.10 s; both curves' direct evidence is checked against
+independent Schoof residues.  This roughly 30x cold-to-warm difference proves
+that the intended reuse is active, but it is a two-curve engineering sample,
+not an asymptotic benchmark or a production-throughput distribution.
 
 ## Correctness and trust boundary
 
@@ -161,8 +180,10 @@ The current architecture is compatible with that argument: it streams
 specializations and avoids a finite target-level table catalog.  It does not
 yet prove the end-to-end scaling claim.  The practical auxiliary-prime search
 is bounded to 64-bit primes and uses the paper's heuristic fixed-`v` selector;
-large-level memory, reusable curve-independent preparation, and production
-throughput still require measurement and optimization.
+large-level memory and production throughput still require measurement and
+optimization. Curve-independent preparation is now reused across local search
+workers and has a target-sized cold/warm regression; broader level schedules
+and multi-curve throughput distributions remain to be measured.
 
 ## Why this is worth expert review
 

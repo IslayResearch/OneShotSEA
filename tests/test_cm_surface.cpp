@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <future>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -251,9 +252,11 @@ void test_p125_classical_direct_path() {
     const oneshotsea::Field field(target_prime());
     const oneshotsea::Curve curve(field, 2, 3);
     const auto order = oneshotsea::derive_three_power_suitable_order(7);
+    const auto context = oneshotsea::prepare_classical_direct_level_context(
+        order, field, 1000000, 1000000);
     const auto reconstructed =
-        oneshotsea::reconstruct_classical_specialization_from_cm(
-            order, field, curve.j_invariant(), 1000000, 1000000);
+        oneshotsea::reconstruct_classical_specialization_from_prepared_context(
+            context, field, curve.j_invariant());
     const auto phi7 = oneshotsea::SparseModularPolynomial::load(
         7, "data/modpoly/j/phi_7.txt");
     const auto expected = phi7.specialize_x_with_derivative(
@@ -311,6 +314,182 @@ void test_p125_classical_direct_path() {
               table_trace5 == 3U && schoof_trace11 == 10U &&
               !direct_sea.traces.has_value(),
           "p125 direct SEA runner retains three exact levels without claiming completion");
+}
+
+void test_prepared_classical_context_equivalence() {
+    const oneshotsea::Field field(193);
+    const auto order = oneshotsea::derive_three_power_suitable_order(7);
+    const auto context = oneshotsea::prepare_classical_direct_level_context(
+        order, field, 100000U, 1000000U);
+    check(context.level() == 7U && context.target_modulus() == 193 &&
+              context.order_discriminant() == order.discriminant() &&
+              context.class_number() == order.class_number() &&
+              context.auxiliary_prime_count() != 0U,
+          "prepared direct context retains its checked target and CM metadata");
+
+    const std::array<mpz_class, 2> invariants = {20, 4};
+    for (const mpz_class& invariant : invariants) {
+        const auto one_off =
+            oneshotsea::reconstruct_classical_specialization_from_cm(
+                order, field, invariant, 100000U, 1000000U);
+        const auto prepared =
+            oneshotsea::reconstruct_classical_specialization_from_prepared_context(
+                context, field, invariant);
+        check(prepared.prime_count == one_off.prime_count &&
+                  prepared.crt_product == one_off.crt_product &&
+                  prepared.coefficient_abs_bound ==
+                      one_off.coefficient_abs_bound &&
+                  oneshotsea::equal(prepared.specialization.value(),
+                                    one_off.specialization.value()) &&
+                  oneshotsea::equal(
+                      prepared.specialization.x_derivative(),
+                      one_off.specialization.x_derivative()),
+              "prepared context reproduces both one-off specialization channels for each target j");
+    }
+
+    const oneshotsea::Curve elkies_curve =
+        oneshotsea::short_weierstrass_curve_from_j(field, 20);
+    const oneshotsea::Curve atkin_curve =
+        oneshotsea::short_weierstrass_curve_from_j(field, 4);
+    const auto sea_context = oneshotsea::make_classical_direct_sea_context(
+        field, {7U}, 100000U, 1000000U);
+    check(sea_context.target_modulus() == field.modulus() &&
+              sea_context.levels() == std::vector<std::uint64_t>{7U} &&
+              sea_context.maximum_prime_candidates() == 100000U &&
+              sea_context.maximum_x_candidates_per_surface() == 1000000U &&
+              sea_context.prepared_context_count() == 0U &&
+              sea_context.preparation_us() == 0U,
+          "prepared SEA schedule context binds target, levels, and execution caps");
+
+    const mpz_class elkies_trace =
+        field.modulus() + 1 -
+        oneshotsea::count_points_bruteforce(elkies_curve);
+    oneshotsea::TraceConstraints complete_initial(field.modulus());
+    complete_initial.refine_exact(
+        101U, mpz_fdiv_ui(elkies_trace.get_mpz_t(), 101U));
+    oneshotsea::WeberSeaResult already_complete{
+        complete_initial, complete_initial, {}, {}, {}, {}, std::nullopt, {}};
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        elkies_curve, already_complete, sea_context, 1U);
+    check(already_complete.traces.has_value() &&
+              already_complete.traces->size() == 1U &&
+              sea_context.prepared_context_count() == 0U,
+          "an already-complete retained state never prepares an unused direct level");
+
+    for (const oneshotsea::Curve* curve : {&elkies_curve, &atkin_curve}) {
+        oneshotsea::TraceConstraints initial(field.modulus());
+        oneshotsea::WeberSeaResult one_off{
+            initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+        oneshotsea::WeberSeaResult prepared{
+            initial, initial, {}, {}, {}, {}, std::nullopt, {}};
+        oneshotsea::extend_sea_with_classical_direct(
+            *curve, one_off, {7U}, 16U, 100000U, 1000000U);
+        oneshotsea::extend_sea_with_prepared_classical_direct(
+            *curve, prepared, sea_context, 16U);
+        const bool same_atkin =
+            prepared.atkin_constraints.size() ==
+                one_off.atkin_constraints.size() &&
+            (prepared.atkin_constraints.empty() ||
+             (prepared.atkin_constraints.front().ell ==
+                  one_off.atkin_constraints.front().ell &&
+              prepared.atkin_constraints.front().projective_order ==
+                  one_off.atkin_constraints.front().projective_order &&
+              prepared.atkin_constraints.front().trace_residues ==
+                  one_off.atkin_constraints.front().trace_residues));
+        check(prepared.constraints.modulus() ==
+                  one_off.constraints.modulus() &&
+                  prepared.constraints.residues() ==
+                      one_off.constraints.residues() &&
+                  prepared.effective_constraints.modulus() ==
+                      one_off.effective_constraints.modulus() &&
+                  prepared.effective_constraints.residues() ==
+                      one_off.effective_constraints.residues() &&
+                  same_atkin &&
+                  prepared.traces == one_off.traces &&
+                  prepared.classical_direct_levels.size() == 1U &&
+                  prepared.classical_direct_levels.front().exact ==
+                      one_off.classical_direct_levels.front().exact &&
+                  prepared.classical_direct_levels.front().trace_residue ==
+                      one_off.classical_direct_levels.front().trace_residue &&
+                  prepared.classical_direct_levels.front()
+                          .atkin_projective_order ==
+                      one_off.classical_direct_levels.front()
+                          .atkin_projective_order,
+              "prepared SEA runner preserves exact and Atkin retained-state semantics");
+    }
+    check(sea_context.prepared_context_count() == 1U &&
+              sea_context.preparation_us() != 0U,
+          "prepared SEA schedule constructs one level lazily and reuses it across curves");
+
+    const auto concurrent_context =
+        oneshotsea::make_classical_direct_sea_context(
+            field, {7U}, 100000U, 1000000U);
+    std::vector<std::future<bool>> concurrent;
+    for (std::size_t index = 0U; index < 4U; ++index) {
+        concurrent.push_back(std::async(
+            std::launch::async, [&, index] {
+                oneshotsea::TraceConstraints thread_initial(
+                    field.modulus());
+                oneshotsea::WeberSeaResult thread_state{
+                    thread_initial, thread_initial, {}, {}, {}, {},
+                    std::nullopt, {}};
+                const oneshotsea::Curve& curve =
+                    index % 2U == 0U ? elkies_curve : atkin_curve;
+                oneshotsea::extend_sea_with_prepared_classical_direct(
+                    curve, thread_state, concurrent_context, 16U);
+                return thread_state.classical_direct_levels.size() == 1U &&
+                       thread_state.classical_direct_levels.front().ell ==
+                           7U;
+            }));
+    }
+    for (std::future<bool>& future : concurrent) {
+        check(future.get(),
+              "concurrent prepared direct SEA reconstruction stays complete");
+    }
+    check(concurrent_context.prepared_context_count() == 1U &&
+              concurrent_context.preparation_us() != 0U,
+          "concurrent workers share one sticky direct-level preparation");
+
+    const oneshotsea::Field wrong_field(197);
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::reconstruct_classical_specialization_from_prepared_context(
+                      context, wrong_field, 20));
+          }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::reconstruct_classical_specialization_from_prepared_context(
+                          context, field, field.modulus() + 20));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::prepare_classical_direct_level_context(
+                          order, field, 0U, 1000000U));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::make_classical_direct_sea_context(
+                          field, {11U, 7U}, 100000U, 1000000U));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::make_classical_direct_sea_context(
+                          field, {7U}, 100000U, 0U));
+              }),
+          "prepared direct contexts reject target substitution, noncanonical j, invalid schedules, and zero caps");
+
+    oneshotsea::TraceConstraints wrong_initial(wrong_field.modulus());
+    oneshotsea::WeberSeaResult wrong_state{
+        wrong_initial, wrong_initial, {}, {}, {}, {}, std::nullopt, {}};
+    const oneshotsea::Curve wrong_curve =
+        oneshotsea::short_weierstrass_curve_from_j(wrong_field, 20);
+    check(rejects([&] {
+              oneshotsea::extend_sea_with_prepared_classical_direct(
+                  wrong_curve, wrong_state, sea_context, 16U);
+          }) &&
+              wrong_state.classical_direct_levels.empty() &&
+              wrong_state.constraints.modulus() == 1,
+          "prepared SEA target mismatch fails before mutating retained state");
 }
 
 void test_classical_direct_sea_runner() {
@@ -418,6 +597,25 @@ void test_classical_direct_sea_runner() {
               callback_state.classical_direct_levels.empty() &&
               !callback_state.traces.has_value(),
           "direct SEA progress failure leaves retained state transactionally unchanged");
+    const auto callback_context =
+        oneshotsea::make_classical_direct_sea_context(
+            field, {7U}, 100000U, 1000000U);
+    check(rejects([&] {
+              oneshotsea::extend_sea_with_prepared_classical_direct(
+                  elkies_curve, callback_state, callback_context, 16U,
+                  [](const oneshotsea::ClassicalDirectSeaLevelRecord&) {
+                      throw std::runtime_error(
+                          "forced prepared callback failure");
+                  });
+          }) &&
+              callback_state.constraints.modulus() == 1 &&
+              callback_state.classical_direct_levels.empty(),
+          "prepared direct progress failure also leaves retained state unchanged");
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        elkies_curve, callback_state, callback_context, 16U);
+    check(callback_state.classical_direct_levels.size() == 1U &&
+              callback_context.prepared_context_count() == 1U,
+          "the same prepared context remains reusable after callback failure");
     check(rejects([&] {
               oneshotsea::extend_sea_with_classical_direct(
                   elkies_curve, callback_state, {7U, 5U}, 16U,
@@ -686,6 +884,7 @@ int main() {
     try {
         test_three_power_class_polynomial();
         test_classical_direct_sea_runner();
+        test_prepared_classical_context_equivalence();
         test_p125_classical_direct_path();
         test_minus_71_surface();
         std::cout << "CM interpolation surface tests: ok\n";

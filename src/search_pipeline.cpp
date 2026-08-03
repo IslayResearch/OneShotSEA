@@ -1,6 +1,7 @@
 #include "oneshotsea/search_pipeline.hpp"
 
 #include "oneshotsea/atkin.hpp"
+#include "oneshotsea/cm_surface.hpp"
 #include "oneshotsea/sea.hpp"
 #include "oneshotsea/weber_table_trust.hpp"
 #include "oneshotsea/weber_curve_generator.hpp"
@@ -17,6 +18,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <deque>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -1031,15 +1033,31 @@ bool verify_with_canonical_voneshot(
         "canonical verifier returned an unexpected status or output");
 }
 
-SearchCurveReport process_search_curve(
+static SearchCurveReport process_search_curve_impl(
     const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
     std::uint64_t global_index,
     const CanonicalCertificateVerifier& injected_verifier,
     const SearchSeaLevelCallback& sea_level_callback,
     const ExactSmoothBatchCoordinator* smooth_coordinator,
     const SearchClassicalDirectLevelCallback&
-        classical_direct_level_callback) {
+        classical_direct_level_callback,
+    const ClassicalDirectSeaContext* prepared_classical_direct_context) {
     validate_config(config, &smooth_engine);
+    if (prepared_classical_direct_context) {
+        if (prepared_classical_direct_context->target_modulus() !=
+                config.prime ||
+            prepared_classical_direct_context->levels() !=
+                config.classical_direct_levels ||
+            prepared_classical_direct_context->maximum_prime_candidates() !=
+                config.classical_direct_maximum_prime_candidates ||
+            prepared_classical_direct_context
+                    ->maximum_x_candidates_per_surface() !=
+                config
+                    .classical_direct_maximum_x_candidates_per_surface) {
+            throw std::invalid_argument(
+                "prepared classical direct context does not match the search target, schedule, or caps");
+        }
+    }
     if (smooth_coordinator &&
         !smooth_coordinator->compatible_with(smooth_engine)) {
         throw std::invalid_argument(
@@ -1213,11 +1231,19 @@ SearchCurveReport process_search_curve(
                         report.classical_direct_levels.back());
                 }
             };
-        extend_sea_with_classical_direct(
-            pair.curve, result, config.classical_direct_levels, trace_cap,
-            config.classical_direct_maximum_prime_candidates,
-            config.classical_direct_maximum_x_candidates_per_surface,
-            progress);
+        if (prepared_classical_direct_context) {
+            extend_sea_with_prepared_classical_direct(
+                pair.curve, result,
+                *prepared_classical_direct_context, trace_cap,
+                progress);
+        } else {
+            extend_sea_with_classical_direct(
+                pair.curve, result, config.classical_direct_levels,
+                trace_cap,
+                config.classical_direct_maximum_prime_candidates,
+                config.classical_direct_maximum_x_candidates_per_surface,
+                progress);
+        }
         report.timings.sea_us += elapsed_us(stage_start);
         report.final_exact_trace_candidate_count =
             result.constraints.candidate_count();
@@ -1461,6 +1487,20 @@ SearchCurveReport process_search_curve(
     return report;
 }
 
+SearchCurveReport process_search_curve(
+    const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
+    std::uint64_t global_index,
+    const CanonicalCertificateVerifier& injected_verifier,
+    const SearchSeaLevelCallback& sea_level_callback,
+    const ExactSmoothBatchCoordinator* smooth_coordinator,
+    const SearchClassicalDirectLevelCallback&
+        classical_direct_level_callback) {
+    return process_search_curve_impl(
+        config, smooth_engine, global_index, injected_verifier,
+        sea_level_callback, smooth_coordinator,
+        classical_direct_level_callback, nullptr);
+}
+
 SearchPipelineRunResult run_search_pipeline(
     const SearchPipelineConfig& config, const ExactSmoothEngine& smooth_engine,
     SearchState& state, const SearchPipelineRunOptions& options,
@@ -1582,6 +1622,18 @@ SearchPipelineRunResult run_search_pipeline(
         throw std::runtime_error(
             "checkpoint records a certificate but its durable artifact is missing");
     }
+    std::unique_ptr<ClassicalDirectSeaContext>
+        prepared_classical_direct_context;
+    if (!state.complete() && options.max_curves != 0U &&
+        !config.classical_direct_levels.empty()) {
+        prepared_classical_direct_context =
+            std::make_unique<ClassicalDirectSeaContext>(
+                make_classical_direct_sea_context(
+                    Field(config.prime), config.classical_direct_levels,
+                    config.classical_direct_maximum_prime_candidates,
+                    config
+                        .classical_direct_maximum_x_candidates_per_surface));
+    }
     std::mutex verifier_mutex;
     const CanonicalCertificateVerifier serialized_verifier =
         [&](const MontgomeryCertificate& certificate) {
@@ -1658,12 +1710,13 @@ SearchPipelineRunResult run_search_pipeline(
                 pending.push_back(std::async(
                     std::launch::async,
                     [&, index, smooth_coordinator] {
-                        return process_search_curve(
+                        return process_search_curve_impl(
                             config, smooth_engine, index,
                             serialized_verifier,
                             serialized_sea_level_callback,
                             smooth_coordinator,
-                            serialized_classical_direct_level_callback);
+                            serialized_classical_direct_level_callback,
+                            prepared_classical_direct_context.get());
                     }));
             }
         };
@@ -1764,6 +1817,12 @@ SearchPipelineRunResult run_search_pipeline(
         merge_exact_smooth_batch_pool_telemetry(
             result.smooth_batch_telemetry,
             result.smooth_batch_cohort_telemetry.back());
+    }
+    if (prepared_classical_direct_context) {
+        result.classical_direct_context_count =
+            prepared_classical_direct_context->prepared_context_count();
+        result.classical_direct_preparation_us =
+            prepared_classical_direct_context->preparation_us();
     }
     result.exhausted_assigned_range = state.complete();
     return result;

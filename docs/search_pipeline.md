@@ -97,7 +97,8 @@ digest, so its checkpoint cannot be substituted into a sound-only run.  It may
 lose a curve that would have yielded a certificate under a larger table set,
 but cannot create a false-positive certificate.
 
-The custom evaluator is exposed through the optional classical direct tail:
+The custom evaluator is exposed through an optional, currently local-only
+classical direct tail:
 
 ```sh
 --classical-direct-levels 7,11 \
@@ -124,6 +125,32 @@ failure rather than ordinary resource parallelism: exhausting either is an
 implementation limit, never a heuristic or mathematical rejection. Direct
 SEA runs before `--schoof-fallback 1`; the fallback sees and checks the same
 retained state.
+
+The current RunPod and AWS launchers and the strict retained-run auditor do
+not admit the three direct options or the standalone direct-level schema.
+Consequently this tail must remain disabled in remote production runs until
+those operational paths receive their own compatibility and adversarial
+gates. The default empty direct schedule remains byte-compatible with the
+audited cloud schema.
+
+For a local multi-curve invocation, the target characteristic, ordered level
+list, and both caps are retained in one run-scoped context. Each level's
+curve-independent suitable order, witnessed CRT primes, class polynomials,
+and admitted CM surfaces are prepared lazily under a sticky once-only gate,
+then shared read-only across curve workers. Per-curve target-j interpolation,
+CRT combination, BMSS/Frobenius, and Atkin checks remain independent. A later
+level that no curve reaches is not prepared and cannot fail the run.
+
+`oneshotsea.search-summary.v1` adds
+`classical_direct_preparation.context_count` and `elapsed_us` only when the
+direct schedule is configured. The elapsed value is the cumulative setup time
+for contexts actually prepared. Direct per-level timings exclude setup, while
+the enclosing curve `sea` wall time includes any first-use preparation or wait
+experienced by that worker. Benchmarks must therefore report the summary and
+per-curve values together; reduced warm-curve time alone is not a complete
+speedup claim. The checked 416-bit two-curve X1(27) fixture currently reports
+about 3.1 s of level-7/11 preparation, about 3.2 s for the cold evaluation,
+and about 0.10 s for the second evaluation using the same contexts.
 
 Sound-only runs may instead opt into `--schoof-fallback 1`. After all
 authenticated Weber levels are exhausted without fitting the trace cap, this

@@ -61,6 +61,15 @@ CmSurfaceEnumeration::CmSurfaceEnumeration(
       exact_group_order_(std::move(exact_group_order)),
       horizontal_edges_per_surface_(horizontal_edges_per_surface) {}
 
+ClassicalDirectLevelContext::ClassicalDirectLevelContext(
+    SutherlandSuitableOrder order, mpz_class target_modulus,
+    mpz_class coefficient_abs_bound,
+    std::vector<SutherlandCrtPrime> witnesses,
+    std::vector<CmSurfaceEnumeration> surfaces)
+    : order_(std::move(order)), target_modulus_(std::move(target_modulus)),
+      coefficient_abs_bound_(std::move(coefficient_abs_bound)),
+      witnesses_(std::move(witnesses)), surfaces_(std::move(surfaces)) {}
+
 CmSurfaceEnumeration enumerate_cm_interpolation_surfaces_limited(
     const SutherlandSuitableOrder& order,
     const SutherlandCrtPrime& prime_witness,
@@ -311,22 +320,90 @@ CrtSpecializationResult reconstruct_classical_specialization_from_cm(
     const SutherlandSuitableOrder& order, const Field& target_field,
     const mpz_class& source_j, std::uint64_t maximum_prime_candidates,
     std::uint64_t maximum_x_candidates_per_surface) {
-    return reconstruct_classical_specialization_algorithm1(
-        order, target_field, source_j, maximum_prime_candidates,
-        [&order, maximum_x_candidates_per_surface](
-            const SutherlandCrtPrime& witness,
-            const std::vector<mpz_class>& target_power_lifts) {
-            const ClassicalCmClassPolynomial class_polynomial =
-                derive_three_power_class_polynomial_mod_prime(order,
-                                                              witness);
-            const CmSurfaceEnumeration surfaces =
-                enumerate_cm_interpolation_surfaces_limited(
-                    order, witness, class_polynomial.polynomial(),
-                    maximum_x_candidates_per_surface,
-                    static_cast<std::size_t>(order.level()) + 2U);
-            return specialize_classical_from_cm_surfaces(
-                surfaces, target_power_lifts);
-        });
+    const ClassicalDirectLevelContext context =
+        prepare_classical_direct_level_context(
+            order, target_field, maximum_prime_candidates,
+            maximum_x_candidates_per_surface);
+    return reconstruct_classical_specialization_from_prepared_context(
+        context, target_field, source_j);
+}
+
+ClassicalDirectLevelContext prepare_classical_direct_level_context(
+    const SutherlandSuitableOrder& order, const Field& target_field,
+    std::uint64_t maximum_prime_candidates,
+    std::uint64_t maximum_x_candidates_per_surface) {
+    if (maximum_prime_candidates == 0U ||
+        maximum_x_candidates_per_surface == 0U) {
+        throw std::invalid_argument(
+            "classical direct context received a zero preparation cap");
+    }
+    const CrtCoefficientBound coefficient_bound =
+        derive_proved_classical_algorithm1_coefficient_bound(
+            order.level(), target_field.modulus());
+    std::vector<SutherlandCrtPrime> witnesses =
+        select_sutherland_crt_primes(
+            order, target_field.modulus(),
+            coefficient_bound.absolute_bound(), maximum_prime_candidates);
+    std::vector<CmSurfaceEnumeration> surfaces;
+    surfaces.reserve(witnesses.size());
+    for (const SutherlandCrtPrime& witness : witnesses) {
+        const ClassicalCmClassPolynomial class_polynomial =
+            derive_three_power_class_polynomial_mod_prime(order, witness);
+        surfaces.push_back(enumerate_cm_interpolation_surfaces_limited(
+            order, witness, class_polynomial.polynomial(),
+            maximum_x_candidates_per_surface,
+            static_cast<std::size_t>(order.level()) + 2U));
+    }
+    return ClassicalDirectLevelContext(
+        order, target_field.modulus(), coefficient_bound.absolute_bound(),
+        std::move(witnesses), std::move(surfaces));
+}
+
+CrtSpecializationResult
+reconstruct_classical_specialization_from_prepared_context(
+    const ClassicalDirectLevelContext& context, const Field& target_field,
+    const mpz_class& source_j) {
+    if (target_field.modulus() != context.target_modulus_) {
+        throw std::invalid_argument(
+            "prepared classical direct context belongs to another field");
+    }
+    if (target_field.normalize(source_j) != source_j) {
+        throw std::invalid_argument(
+            "prepared classical direct source j is not canonical");
+    }
+    if (context.witnesses_.empty() ||
+        context.witnesses_.size() != context.surfaces_.size()) {
+        throw std::logic_error(
+            "prepared classical direct context is incomplete");
+    }
+    const std::vector<mpz_class> target_power_lifts =
+        lifted_target_powers(
+            target_field, source_j, context.order_.level() + 1U);
+    std::vector<mpz_class> primes;
+    primes.reserve(context.witnesses_.size());
+    for (const SutherlandCrtPrime& witness : context.witnesses_) {
+        primes.push_back(witness.prime);
+    }
+    std::size_t next = 0U;
+    CrtSpecializationResult result =
+        reconstruct_specialization_explicit_crt(
+            context.order_.level(), target_field, source_j,
+            context.coefficient_abs_bound_, primes,
+            [&context, &target_power_lifts, &next](const mpz_class& prime) {
+                if (next >= context.witnesses_.size() ||
+                    context.witnesses_[next].prime != prime ||
+                    context.surfaces_[next].auxiliary_prime() != prime) {
+                    throw std::logic_error(
+                        "prepared classical direct prime stream lost synchronization");
+                }
+                return specialize_classical_from_cm_surfaces(
+                    context.surfaces_[next++], target_power_lifts);
+            });
+    if (next != context.witnesses_.size()) {
+        throw std::logic_error(
+            "prepared classical direct context was not fully consumed");
+    }
+    return result;
 }
 
 }  // namespace oneshotsea

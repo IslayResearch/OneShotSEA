@@ -690,7 +690,15 @@ int main(int argc, char** argv) {
                       << "\",\"range_exhausted\":"
                       << (result.exhausted_assigned_range ? "true" : "false")
                       << ",\"verified\":"
-                      << (result.verified.has_value() ? "true" : "false")
+                      << (result.verified.has_value() ? "true" : "false");
+            if (!config.classical_direct_levels.empty()) {
+                std::cout << ",\"classical_direct_preparation\":{\"context_count\":\""
+                          << result.classical_direct_context_count
+                          << "\",\"elapsed_us\":\""
+                          << result.classical_direct_preparation_us
+                          << "\"}";
+            }
+            std::cout
                       << ",\"smooth_batch\":{\"enabled\":"
                       << (result.smooth_batch_coordinator_enabled ? "true"
                                                                   : "false")

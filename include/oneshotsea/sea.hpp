@@ -1,6 +1,7 @@
 #pragma once
 
 #include "oneshotsea/atkin.hpp"
+#include "oneshotsea/cm_surface.hpp"
 #include "oneshotsea/curve.hpp"
 #include "oneshotsea/elkies.hpp"
 #include "oneshotsea/trace.hpp"
@@ -8,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -171,6 +173,70 @@ void extend_sea_with_classical_direct(
     const std::vector<std::uint64_t>& levels, std::size_t trace_cap,
     std::uint64_t maximum_prime_candidates,
     std::uint64_t maximum_x_candidates_per_surface,
+    const ClassicalDirectSeaProgress& progress = {});
+
+// Immutable, curve-independent preparation for one direct-SEA schedule.  The
+// target characteristic, ordered levels, and both bounded execution caps are
+// retained with the prepared level contexts so a search cannot substitute
+// work prepared under different schedule semantics.
+class ClassicalDirectSeaContext {
+public:
+    ~ClassicalDirectSeaContext();
+    ClassicalDirectSeaContext(const ClassicalDirectSeaContext&) = delete;
+    ClassicalDirectSeaContext& operator=(const ClassicalDirectSeaContext&) =
+        delete;
+    ClassicalDirectSeaContext(ClassicalDirectSeaContext&&) noexcept;
+    ClassicalDirectSeaContext& operator=(
+        ClassicalDirectSeaContext&&) noexcept;
+
+    const mpz_class& target_modulus() const { return target_modulus_; }
+    const std::vector<std::uint64_t>& levels() const { return levels_; }
+    std::uint64_t maximum_prime_candidates() const {
+        return maximum_prime_candidates_;
+    }
+    std::uint64_t maximum_x_candidates_per_surface() const {
+        return maximum_x_candidates_per_surface_;
+    }
+    std::size_t prepared_context_count() const;
+    std::uint64_t preparation_us() const;
+
+private:
+    ClassicalDirectSeaContext(
+        mpz_class target_modulus, std::vector<std::uint64_t> levels,
+        std::uint64_t maximum_prime_candidates,
+        std::uint64_t maximum_x_candidates_per_surface);
+
+    friend ClassicalDirectSeaContext make_classical_direct_sea_context(
+        const Field&, const std::vector<std::uint64_t>&, std::uint64_t,
+        std::uint64_t);
+    friend void extend_sea_with_prepared_classical_direct(
+        const Curve&, WeberSeaResult&, const ClassicalDirectSeaContext&,
+        std::size_t, const ClassicalDirectSeaProgress&);
+
+    struct LevelSlot;
+    const ClassicalDirectLevelContext& level_context(
+        std::size_t index) const;
+
+    mpz_class target_modulus_;
+    std::vector<std::uint64_t> levels_;
+    std::uint64_t maximum_prime_candidates_;
+    std::uint64_t maximum_x_candidates_per_surface_;
+    std::vector<std::unique_ptr<LevelSlot>> level_slots_;
+};
+
+ClassicalDirectSeaContext make_classical_direct_sea_context(
+    const Field& target_field, const std::vector<std::uint64_t>& levels,
+    std::uint64_t maximum_prime_candidates,
+    std::uint64_t maximum_x_candidates_per_surface);
+
+// The same retained-state extension using a schedule-bound context prepared
+// once for this target characteristic. Search workers may share it read-only;
+// only target-j interpolation, CRT combination, and SEA consumption remain
+// per curve.
+void extend_sea_with_prepared_classical_direct(
+    const Curve& curve, WeberSeaResult& result,
+    const ClassicalDirectSeaContext& context,
+    std::size_t trace_cap,
     const ClassicalDirectSeaProgress& progress = {});
 
 }  // namespace oneshotsea

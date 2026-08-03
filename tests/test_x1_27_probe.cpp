@@ -2,6 +2,7 @@
 #include "oneshotsea/schoof.hpp"
 #include "oneshotsea/sea.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
@@ -185,13 +186,19 @@ int main() {
               target.sample->tate_curve.j_invariant(),
           "p125 Tate/Weber j identity");
 
+    const auto direct_context = oneshotsea::make_classical_direct_sea_context(
+        target.sample->pair.curve.field(), {7U, 11U}, 1000000U,
+        1000000U);
     oneshotsea::TraceConstraints direct_initial(prime);
     direct_initial.refine_exact(432U, 14U);
     oneshotsea::WeberSeaResult direct_state{
         direct_initial, direct_initial, {}, {}, {}, {}, std::nullopt, {}};
-    oneshotsea::extend_sea_with_classical_direct(
-        target.sample->pair.curve, direct_state, {7U, 11U}, 64U,
-        1000000U, 1000000U);
+    const auto direct_first_start = std::chrono::steady_clock::now();
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        target.sample->pair.curve, direct_state, direct_context, 64U);
+    const auto direct_first_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - direct_first_start).count();
     check(direct_state.classical_direct_levels.size() == 2U &&
               direct_state.classical_direct_levels[0].ell == 7U &&
               direct_state.classical_direct_levels[0].exact &&
@@ -212,12 +219,55 @@ int main() {
                   target.sample->pair.curve, 11U) == 5U,
           "independent Schoof validates both p125 production direct residues");
 
+    oneshotsea::TraceConstraints twist_direct_initial(prime);
+    twist_direct_initial.refine_exact(432U, 418U);
+    oneshotsea::WeberSeaResult twist_direct_state{
+        twist_direct_initial, twist_direct_initial, {}, {}, {}, {},
+        std::nullopt, {}};
+    const auto direct_warm_start = std::chrono::steady_clock::now();
+    oneshotsea::extend_sea_with_prepared_classical_direct(
+        target_twist.sample->pair.curve, twist_direct_state,
+        direct_context, 64U);
+    const auto direct_warm_us =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - direct_warm_start).count();
+    check(direct_context.prepared_context_count() == 2U &&
+              direct_context.preparation_us() != 0U &&
+              twist_direct_state.classical_direct_levels.size() == 2U &&
+              twist_direct_state.effective_constraints.modulus() == 33264 &&
+              !twist_direct_state.traces.has_value(),
+          "second p125 curve reuses both prepared direct levels without false completion");
+    for (const auto& level : twist_direct_state.classical_direct_levels) {
+        const std::uint64_t schoof = oneshotsea::schoof_trace_mod_ell(
+            target_twist.sample->pair.curve, level.ell);
+        if (level.exact) {
+            check(level.trace_residue == schoof,
+                  "warm prepared exact residue agrees with independent Schoof");
+        } else {
+            const auto found = std::find_if(
+                twist_direct_state.atkin_constraints.begin(),
+                twist_direct_state.atkin_constraints.end(),
+                [&](const oneshotsea::AtkinConstraint& constraint) {
+                    return constraint.ell == level.ell;
+                });
+            check(found != twist_direct_state.atkin_constraints.end() &&
+                      std::find(found->trace_residues.begin(),
+                                found->trace_residues.end(), schoof) !=
+                          found->trace_residues.end(),
+                  "warm prepared Atkin set contains the independent Schoof residue");
+        }
+    }
+
     std::cout << "ok x1-27 probe small_p=" << small_prime
               << " small_us=" << small_us
               << " small_u_samples=" << small.counters.u_samples
               << " small_order=" << small_order
               << " p125_us=" << target_us
               << " p125_u_samples=" << target.counters.u_samples
-              << " p125_x1_points=" << target.counters.x1_points << '\n';
+              << " p125_x1_points=" << target.counters.x1_points
+              << " direct_preparation_us="
+              << direct_context.preparation_us()
+              << " direct_cold_us=" << direct_first_us
+              << " direct_warm_us=" << direct_warm_us << '\n';
     return 0;
 }

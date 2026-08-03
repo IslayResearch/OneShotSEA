@@ -466,6 +466,58 @@ Curve normalized_codomain_from_classical_modpoly(
         source, ell, normalized_neighbor, neighbor_derivative);
 }
 
+Curve normalized_codomain_from_classical_specialization(
+    const Curve& source,
+    const ModularPolynomialSpecialization& specialization,
+    const mpz_class& neighbor_j) {
+    if (source.is_singular()) {
+        throw std::invalid_argument(
+            "cannot construct an isogeny from a singular curve");
+    }
+    const std::uint64_t ell = specialization.level();
+    if (!is_odd_prime(ell)) {
+        throw std::invalid_argument(
+            "modular-polynomial specialization level must be an odd prime");
+    }
+    const Field& field = source.field();
+    if (specialization.value().field().modulus() != field.modulus() ||
+        specialization.source_x() != source.j_invariant()) {
+        throw std::invalid_argument(
+            "classical specialization does not match the source curve");
+    }
+    if (mpz_probab_prime_p(field.modulus().get_mpz_t(), 25) == 0 ||
+        mpz_cmp_ui(field.modulus().get_mpz_t(), ell) == 0) {
+        throw std::invalid_argument(
+            "normalized codomain requires distinct prime characteristic");
+    }
+    const mpz_class j = source.j_invariant();
+    const mpz_class normalized_neighbor = field.normalize(neighbor_j);
+    if (source.a() == 0 || source.b() == 0 || j == 0 ||
+        j == field.normalize(1728) || normalized_neighbor == 0 ||
+        normalized_neighbor == field.normalize(1728)) {
+        throw std::domain_error(
+            "exceptional j-invariant in normalized codomain formula");
+    }
+    const BivariateEvaluation evaluation =
+        specialization.evaluate_with_derivatives(normalized_neighbor);
+    if (evaluation.value != 0) {
+        throw std::invalid_argument(
+            "neighbor is not a root of the modular specialization");
+    }
+    if (evaluation.x_derivative == 0 || evaluation.y_derivative == 0) {
+        throw std::domain_error(
+            "zero modular derivative in normalized codomain formula");
+    }
+    const mpz_class j_derivative = field.divide(
+        field.mul(field.mul(18, source.b()), j), source.a());
+    const mpz_class neighbor_derivative = field.neg(field.divide(
+        field.mul(evaluation.x_derivative, j_derivative),
+        field.mul(mpz_class(std::to_string(ell)),
+                  evaluation.y_derivative)));
+    return codomain_from_neighbor_derivative(
+        source, ell, normalized_neighbor, neighbor_derivative);
+}
+
 Curve normalized_codomain_from_weber_modpoly(
     const Curve& source, const SparseModularPolynomial& weber_modular_polynomial,
     const mpz_class& source_weber_f, const mpz_class& neighbor_weber_f) {

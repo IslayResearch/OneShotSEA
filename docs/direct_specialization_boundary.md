@@ -1,10 +1,10 @@
 # Direct modular-polynomial specialization boundary
 
-Status: the consumer and explicit-CRT orchestration are implemented and
-differentially validated.  A native auxiliary-prime producer now reaches a
-signed Weber specialization from caller-supplied classical/Weber class state
-and target-independent small relations.  Input provenance and a proved Weber
-height bound remain; production still uses target-level tables.
+Status: the classical `D=-7*3^(2n)` route is implemented end to end through an
+internally derived HCP, native auxiliary-prime residues, a proved height, and
+exact CRT.  The signed Weber specialization still uses caller-supplied class
+state and target-independent small relations.  Weber input provenance and a
+proved Weber height bound remain; production still uses target-level tables.
 
 ## Contract
 
@@ -80,14 +80,19 @@ integer arithmetic and accepts no external bound.  Exact table evaluation is
 retained only as differential evidence.  A proved Weber-specific height
 derivation is still required for the faster Weber path.
 
-`enumerate_cm_interpolation_surfaces` validates complete square-free splitting
-of a supplied `H_O mod p`, admits the unique trace-signed twist at each of the
-`ell+2` interpolation roots, and classifies every table-free Vélu edge.
+`derive_three_power_class_polynomial_mod_prime` derives `H_O mod p` internally
+from fixed exact `Phi_3` ring-class resultants.  The opaque result is accepted
+by `enumerate_cm_interpolation_surfaces`, which validates complete square-free
+splitting, admits the unique trace-signed twist at every CM root, and
+classifies every table-free Vélu edge.
 `specialize_classical_from_cm_surfaces` then applies only the two required
 Lagrange linear functionals and returns classical `j` value/X-derivative
-residues.  This validates the geometric core without constructing the
-bivariate target-level polynomial, but it does not authenticate the supplied
-HCP.
+residues.  `reconstruct_classical_specialization_from_cm` connects this
+callback-free producer to the proved-height CRT wrapper without constructing
+the bivariate target-level polynomial.
+`elkies_trace_residue_bmss_specialized_reference` consumes that object through
+the classical normalized-codomain, BMSS, and Frobenius checks.  The level-7
+fixture matches the positive exact residue returned by the full-table path.
 
 `specialize_weber_from_cm_surfaces` validates a split Weber surface class
 polynomial, uses small Weber relations other than the target level to connect
@@ -132,10 +137,11 @@ raw timing arrays, build switches, and parsed semantic checks are retained in
 
 The implemented boundary and auxiliary-prime producer are necessary for the
 intended asymptotic implementation, but not sufficient.  They remove the API
-dependency on a stored bivariate target-level table, implement the classical
-CM geometry, signed Weber conversion, and bounded reconstruction.  The
-classical route now has the theorem-derived height proof; input
-production/authentication and the Weber-specific height proof remain.
+dependency on a stored bivariate target-level table, implement a complete
+classical CM route, signed Weber conversion, and bounded reconstruction.  The
+classical route now has both internal class-polynomial production and the
+theorem-derived height proof; Weber input authentication and its
+normalization-specific height proof remain.
 
 For Algorithm 1, Sutherland proves under GRH an expected running time
 
@@ -151,27 +157,23 @@ per-curve cost is what permits the one-shot search's separate smoothness
 heuristic to remain `p^(1/8+o(1))` rather than inheriting a table-generation
 cost exponential in `n`.
 
-The branch does not yet meet that premise for unbounded inputs.  Steps 1 and 5
-below now have checked scaffolding; order discovery, the proof of the
-normalization-specific bound, and steps 2--4 remain substantial:
+The branch does not yet establish that premise for unbounded inputs.  The
+classical algorithms are polynomial-size and the three-power family avoids a
+search, but auxiliary primes are still restricted to 64 bits and selected by
+the paper's unproved fixed-`v` practical heuristic.  The current
+schoolbook/Bareiss implementation also needs production-scale benchmarks and
+faster polynomial arithmetic before its constants are understood.
 
-1. replace the bounded practical order discovery where necessary with an
-   asymptotically justified selector and compute a proved Weber coefficient
-   bound (bounded discovery, validation, CRT-prime selection, and the proved
-   classical bound are implemented);
-2. compute and authenticate the required classical and Weber class polynomial
-   state (supplied split state is currently validated and consumed);
-3. select and authenticate enough target-independent small Weber relations to
-   connect both class-group torsors;
-4. invoke the implemented signed specialization modulo each CRT prime while
-   retaining the X derivative; and
-5. supply per-prime `value` and `x_derivative` residues to the implemented
-   exact CRT and checked specialization interface.
+The faster Weber route separately still needs an authenticated Weber class
+polynomial, enough authenticated target-independent small relations to connect
+both class-group torsors, and a proved normalization-specific coefficient
+bound.  Only then can its implemented signed per-prime residues cross the
+no-root trust boundary.
 
-Until those steps exist, the honest claim is: the SEA consumer, signed Weber
-auxiliary producer at level 5, and CRT orchestration are validated components,
-including CRT fixtures beyond 400 bits, while the production specialization
-source remains a bounded authenticated archive.
+Until those steps exist, the honest claim is: a complete callback-free
+classical direct evaluator is validated at level 7, the signed Weber auxiliary
+producer is validated at level 5, and production still uses the bounded
+authenticated archive.
 
 ## Why this is reviewable now
 

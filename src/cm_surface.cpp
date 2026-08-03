@@ -61,11 +61,12 @@ CmSurfaceEnumeration::CmSurfaceEnumeration(
       exact_group_order_(std::move(exact_group_order)),
       horizontal_edges_per_surface_(horizontal_edges_per_surface) {}
 
-CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
+CmSurfaceEnumeration enumerate_cm_interpolation_surfaces_limited(
     const SutherlandSuitableOrder& order,
     const SutherlandCrtPrime& prime_witness,
     const Poly& hilbert_class_polynomial_mod_prime,
-    std::uint64_t maximum_x_candidates_per_surface) {
+    std::uint64_t maximum_x_candidates_per_surface,
+    std::size_t surface_limit) {
     validate_witness(order, prime_witness);
     if (maximum_x_candidates_per_surface == 0U) {
         throw std::invalid_argument("CM surface x-coordinate cap is zero");
@@ -104,9 +105,11 @@ CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
 
     const std::size_t interpolation_count =
         static_cast<std::size_t>(order.level()) + 2U;
-    if (surface_roots.size() < interpolation_count) {
-        throw std::logic_error(
-            "validated suitable order has too few interpolation roots");
+    if (surface_roots.size() < interpolation_count ||
+        surface_limit < interpolation_count ||
+        surface_limit > surface_roots.size()) {
+        throw std::invalid_argument(
+            "CM surface row limit is outside the interpolation range");
     }
     const mpz_class exact_group_order =
         prime_witness.prime + 1 - prime_witness.trace;
@@ -115,16 +118,16 @@ CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
     const mpz_class encoded_level(static_cast<unsigned long>(order.level()));
     const int splitting_symbol = mpz_kronecker(
         order.discriminant().get_mpz_t(), encoded_level.get_mpz_t());
-    if (splitting_symbol != -1 && splitting_symbol != 1) {
+    if (splitting_symbol < -1 || splitting_symbol > 1) {
         throw std::logic_error(
-            "suitable order level unexpectedly ramifies in the CM order");
+            "invalid quadratic splitting symbol for the CM order");
     }
     const std::size_t expected_horizontal =
         static_cast<std::size_t>(splitting_symbol + 1);
 
     std::vector<CmSurfaceCurve> surface_curves;
-    surface_curves.reserve(surface_roots.size());
-    for (std::size_t index = 0U; index < surface_roots.size(); ++index) {
+    surface_curves.reserve(surface_limit);
+    for (std::size_t index = 0U; index < surface_limit; ++index) {
         const mpz_class& j = surface_roots[index];
         if (j == 0 || j == field.normalize(1728)) {
             throw std::runtime_error(
@@ -170,6 +173,32 @@ CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
         order.level(), prime_witness.prime, std::move(surface_roots),
         std::move(surface_curves), exact_group_order,
         expected_horizontal);
+}
+
+CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
+    const SutherlandSuitableOrder& order,
+    const SutherlandCrtPrime& prime_witness,
+    const Poly& hilbert_class_polynomial_mod_prime,
+    std::uint64_t maximum_x_candidates_per_surface) {
+    return enumerate_cm_interpolation_surfaces_limited(
+        order, prime_witness, hilbert_class_polynomial_mod_prime,
+        maximum_x_candidates_per_surface,
+        static_cast<std::size_t>(order.class_number()));
+}
+
+CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
+    const SutherlandSuitableOrder& order,
+    const SutherlandCrtPrime& prime_witness,
+    const ClassicalCmClassPolynomial& class_polynomial,
+    std::uint64_t maximum_x_candidates_per_surface) {
+    if (class_polynomial.discriminant() != order.discriminant() ||
+        class_polynomial.auxiliary_prime() != prime_witness.prime) {
+        throw std::invalid_argument(
+            "authenticated class polynomial does not match the CM witness");
+    }
+    return enumerate_cm_interpolation_surfaces(
+        order, prime_witness, class_polynomial.polynomial(),
+        maximum_x_candidates_per_surface);
 }
 
 CrtSpecializationResidue specialize_classical_from_cm_surfaces(
@@ -276,6 +305,28 @@ CrtSpecializationResidue specialize_classical_from_cm_surfaces(
     }
     return {surfaces.auxiliary_prime_, std::move(value),
             std::move(x_derivative)};
+}
+
+CrtSpecializationResult reconstruct_classical_specialization_from_cm(
+    const SutherlandSuitableOrder& order, const Field& target_field,
+    const mpz_class& source_j, std::uint64_t maximum_prime_candidates,
+    std::uint64_t maximum_x_candidates_per_surface) {
+    return reconstruct_classical_specialization_algorithm1(
+        order, target_field, source_j, maximum_prime_candidates,
+        [&order, maximum_x_candidates_per_surface](
+            const SutherlandCrtPrime& witness,
+            const std::vector<mpz_class>& target_power_lifts) {
+            const ClassicalCmClassPolynomial class_polynomial =
+                derive_three_power_class_polynomial_mod_prime(order,
+                                                              witness);
+            const CmSurfaceEnumeration surfaces =
+                enumerate_cm_interpolation_surfaces_limited(
+                    order, witness, class_polynomial.polynomial(),
+                    maximum_x_candidates_per_surface,
+                    static_cast<std::size_t>(order.level()) + 2U);
+            return specialize_classical_from_cm_surfaces(
+                surfaces, target_power_lifts);
+        });
 }
 
 }  // namespace oneshotsea

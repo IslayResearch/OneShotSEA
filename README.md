@@ -10,19 +10,21 @@ univariate polynomials that SEA actually consumes:
 Phi_ell(x,Y)       and       d/dX Phi_ell(x,Y).
 ```
 
-The current milestone reaches from checked quadratic-order selection through
-table-free, sign-consistent auxiliary-field Weber specialization at level 5.
-It still relies on caller-supplied class-polynomial and small-orientation-table
-state, and it does **not** yet provide a proved Weber coefficient-height bound.
-The production point counter therefore still uses authenticated target-level
+The current milestone includes a callback-free classical `j` specialization
+for the suitable family `D=-7*3^(2n)`, differentially validated end to end at
+level 7.  It also reaches sign-consistent auxiliary-field Weber specialization
+at level 5, but that faster path still relies on caller-supplied Weber class
+state and does **not** yet have a proved Weber coefficient-height bound.  The
+production point counter therefore still uses authenticated target-level
 tables.  This branch does not claim a new `nextprime(10^125)` certificate.
 
 ## What this branch implements
 
 For one SEA level `ell`, the new path now performs these steps:
 
-1. Discover and independently validate a suitable imaginary quadratic order
-   using the ring-class formula and primitive reduced-form enumeration.
+1. Select the cited `D=-7*3^(2n)` classical family directly, or discover a
+   general suitable order, then independently validate every Definition 1
+   predicate and its class number.
 2. Select deterministically proved 64-bit auxiliary primes with retained
    `(p,t,v,D)` witnesses satisfying
 
@@ -30,44 +32,53 @@ For one SEA level `ell`, the new path now performs these steps:
    4p = t^2 - ell^2 v^2 D.
    ```
 
-3. Compute powers in the target field first and lift their canonical integer
+3. Derive the classical `H_O mod p` internally from fixed exact `Phi_3`
+   ring-class resultants, with exact ascending-factor division and degree
+   checks.
+4. Compute powers in the target field first and lift their canonical integer
    representatives, as required by the direct-evaluation algorithm.
-4. Validate a supplied `H_O mod p`, require complete square-free splitting,
+5. Require complete square-free HCP splitting,
    choose the unique trace-signed twist for every surface root, and check the
    expected horizontal/descending edge counts.
-5. Enumerate all `ell+1` rational cyclic kernels and construct every Vélu
+6. Enumerate all `ell+1` rational cyclic kernels and construct every Vélu
    quotient over the auxiliary field without consulting `Phi_ell`.
-6. Validate a supplied Weber surface class polynomial, use authenticated small
+7. Validate a supplied Weber surface class polynomial, use authenticated small
    Weber relations other than the target level to connect both torsors, and
    require exactly two globally opposite floor orientations.
-7. Select the unique relative surface/floor sign whose interpolated
+8. Select the unique relative surface/floor sign whose interpolated
    `X^ell Y^ell` coefficient is `-1`; zero or two matches fail closed.
-8. Build each signed neighbor polynomial and apply only the two Lagrange linear
+9. Build each signed neighbor polynomial and apply only the two Lagrange linear
    functionals needed for `Phi_ell(x,Y)` and its X derivative.  The producer
    never constructs or loads the bivariate target-level modular polynomial.
-9. Stream checked residues into exact centered CRT reconstruction, with strict
+10. Stream checked residues into exact centered CRT reconstruction, with strict
    coverage, normalization, and coefficient-bound checks.  The classical `j`
    wrapper derives its bound directly from Sutherland's theorem using exact
    integer arithmetic; Weber remains gated on a normalization-specific proof.
+11. Feed a classical specialization directly into normalized-codomain, BMSS
+    isogeny reconstruction, and Frobenius eigenvalue validation without
+    recovering a bivariate table.
 
-The level-5 fixture exercises steps 1--8 end to end.  The CRT layer is
-independently exercised with signed synthetic data, the 416-bit `p125` target,
-and authenticated-table differential oracles.
+The classical level-7 fixture exercises the complete callback-free path and
+the Weber level-5 fixture exercises the signed auxiliary producer.  The CRT
+layer is independently exercised with signed synthetic data, the 416-bit
+`p125` target, and authenticated-table differential oracles.
 
 ## Current boundary
 
 | Component | State |
 |---|---|
-| Suitable-order discovery and validation | Implemented, bounded, and deterministic |
+| Three-power classical suitable order | Implemented directly for every `ell>3` |
+| General suitable-order discovery and validation | Implemented, bounded, and deterministic |
 | Witnessed auxiliary-prime selection | Implemented for proved 64-bit primes |
 | Target-field power lifting | Implemented |
 | Complete rational-kernel enumeration and Vélu quotients | Implemented |
 | Complete CM `j` surface/floor admission and trace-sign selection | Implemented |
-| Table-free classical `j` residue at an auxiliary prime | Implemented and differentially tested at `ell=5` |
+| Fixed-`Phi_3` classical HCP generation mod each auxiliary prime | Implemented for `D=-7*3^(2n)` |
+| Callback-free classical `j` specialization, CRT, and BMSS/Frobenius consumer | Implemented and differentially tested at `ell=7` |
 | Signed, target-table-free Weber residue | Implemented and differentially tested at `ell=5`, from caller-supplied class/orientation state |
 | Exact CRT reconstruction | Implemented and corruption-tested |
 | Proved classical Algorithm 1 coefficient bound | Implemented without floating-point logarithms |
-| Classical/Weber class-polynomial generation and authentication | Not implemented; current API validates caller-supplied state |
+| Weber class-polynomial generation and authentication | Not implemented; current Weber API validates caller-supplied state |
 | Authentication/selection of small Weber orientation relations | Not wired to the pinned catalog trust type |
 | Proved normalization-specific Weber height bound | Not implemented |
 | Production replacement of the table catalog | Not enabled |
@@ -102,7 +113,11 @@ These tests independently check:
   coefficient computation;
 - complete splitting of `H_-71 mod 1811`, the seven expected surface
   invariants, unique trace-sign admission, and two horizontal plus four
-  descending edges at every interpolation point; and
+  descending edges at every interpolation point;
+- exact reproduction of `H_-567 mod 27847` from the fixed `Phi_3` tower,
+  including the ramified level-7 surface with one horizontal and seven
+  descending edges, plus final multi-prime CRT and positive trace-residue
+  agreement with the independent `Phi_7` path; and
 - exact agreement of the native classical and signed Weber value/X-derivative
   residues with authenticated `Phi_5` oracles on every lifted-power basis
   probe, including fail-closed tests for
@@ -125,10 +140,11 @@ native producer.
 A positive Elkies result has strong downstream BMSS-isogeny and Frobenius
 checks.  An Atkin/no-root classification cannot carry the same local witness,
 so it depends directly on the authenticity of the specialization.  For that
-reason, the new path fails closed.  The classical wrapper now has a proved
-coefficient bound, but remains outside production until class-polynomial
-provenance is connected.  The Weber wrapper additionally awaits a proved
-normalization-specific height and authenticated small-relation provenance.
+reason, the new path fails closed.  The classical three-power route now has an
+internally derived class polynomial and proved coefficient bound, but remains
+outside the production point counter until broader level/scale validation and
+integration are complete.  The Weber wrapper additionally awaits a proved
+normalization-specific height and authenticated class/relation provenance.
 
 Search heuristics may reorder work, but they may not reject curves.  A
 smoothness early abort is sound only after the complete Hasse-compatible trace
@@ -146,32 +162,33 @@ This is the intended advantage over the CM search term `p^(1/4+o(1))`.
 The branch architecture is compatible with that target: it streams
 specializations, avoids a bivariate target-level table, and uses work
 polynomial in the interpolation and CRT sizes.  The repository does not yet
-establish the end-to-end claim.  Its order and auxiliary-prime searches are
-bounded practical selectors, and authenticated class-polynomial production,
-small-relation selection, and the proved Weber height still have to meet the
-cited polynomial-time analysis.  The classical fallback's bound and CRT size
-are already polynomial in `ell` and `log p`, but its HCP input is not yet a
-production-authenticated object.
+establish the repository-wide claim.  The classical family selector and
+fixed-size resultant construction are polynomial, but auxiliary primes remain
+64-bit and use the paper's unproved fixed-`v` practical selector.  Production
+benchmarks, theorem-aligned prime selection, authenticated Weber class/relation
+production, and the proved Weber height are still open.
 
 ## Why this milestone is worth reviewing
 
 This is a useful, bounded review point for Drew because the branch now has a
 complete auxiliary-field classical/Weber fixture and a narrow producer
-contract.  A review can confirm the mathematical invariants before HCP
-production and generalized class-group presentation make the implementation
+contract.  A review can confirm the mathematical invariants before the Weber
+producer and generalized class-group presentation make the implementation
 substantially larger:
 
 1. Are the suitable-order and `(p,t,v,D)` predicates faithful to the direct
    evaluation algorithm?
-2. Does complete HCP splitting plus unique trace-signed twist admission place
+2. Do the fixed-`Phi_3` ring-class resultants and exact factor removals produce
+   the intended `H_O mod p`, including the ramified level-7 case?
+3. Does complete HCP splitting plus unique trace-signed twist admission place
    every interpolation curve on the intended CM surface?
-3. Are all `ell+1` kernels complete, distinct, and converted to the correct
+4. Are all `ell+1` kernels complete, distinct, and converted to the correct
    Vélu codomains?
-4. Do the small Weber relations yield two global floor signs, and does the
+5. Do the small Weber relations yield two global floor signs, and does the
    `X^ell Y^ell=-1` test choose the unique correct relative orientation?
-5. Do the two interpolation functionals compute exactly the required value
+6. Do the two interpolation functionals compute exactly the required value
    and X-derivative channels?
-6. Are target-field lifting, strict CRT coverage, centered reconstruction, and
+7. Are target-field lifting, strict CRT coverage, centered reconstruction, and
    the exact-integer classical height/no-root trust boundary sound?
 
 If those answers are yes, the milestone validates the geometric and CRT core
@@ -187,6 +204,9 @@ large certificate.
 - [`include/oneshotsea/prime_isogeny.hpp`](include/oneshotsea/prime_isogeny.hpp)
   and [`src/prime_isogeny.cpp`](src/prime_isogeny.cpp): auxiliary-field point
   arithmetic, complete cyclic-kernel enumeration, and Vélu edges.
+- [`include/oneshotsea/class_polynomial.hpp`](include/oneshotsea/class_polynomial.hpp)
+  and [`src/class_polynomial.cpp`](src/class_polynomial.cpp): three-power
+  suitable orders and fixed-`Phi_3` ring-class resultants modulo CRT primes.
 - [`include/oneshotsea/cm_surface.hpp`](include/oneshotsea/cm_surface.hpp) and
   [`src/cm_surface.cpp`](src/cm_surface.cpp): HCP splitting, trace-sign CM
   admission, edge classification, and table-free interpolation.

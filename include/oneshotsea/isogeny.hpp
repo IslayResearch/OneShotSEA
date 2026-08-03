@@ -16,6 +16,13 @@ Curve normalized_codomain_from_classical_modpoly(
     const Curve& source, const SparseModularPolynomial& modular_polynomial,
     const mpz_class& neighbor_j);
 
+// The same classical-j normalized codomain construction using only
+// Phi_ell(j,Y), Phi_X(j,Y), and the locally derived Phi_Y(j,Y).
+Curve normalized_codomain_from_classical_specialization(
+    const Curve& source,
+    const ModularPolynomialSpecialization& specialization,
+    const mpz_class& neighbor_j);
+
 // Equation (8) of Sutherland 2012 specialized to the BLS Weber-f
 // normalization. The X/Y derivative orientation is deliberately explicit.
 Curve normalized_codomain_from_weber_modpoly(

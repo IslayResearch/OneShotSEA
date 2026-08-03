@@ -89,6 +89,19 @@ std::vector<ElkiesKernelResult> elkies_kernels_bmss_reference(
 std::optional<std::uint64_t> elkies_trace_residue_bmss_reference(
     const Curve& curve, const SparseModularPolynomial& modular_polynomial);
 
+// Consume a directly reconstructed classical-j specialization, validate every
+// positive root through normalized BMSS and Frobenius, and return no kernels
+// for an Atkin/no-root level.  The no-root conclusion therefore depends on the
+// specialization producer's authenticated CRT boundary.
+std::vector<ElkiesKernelResult> elkies_kernels_bmss_specialized_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& specialization);
+
+std::optional<std::uint64_t>
+elkies_trace_residue_bmss_specialized_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& specialization);
+
 // Exhaust every rational Weber-f lift, as required for p=1 mod 12, and retain
 // only candidates that pass normalized BMSS and Frobenius validation.
 std::vector<ElkiesKernelResult> elkies_kernels_weber_bmss_reference(

@@ -1,13 +1,11 @@
 # Explicit-CRT direct-specialization scaffold
 
-Status: implemented and differentially tested through a native signed Weber
-residue at one auxiliary prime.  Given validated classical/Weber class state,
-the producer admits every trace-signed CM surface curve, enumerates every
-rational `ell`-kernel and Vélu quotient, connects both signed torsors with
-target-independent small Weber relations, and interpolates both required
-channels without loading the target-level bivariate modular polynomial.  Class
-polynomial/relation authentication and the proved Weber height bound are not
-implemented.
+Status: the classical `j` path is implemented end to end for the suitable
+family `D=-7*3^(2n)`, including internally derived class polynomials, both
+residue channels, the proved height, and exact CRT.  It is differentially
+tested through `ell=7`.  The signed Weber conversion is implemented at one
+auxiliary prime, but Weber class-polynomial/relation authentication and the
+proved Weber height bound are not implemented.
 
 ## Purpose
 
@@ -21,16 +19,13 @@ Phi_ell^f(f,Y)
 partial Phi_ell^f/partial X (f,Y).
 ```
 
-`reconstruct_weber_specialization_algorithm1` now owns the orchestration from
-a validated quadratic order through exact CRT reconstruction.  Its callback
-receives one checked `SutherlandCrtPrime {p,t,v}` plus the canonical integer
-lifts of all required target-field powers, and must return the two specialized
-coefficient vectors modulo `p`.  `specialize_classical_from_cm_surfaces`
-implements the geometric and interpolation core of that callback in the
-classical `j` normalization.  `specialize_weber_from_cm_surfaces` completes the
-signed Weber conversion when supplied independently authenticated surface
-class state and small orientation relations.  The remaining producer seam is
-generating/authenticating those inputs and deriving the production height.
+`reconstruct_classical_specialization_from_cm` owns the checked classical
+orchestration from a validated quadratic order through exact CRT
+reconstruction.  At each retained prime it internally derives `H_O mod p`,
+enumerates the CM surface, and emits the two specialization channels.
+`reconstruct_weber_specialization_algorithm1` retains a narrow callback while
+the signed Weber producer's class state and small orientation relations remain
+outside the authenticated boundary.
 
 ## Checked pipeline
 
@@ -55,6 +50,13 @@ independent reduced-form enumerator agrees with the formula.  Explicit
 fundamental-discriminant and conductor-candidate caps fail closed.  This is a
 practical discovery engine for current SEA levels, not an optimized
 class-group selector used to justify the asymptotic theorem.
+
+For the classical path, `derive_three_power_suitable_order` directly selects
+the family `D=-7*3^(2n)` that the paper states is suitable for every
+`ell>3` with `c1=4,c2=16`.  The ordinary validator still recomputes every
+Definition 1 predicate and the exact class number.  This removes bounded
+search from the classical order-selection path while preserving a separate
+independent check.
 
 The Weber-f wrapper additionally requires `D=1 mod 8` and `3` not dividing
 `D`.  These guarantee the class-polynomial splitting condition in the cited
@@ -118,13 +120,30 @@ symbolic table differentiation.
 
 ### 4. CM surface admission and direct interpolation
 
-`enumerate_cm_interpolation_surfaces` accepts a checked suitable order and
-auxiliary-prime witness plus a caller-supplied `H_O mod p`.  It revalidates the
-prime equation, field, degree, monicity, square-freeness, and complete splitting
-into `h(O)` roots.  For the first `ell+2` roots it constructs the canonical
-`j`-curve and its quadratic twist, requires exactly one twist to expose all
-`ell+1` rational kernels for order `p+1-t`, and checks the expected
-`1+(D/ell)` horizontal-edge count.
+The checked overload of `enumerate_cm_interpolation_surfaces` accepts an opaque
+`ClassicalCmClassPolynomial`, not caller coefficients.  For the three-power
+family, `derive_three_power_class_polynomial_mod_prime` starts from
+`H_-7=X+3375` and the fixed exact classical `Phi_3`.  It follows the ring-class
+tower with the exact identities
+
+```text
+Res_X(H_1(X), Phi_3(X,Y)) = H_3(Y)
+Res_X(H_f(X), Phi_3(X,Y))
+  = H_(f/3)(Y)^[h(f)/h(f/3)] H_(3f)(Y),  3 | f.
+```
+
+The resultant is computed directly in `F_p[Y]`: `H_f` is first reduced modulo
+the monic quartic `Phi_3` in `X`, then a Sylvester matrix of size at most seven
+is evaluated with fraction-free Bareiss elimination.  Every ascending-factor
+division, expected class number, degree, and monic normalization is checked.
+This avoids floating CM approximation and the much larger integer HCP.
+
+The surface layer revalidates the prime equation, field, degree, monicity,
+square-freeness, and complete splitting into `h(O)` roots.  At every root it
+constructs the canonical `j`-curve and its quadratic twist, requires exactly
+one twist to expose all `ell+1` rational kernels for order `p+1-t`, and checks
+the expected `1+(D/ell)` horizontal-edge count, including the ramified value
+one.
 
 `specialize_classical_from_cm_surfaces` forms every neighbor polynomial from
 the table-free Vélu codomains.  It does not materialize the interpolated
@@ -133,10 +152,9 @@ against the lifted target powers and the corresponding algebraic derivative
 functional.  The result is the two classical `j` residue vectors expected by
 the CRT interface.
 
-The function validates the finite-field consequences of the supplied class
-polynomial but does not establish its mathematical provenance.  An opaque,
-authenticated HCP producer type is still required before this state can cross
-a production no-root trust boundary.
+The raw-polynomial overload remains for isolated fixtures, but the complete
+classical entry point cannot receive it.  It generates the opaque object for
+each witnessed prime and immediately feeds it to the checked surface overload.
 
 ### 5. Signed Weber torsors and relative orientation
 
@@ -259,6 +277,16 @@ probe, thereby checking the complete interpolated coefficient matrix.  Missing g
 `Phi_19^f`'s eight insufficient components, mixed surface signs, duplicate
 relations, and target-level `Phi_5^f` input are rejected.
 
+The same test independently fixes every integer coefficient of `H_-567` and
+requires the native fixed-`Phi_3` tower to reproduce its reduction modulo
+`27847`.  This exercises the paper's `ell=7,D=-567` suitable order, where 7
+ramifies and every surface has one horizontal plus seven descending edges.
+The native value and X-derivative residues agree with the independent
+classical `Phi_7` oracle, and the callback-free multi-prime CM/CRT entry point
+agrees with the final target-field specialization.  That specialization then
+feeds the table-free classical normalized-codomain, BMSS, and Frobenius
+consumer and returns the same positive trace residue as the full `Phi_7` path.
+
 The target-level full-table adapters exist only as independent fixtures; they
 are not used by the native producers and cannot supply a production claim.
 
@@ -275,12 +303,12 @@ and error-bound proof.
 That does not yet establish the repository's end-to-end asymptotic claim.  In
 particular:
 
-- suitable orders are discovered only by a bounded practical search, and the
-  class-number validator is not an optimized class-group routine;
+- the general/Weber order discovery remains a bounded practical search, while
+  the classical path directly selects the cited three-power family;
 - the fixed-`v` practical prime search is not the randomized selector used by
   the asymptotic theorem;
-- no classical or Weber class polynomial state is generated or authenticated
-  (supplied split polynomials are checked and consumed);
+- the classical HCP is generated internally modulo each auxiliary prime, but
+  the Weber class polynomial is still supplied;
 - signed Weber rows are produced with supplied small relations, but selecting
   and authenticating a sufficient class-group generator set is not wired; and
 - the high-level API has a proved classical bound and rejects untyped/empirical
@@ -295,22 +323,20 @@ implementation theorem.
 
 ## Next implementation gate
 
-Turn the checked level-5 callback into a production provider:
+Generalize the authenticated producer beyond its first classical family:
 
-1. derive or load independently authenticated Hilbert-class-polynomial state
-   for the validated order and connect it first to the already proved-bound
-   classical wrapper;
-2. compute/authenticate the Weber surface class polynomial and a sufficient
+1. compute/authenticate the Weber surface class polynomial and a sufficient
    target-independent small-relation generator set for each selected order;
-3. pass the resulting signed residues through the proved-bound CRT wrapper;
-   and
+2. derive a normalization-specific proved Weber height and pass the signed
+   residues through its separately typed CRT wrapper;
+3. replace or augment fixed-`v` prime selection with the theorem-aligned
+   randomized selector for the unbounded complexity claim; and
 4. compare every per-prime residue and final target specialization with the
    authenticated table oracle before permitting any no-root result.
 
-The first sound production connection may use the implemented proved-classical
-evidence.  Enabling the faster Weber path still requires a distinct proved
-Weber evidence kind; exact-table evidence remains a bounded differential
-oracle.
+The classical family now has a callback-free, proved-bound connection.
+Enabling the faster Weber path still requires a distinct proved Weber evidence
+kind; exact-table evidence remains a bounded differential oracle.
 
 ### Implemented surface-edge primitive
 
@@ -326,12 +352,12 @@ formulas, without a target-level modular polynomial.  Level-5 tests over the
 CM discriminants `-19` and `-11` exercise both modular-square-root branches and
 compare all twelve quotients with the independent division-kernel Vélu path,
 authenticated classical modular-polynomial roots, and brute-force group
-orders.  The CM-surface layer now consumes all roots of a supplied split HCP,
-selects the correct trace twist, classifies every edge, and interpolates both
-classical `j` channels.  The Weber layer consumes a supplied Weber class
+orders.  The checked CM-surface layer consumes the internally derived
+classical HCP, selects the correct trace twist, classifies every edge, and
+interpolates both classical `j` channels.  The Weber layer consumes a supplied Weber class
 polynomial, uses target-independent small relations to obtain the two global
 floor orientations, and uniquely selects the normalized sign.  It does not
-generate or authenticate the class polynomials or relation set.
+generate or authenticate the Weber class polynomial or relation set.
 
 ## Focused review checklist
 
@@ -340,11 +366,13 @@ A mathematical review can remain narrow:
 - Definition 1 predicates and class-number enumeration;
 - necessary Weber order congruences and the separate auxiliary-value
   class-membership obligation;
+- the fixed-`Phi_3` ring-class resultant identities and exact factor removal;
+- the ramified `1+(D/ell)=1` surface case;
 - choice and parity of `t` and `v` in the prime equation;
 - target-field power/lift ordering;
 - completeness of the two signed torsors and the `X^ell Y^ell=-1` ambiguity
   rule;
-- strict CRT coverage and centered rounding; and
+- strict CRT coverage and centered rounding;
 - the exact rational derivation of the classical Algorithm 1 bound; and
 - whether the two output channels match the normalization required by
   [`docs/direct_specialization_boundary.md`](direct_specialization_boundary.md).

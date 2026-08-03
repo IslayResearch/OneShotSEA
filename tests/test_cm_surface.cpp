@@ -1,4 +1,5 @@
 #include "oneshotsea/cm_surface.hpp"
+#include "oneshotsea/elkies.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/weber.hpp"
 #include "oneshotsea/weber_cm_surface.hpp"
@@ -42,6 +43,173 @@ std::vector<mpz_class> hilbert_minus_71_coefficients() {
 std::vector<mpz_class> weber_class_minus_71_coefficients() {
     // x^7+x^6-x^5-x^4-x^3+x^2+2x-1, in ascending order.
     return {-1, 2, 1, -1, -1, -1, 1, 1};
+}
+
+std::vector<mpz_class> hilbert_minus_567_coefficients() {
+    // Independent PARI polclass(-567) fixture, in ascending order.  PARI is
+    // not called by the native producer or test.
+    return {
+        mpz_class("94939827859226638699860333760064580014012314613444064975795197294661495884252335192286409437656402587890625"),
+        mpz_class("-136351242616971469089714435801649521116139577391138661488843079813096166275700624566525220870971679687500"),
+        mpz_class("240465238298468556087654667700270270240230655372881479188875214855447931845069753006100654602050781250"),
+        mpz_class("-73626788879580702656099674756535616555593945585488278614260314081638644091947942972183227539062500"),
+        mpz_class("14310581161051907350069149682581166370429155482109353136032876236615487056880891323089599609375"),
+        mpz_class("-800043754571980290560208886060150540542476890667232606307634222648153448523521423339843750"),
+        mpz_class("44166492901213444728376505206637577274121936753006174243699437199037017761230468750000"),
+        mpz_class("1662002466792826922222915127833186081228900308110597434224630438200227600097656250"),
+        mpz_class("17743278050524501433710352182113369817897329333856490925962578368896484375"),
+        mpz_class("94712976528872464608415668346435129318235725555672703216994140625"),
+        mpz_class("57653498811281323356204033749720913703125"),
+        mpz_class("307754734372799631847595891663625"),
+        1};
+}
+
+void test_three_power_class_polynomial() {
+    std::size_t family_levels = 0U;
+    for (std::uint64_t level = 5U; level <= 997U; level += 2U) {
+        if (!oneshotsea::is_prime_u64(level)) {
+            continue;
+        }
+        const auto family_order =
+            oneshotsea::derive_three_power_suitable_order(
+                static_cast<unsigned>(level));
+        check(family_order.fundamental_discriminant() == -7 &&
+                  family_order.discriminant() ==
+                      -7 * family_order.conductor() *
+                          family_order.conductor() &&
+                  family_order.class_number() >= level + 2U &&
+                  family_order.class_number() <= 4U * level,
+              "three-power family satisfies every tested suitable-order interval");
+        ++family_levels;
+    }
+    check(family_levels == 166U,
+          "three-power family covers every odd prime level through 997");
+
+    const auto order = oneshotsea::derive_three_power_suitable_order(7);
+    check(order.fundamental_discriminant() == -7 &&
+              order.conductor() == 9 && order.discriminant() == -567 &&
+              order.class_number() == 12U,
+          "ell=7 selects the cited D=-7*3^(2n) suitable order");
+    const auto selected = oneshotsea::select_sutherland_crt_primes(
+        order, 1009, 1, 1000);
+    check(selected.size() == 1U && selected.front().prime == 27847 &&
+              selected.front().trace == 16 &&
+              selected.front().volcano_parameter == 2,
+          "D=-567 selector produces the retained p=27847 witness");
+
+    const auto class_polynomial =
+        oneshotsea::derive_three_power_class_polynomial_mod_prime(
+            order, selected.front());
+    const oneshotsea::Field field(selected.front().prime);
+    std::vector<mpz_class> expected;
+    for (const mpz_class& coefficient :
+         hilbert_minus_567_coefficients()) {
+        expected.push_back(field.normalize(coefficient));
+    }
+    check(class_polynomial.discriminant() == order.discriminant() &&
+              class_polynomial.auxiliary_prime() == selected.front().prime &&
+              class_polynomial.polynomial().coefficients() == expected &&
+              class_polynomial.polynomial().degree() == 12 &&
+              oneshotsea::gcd(
+                  class_polynomial.polynomial(),
+                  class_polynomial.polynomial().derivative()).degree() == 0 &&
+              oneshotsea::linear_roots(class_polynomial.polynomial()).size() ==
+                  12U,
+          "fixed-Phi_3 ring-class tower exactly reproduces H_-567 mod p");
+
+    const auto surfaces = oneshotsea::enumerate_cm_interpolation_surfaces(
+        order, selected.front(), class_polynomial, 27847);
+    check(surfaces.level() == 7U &&
+              surfaces.auxiliary_prime() == 27847 &&
+              surfaces.surface_curves().size() == 12U &&
+              surfaces.exact_group_order() == 27832 &&
+              surfaces.horizontal_edges_per_surface() == 1U,
+          "ramified ell=7 CM surface admits one horizontal edge per root");
+    for (const auto& surface : surfaces.surface_curves()) {
+        std::size_t horizontal = 0U;
+        for (const auto& edge : surface.edges) {
+            horizontal += edge.codomain_on_surface ? 1U : 0U;
+        }
+        check(surface.edges.size() == 8U && horizontal == 1U,
+              "ramified ell=7 surface has one horizontal and seven descending edges");
+    }
+    const oneshotsea::Field target_field(193);
+    const std::vector<mpz_class> target_powers =
+        oneshotsea::lifted_target_powers(target_field, 20, 8);
+    const auto native_residue =
+        oneshotsea::specialize_classical_from_cm_surfaces(
+            surfaces, target_powers);
+    const auto phi7 = oneshotsea::SparseModularPolynomial::load(
+        7, "data/modpoly/j/phi_7.txt");
+    const auto table_residue =
+        oneshotsea::specialize_sparse_modpoly_for_crt_reference(
+            phi7, target_powers, selected.front().prime);
+    check(native_residue.value_coefficients ==
+                  table_residue.value_coefficients &&
+              native_residue.x_derivative_coefficients ==
+                  table_residue.x_derivative_coefficients,
+          "authenticated ramified ell=7 producer matches both Phi_7 channels");
+
+    const auto reconstructed =
+        oneshotsea::reconstruct_classical_specialization_from_cm(
+            order, target_field, 20, 100000, 1000000);
+    const auto expected_specialization =
+        phi7.specialize_x_with_derivative(target_field, 20);
+    check(reconstructed.prime_count > 1U &&
+              reconstructed.crt_product >
+                  4 * reconstructed.coefficient_abs_bound &&
+              oneshotsea::equal(
+                  reconstructed.specialization.value(),
+                  expected_specialization.value()) &&
+              oneshotsea::equal(
+                  reconstructed.specialization.x_derivative(),
+                  expected_specialization.x_derivative()),
+          "full authenticated ell=7 CM/CRT path matches the target-field Phi_7 oracle");
+
+    const oneshotsea::Curve target_curve =
+        oneshotsea::short_weierstrass_curve_from_j(target_field, 20);
+    const auto table_trace =
+        oneshotsea::elkies_trace_residue_bmss_reference(target_curve, phi7);
+    const auto direct_trace =
+        oneshotsea::elkies_trace_residue_bmss_specialized_reference(
+            target_curve, reconstructed.specialization);
+    const auto direct_kernels =
+        oneshotsea::elkies_kernels_bmss_specialized_reference(
+            target_curve, reconstructed.specialization);
+    check(direct_trace.has_value() && direct_trace == table_trace &&
+              direct_trace.has_value() == !direct_kernels.empty(),
+          "direct classical specialization feeds a positive BMSS/Frobenius trace path");
+    const oneshotsea::Curve wrong_source =
+        oneshotsea::short_weierstrass_curve_from_j(target_field, 21);
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::elkies_kernels_bmss_specialized_reference(
+                      wrong_source, reconstructed.specialization));
+          }),
+          "classical specialization consumer rejects a different source curve");
+
+    const auto unrelated_order =
+        oneshotsea::validate_sutherland_suitable_order(5, -71, 1);
+    const auto unrelated_witness =
+        oneshotsea::select_sutherland_crt_primes(
+            unrelated_order, 1009, 1, 1000).front();
+    auto malformed_witness = selected.front();
+    malformed_witness.trace += 14;
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::derive_three_power_class_polynomial_mod_prime(
+                      unrelated_order, unrelated_witness));
+          }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::derive_three_power_class_polynomial_mod_prime(
+                          order, malformed_witness));
+              }) &&
+              rejects([] {
+                  static_cast<void>(
+                      oneshotsea::derive_three_power_suitable_order(3));
+              }),
+          "three-power HCP producer rejects unrelated orders and levels");
 }
 
 void test_minus_71_surface() {
@@ -297,6 +465,7 @@ void test_minus_71_surface() {
 
 int main() {
     try {
+        test_three_power_class_polynomial();
         test_minus_71_surface();
         std::cout << "CM interpolation surface tests: ok\n";
         return EXIT_SUCCESS;

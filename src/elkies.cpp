@@ -500,6 +500,63 @@ std::optional<std::uint64_t> elkies_trace_residue_bmss_reference(
         elkies_kernels_bmss_reference(curve, modular_polynomial));
 }
 
+std::vector<ElkiesKernelResult> elkies_kernels_bmss_specialized_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& specialization) {
+    if (curve.is_singular() ||
+        specialization.value().field().modulus() !=
+            curve.field().modulus() ||
+        specialization.source_x() != curve.j_invariant()) {
+        throw std::invalid_argument(
+            "classical specialization does not match a nonsingular curve");
+    }
+    const std::uint64_t ell = specialization.level();
+    const mpz_class ell_integer(std::to_string(ell));
+    if (ell < 3U || (ell & 1U) == 0U ||
+        mpz_probab_prime_p(ell_integer.get_mpz_t(), 25) == 0 ||
+        mpz_probab_prime_p(curve.field().modulus().get_mpz_t(), 25) == 0 ||
+        curve.field().modulus() == ell_integer) {
+        throw std::invalid_argument(
+            "classical specialization requires a valid SEA level");
+    }
+
+    const std::vector<mpz_class> neighbors =
+        linear_roots(specialization.value());
+    std::vector<ElkiesKernelResult> results;
+    for (const mpz_class& neighbor : neighbors) {
+        Curve codomain = curve;
+        try {
+            codomain = normalized_codomain_from_classical_specialization(
+                curve, specialization, neighbor);
+        } catch (const std::domain_error&) {
+            continue;
+        }
+        BmssIsogenyResult reconstruction =
+            bmss_isogeny_reference(curve, codomain, ell);
+        const auto eigenvalue = try_frobenius_eigenvalue_from_isogeny(
+            curve, codomain, reconstruction, ell);
+        if (!eigenvalue.has_value()) {
+            throw std::runtime_error(
+                "BMSS specialized neighbor did not yield a Frobenius eigenkernel");
+        }
+        const std::uint64_t trace_residue = trace_residue_from_eigenvalue(
+            curve.field().modulus(), ell, *eigenvalue);
+        results.push_back({ell, std::move(reconstruction.kernel),
+                           std::move(codomain), neighbor, *eigenvalue,
+                           trace_residue});
+    }
+    static_cast<void>(common_trace_residue(results));
+    return results;
+}
+
+std::optional<std::uint64_t>
+elkies_trace_residue_bmss_specialized_reference(
+    const Curve& curve,
+    const ModularPolynomialSpecialization& specialization) {
+    return common_trace_residue(
+        elkies_kernels_bmss_specialized_reference(curve, specialization));
+}
+
 WeberElkiesLevelResult compute_weber_elkies_level_reference(
     const Curve& curve,
     const SparseModularPolynomial& weber_modular_polynomial,

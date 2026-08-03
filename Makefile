@@ -30,7 +30,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-direct-modpoly test-prime-isogeny test-cm-surface test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-direct-modpoly test-prime-isogeny test-cm-surface test-p125-direct-trace test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -171,6 +171,10 @@ test-prime-isogeny: $(BUILD_DIR)/test_prime_isogeny
 test-cm-surface: $(BUILD_DIR)/test_cm_surface
 	./$(BUILD_DIR)/test_cm_surface
 
+test-p125-direct-trace: $(BUILD_DIR)/validate_p125_direct_trace
+	./$(BUILD_DIR)/validate_p125_direct_trace --threads 2 5 | \
+		python3 -c 'import json,sys; rows=[json.loads(line) for line in sys.stdin]; assert len(rows)==2; level,summary=rows; assert level["schema"]=="oneshotsea.p125-direct-trace-level.v1" and level["ell"]=="5" and level["exact"] and level["trace_residue"]=="3" and level["oracle_accepted"]; assert summary["schema"]=="oneshotsea.p125-direct-trace-summary.v1" and not summary["complete"] and not summary["oracle_match"] and summary["retained_levels"]=="1"'
+
 test-poly-square: $(BUILD_DIR)/test_poly_square
 	./$(BUILD_DIR)/test_poly_square
 
@@ -291,7 +295,7 @@ test-runpod: all
 test-aws:
 	scripts/aws/test.sh
 
-test-all: test test-direct-modpoly test-prime-isogeny test-cm-surface test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
+test-all: test test-direct-modpoly test-prime-isogeny test-cm-surface test-p125-direct-trace test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

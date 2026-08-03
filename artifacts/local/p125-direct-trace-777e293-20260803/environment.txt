@@ -1,0 +1,13 @@
+capture_date_utc=2026-08-03
+host=Apple Mac mini Mac16,10
+chip=Apple M4
+cpu_cores=10 (4 performance, 6 efficiency)
+memory=16 GB
+kernel=Darwin 25.5.0 arm64
+os=macOS 26.5.1 (25F80)
+compiler=Apple clang 21.0.0 (clang-2100.1.1.101)
+compiler_target=arm64-apple-darwin25.5.0
+make=GNU Make 3.81
+gmp=6.3.0
+gnu_time=GNU Time 1.9
+preparation_threads=4

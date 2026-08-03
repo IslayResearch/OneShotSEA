@@ -1,0 +1,23 @@
+{
+  "schema": "oneshotsea.p125-direct-trace-identity.v1",
+  "source": {
+    "commit": "777e293786ace30a3b8fec025d90875267f98ea4",
+    "tree": "b964a59a0744236574c00c94088e286be16be3a1",
+    "validator_source_sha256": "140228f65a2bbc5e4d69397dc2380507d3e84855aece7d8f11eda137058bb8ae"
+  },
+  "binary": {
+    "path_in_clean_clone": "build/validate_p125_direct_trace",
+    "sha256": "7d952d9c2de84132dc089a2d6e93a8e2d026bf3b8aa9ae2abd952c9a83036f43"
+  },
+  "build": {
+    "command": "/usr/bin/make -j4 build/validate_p125_direct_trace",
+    "compiler": "Apple clang 21.0.0 (clang-2100.1.1.101)",
+    "gmp": "6.3.0"
+  },
+  "gnu_time": {
+    "version": "GNU Time 1.9",
+    "source_url": "https://ftp.gnu.org/gnu/time/time-1.9.tar.gz",
+    "source_sha256": "fbacf0c81e62429df3e33bda4cee38756604f18e01d977338e23306a3e3b521e",
+    "binary_sha256": "166de2ff56f49a450204769205061bdc66fcb97ba13f8ea706112acfe03cdc67"
+  }
+}

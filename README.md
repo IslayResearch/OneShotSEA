@@ -33,6 +33,8 @@ general-purpose SEA implementation during a search. The branch adds:
 - bounded 128-bit batch accumulation for the compact interpolation matrices,
   with an exact no-overflow capacity bound for each 64-bit auxiliary field;
 - exact Elkies recovery with normalized-codomain and BMSS checks;
+- polynomial-bound complete root evidence that reuses the Elkies attempt's
+  validated first Frobenius image in the subsequent no-root Atkin proof;
 - certified Atkin trace sets with factored CRT counting and bounded
   meet-in-the-middle enumeration;
 - retained direct constraints across Weber fallback and the cap-N-to-cap-one
@@ -61,6 +63,7 @@ while independent point counters are used only as validation oracles.
 | Deferred direct suffix | Levels 89/97 were absent from four ordinary p125 rejections, but cap-one replays preserved all three independent traces and shortened Weber continuation. [Deferred-suffix audit](artifacts/local/p125-cap-one-direct-tail-20260803/README.md) |
 | Pre-smooth suffix promotion | On the same four curves, five cached suffix evaluations reduced smoothness inputs from 46 orders to 8, resolved every multi-trace set to the independent PARI trace, and reduced the single-run summed total by 7.17%. [Pre-smooth A/B](artifacts/local/p125-pre-smooth-direct-tail-20260803/README.md) |
 | Direct interpolation hot path | On 32 real p125 level evaluations, batched modular accumulation preserved every exact/Atkin result and reduced isolated evaluation time by 19.52% against the mean of bracketing baselines; a production replay preserved all four independent traces. [Batched-interpolation A/B/A](artifacts/local/p125-direct-batched-interpolation-20260803/README.md) |
+| Direct Atkin Frobenius reuse | Complete root evidence removes one duplicate quotient-ring exponentiation per Atkin level. An exact B/A/A/B level-89 bracket cut the raw isolated target timer 50.54%, with favorable generation drift explicitly preventing a general speed claim; the full four-curve production replay preserved all PARI traces. [Frobenius-reuse audit](artifacts/local/p125-direct-atkin-frobenius-reuse-20260803/README.md) |
 | Bounded Atkin combiner | A 240-record differential A/B was identical while improving direct evaluation by 10.96x and peak RSS by 28.71x. [Atkin MITM audit](artifacts/local/p125-direct-atkin-mitm-20260803/README.md) |
 
 These results validate the implementation path and its proof-state composition.
@@ -166,6 +169,8 @@ The highest-value review questions are concrete:
    fresh construction with the same declared inputs?
 6. Does the direct interpolation hot path's accumulator-capacity proof cover
    every admitted 64-bit modulus and matrix dimension?
+7. Is the retained `X^p` image cryptographically bound to the exact immutable
+   specialization consumed by both the complete root and Atkin proofs?
 
 Those are bounded proof obligations with retained witnesses and differential
 evidence, which is why Drew's review is worth the time now. A positive review
@@ -200,6 +205,9 @@ scope](docs/asymptotic_scope.md).
 - [`src/sea.cpp`](src/sea.cpp), [`src/trace.cpp`](src/trace.cpp), and
   [`src/early_abort.cpp`](src/early_abort.cpp): certified trace consumption and
   sound early rejection.
+- [`src/poly.cpp`](src/poly.cpp), [`src/factor.cpp`](src/factor.cpp),
+  [`src/elkies.cpp`](src/elkies.cpp), and [`src/atkin.cpp`](src/atkin.cpp):
+  complete root evidence, Frobenius reuse, and exact Elkies/Atkin binding.
 - [`src/search_pipeline.cpp`](src/search_pipeline.cpp): retained continuation,
   early-abort policy, concurrency, telemetry, and checkpoint identity.
 - [`scripts/aws/`](scripts/aws/): authenticated cache preparation and immutable

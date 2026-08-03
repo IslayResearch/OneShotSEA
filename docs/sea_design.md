@@ -69,6 +69,18 @@ insufficient, the explicitly enabled exact Schoof fallback extends the retained
 state through a fixed audited prime sequence.  A contradiction or exhausted
 implementation limit fails closed.
 
+The opt-in direct-first classical path authenticates a prepared ordered level
+schedule and specializes only `Phi_l(j,Y)` plus the needed derivative. Its
+complete rational-root analysis retains `X^p mod Phi_l(j,Y)` as opaque
+evidence bound to the exact immutable specialization. If no Elkies kernel is
+present, the Atkin uniform-factor-degree proof seeds its Frobenius composition
+chain with that already validated image instead of repeating the first full
+quotient-ring exponentiation. Consumers reject evidence for any different
+polynomial. This changes a per-Atkin-level constant, not the factor-degree
+criterion, trace set, cache identity, early-abort policy, or asymptotic
+exponent. The p125 differential and production evidence is retained in the
+[Frobenius-reuse audit](../artifacts/local/p125-direct-atkin-frobenius-reuse-20260803/README.md).
+
 ### 0.3 Sound early abort, exact smoothness, and certificate tail
 
 The first SEA pass proceeds to early screening only when the

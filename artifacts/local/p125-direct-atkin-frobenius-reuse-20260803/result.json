@@ -1,0 +1,121 @@
+{
+  "schema": "oneshotsea.p125-direct-atkin-frobenius-reuse.v1",
+  "implementation": {
+    "commit": "ef42ed25ebec9887a65867f8a776941f585329af",
+    "tree": "f36e5771603441b9219f998a0b92c5cae46965fa",
+    "profiler_sha256": "c2e613fae02647eec20c23ea3c72e7bc7cab925e84c7db6154b1ea85df725cf5"
+  },
+  "baseline": {
+    "commit": "302e4bef26cdf5ae5028d6954446a7dc2a2705cc",
+    "tree": "f88d007c3a22cd7eaa67c2b6732c687891dd9feb",
+    "profiler_sha256": "c9cae9b80a05a624651dd171300a84ec14a6e6957cfe52e3c600dbe1b66d24eb"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416,
+    "seed": "202607300000",
+    "range_start": "2000001",
+    "count": 4,
+    "profile_level": 89,
+    "authenticated_levels": [61, 67, 71, 73, 79, 83, 89, 97],
+    "threads": 1,
+    "require_point_four": true
+  },
+  "direct_context": {
+    "sha256": "b4543589450c429516c95c5de575be853b6d5e7b5a4cdaabfdcf119a4b15d450",
+    "file_bytes": 140599516,
+    "profiled_level_payload_bytes": 24511760,
+    "resident_budget_bytes": 1000000000,
+    "maximum_prime_candidates": 10000000,
+    "maximum_x_candidates_per_surface": 1000000
+  },
+  "method": {
+    "order": ["baseline_a", "candidate_a", "candidate_b", "baseline_b"],
+    "fresh_process_per_run": true,
+    "same_benchmark_driver": true,
+    "same_authenticated_cache": true,
+    "timing_scope": "sum of four isolated level-89 direct evaluation_us values; cache indexing, curve generation, materialization, Schoof, Weber continuation, smoothness, and certificate work excluded",
+    "thermal_control": "curve generation used as a same-process directional control, not as a normalization factor",
+    "randomized": false,
+    "host": "Apple arm64, Darwin 25.5.0"
+  },
+  "runs": {
+    "baseline_a": {
+      "records": "raw/baseline-a.ndjson",
+      "records_sha256": "f5e48f3cec583f7d0f55b1a46ad99a5100f39678361d3e61f155255407766a73",
+      "evaluation_us": 5473230,
+      "generation_us": 57946481,
+      "materialization_us": 680929,
+      "peak_rss_bytes": 36093952
+    },
+    "candidate_a": {
+      "records": "raw/candidate-a.ndjson",
+      "records_sha256": "e2ad915c2332538ac85fa9d71ec8ef62c906a47857543a31ee63984dfc2a919a",
+      "evaluation_us": 2843110,
+      "generation_us": 45760647,
+      "materialization_us": 550055,
+      "peak_rss_bytes": 36306944
+    },
+    "candidate_b": {
+      "records": "raw/candidate-b.ndjson",
+      "records_sha256": "3f2fd28776a5dd4cbac376527f700fd85744a49d22a170411d60c4317b52260a",
+      "evaluation_us": 2519907,
+      "generation_us": 39453874,
+      "materialization_us": 494715,
+      "peak_rss_bytes": 36290560
+    },
+    "baseline_b": {
+      "records": "raw/baseline-b.ndjson",
+      "records_sha256": "86969afec61d46108f2e2dcbc5c26229d6fa4047162cb5debbf5f060bd4c6bf1",
+      "evaluation_us": 5369323,
+      "generation_us": 54705959,
+      "materialization_us": 712383,
+      "peak_rss_bytes": 36323328
+    }
+  },
+  "comparison": {
+    "baseline_evaluation_us": 10842553,
+    "candidate_evaluation_us": 5363017,
+    "raw_target_timer_speedup": 2.0217263902016347,
+    "raw_target_timer_reduction_percent": 50.53732271357124,
+    "baseline_generation_us": 112652440,
+    "candidate_generation_us": 85214521,
+    "generation_control_reduction_percent": 24.356258062408585,
+    "baseline_materialization_us": 1393312,
+    "candidate_materialization_us": 1044770,
+    "identical_level_semantics": true,
+    "general_speedup_inference_allowed": false
+  },
+  "production_validation": {
+    "records": "raw/production-progress.ndjson",
+    "records_sha256": "dac0af3be0f79fe040e77f5a4fe673be37ad4742779914c2072f76997ca8c189",
+    "checkpoint": "raw/production-checkpoint.json",
+    "checkpoint_sha256": "71b1ecc981cc05d8868ead4ea3e0b9c5e7cf13177a90c9dc3a822939da4cdb76",
+    "schedule_sha256": "c542232bf07b3528edb88aa6a9c8e09193d6fcb7d8c8a9b9bea903dcaacf14ad",
+    "prior_records": "artifacts/local/p125-pre-smooth-direct-tail-20260803/raw/promoted.ndjson",
+    "prior_records_sha256": "7d4e755856725bec037ebbe5b85e8c8126c3cdb3f0c4bd74f44eea2911b6ee41",
+    "independent_point_counts": "artifacts/local/p125-direct-first-cohort-20260803/raw/pari-point-counts.txt",
+    "independent_point_counts_sha256": "3f7b1849862acdf40a4cc58b98efd10181923e17f664bfb2f9e15e9427683e53",
+    "direct_level_evaluations": 85,
+    "direct_level_counts": [20, 22, 22, 21],
+    "direct_exact_counts": [12, 11, 11, 10],
+    "direct_atkin_counts": [8, 11, 11, 11],
+    "weber_level_counts": [33, 33, 35, 52],
+    "smooth_orders": 8,
+    "sound_rejections": 4,
+    "semantic_match": true,
+    "exact_traces_match_pari": true,
+    "timing_used_for_speedup_claim": false
+  },
+  "claims": {
+    "duplicate_frobenius_exponentiation_removed_per_atkin_level": true,
+    "isolated_atkin_timer_improved": true,
+    "production_semantics_preserved": true,
+    "certificate_found": false,
+    "production_yield_measured": false,
+    "whole_cohort_speedup_claimed": false,
+    "end_to_end_speedup_claimed": false,
+    "cm_crossover_established": false,
+    "asymptotic_exponent_changed": false
+  }
+}

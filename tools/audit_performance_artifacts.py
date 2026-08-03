@@ -23,6 +23,7 @@ BUNDLES = (
     "p125-weber-root-orbits-20260801",
     "p125-polynomial-reducer-ab-20260731",
     "p125-curve-twist-workcount-20260801",
+    "p125-classical-direct-compact-20260803",
 )
 
 
@@ -751,6 +752,215 @@ def audit_curve_twist() -> None:
         fail("curve/twist certificate total mismatch")
 
 
+def audit_direct_context_compaction() -> None:
+    bundle = ARTIFACTS / "p125-classical-direct-compact-20260803"
+    result = load_json(bundle / "result.json")
+    if result["schema"] != "oneshotsea.p125-classical-direct-compact-evidence.v1":
+        fail("direct-context result schema mismatch")
+
+    environment: dict[str, str] = {}
+    for line in (bundle / "environment.txt").read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        key, separator, value = line.partition("=")
+        if not separator or key in environment:
+            fail(f"malformed direct-context environment line: {line!r}")
+        environment[key] = value
+
+    identity = result["implementation_identity"]
+    expected_identity = {
+        "candidate": {
+            "commit": "7c6a997ddd4482e311b27d6bd3f7e1aa93b909e9",
+            "tree": "39c73c22ac0ba351e3319b3fb54c58db81bac458",
+            "parent": "4f917fcfc2a2dc5d06980e08bef77d9c95c83dbd",
+            "benchmark_sha256": "69ea7463af869a1644ef107d166f4d8b3b30a0f2cc125cd3ef699a6986626b56",
+            "library_sha256": "aafb4f92decf11da07a341dd4569cf9a336a2f862500962a5f2ffdc06c299ae5",
+        },
+        "baseline": {
+            "commit": "4f917fcfc2a2dc5d06980e08bef77d9c95c83dbd",
+            "tree": "6db235641ae0e9d6822afd4af57fc9d3dc2f4689",
+            "parent": "0d2136bc4fd6cc12fc4c2795356be23f60af9f41",
+            "benchmark_sha256": "e537d9120f414a45104bf3842be70c08a9cf61178aade97d0b690b8bfa8a117d",
+            "library_sha256": "9a8ef586e0b8c38facb5cba02e4af9c0421a49c0edb18d9fca3736fe146fb806",
+            "compile_define": "ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT=1",
+        },
+    }
+    for label, expected in expected_identity.items():
+        if identity[label] != expected:
+            fail(f"direct-context {label} implementation identity mismatch")
+        for key, value in expected.items():
+            environment_key = f"{label}_{key}"
+            if key == "compile_define":
+                environment_key = "baseline_compile_define"
+            if environment.get(environment_key) != value:
+                fail(f"direct-context environment identity mismatch: {environment_key}")
+        git_meta = subprocess.run(
+            ["git", "show", "-s", "--format=%H%n%T%n%P", expected["commit"]],
+            cwd=ROOT, check=True, stdout=subprocess.PIPE, text=True,
+        ).stdout.splitlines()
+        if git_meta != [expected["commit"], expected["tree"], expected["parent"]]:
+            fail(f"direct-context Git identity mismatch: {label}")
+    source = subprocess.run(
+        ["git", "show", f"{expected_identity['candidate']['commit']}:tools/benchmark_p125_classical_direct.cpp"],
+        cwd=ROOT, check=True, stdout=subprocess.PIPE,
+    ).stdout
+    source_hash = hashlib.sha256(source).hexdigest()
+    if source_hash != identity["benchmark_source_sha256"] or \
+            environment.get("benchmark_source_sha256") != source_hash:
+        fail("direct-context benchmark source identity mismatch")
+
+    numeric_fields = (
+        "ell", "thread_limit", "preparation_us", "cold_us",
+        "warm_distinct_j_us", "validation_us", "auxiliary_prime_count",
+        "class_number", "cold_schoof_residue", "warm_schoof_residue",
+        "process_peak_rss_bytes",
+    )
+    matrix_fields = ("matrix_coefficients", "matrix_payload_bytes")
+
+    def validate_row(row: dict, *, compact: bool) -> None:
+        if row.get("schema") != result["benchmark_schema"]:
+            fail("direct-context benchmark schema mismatch")
+        for field in numeric_fields:
+            if not isinstance(row.get(field), str) or not re.fullmatch(r"[0-9]+", row[field]):
+                fail(f"direct-context numeric-string mismatch: {field}")
+        for field in matrix_fields:
+            value = row.get(field)
+            if compact:
+                if not isinstance(value, str) or not re.fullmatch(r"[0-9]+", value):
+                    fail(f"direct-context compact matrix field mismatch: {field}")
+            elif value is not None:
+                fail(f"direct-context baseline matrix field must be null: {field}")
+        if not isinstance(row.get("cold_exact"), bool) or \
+                not isinstance(row.get("warm_exact"), bool):
+            fail("direct-context exactness flag mismatch")
+
+    parallel = result["same_binary_parallel"]
+    rows = load_jsonl(bundle / parallel["raw"])
+    if len(rows) != parallel["record_count"]:
+        fail("direct-context same-binary record-count mismatch")
+    expected_order = [pair for _ in range(parallel["bracket_count"])
+                      for pair in parallel["order_per_bracket"]]
+    observed_order = [[int(row["ell"]), int(row["thread_limit"])] for row in rows]
+    if observed_order != expected_order:
+        fail("direct-context same-binary bracket order mismatch")
+    static = {
+        7: {"auxiliary_prime_count": 37, "class_number": 12,
+            "matrix_coefficients": 5994, "matrix_payload_bytes": 47952,
+            "cold_exact": True, "warm_exact": False,
+            "cold_schoof_residue": 5, "warm_schoof_residue": 6},
+        11: {"auxiliary_prime_count": 43, "class_number": 36,
+             "matrix_coefficients": 14534, "matrix_payload_bytes": 116272,
+             "cold_exact": True, "warm_exact": True,
+             "cold_schoof_residue": 10, "warm_schoof_residue": 6},
+    }
+    median_fields = ("preparation_us", "cold_us", "warm_distinct_j_us",
+                     "process_peak_rss_bytes")
+    for row in rows:
+        validate_row(row, compact=True)
+        ell = int(row["ell"])
+        for field, expected in static[ell].items():
+            actual = row[field] if isinstance(expected, bool) else int(row[field])
+            if actual != expected:
+                fail(f"direct-context same-binary static mismatch: ell={ell}/{field}")
+        expected_coefficients = 2 * int(row["auxiliary_prime_count"]) * (ell + 2) ** 2
+        if int(row["matrix_coefficients"]) != expected_coefficients or \
+                int(row["matrix_payload_bytes"]) != 8 * expected_coefficients:
+            fail(f"direct-context matrix-size formula mismatch: ell={ell}")
+    for ell in (7, 11):
+        report = parallel["levels"][str(ell)]
+        for field, expected in static[ell].items():
+            if report[field] != expected:
+                fail(f"direct-context reported static mismatch: ell={ell}/{field}")
+        groups: dict[int, list[dict]] = {
+            threads: [row for row in rows
+                      if int(row["ell"]) == ell and int(row["thread_limit"]) == threads]
+            for threads in (1, 4)
+        }
+        if any(len(group) != 6 for group in groups.values()):
+            fail(f"direct-context sample multiplicity mismatch: ell={ell}")
+        medians: dict[int, dict[str, float]] = {}
+        for threads, group in groups.items():
+            medians[threads] = {
+                field: statistics.median(int(row[field]) for row in group)
+                for field in median_fields
+            }
+            reported = report["serial_medians" if threads == 1 else "four_worker_medians"]
+            for field in median_fields:
+                close(medians[threads][field], reported[field])
+        close(medians[1]["preparation_us"] / medians[4]["preparation_us"],
+              report["preparation_speedup"])
+        close(medians[1]["cold_us"] / medians[4]["cold_us"], report["cold_speedup"])
+        close(1 - medians[4]["warm_distinct_j_us"] / medians[4]["cold_us"],
+              report["four_worker_warm_vs_cold_reduction_fraction"])
+        close(medians[4]["process_peak_rss_bytes"] / medians[1]["process_peak_rss_bytes"],
+              report["four_worker_over_serial_peak_rss_ratio"])
+
+    bracket = result["compaction_bracket"]
+    rows = load_jsonl(bundle / bracket["raw"])
+    if len(rows) != bracket["record_count"]:
+        fail("direct-context compaction-bracket record-count mismatch")
+    observed_order = [["candidate" if row["matrix_coefficients"] is not None else "baseline",
+                       int(row["ell"])] for row in rows]
+    if observed_order != bracket["order"]:
+        fail("direct-context compaction-bracket order mismatch")
+    bracket_static = {
+        13: {"auxiliary_prime_count": 45, "class_number": 36,
+             "matrix_coefficients": 20250, "matrix_payload_bytes": 162000,
+             "cold_exact": False, "warm_exact": True,
+             "cold_schoof_residue": 0, "warm_schoof_residue": 5},
+        29: {"auxiliary_prime_count": 76, "class_number": 36,
+             "matrix_coefficients": 146072, "matrix_payload_bytes": 1168576,
+             "cold_exact": True, "warm_exact": True,
+             "cold_schoof_residue": 23, "warm_schoof_residue": 12},
+    }
+    for row in rows:
+        candidate = row["matrix_coefficients"] is not None
+        validate_row(row, compact=candidate)
+        if int(row["thread_limit"]) != 4:
+            fail("direct-context compaction bracket did not use four workers")
+        ell = int(row["ell"])
+        expected = bracket_static[ell]
+        for field in ("auxiliary_prime_count", "class_number", "cold_exact",
+                      "warm_exact", "cold_schoof_residue", "warm_schoof_residue"):
+            actual = row[field] if isinstance(expected[field], bool) else int(row[field])
+            if actual != expected[field]:
+                fail(f"direct-context compaction static mismatch: ell={ell}/{field}")
+        if candidate:
+            if int(row["matrix_coefficients"]) != expected["matrix_coefficients"] or \
+                    int(row["matrix_payload_bytes"]) != expected["matrix_payload_bytes"]:
+                fail(f"direct-context compaction matrix mismatch: ell={ell}")
+            if expected["matrix_payload_bytes"] != 8 * 2 * expected["auxiliary_prime_count"] * (ell + 2) ** 2:
+                fail(f"direct-context compaction formula mismatch: ell={ell}")
+    for ell in (13, 29):
+        report = bracket["levels"][str(ell)]
+        candidate_rows = [row for row in rows
+                          if int(row["ell"]) == ell and row["matrix_coefficients"] is not None]
+        baseline_rows = [row for row in rows
+                         if int(row["ell"]) == ell and row["matrix_coefficients"] is None]
+        if len(candidate_rows) != report["candidate_samples"] or \
+                len(baseline_rows) != report["baseline_samples"]:
+            fail(f"direct-context compaction sample multiplicity mismatch: ell={ell}")
+        candidate_rss = statistics.median(int(row["process_peak_rss_bytes"])
+                                          for row in candidate_rows)
+        baseline_rss = statistics.median(int(row["process_peak_rss_bytes"])
+                                         for row in baseline_rows)
+        candidate_warm = statistics.median(int(row["warm_distinct_j_us"])
+                                           for row in candidate_rows)
+        baseline_warm = statistics.median(int(row["warm_distinct_j_us"])
+                                          for row in baseline_rows)
+        close(candidate_rss, report["candidate_median_peak_rss_bytes"])
+        close(baseline_rss, report["baseline_median_peak_rss_bytes"])
+        close(1 - candidate_rss / baseline_rss, report["peak_rss_reduction_fraction"])
+        close(candidate_warm, report["candidate_median_warm_distinct_j_us"])
+        close(baseline_warm, report["baseline_median_warm_distinct_j_us"])
+        close(baseline_warm / candidate_warm, report["warm_speedup"])
+        if report["matrix_coefficients"] != bracket_static[ell]["matrix_coefficients"] or \
+                report["matrix_payload_bytes"] != bracket_static[ell]["matrix_payload_bytes"]:
+            fail(f"direct-context compaction reported matrix mismatch: ell={ell}")
+    if result["claim_boundary"]["cold_cross_commit_speedup_claimed"] is not False:
+        fail("direct-context artifact must not claim a cross-commit cold speedup")
+
+
 def main() -> None:
     for bundle in BUNDLES:
         audit_checksums(bundle)
@@ -762,6 +972,7 @@ def main() -> None:
     audit_root_orbits()
     audit_reducer()
     audit_curve_twist()
+    audit_direct_context_compaction()
     print(f"performance artifact audit ok: {len(BUNDLES)} bundles")
 
 

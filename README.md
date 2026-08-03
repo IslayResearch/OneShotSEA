@@ -100,10 +100,10 @@ matrix payload, and process peak RSS:
 ```
 
 In the same-host level-29 bracket, compact contexts reduced peak RSS from
-60.4 MB to 12.5–13.0 MB and reduced distinct-`j` warm evaluation from 256 ms
-to 86–128 ms. Cold timings were thermally noisy, so this branch makes no cold
+60.6 MB to 12.8–13.2 MB and reduced distinct-`j` warm evaluation from 251 ms
+to 84–87 ms. Cold timings were thermally noisy, so this branch makes no cold
 speedup claim. Both cold and warm residues matched independent Schoof. The
-full raw bracket and measurement limits are in
+full audited raw bracket and measurement limits are in
 [the compact-context note](docs/direct_context_compaction.md).
 
 ## Correctness and asymptotic scope

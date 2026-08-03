@@ -734,6 +734,29 @@ subject to continued long-run monitoring. Source: [X1(27) family A/B
 artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
 [audit note](x1_27_family_ab.md).
 
+## Compact classical direct contexts
+
+The direct classical producer now discards admitted CM curves, kernels, and
+isogenies after converting each witness to two square interpolation matrices.
+For `K` auxiliary primes at level `ell`, the persistent coefficient payload is
+exactly `2 K (ell+2)^2` canonical 64-bit residues rather than an
+`O(K ell^3)` collection of rich isogeny objects.
+
+On the same Apple M4 host, isolated level-29 processes reduced peak RSS from
+60,620,800 bytes for the pre-compaction library to 12,779,520 and 13,205,504
+bytes for the compact library. The compact median is 78.57% lower. The checked
+distinct-`j` warm evaluation fell from 251,353 microseconds to an 85,607.5
+microsecond compact median, a 2.936x speedup. At level 13, median RSS fell
+42.22% and the distinct-`j` warm path improved 1.921x. Every measured result
+was independently validated by Schoof outside the timed interval.
+
+The same candidate binary also ran three `serial / four-worker / four-worker /
+serial` brackets at levels 7 and 11. Median preparation speedups were 3.151x
+and 3.260x, respectively. Cross-commit cold timings are deliberately excluded
+from the compaction claim because the sustained level-29 legs were thermally
+variable. Source: [compact direct-context artifact](../artifacts/local/p125-classical-direct-compact-20260803/result.json)
+and [design note](direct_context_compaction.md).
+
 ## 8. Reproduction and interpretation rules
 
 - The controlled polynomial-reducer commands, hashes, and environment are in
@@ -812,6 +835,10 @@ artifact](../artifacts/local/p125-x1-27-family-ab-20260801/result.json) and
 - The RunPod CPU worker identity, cpuset, rate, exact command, matched SEA
   state, timing, and cross-commit comparison boundary are in
   [the 2026-08-02 RunPod CPU benchmark](runpod_cpu_benchmark_20260802.md).
+- The clean candidate/baseline identities, same-binary parallel brackets,
+  isolated compact-context RSS bracket, raw benchmark records, and aggregation
+  checks are in
+  [the compact direct-context artifact](../artifacts/local/p125-classical-direct-compact-20260803/result.json).
 
 Timings from different commits are not combined into speedups.  A projected
 time is labeled as such.  A table footprint, eliminated operation count, or

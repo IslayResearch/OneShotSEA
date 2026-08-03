@@ -1,0 +1,102 @@
+{
+  "schema": "oneshotsea.p125-classical-direct-compact-evidence.v1",
+  "capture_date_utc": "2026-08-03",
+  "benchmark_schema": "oneshotsea.p125-classical-direct-benchmark.v1",
+  "implementation_identity": {
+    "candidate": {
+      "commit": "7c6a997ddd4482e311b27d6bd3f7e1aa93b909e9",
+      "tree": "39c73c22ac0ba351e3319b3fb54c58db81bac458",
+      "parent": "4f917fcfc2a2dc5d06980e08bef77d9c95c83dbd",
+      "benchmark_sha256": "69ea7463af869a1644ef107d166f4d8b3b30a0f2cc125cd3ef699a6986626b56",
+      "library_sha256": "aafb4f92decf11da07a341dd4569cf9a336a2f862500962a5f2ffdc06c299ae5"
+    },
+    "baseline": {
+      "commit": "4f917fcfc2a2dc5d06980e08bef77d9c95c83dbd",
+      "tree": "6db235641ae0e9d6822afd4af57fc9d3dc2f4689",
+      "parent": "0d2136bc4fd6cc12fc4c2795356be23f60af9f41",
+      "benchmark_sha256": "e537d9120f414a45104bf3842be70c08a9cf61178aade97d0b690b8bfa8a117d",
+      "library_sha256": "9a8ef586e0b8c38facb5cba02e4af9c0421a49c0edb18d9fca3736fe146fb806",
+      "compile_define": "ONESHOTSEA_BENCHMARK_LEGACY_CONTEXT=1"
+    },
+    "benchmark_source_sha256": "081fa43bcda64b9c81a9d14de6e4f0a92529c8d69ee9a93fa3295e53d0c07566"
+  },
+  "same_binary_parallel": {
+    "raw": "raw/samples.ndjson",
+    "record_count": 24,
+    "bracket_count": 3,
+    "order_per_bracket": [[7, 1], [7, 4], [7, 4], [7, 1], [11, 1], [11, 4], [11, 4], [11, 1]],
+    "levels": {
+      "7": {
+        "auxiliary_prime_count": 37,
+        "class_number": 12,
+        "matrix_coefficients": 5994,
+        "matrix_payload_bytes": 47952,
+        "cold_exact": true,
+        "warm_exact": false,
+        "cold_schoof_residue": 5,
+        "warm_schoof_residue": 6,
+        "serial_medians": {"preparation_us": 503444.0, "cold_us": 512800.0, "warm_distinct_j_us": 27617.5, "process_peak_rss_bytes": 3702784.0},
+        "four_worker_medians": {"preparation_us": 159761.5, "cold_us": 169256.5, "warm_distinct_j_us": 27949.0, "process_peak_rss_bytes": 3743744.0},
+        "preparation_speedup": 3.151222290727115,
+        "cold_speedup": 3.0297211628504668,
+        "four_worker_warm_vs_cold_reduction_fraction": 0.8348719251550162,
+        "four_worker_over_serial_peak_rss_ratio": 1.011061946902655
+      },
+      "11": {
+        "auxiliary_prime_count": 43,
+        "class_number": 36,
+        "matrix_coefficients": 14534,
+        "matrix_payload_bytes": 116272,
+        "cold_exact": true,
+        "warm_exact": true,
+        "cold_schoof_residue": 10,
+        "warm_schoof_residue": 6,
+        "serial_medians": {"preparation_us": 2560982.5, "cold_us": 2576274.0, "warm_distinct_j_us": 15578.0, "process_peak_rss_bytes": 4440064.0},
+        "four_worker_medians": {"preparation_us": 785634.0, "cold_us": 800600.5, "warm_distinct_j_us": 15609.5, "process_peak_rss_bytes": 5136384.0},
+        "preparation_speedup": 3.2597653614787547,
+        "cold_speedup": 3.217927043512963,
+        "four_worker_warm_vs_cold_reduction_fraction": 0.9805027601156882,
+        "four_worker_over_serial_peak_rss_ratio": 1.1568265682656826
+      }
+    }
+  },
+  "compaction_bracket": {
+    "raw": "raw/compaction-bracket.ndjson",
+    "record_count": 7,
+    "order": [["candidate", 13], ["baseline", 13], ["baseline", 13], ["candidate", 13], ["candidate", 29], ["baseline", 29], ["candidate", 29]],
+    "levels": {
+      "13": {
+        "candidate_samples": 2,
+        "baseline_samples": 2,
+        "candidate_median_peak_rss_bytes": 5234688.0,
+        "baseline_median_peak_rss_bytes": 9060352.0,
+        "peak_rss_reduction_fraction": 0.42224231464737794,
+        "candidate_median_warm_distinct_j_us": 18753.5,
+        "baseline_median_warm_distinct_j_us": 36022.0,
+        "warm_speedup": 1.920814781240835,
+        "matrix_coefficients": 20250,
+        "matrix_payload_bytes": 162000
+      },
+      "29": {
+        "candidate_samples": 2,
+        "baseline_samples": 1,
+        "candidate_median_peak_rss_bytes": 12992512.0,
+        "baseline_median_peak_rss_bytes": 60620800.0,
+        "peak_rss_reduction_fraction": 0.7856756756756756,
+        "candidate_median_warm_distinct_j_us": 85607.5,
+        "baseline_median_warm_distinct_j_us": 251353.0,
+        "warm_speedup": 2.936109569839091,
+        "matrix_coefficients": 146072,
+        "matrix_payload_bytes": 1168576
+      }
+    }
+  },
+  "claim_boundary": {
+    "parallel_claim": "same-binary median setup and cold-path speedup at levels 7 and 11",
+    "compaction_claim": "same-host process peak RSS and distinct-j warm evaluation at levels 13 and 29",
+    "cold_cross_commit_speedup_claimed": false,
+    "reason": "sustained level-29 thermal variation made cross-commit cold timing unsuitable for a speedup or regression claim",
+    "rss_scope": "process-wide peak RSS from one isolated level per process",
+    "matrix_payload_scope": "exact uint64 coefficient payload only"
+  }
+}

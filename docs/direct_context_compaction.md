@@ -73,13 +73,13 @@ wall microseconds; RSS is bytes.
 
 | Level | Build | Preparation | Cold | Distinct-j warm | Peak RSS | Matrix payload |
 |---:|---|---:|---:|---:|---:|---:|
-| 13 | baseline, run 1 | 463,828 | 536,111 | 37,596 | 9,125,888 | n/a |
-| 13 | compact, run 1 | 521,105 | 576,068 | 19,627 | 5,095,424 | 162,000 |
-| 13 | baseline, run 2 | 460,830 | 532,660 | 37,611 | 9,338,880 | n/a |
-| 13 | compact, earlier reverse run | 453,961 | 508,063 | 19,287 | 5,210,112 | 162,000 |
-| 29 | compact, before baseline | 22,183,812 | 22,264,500 | 85,932 | 12,517,376 | 1,168,576 |
-| 29 | baseline | 20,439,041 | 20,684,859 | 255,865 | 60,424,192 | n/a |
-| 29 | compact, after baseline | 30,047,767 | 30,163,397 | 127,656 | 13,008,896 | 1,168,576 |
+| 13 | compact, before | 477,693 | 530,325 | 18,739 | 5,160,960 | 162,000 |
+| 13 | baseline, run 1 | 468,312 | 537,778 | 35,912 | 9,142,272 | n/a |
+| 13 | baseline, run 2 | 445,150 | 515,113 | 36,132 | 8,978,432 | n/a |
+| 13 | compact, after | 453,744 | 506,890 | 18,768 | 5,308,416 | 162,000 |
+| 29 | compact, before | 20,227,559 | 20,306,219 | 84,143 | 13,205,504 | 1,168,576 |
+| 29 | baseline | 22,210,538 | 22,455,093 | 251,353 | 60,620,800 | n/a |
+| 29 | compact, after | 26,460,253 | 26,543,931 | 87,072 | 12,779,520 | 1,168,576 |
 
 All level-29 cold residues were `23 mod 29`; the distinct-`j` warm residues
 were `12 mod 29`. Independent Schoof returned the same values. Level 13
@@ -87,11 +87,16 @@ included both exact and Atkin cases; the Atkin set contained Schoof's residue.
 
 The robust conclusions are:
 
-- isolated level-29 RSS fell from 60.4 MB to 12.5--13.0 MB, about 79%;
-- level-29 warm evaluation fell from 256 ms to 86--128 ms;
-- level-13 RSS fell about 44% and warm evaluation about 48%; and
+- isolated level-29 RSS fell from 60.6 MB to 12.8--13.2 MB, about 79%;
+- level-29 warm evaluation fell from 251 ms to 84--87 ms;
+- median level-13 RSS fell 42% and warm evaluation 48%; and
 - cold level-29 measurements varied too much with sustained thermal load to
   support a speedup or regression claim.
+
+The seven raw bracket records, the three same-binary serial/four-worker
+brackets at levels 7 and 11, clean-clone identities, commands, and independent
+aggregation checks are retained in the
+[audited evidence bundle](../artifacts/local/p125-classical-direct-compact-20260803/result.json).
 
 This changes a polynomial memory factor and materially improves multi-level
 feasibility, but it does not change the conditional outer

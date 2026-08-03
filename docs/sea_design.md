@@ -407,10 +407,14 @@ two residue channels, and
 reconstructs them with exact height-checked CRT.  The table loader supplies an
 independent per-prime reference and the path is differentially tested at 416
 bits.  The order discovery is bounded and correctness-first rather than the
-asymptotically optimized selector; a proved Weber height bound and the
-Hilbert-class-polynomial/isogeny-volcano callback remain open.  Until they are
-implemented, the authenticated finite Weber catalog is still the production
-source.  See `docs/explicit_crt_producer.md` and
+asymptotically optimized selector.  The producer now has the table-free
+surface-edge primitive: exact-order rational `ell`-subgroups are distinguished
+by kernel polynomial, all `ell+1` are required, and direct point-sum Vélu
+quotients are independently checked.  A proved Weber height bound, the CM
+surface/floor torsor walks, consistent Weber lifts, and coefficient
+interpolation remain open.  Until they are implemented, the authenticated
+finite Weber catalog is still the production source.  See
+`docs/explicit_crt_producer.md` and
 `docs/direct_specialization_boundary.md` for the exact contract, validation,
 complexity boundary, and remaining work.
 

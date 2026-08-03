@@ -1,9 +1,33 @@
 #include "oneshotsea/field.hpp"
 
 #include <algorithm>
-#include <limits>
+#include <array>
 
 namespace oneshotsea {
+namespace {
+
+std::uint64_t multiply_mod_u64(std::uint64_t lhs, std::uint64_t rhs,
+                               std::uint64_t modulus) {
+    return static_cast<std::uint64_t>(
+        (static_cast<unsigned __int128>(lhs) * rhs) % modulus);
+}
+
+std::uint64_t power_mod_u64(std::uint64_t base, std::uint64_t exponent,
+                            std::uint64_t modulus) {
+    std::uint64_t result = 1U;
+    while (exponent != 0U) {
+        if ((exponent & 1U) != 0U) {
+            result = multiply_mod_u64(result, base, modulus);
+        }
+        exponent >>= 1U;
+        if (exponent != 0U) {
+            base = multiply_mod_u64(base, base, modulus);
+        }
+    }
+    return result;
+}
+
+}  // namespace
 
 mpz_class parse_integer(const std::string& text) {
     mpz_class value;
@@ -11,6 +35,63 @@ mpz_class parse_integer(const std::string& text) {
         throw std::invalid_argument("invalid integer: " + text);
     }
     return value;
+}
+
+bool export_u64(const mpz_class& value, std::uint64_t& output) {
+    if (value < 0 || mpz_sizeinbase(value.get_mpz_t(), 2) > 64U) {
+        return false;
+    }
+    output = 0U;
+    std::size_t words = 0U;
+    mpz_export(&output, &words, -1, sizeof(output), 0, 0,
+               value.get_mpz_t());
+    return words <= 1U;
+}
+
+bool is_prime_u64(std::uint64_t value) {
+    if (value < 2U) {
+        return false;
+    }
+    for (const std::uint64_t small :
+         std::array<std::uint64_t, 12>{2U, 3U, 5U, 7U, 11U, 13U,
+                                      17U, 19U, 23U, 29U, 31U, 37U}) {
+        if (value == small) {
+            return true;
+        }
+        if (value % small == 0U) {
+            return false;
+        }
+    }
+    std::uint64_t odd_part = value - 1U;
+    unsigned shifts = 0U;
+    while ((odd_part & 1U) == 0U) {
+        odd_part >>= 1U;
+        ++shifts;
+    }
+    for (const std::uint64_t witness :
+         std::array<std::uint64_t, 7>{2U, 325U, 9375U, 28178U, 450775U,
+                                     9780504U, 1795265022U}) {
+        const std::uint64_t base = witness % value;
+        if (base == 0U) {
+            continue;
+        }
+        std::uint64_t power = power_mod_u64(base, odd_part, value);
+        if (power == 1U || power == value - 1U) {
+            continue;
+        }
+        bool composite = true;
+        for (unsigned round = 1U; round < shifts; ++round) {
+            power = multiply_mod_u64(power, power, value);
+            if (power == value - 1U) {
+                composite = false;
+                break;
+            }
+        }
+        if (composite) {
+            return false;
+        }
+    }
+    return true;
 }
 
 Field::Field(mpz_class modulus) : modulus_(std::move(modulus)) {

@@ -21,6 +21,7 @@ is claimed here.
 | Auxiliary CRT-prime selection | Implemented with exact `(p,t,v,D)` witnesses and proved 64-bit primes | Safe bounded practical heuristic; fixed `v` has no GRH existence guarantee |
 | Target-field power lifting | Implemented | Preserves the ordering required by Algorithm 1 |
 | Explicit CRT reconstruction | Implemented with strict product and coefficient-bound checks | Reconstructs both required specialization channels and fails closed |
+| Surface cyclic-subgroup enumeration and Vélu quotients | Implemented and independently checked at level 5 | Supplies the table-free surface-to-floor edge primitive; CM surface/floor enumeration is still missing |
 | Weber coefficient-height bound | Exact table-derived test evidence only | A proved normalization-specific bound is still required |
 | Per-prime HCP/Weber-volcano residue producer | Not implemented | Direct specialization cannot yet replace tables in production |
 | Unbounded SEA search or `p125` certificate | Not demonstrated | The intended asymptotic path remains incomplete |
@@ -53,6 +54,11 @@ and [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp).  It provides:
    uses exact integer CRT rounding to reconstruct `Phi_ell^f(f,Y)` and its X
    derivative.  Each centered coefficient is checked against the same bound
    and cross-checked modulo the target.
+5. `enumerate_rational_prime_isogenies`, which projects deterministically
+   sampled auxiliary-field points with the exact CM group order, proves each
+   retained generator has order `ell`, distinguishes subgroups by their kernel
+   polynomials, requires all `ell+1` rational subgroups, and applies Vélu
+   directly without consulting `Phi_ell`.
 
 The residue provider is an explicit callback.  The table-backed implementation
 used by the tests is an oracle for differential validation, not the missing
@@ -77,7 +83,7 @@ per-prime producer and proved height bound are complete.
 The native build requires a C++20 compiler and GMP.  Run the focused test with:
 
 ```sh
-make test-direct-modpoly
+make test-direct-modpoly test-prime-isogeny
 ```
 
 That test independently checks:
@@ -93,6 +99,13 @@ That test independently checks:
   target-power lift subtlety; and
 - coefficient-for-coefficient agreement of the complete level-5 path with an
   authenticated Weber table oracle.
+
+`test-prime-isogeny` uses two independent CM fixtures, including both modular
+square-root branches.  It checks all six level-5 cyclic kernels against the
+SEA division polynomial, compares point-sum Vélu coefficients with the
+independent kernel-power-sum implementation, verifies every codomain against
+an authenticated classical modular polynomial, and confirms the exact group
+order by brute force.
 
 The inherited core, Atkin, eigenvalue, search, and certificate suites remain
 available through the Makefile.  The full suite can additionally use Magma as
@@ -164,8 +177,13 @@ complexity claim, or a `p125` proof.
   public checked types and the residue-provider contract.
 - [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp): order discovery,
   validation, prime selection, power lifts, and exact CRT.
+- [`include/oneshotsea/prime_isogeny.hpp`](include/oneshotsea/prime_isogeny.hpp)
+  and [`src/prime_isogeny.cpp`](src/prime_isogeny.cpp): native auxiliary-field
+  group arithmetic, complete rational subgroup enumeration, and Vélu edges.
 - [`tests/test_direct_modpoly.cpp`](tests/test_direct_modpoly.cpp): focused
   positive, negative, corruption, and table-differential evidence.
+- [`tests/test_prime_isogeny.cpp`](tests/test_prime_isogeny.cpp): independent
+  CM, division-polynomial, Vélu, modular-polynomial, and exact-order checks.
 - [`docs/explicit_crt_producer.md`](docs/explicit_crt_producer.md): equations,
   proof obligations, limitations, and the next implementation gate.
 - [`docs/direct_specialization_boundary.md`](docs/direct_specialization_boundary.md):

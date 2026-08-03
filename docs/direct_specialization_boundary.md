@@ -138,7 +138,8 @@ normalization-specific bound, and steps 2--4 remain substantial:
    bound (bounded discovery, validation, and CRT-prime selection are implemented);
 2. compute and authenticate the required Hilbert class polynomial state;
 3. enumerate the surface and floor of each `ell`-isogeny volcano modulo every
-   CRT prime;
+   CRT prime (native full rational `ell`-subgroup enumeration and table-free
+   Vélu codomains are implemented; the CM torsor walks are not);
 4. specialize the Weber modular function modulo each CRT prime while retaining
    the X derivative; and
 5. supply per-prime `value` and `x_derivative` residues to the implemented

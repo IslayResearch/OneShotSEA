@@ -20,7 +20,7 @@ OPENMP_LDFLAGS ?= -fopenmp
 endif
 
 BUILD_DIR := build
-LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/direct_modpoly.cpp src/trace.cpp src/atkin.cpp src/weber_table_trust.cpp \
+LIB_SOURCES := src/field.cpp src/poly.cpp src/curve.cpp src/modpoly.cpp src/direct_modpoly.cpp src/prime_isogeny.cpp src/trace.cpp src/atkin.cpp src/weber_table_trust.cpp \
 	src/early_abort.cpp src/schoof.cpp src/elkies.cpp src/isogeny.cpp src/weber.cpp src/sea.cpp \
 	src/smooth_cache.cpp src/smooth_bounded.cpp src/integrity.cpp src/exact_smooth.cpp src/factor.cpp src/search_checkpoint.cpp src/certificate.cpp \
 	src/weber_curve_generator.cpp src/x1_11_probe.cpp src/x1_27_probe.cpp \
@@ -30,7 +30,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-direct-modpoly test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-direct-modpoly test-prime-isogeny test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -64,6 +64,11 @@ $(BUILD_DIR)/test_poly_square: tests/test_poly_square.cpp $(BUILD_DIR)/libonesho
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a $(LDFLAGS) $(LDLIBS) -o $@
 
 $(BUILD_DIR)/test_direct_modpoly: tests/test_direct_modpoly.cpp \
+		$(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD_DIR)/test_prime_isogeny: tests/test_prime_isogeny.cpp \
 		$(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
 		$(LDFLAGS) $(LDLIBS) -o $@
@@ -142,6 +147,9 @@ test: $(BUILD_DIR)/test_core
 
 test-direct-modpoly: $(BUILD_DIR)/test_direct_modpoly
 	./$(BUILD_DIR)/test_direct_modpoly
+
+test-prime-isogeny: $(BUILD_DIR)/test_prime_isogeny
+	./$(BUILD_DIR)/test_prime_isogeny
 
 test-poly-square: $(BUILD_DIR)/test_poly_square
 	./$(BUILD_DIR)/test_poly_square
@@ -247,7 +255,7 @@ test-runpod: all
 test-aws:
 	scripts/aws/test.sh
 
-test-all: test test-direct-modpoly test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
+test-all: test test-direct-modpoly test-prime-isogeny test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws
 
 clean:
 	rm -rf $(BUILD_DIR)

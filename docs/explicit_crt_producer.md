@@ -1,8 +1,10 @@
 # Explicit-CRT direct-specialization scaffold
 
 Status: implemented and differentially tested through its streamed residue
-boundary.  The Hilbert-class-polynomial and per-prime Weber volcano evaluator
-that must supply those residues is not implemented.
+boundary.  Native auxiliary-field subgroup enumeration and Vélu quotients now
+cover the surface-to-floor edge operation.  The Hilbert-class-polynomial and
+complete per-prime Weber volcano evaluator that must supply residues is not
+implemented.
 
 ## Purpose
 
@@ -192,7 +194,9 @@ particular:
 - the fixed-`v` practical prime search is not the randomized selector used by
   the asymptotic theorem;
 - no Hilbert class polynomial state is generated;
-- the surface/floor of the `ell`-isogeny volcano is not enumerated; and
+- the surface/floor CM torsors are not enumerated (all `ell+1` rational
+  subgroups and their Vélu quotients can now be generated once a checked
+  surface curve is supplied); and
 - the high-level API rejects untyped/empirical bounds, but a proved,
   normalization-specific Weber coefficient bound `H` is not yet implemented.
 
@@ -210,8 +214,8 @@ Implement the callback for one small level first:
    independently authenticated Hilbert-class-polynomial state
    for the validated order;
 2. find a surface curve with endomorphism ring `O` modulo the supplied `p`;
-3. enumerate the required surface and floor vertices of the Weber
-   `ell`-volcano;
+3. enumerate the required surface and floor Weber torsors, using the checked
+   table-free subgroup/Vélu primitive for every surface-to-floor edge;
 4. accumulate the two specialization coefficient vectors without loading
    `Phi_ell^f(X,Y)`; and
 5. compare every per-prime residue and final target specialization with the
@@ -219,6 +223,24 @@ Implement the callback for one small level first:
 
 The first production connection must use the future proved-Weber evidence kind;
 the existing exact-table evidence remains a bounded differential oracle.
+
+### Implemented surface-edge primitive
+
+`enumerate_rational_prime_isogenies` implements the subgroup step used in BLS
+Algorithm 2.1.  Given a surface curve and its exact CM group order, it removes
+the prime-to-`ell` component of sampled rational points, reduces each surviving
+point to exact order `ell`, and constructs the monic kernel polynomial.  It
+returns only after finding the `ell+1` distinct kernels that prove full
+rational `E[ell]`; exhausting the explicit x-coordinate cap is an error.
+
+For every subgroup, the codomain is computed from direct point-sum Vélu
+formulas, without a target-level modular polynomial.  Level-5 tests over the
+CM discriminants `-19` and `-11` exercise both modular-square-root branches and
+compare all twelve quotients with the independent division-kernel Vélu path,
+authenticated classical modular-polynomial roots, and brute-force group
+orders.  This implements the vertical-edge operation but does not find the
+initial CM surface curve, enumerate either class-group torsor, choose consistent
+Weber signs, or interpolate the requested coefficient channels.
 
 ## Focused review checklist
 

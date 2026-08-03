@@ -10,6 +10,12 @@ namespace oneshotsea {
 
 mpz_class parse_integer(const std::string& text);
 
+// Exact conversion and deterministic primality support for the auxiliary
+// prime-field boundary.  The seven Miller--Rabin witnesses used by
+// is_prime_u64 are deterministic over the full unsigned 64-bit range.
+bool export_u64(const mpz_class& value, std::uint64_t& output);
+bool is_prime_u64(std::uint64_t value);
+
 class Field {
 public:
     explicit Field(mpz_class modulus);

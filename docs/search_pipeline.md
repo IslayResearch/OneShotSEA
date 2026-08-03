@@ -19,9 +19,9 @@ the selected family supplies one, exact Elkies residues, and optionally
 certified factor-degree constraints from the authenticated classical level-5
 and level-7 tables. If every curve and twist order in that set has exact smooth
 part at or below the certificate lower bound, rejection is sound. Otherwise
-the retained state continues with trace cap one; Atkin constraints cannot
-satisfy that unique-trace gate, so certificate assembly still requires
-uniqueness from the exact prior plus exact Elkies residues. Heuristic rejection
+the retained state continues with trace cap one. Independently certified Atkin
+constraints may participate in the effective singleton, while exact-only and
+effective candidate counts remain separate in telemetry. Heuristic rejection
 is disabled in this command.
 
 An example local run is:
@@ -97,8 +97,7 @@ digest, so its checkpoint cannot be substituted into a sound-only run.  It may
 lose a curve that would have yielded a certificate under a larger table set,
 but cannot create a false-positive certificate.
 
-The custom evaluator is exposed through an optional, currently local-only
-classical direct tail:
+The custom evaluator is exposed through an optional classical direct schedule:
 
 ```sh
 --classical-direct-levels 7,11 \
@@ -108,8 +107,8 @@ classical direct tail:
 
 Levels must be ordered, distinct primes greater than three. Their order is
 semantic and may be chosen from a curve-independent information/cost profile.
-After the
-authenticated Weber schedule fails to fit the requested trace cap, each level
+Under Weber-first, after the authenticated Weber schedule fails to fit the
+requested trace cap, each level
 internally derives its `D=-7*3^(2n)` suitable order and ring class polynomial,
 reconstructs `Phi_ell(j,Y)` and its X derivative by witnessed auxiliary-prime
 CRT, and consumes the result through BMSS/Frobenius or certified Atkin
@@ -161,6 +160,31 @@ mathematical exceptions are hard operational failures and never trigger this
 continuation. A cap-N enumeration is cleared before cap-one continuation, so
 a multi-trace set still cannot leak through the singleton certificate gate.
 
+Direct-first may split the authenticated ordered schedule into an early prefix
+and a deferred cap-one suffix:
+
+```sh
+--trace-cap 16 \
+--classical-direct-levels 7,5,11,13,19,17,23,29,31,37,41,43,47,53,67,71,79,61,73,59,89,97 \
+--classical-direct-cap-one-tail-count 2
+```
+
+The early prefix is the full list minus its last `N` entries. It runs toward
+the complete cap-N screen. If that set is soundly rejected, the suffix is
+never materialized. Only a multi-trace set that survives exact smoothness
+screening evaluates the suffix at cap one, before any further Weber
+continuation. The suffix reuses the same retained exact/Atkin state, skips any
+modulus already owned by either direct or Weber evidence, and falls back to
+Weber and then optional Schoof only if uniqueness is still incomplete. A
+nonzero suffix count requires direct-first, a trace cap greater than one, and a
+nonempty early prefix. The boundary is schedule- and checkpoint-bound.
+
+The p125 retained audit used a selected 20-level prefix and suffix 89/97. Four
+sound cap-16 rejections emitted 80 prefix evaluations and zero suffix
+evaluations. Diagnostic cap-one replays preserved three independent PARI
+traces and replaced final Weber levels 263/277/379 with 257/269/373. See the
+[deferred-suffix audit](../artifacts/local/p125-cap-one-direct-tail-20260803/README.md).
+
 The nondefault strategy and trusted cache digest are schedule-bound, so a
 direct-first checkpoint cannot resume as Weber-first or under another cache.
 Direct-first start/curve JSON reports `sea_strategy`, direct-first
@@ -170,12 +194,11 @@ inclusive SEA total. Weber-first deliberately omits all of those new keys so
 the strict `oneshotsea.search-start.v1` and `oneshotsea.search-curve.v1`
 field sets remain byte-compatible with existing production auditors.
 
-The current RunPod and AWS launchers and the strict retained-run auditor do
-not admit the direct schedule/cache options or the standalone direct-level schema.
-Consequently this tail must remain disabled in remote production runs until
-those operational paths receive their own compatibility and adversarial
-gates. The default empty direct schedule remains byte-compatible with the
-audited cloud schema.
+The AWS launcher and immutable remote worker admit the direct schedule, trusted
+cache, construction caps, residency budget, and deferred-suffix boundary; dry
+run and manifest tests cover their normalized argv. RunPod does not currently
+admit these options. The default empty direct schedule remains byte-compatible
+with the audited Weber-first schema.
 
 For a local multi-curve invocation, the target characteristic, ordered level
 list, and both caps are retained in one run-scoped context. Each level's

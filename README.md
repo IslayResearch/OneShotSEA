@@ -59,6 +59,13 @@ At the 416-bit `nextprime(10^125)` target, this branch has demonstrated:
   exhausted its usable levels. Independent PARI traces were contained in every
   retained set. See the
   [four-curve cohort](artifacts/local/p125-direct-first-cohort-20260803/README.md).
+- **A deferred cap-one direct suffix.** One authenticated 22-level cache now
+  exposes a 20-level screening prefix and defers measured levels 89/97 until a
+  multi-trace smoothness survivor needs uniqueness. Four p125 sound rejections
+  evaluated only the prefix; deterministic cap-one replays preserved three
+  PARI traces while moving the final Weber levels from 263/277/379 to
+  257/269/373. See the
+  [cap-one suffix audit](artifacts/local/p125-cap-one-direct-tail-20260803/README.md).
 - **Certified Atkin singleton completion.** On the difficult cohort curve, the
   search now stops at `ell=379` when the certified effective set becomes a
   singleton, recovers the PARI trace, and reaches sound smoothness screening.
@@ -119,9 +126,11 @@ Preparation is curve-independent and can be amortized over a cohort:
 ```sh
 ./build/oneshotsea prepare-classical-direct-context \
   --p P \
-  --classical-direct-levels 7,5,11,13,19,17 \
-  --classical-direct-context-max-file-bytes 8589934592 \
-  --sea-threads 4 \
+  --classical-direct-levels 7,5,11,13,19,17,23,29,31,37,41,43,47,53,67,71,79,61,73,59,89,97 \
+  --classical-direct-max-prime-candidates 10000000 \
+  --classical-direct-max-x-candidates 1000000 \
+  --classical-direct-context-max-file-bytes 1000000000 \
+  --sea-threads 1 \
   --output runs/direct.ctx
 ```
 
@@ -132,16 +141,20 @@ ordered schedule and construction limits:
 ./build/oneshotsea search \
   ...ordinary search arguments... \
   --sea-strategy direct-first \
-  --sea-threads 4 \
-  --classical-direct-levels 7,5,11,13,19,17 \
+  --trace-cap 16 \
+  --sea-threads 1 \
+  --classical-direct-levels 7,5,11,13,19,17,23,29,31,37,41,43,47,53,67,71,79,61,73,59,89,97 \
+  --classical-direct-cap-one-tail-count 2 \
+  --classical-direct-max-prime-candidates 10000000 \
+  --classical-direct-max-x-candidates 1000000 \
   --classical-direct-context-cache runs/direct.ctx \
   --classical-direct-context-sha256 TRUSTED_SHA256 \
-  --classical-direct-context-max-file-bytes 8589934592
+  --classical-direct-context-max-file-bytes 1000000000
 ```
 
-Level order is a measured policy input and part of checkpoint identity. Direct
-SEA remains opt-in; the launcher does not silently choose a production
-schedule. The full contracts are in
+Level order and the deferred-suffix boundary are measured policy inputs and
+part of checkpoint identity. Direct SEA remains opt-in; the launcher does not
+silently choose a production schedule. The full contracts are in
 [direct context caches](docs/direct_context_cache.md),
 [search integration](docs/search_pipeline.md), and the
 [AWS operator guide](docs/aws.md).
@@ -162,7 +175,8 @@ The highest-value review questions are therefore concrete:
 3. Do Velu enumeration, normalization, interpolation, and coefficient bounds
    justify the reconstructed polynomial data?
 4. Are Elkies and Atkin constraints composed soundly across retained state,
-   Weber fallback, and the cap-N/cap-one transition?
+   the deferred direct suffix, Weber fallback, and the cap-N/cap-one
+   transition?
 5. Is a cached construction mathematically and operationally equivalent to a
    fresh construction with the same declared inputs?
 

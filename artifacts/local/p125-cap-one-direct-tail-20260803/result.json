@@ -1,0 +1,93 @@
+{
+  "schema": "oneshotsea.p125-cap-one-direct-tail.v1",
+  "implementation": {
+    "commit": "07377b5e4b7c263348ef9d7c09e79286f53d0463",
+    "tree": "4a899122c6c037d50b22d798973766a7b300c37a",
+    "policy": "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-cap-one-tail-v4"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416,
+    "seed": "202607300000",
+    "range_start": "2000001",
+    "range_end": "2000005",
+    "curve_family": "x1-27",
+    "require_point_four": true,
+    "trace_cap": 16,
+    "maximum_weber_level": 401
+  },
+  "direct_policy": {
+    "early_levels": [7, 5, 11, 13, 19, 17, 23, 29, 31, 37, 41, 43, 47, 53, 67, 71, 79, 61, 73, 59],
+    "cap_one_tail_levels": [89, 97],
+    "cap_one_tail_count": 2,
+    "maximum_prime_candidates": 10000000,
+    "maximum_x_candidates_per_surface": 1000000,
+    "preparation_threads": 1,
+    "cache_max_file_bytes": 1000000000
+  },
+  "authenticated_inputs": {
+    "direct_context_sha256": "a459dc7732e0a8924f3dcce15bd640c5a72f594d403bf117d0fa45c6b3805625",
+    "direct_context_file_bytes": 150799468,
+    "direct_context_matrix_payload_bytes": 150744368,
+    "direct_context_count": 22,
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "weber_table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "search_schedule_sha256": "63c5a3ce2b27f752cfeb17d92824885773392f69c6bb18272303dfb71594d595"
+  },
+  "production_cohort": {
+    "curves": 4,
+    "sound_smoothness_rejections": 4,
+    "direct_prefix_evaluations": 80,
+    "direct_suffix_evaluations": 0,
+    "initial_trace_counts": [1, 13, 4, 5],
+    "progress_sha256": "1b25ebdc554aa9f77fa7737181cbf2f59c7fea50fc4a1c738fc573584165270e",
+    "checkpoint_sha256": "2e054a315528162e322db780d0f735d23ced8e15c5d08523084eb3e4c7749274"
+  },
+  "cap_one_replay": {
+    "records_sha256": "d9519f125f525a229be6bdefc6b99e2f5d4cbf8a52b6d9d441aca16c2d6bf019",
+    "cache_level_load_count": 65,
+    "cache_peak_resident_contexts": 1,
+    "baseline_continuation_us": 29825269,
+    "direct_tail_us": 14672934,
+    "fixtures": [
+      {
+        "index": "2000002",
+        "early_candidates": 13,
+        "baseline_last_weber_level": 263,
+        "tail_last_weber_level": 257,
+        "tail_direct_level_count": 2,
+        "trace": "312744557074493258005540218670034986285435355679693042023392238"
+      },
+      {
+        "index": "2000003",
+        "early_candidates": 4,
+        "baseline_last_weber_level": 277,
+        "tail_last_weber_level": 269,
+        "tail_direct_level_count": 2,
+        "trace": "-252845884365417830567895303231394093497235790636298489485509474"
+      },
+      {
+        "index": "2000004",
+        "early_candidates": 5,
+        "baseline_last_weber_level": 379,
+        "tail_last_weber_level": 373,
+        "tail_direct_level_count": 1,
+        "trace": "432966650303160993124127306120296021107647349914430129038843294"
+      }
+    ]
+  },
+  "independent_point_counts": {
+    "system": "PARI/GP 2.17.4",
+    "path": "artifacts/local/p125-direct-first-cohort-20260803/raw/pari-point-counts.txt",
+    "sha256": "3f7b1849862acdf40a4cc58b98efd10181923e17f664bfb2f9e15e9427683e53"
+  },
+  "claims": {
+    "production_rejections_skip_direct_suffix": true,
+    "cap_one_exact_traces_preserved": true,
+    "certificate_found": false,
+    "production_yield_measured": false,
+    "controlled_speedup_claimed": false,
+    "cm_crossover_established": false,
+    "asymptotic_exponent_changed": false
+  }
+}

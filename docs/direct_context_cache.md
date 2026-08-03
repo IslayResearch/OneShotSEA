@@ -116,6 +116,7 @@ This cached schedule may also be tried before Weber tables:
   ...existing search arguments... \
   --sea-strategy direct-first \
   --classical-direct-levels 7,11,13 \
+  --classical-direct-cap-one-tail-count 1 \
   --classical-direct-context-cache runs/p125/direct-7-11-13.ctx \
   --classical-direct-context-sha256 TRUSTED_SHA256 \
   --classical-direct-context-max-file-bytes 8589934592
@@ -129,6 +130,13 @@ pass continues its exact/effective constraints and skips moduli already
 certified by the direct pass. Any cache or evaluation error propagates as a
 hard failure. The strategy and digest are checkpoint-bound. Omitting
 `--sea-strategy` keeps the byte-compatible Weber-first default.
+
+The optional `--classical-direct-cap-one-tail-count N` leaves the last `N`
+cached levels unloaded during the cap-N screen. They are authenticated as part
+of the complete file and schedule, but are materialized only if a multi-trace
+set survives smoothness and reaches cap one. A sound early rejection therefore
+pays only for the prefix. The suffix boundary is checkpoint-bound and must
+leave at least one early level; zero preserves the full-schedule first pass.
 
 Generation and load reject files above 4 GiB by default. Larger expected
 artifacts require the explicit

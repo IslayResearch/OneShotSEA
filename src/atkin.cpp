@@ -24,26 +24,17 @@ std::optional<AtkinConstraint> classify_classical_specialization(
     const Curve& curve, std::uint64_t ell, const Poly& specialized) {
     if (specialized.field().modulus() != curve.field().modulus() ||
         specialized.degree() != static_cast<int>(ell + 1U) ||
-        specialized.leading_coefficient() != 1 ||
-        !gcd(specialized, specialized.derivative()).is_one()) {
+        specialized.leading_coefficient() != 1) {
         return std::nullopt;
     }
-    const std::vector<IrreducibleFactor> factors =
-        factor_polynomial(specialized);
-    if (factors.empty()) {
-        return std::nullopt;
-    }
-    const int common_degree = factors.front().polynomial.degree();
-    if (common_degree <= 1 ||
-        std::any_of(factors.begin(), factors.end(),
-                    [common_degree](const IrreducibleFactor& factor) {
-                        return factor.multiplicity != 1UL ||
-                               factor.polynomial.degree() != common_degree;
-                    })) {
+    const std::optional<unsigned int> common_factor_degree =
+        uniform_irreducible_factor_degree(specialized);
+    if (!common_factor_degree.has_value() ||
+        *common_factor_degree <= 1U) {
         return std::nullopt;
     }
     const std::uint64_t projective_order =
-        static_cast<std::uint64_t>(common_degree);
+        static_cast<std::uint64_t>(*common_factor_degree);
     if ((ell + 1U) % projective_order != 0U) {
         return std::nullopt;
     }

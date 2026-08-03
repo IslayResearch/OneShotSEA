@@ -71,6 +71,9 @@ public:
     Poly multiply(const Poly& lhs, const Poly& rhs) const;
     Poly square(const Poly& value) const;
     Poly pow(Poly base, mpz_class exponent) const;
+    // Compute outer(inner(x)) modulo this context's modulus with a
+    // baby-step/giant-step composition. Both inputs may have arbitrary degree.
+    Poly compose(const Poly& outer, const Poly& inner) const;
 
 private:
     Poly modulus_;

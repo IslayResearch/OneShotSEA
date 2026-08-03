@@ -12,11 +12,16 @@
 #include "oneshotsea/weber_curve_generator.hpp"
 
 #include <algorithm>
+#include <barrier>
 #include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -67,6 +72,19 @@ oneshotsea::Poly binary_powmod_reference(
         }
     }
     return result;
+}
+
+oneshotsea::Poly horner_compose_mod_reference(
+    const oneshotsea::Poly& outer, const oneshotsea::Poly& inner,
+    const oneshotsea::Poly& modulus) {
+    oneshotsea::Poly result(outer.field());
+    for (std::size_t index = outer.coefficients().size(); index-- > 0U;) {
+        result = oneshotsea::mulmod(result, inner, modulus);
+        result = oneshotsea::add(
+            result, oneshotsea::Poly::constant(
+                        outer.field(), outer.coefficients()[index]));
+    }
+    return oneshotsea::mod(result, modulus);
 }
 
 mpz_class target_prime() {
@@ -257,6 +275,21 @@ void test_polynomial() {
               oneshotsea::squaremod(left, modulus),
               oneshotsea::mod(oneshotsea::mul(left, left), modulus)),
           "direct modular polynomial squaring");
+    const oneshotsea::Poly composition_outer(
+        field, {81, 7, 0, 19, 44, 3, 72, 9, 6, 11, 5, 2, 1});
+    const oneshotsea::PolyModContext composition_context(modulus);
+    check(oneshotsea::equal(
+              composition_context.compose(composition_outer, right),
+              horner_compose_mod_reference(
+                  composition_outer, right, modulus)),
+          "baby-step giant-step composition matches Horner reference");
+    check(composition_context.compose(oneshotsea::Poly(field), right)
+                  .is_zero() &&
+              oneshotsea::equal(
+                  composition_context.compose(
+                      oneshotsea::Poly::constant(field, 37), right),
+                  oneshotsea::Poly::constant(field, 37)),
+          "modular composition preserves zero and constant outer polynomials");
 
     // Differentially cover every short exponent shape, plus the fixed large
     // exponents used by p125 Frobenius and Schoof. The reference deliberately
@@ -304,6 +337,17 @@ void test_polynomial() {
               binary_powmod_reference(high_degree_pow_base, p125,
                                       high_degree_pow_modulus)),
           "sliding-window powmod matches binary in a degree-65 p125 quotient");
+    const oneshotsea::Poly high_degree_composition_outer =
+        dense_polynomial(p125_field, 81U, UINT64_C(0x636f6d706f757465));
+    const oneshotsea::PolyModContext high_degree_composition_context(
+        high_degree_pow_modulus);
+    check(oneshotsea::equal(
+              high_degree_composition_context.compose(
+                  high_degree_composition_outer, high_degree_pow_base),
+              horner_compose_mod_reference(
+                  high_degree_composition_outer, high_degree_pow_base,
+                  high_degree_pow_modulus)),
+          "p125 baby-step giant-step composition matches Horner reference");
 
     // The reusable reverse-polynomial reducer is enabled only for large monic
     // quotient rings.  Differentially straddle its production threshold and
@@ -410,6 +454,18 @@ void test_polynomial() {
     check(oneshotsea::powmod(pow_base, 0, constant_modulus).is_one() &&
               oneshotsea::powmod(pow_base, p125, constant_modulus).is_zero(),
           "sliding-window powmod preserves constant-modulus edge behavior");
+    check(oneshotsea::PolyModContext(constant_modulus)
+              .compose(composition_outer, right).is_zero(),
+          "composition modulo a nonzero constant returns zero");
+    bool zero_composition_modulus_rejected = false;
+    try {
+        static_cast<void>(oneshotsea::PolyModContext(
+            oneshotsea::Poly(field)).compose(composition_outer, right));
+    } catch (const std::domain_error&) {
+        zero_composition_modulus_rejected = true;
+    }
+    check(zero_composition_modulus_rejected,
+          "modular composition rejects a zero modulus");
     bool negative_pow_rejected = false;
     try {
         static_cast<void>(oneshotsea::powmod(pow_base, -1, pow_modulus));
@@ -820,6 +876,188 @@ void test_trace_constraints() {
     check(rejected_corrupt_exact_residue && exact.modulus() == prior_modulus &&
               exact.residues() == prior_residues && exact.candidate_count() == 1,
           "corrupt exact residue hard-fails transactionally");
+
+    // Differentially validate factored CRT counting, bounded enumeration,
+    // and explicit residue materialization against direct exhaustive scans.
+    for (const mpz_class& prime : {mpz_class(89), mpz_class(101),
+                                   mpz_class(257), mpz_class(1009)}) {
+        oneshotsea::TraceConstraints factored(prime);
+        std::vector<std::pair<std::uint64_t,
+                              std::vector<std::uint64_t>>> components;
+        const auto validate_factored = [&]() {
+            std::vector<mpz_class> expected_traces;
+            for (mpz_class trace = -factored.hasse_radius();
+                 trace <= factored.hasse_radius(); ++trace) {
+                bool retained = true;
+                for (const auto& [modulus, allowed] : components) {
+                    const std::uint64_t residue =
+                        mpz_fdiv_ui(trace.get_mpz_t(), modulus);
+                    retained = std::find(
+                        allowed.begin(), allowed.end(), residue) !=
+                        allowed.end();
+                    if (!retained) {
+                        break;
+                    }
+                }
+                if (retained) {
+                    expected_traces.push_back(trace);
+                }
+            }
+            check(factored.candidate_count() ==
+                      mpz_class(std::to_string(expected_traces.size())),
+                  "factored CRT count agrees with exhaustive Hasse scan");
+            const auto actual_traces = factored.enumerate(
+                expected_traces.size());
+            check(actual_traces.has_value() &&
+                      *actual_traces == expected_traces,
+                  "factored CRT enumeration agrees with exhaustive Hasse scan");
+
+            std::vector<mpz_class> expected_residues;
+            for (mpz_class residue = 0; residue < factored.modulus();
+                 ++residue) {
+                bool retained = true;
+                for (const auto& [modulus, allowed] : components) {
+                    const std::uint64_t small =
+                        mpz_fdiv_ui(residue.get_mpz_t(), modulus);
+                    retained = std::find(
+                        allowed.begin(), allowed.end(), small) !=
+                        allowed.end();
+                    if (!retained) {
+                        break;
+                    }
+                }
+                if (retained) {
+                    expected_residues.push_back(residue);
+                }
+            }
+            check(factored.residues() == expected_residues,
+                  "factored CRT explicit residues agree with exhaustive scan");
+        };
+        validate_factored();
+        for (const auto& component :
+             std::vector<std::pair<std::uint64_t,
+                                   std::vector<std::uint64_t>>>{
+                 {3U, {0U, 2U}}, {5U, {1U, 4U}}, {7U, {0U, 3U, 6U}}}) {
+            factored.refine(component.first, component.second);
+            components.push_back(component);
+            validate_factored();
+        }
+    }
+
+    oneshotsea::TraceConstraints empty_factored(101);
+    empty_factored.refine(3U, {});
+    check(empty_factored.candidate_count() == 0 &&
+              empty_factored.residues().empty() &&
+              empty_factored.enumerate(0U) ==
+                  std::optional<std::vector<mpz_class>>(
+                      std::vector<mpz_class>{}),
+          "empty factored residue set stays exactly inconsistent");
+
+    // This ambiguity profile mirrors the observed p125 Atkin cardinalities:
+    // 6,635,520 full CRT combinations.  Exact range counting must stay on the
+    // meet-in-the-middle path and bounded enumeration must reject cheaply.
+    oneshotsea::TraceConstraints large_factored(target_prime());
+    large_factored.refine_exact(432U, 14U);
+    const std::vector<std::pair<std::uint64_t, std::size_t>> large_components = {
+        {17U, 6U}, {19U, 4U}, {23U, 2U}, {31U, 8U},
+        {41U, 12U}, {43U, 10U}, {47U, 8U}, {53U, 18U},
+    };
+    mpz_class large_residue_count = 1;
+    for (const auto& [modulus, allowed_count] : large_components) {
+        std::vector<std::uint64_t> allowed(allowed_count);
+        for (std::size_t index = 0U; index < allowed.size(); ++index) {
+            allowed[index] = static_cast<std::uint64_t>(index);
+        }
+        large_factored.refine(modulus, allowed);
+        large_residue_count *= mpz_class(std::to_string(allowed_count));
+    }
+    const mpz_class large_interval = 2 * large_factored.hasse_radius() + 1;
+    const mpz_class complete_cycles =
+        large_interval / large_factored.modulus();
+    const mpz_class large_count = large_factored.candidate_count();
+    check(large_residue_count == 6635520 &&
+              large_count >= complete_cycles * large_residue_count &&
+              large_count <= (complete_cycles + 1) * large_residue_count &&
+              large_factored.candidate_count() == large_count &&
+              !large_factored.enumerate(1024U).has_value(),
+          "p125-scale factored Atkin ambiguity uses exact bounded MITM counting");
+
+    const auto make_concurrent_constraints = []() {
+        oneshotsea::TraceConstraints result(1009);
+        result.refine(3U, {0U, 1U, 2U});
+        result.refine(5U, {0U, 1U, 3U, 4U});
+        result.refine(7U, {0U, 3U, 6U});
+        result.refine(11U, {0U, 2U, 4U, 6U, 8U});
+        result.refine(13U, {0U, 2U, 4U, 6U, 8U, 10U});
+        return result;
+    };
+    const oneshotsea::TraceConstraints concurrent_reference =
+        make_concurrent_constraints();
+    const mpz_class expected_concurrent_count =
+        concurrent_reference.candidate_count();
+    const std::vector<mpz_class> expected_concurrent_residues =
+        concurrent_reference.residues();
+    const auto expected_concurrent_traces =
+        concurrent_reference.enumerate(1000U);
+    check(expected_concurrent_traces.has_value(),
+          "concurrent trace-cache fixture stays within its enumeration cap");
+
+    // Coordinate genuinely cold reads of every const cache consumer. Each
+    // worker writes to a distinct output slot; only the shared constraint and
+    // its lazy caches are accessed concurrently.
+    const oneshotsea::TraceConstraints concurrent =
+        make_concurrent_constraints();
+    constexpr std::size_t worker_count = 18U;
+    std::barrier start_gate(static_cast<std::ptrdiff_t>(worker_count));
+    std::vector<mpz_class> concurrent_counts(worker_count);
+    std::vector<std::vector<mpz_class>> concurrent_residues(worker_count);
+    std::vector<std::optional<std::vector<mpz_class>>> concurrent_traces(
+        worker_count);
+    std::vector<std::exception_ptr> concurrent_failures(worker_count);
+    std::vector<std::thread> workers;
+    workers.reserve(worker_count);
+    for (std::size_t index = 0U; index < worker_count; ++index) {
+        workers.emplace_back([&, index]() {
+            start_gate.arrive_and_wait();
+            try {
+                switch (index % 3U) {
+                    case 0U:
+                        concurrent_counts[index] = concurrent.candidate_count();
+                        break;
+                    case 1U:
+                        concurrent_residues[index] = concurrent.residues();
+                        break;
+                    default:
+                        concurrent_traces[index] = concurrent.enumerate(1000U);
+                        break;
+                }
+            } catch (...) {
+                concurrent_failures[index] = std::current_exception();
+            }
+        });
+    }
+    for (std::thread& worker : workers) {
+        worker.join();
+    }
+    for (std::size_t index = 0U; index < worker_count; ++index) {
+        if (concurrent_failures[index]) {
+            std::rethrow_exception(concurrent_failures[index]);
+        }
+        switch (index % 3U) {
+            case 0U:
+                check(concurrent_counts[index] == expected_concurrent_count,
+                      "concurrent cold candidate-count cache is exact");
+                break;
+            case 1U:
+                check(concurrent_residues[index] == expected_concurrent_residues,
+                      "concurrent cold residue cache is exact");
+                break;
+            default:
+                check(concurrent_traces[index] == expected_concurrent_traces,
+                      "concurrent cold bounded enumeration is exact");
+                break;
+        }
+    }
 }
 
 void test_weber_sea_runner() {

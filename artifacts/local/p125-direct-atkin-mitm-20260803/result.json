@@ -1,0 +1,36 @@
+{
+  "schema": "oneshotsea.p125-direct-atkin-mitm-comparison.v1",
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "range_start": "2000000",
+    "count": "16",
+    "levels": ["5", "7", "11", "13", "17", "19", "23", "29", "31", "37", "41", "43", "47", "53", "59"],
+    "schoof_through": "13"
+  },
+  "validation": {
+    "level_records": "240",
+    "semantic_level_records_equal": true,
+    "independent_schoof_attempts": "64",
+    "independent_schoof_validations": "64",
+    "unconstrained_levels": "0"
+  },
+  "baseline": {
+    "raw": "baseline.ndjson",
+    "evaluation_us": "263265228",
+    "process_peak_rss_bytes": "1253654528",
+    "elapsed_us": "350847972"
+  },
+  "factored_mitm": {
+    "raw": "factored-mitm.ndjson",
+    "evaluation_us": "33784948",
+    "process_peak_rss_bytes": "40943616",
+    "elapsed_us": "176513016"
+  },
+  "comparison": {
+    "evaluation_speedup": 7.792382217,
+    "peak_rss_reduction_ratio": 30.619047619,
+    "whole_profile_speedup": 1.987660627
+  },
+  "claim_scope": "Fixed local p125 cohort evidence. This validates semantic equivalence and the Atkin-state hot path; it is not an end-to-end certificate-yield or unbounded asymptotic claim."
+}

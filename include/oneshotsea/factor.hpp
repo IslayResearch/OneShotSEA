@@ -2,6 +2,7 @@
 
 #include "oneshotsea/poly.hpp"
 
+#include <optional>
 #include <vector>
 
 namespace oneshotsea {
@@ -26,5 +27,17 @@ struct IrreducibleFactor {
 // the implementation independently checks irreducibility and exact
 // reconstruction.
 std::vector<IrreducibleFactor> factor_polynomial(const Poly& polynomial);
+
+// Certify that a square-free nonconstant polynomial over a probable-prime
+// field is a product of distinct irreducible polynomials all having one common
+// degree.  Return that degree, including one for a product of distinct linear
+// factors.  Return nullopt for constants, repeated factors, or mixed factor
+// degrees; reject the zero polynomial and composite field moduli.
+//
+// This uses Frobenius identities and gcd certificates only.  It deliberately
+// avoids equal-degree splitting when a caller needs the common degree but not
+// the factors themselves.
+std::optional<unsigned int> uniform_irreducible_factor_degree(
+    const Poly& polynomial);
 
 }  // namespace oneshotsea

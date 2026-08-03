@@ -30,7 +30,7 @@ LIB_DEPS := $(LIB_OBJECTS:.o=.d)
 
 -include $(LIB_DEPS)
 
-.PHONY: all test test-direct-modpoly test-prime-isogeny test-cm-surface test-p125-direct-trace test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
+.PHONY: all test test-direct-modpoly test-prime-isogeny test-cm-surface test-p125-direct-trace test-p125-direct-atkin-mitm-audit test-poly-square test-poly-ab-summary test-atkin test-progress-audit test-yield-model test-runpod-search-audit test-p125-topology-audit test-performance-artifacts test-cli test-reference test-factor test-certificate test-eigenvalue-mitm test-modpoly-generator test-weber-modpoly test-weber-curve-generator test-weber-audit test-weber-corpus test-weber-early-abort-audit test-x1-11-probe test-x1-27-probe test-verifier test-vendor test-smooth test-smooth-cache test-exact-smooth test-search-checkpoint test-search-pipeline test-oracle test-oracle-corpus test-differential test-runpod test-aws test-all clean
 
 all: $(BUILD_DIR)/oneshotsea
 
@@ -86,6 +86,12 @@ $(BUILD_DIR)/benchmark_p125_poly_trusted: \
 
 $(BUILD_DIR)/benchmark_p125_classical_direct: \
 		tools/benchmark_p125_classical_direct.cpp \
+		$(BUILD_DIR)/liboneshotsea.a
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
+		$(LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD_DIR)/profile_classical_direct_cohort: \
+		tools/profile_classical_direct_cohort.cpp \
 		$(BUILD_DIR)/liboneshotsea.a
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $< $(BUILD_DIR)/liboneshotsea.a \
 		$(LDFLAGS) $(LDLIBS) -o $@
@@ -187,6 +193,9 @@ test-p125-direct-trace: $(BUILD_DIR)/validate_p125_direct_trace $(BUILD_DIR)/one
 	./$(BUILD_DIR)/validate_p125_direct_trace --threads 2 \
 		--cache "$$cache" --cache-sha256 "$$digest" 5 >"$$trace"; \
 	python3 -c 'import json,sys; rows=[json.loads(line) for line in open(sys.argv[1])]; assert len(rows)==2; level,summary=rows; cache=summary["cache"]; assert level["timing_scope"]=="cached_level_materialization_plus_evaluation_index_excluded" and level["preparation_us"]=="0"; assert cache["level_load_count"]=="1" and cache["final_resident_contexts"]=="0"; assert int(level["total_us"])==int(level["evaluation_us"])+int(cache["level_load_us"]); assert int(cache["total_us"])>=int(cache["index_load_us"])+int(level["total_us"])' "$$trace"
+
+test-p125-direct-atkin-mitm-audit:
+	python3 artifacts/local/p125-direct-atkin-mitm-20260803/audit.py
 
 test-poly-square: $(BUILD_DIR)/test_poly_square
 	./$(BUILD_DIR)/test_poly_square

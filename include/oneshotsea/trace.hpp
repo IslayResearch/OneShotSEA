@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -18,7 +19,10 @@ public:
     const mpz_class& prime() const { return prime_; }
     const mpz_class& modulus() const { return modulus_; }
     const mpz_class& hasse_radius() const { return hasse_radius_; }
-    const std::vector<mpz_class>& residues() const { return residues_; }
+    // Explicitly materialize the full CRT residue set.  Candidate counting
+    // and bounded enumeration do not call this: they retain independent
+    // congruence factors and use meet-in-the-middle range searches instead.
+    const std::vector<mpz_class>& residues() const;
 
     // Intersect the current classes with t mod ell in allowed. ell must be
     // coprime to the current modulus. Empty allowed sets are valid and make the
@@ -35,10 +39,16 @@ public:
     std::optional<std::vector<mpz_class>> enumerate(std::size_t cap) const;
 
 private:
+    struct LazyCache;
+
     mpz_class prime_;
     mpz_class modulus_;
     mpz_class hasse_radius_;
-    std::vector<mpz_class> residues_;
+    std::vector<std::uint64_t> component_moduli_;
+    std::vector<std::vector<std::uint64_t>> component_allowed_;
+    // Copies may share an immutable constraint state's lazy results. A
+    // refinement replaces this state before committing its new components.
+    std::shared_ptr<LazyCache> cache_;
 };
 
 // The exact trace residues compatible with whether Phi_ell(j(E),Y) has a root

@@ -207,9 +207,12 @@ bool is_irreducible(const Poly& polynomial) {
     }
     const Poly monic = polynomial.monic();
     const Poly x_mod = mod(Poly::x(monic.field()), monic);
+    const PolyModContext modular(monic);
+    const Poly frobenius_map = modular.pow(
+        x_mod, monic.field().modulus());
     Poly frobenius = x_mod;
     for (int iteration = 1; iteration <= monic.degree(); ++iteration) {
-        frobenius = powmod(frobenius, monic.field().modulus(), monic);
+        frobenius = modular.compose(frobenius, frobenius_map);
         if (iteration <= monic.degree() / 2 &&
             !gcd(monic, sub(frobenius, x_mod)).is_one()) {
             return false;
@@ -225,6 +228,24 @@ bool polynomial_less(const Poly& lhs, const Poly& rhs) {
     return std::lexicographical_compare(
         lhs.coefficients().begin(), lhs.coefficients().end(),
         rhs.coefficients().begin(), rhs.coefficients().end());
+}
+
+std::vector<unsigned int> distinct_prime_divisors(unsigned int value) {
+    std::vector<unsigned int> divisors;
+    for (unsigned int divisor = 2U;
+         divisor <= value / divisor; ++divisor) {
+        if (value % divisor != 0U) {
+            continue;
+        }
+        divisors.push_back(divisor);
+        do {
+            value /= divisor;
+        } while (value % divisor == 0U);
+    }
+    if (value > 1U) {
+        divisors.push_back(value);
+    }
+    return divisors;
 }
 
 void validate_factorization(const Poly& input,
@@ -286,6 +307,64 @@ std::vector<IrreducibleFactor> factor_polynomial(const Poly& polynomial) {
               });
     validate_factorization(monic, factors);
     return factors;
+}
+
+std::optional<unsigned int> uniform_irreducible_factor_degree(
+    const Poly& polynomial) {
+    if (polynomial.is_zero()) {
+        throw std::invalid_argument(
+            "zero polynomial has no uniform factor degree");
+    }
+    require_probable_prime_field(polynomial);
+    const Poly monic = polynomial.monic();
+    if (monic.degree() <= 0) {
+        return std::nullopt;
+    }
+    if (!gcd(monic, monic.derivative()).is_one()) {
+        return std::nullopt;
+    }
+
+    const Poly x_mod = mod(Poly::x(monic.field()), monic);
+    const PolyModContext modular(monic);
+    const Poly frobenius_map = modular.pow(
+        x_mod, monic.field().modulus());
+    const unsigned int polynomial_degree =
+        static_cast<unsigned int>(monic.degree());
+    std::vector<std::optional<Poly>> divisor_powers(
+        static_cast<std::size_t>(polynomial_degree) + 1U);
+    Poly frobenius = x_mod;
+    unsigned int common_multiple = 0U;
+    for (unsigned int degree = 1U; degree <= polynomial_degree; ++degree) {
+        frobenius = modular.compose(frobenius, frobenius_map);
+        if (polynomial_degree % degree == 0U) {
+            divisor_powers[degree] = frobenius;
+        }
+        if (equal(frobenius, x_mod)) {
+            common_multiple = degree;
+            break;
+        }
+    }
+    if (common_multiple == 0U ||
+        polynomial_degree % common_multiple != 0U) {
+        return std::nullopt;
+    }
+
+    // X^(p^r)-X vanishing modulo f proves every irreducible factor degree
+    // divides r.  For each prime q|r, excluding factors dividing r/q proves
+    // that no proper divisor of r occurs.  Square-freeness above then makes
+    // the common factor-degree claim exact without constructing any factor.
+    for (const unsigned int prime :
+         distinct_prime_divisors(common_multiple)) {
+        const unsigned int proper = common_multiple / prime;
+        if (!divisor_powers[proper].has_value()) {
+            throw std::logic_error(
+                "uniform factor-degree proof lost a Frobenius divisor");
+        }
+        if (!gcd(monic, sub(*divisor_powers[proper], x_mod)).is_one()) {
+            return std::nullopt;
+        }
+    }
+    return common_multiple;
 }
 
 }  // namespace oneshotsea

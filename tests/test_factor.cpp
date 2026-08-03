@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -176,6 +177,28 @@ void compare_factorizations(const Poly& polynomial,
           context + ": weighted factor degrees");
 }
 
+std::optional<unsigned int> expected_uniform_degree(
+    const std::vector<IrreducibleFactor>& factors) {
+    if (factors.empty() ||
+        std::any_of(factors.begin(), factors.end(),
+                    [](const IrreducibleFactor& factor) {
+                        return factor.multiplicity != 1UL;
+                    })) {
+        return std::nullopt;
+    }
+    const unsigned int degree = static_cast<unsigned int>(
+        factors.front().polynomial.degree());
+    if (std::any_of(
+            factors.begin(), factors.end(),
+            [degree](const IrreducibleFactor& factor) {
+                return factor.polynomial.degree() !=
+                    static_cast<int>(degree);
+            })) {
+        return std::nullopt;
+    }
+    return degree;
+}
+
 void test_exhaustive_tiny_field(unsigned long characteristic,
                                 unsigned int maximum_degree) {
     const Field field(characteristic);
@@ -191,6 +214,9 @@ void test_exhaustive_tiny_field(unsigned long characteristic,
                 "F_" + std::to_string(characteristic) + " degree " +
                 std::to_string(degree) + " code " + std::to_string(code);
             compare_factorizations(polynomial, actual, expected, context);
+            check(oneshotsea::uniform_irreducible_factor_degree(polynomial) ==
+                      expected_uniform_degree(expected),
+                  context + ": certified uniform factor degree");
             check(roots_from_factors(actual) == brute_roots(polynomial),
                   context + ": brute-force roots");
             ++checked;
@@ -252,6 +278,19 @@ void test_416_bit_constructed_products() {
     compare_factorizations(square_free_product, square_free_actual,
                            square_free_expected,
                            "416-bit square-free equal-degree product");
+    check(!oneshotsea::uniform_irreducible_factor_degree(
+               square_free_product).has_value(),
+          "416-bit mixed factor degrees are not uniform");
+
+    const Poly quadratic_product = oneshotsea::mul(
+        quadratics[0], oneshotsea::mul(quadratics[1], quadratics[2]));
+    check(oneshotsea::uniform_irreducible_factor_degree(quadratic_product) ==
+              std::optional<unsigned int>(2U),
+          "416-bit distinct quadratics have certified uniform degree two");
+    check(oneshotsea::uniform_irreducible_factor_degree(
+              oneshotsea::mul(linear_two, linear_three)) ==
+              std::optional<unsigned int>(1U),
+          "416-bit distinct linear factors have certified uniform degree one");
 
     auto repeated_expected = sorted_factors({
         {linear_two, 4},
@@ -263,6 +302,9 @@ void test_416_bit_constructed_products() {
         oneshotsea::factor_polynomial(repeated_product);
     compare_factorizations(repeated_product, repeated_actual, repeated_expected,
                            "416-bit repeated-factor product");
+    check(!oneshotsea::uniform_irreducible_factor_degree(
+               repeated_product).has_value(),
+          "416-bit repeated factors are not certified as square-free uniform");
 
     const auto repeated_again =
         oneshotsea::factor_polynomial(repeated_product);
@@ -274,6 +316,9 @@ void test_input_contract() {
     const Field field(101);
     check(oneshotsea::factor_polynomial(Poly::constant(field, 37)).empty(),
           "nonzero constant has empty factorization");
+    check(!oneshotsea::uniform_irreducible_factor_degree(
+               Poly::constant(field, 37)).has_value(),
+          "nonzero constant has no uniform factor degree");
 
     bool zero_rejected = false;
     try {
@@ -283,6 +328,16 @@ void test_input_contract() {
     }
     check(zero_rejected, "zero polynomial rejected");
 
+    bool uniform_zero_rejected = false;
+    try {
+        static_cast<void>(oneshotsea::uniform_irreducible_factor_degree(
+            Poly(field)));
+    } catch (const std::invalid_argument&) {
+        uniform_zero_rejected = true;
+    }
+    check(uniform_zero_rejected,
+          "zero polynomial uniform-degree query rejected");
+
     bool composite_rejected = false;
     try {
         static_cast<void>(oneshotsea::factor_polynomial(
@@ -291,6 +346,16 @@ void test_input_contract() {
         composite_rejected = true;
     }
     check(composite_rejected, "composite field modulus rejected");
+
+    bool uniform_composite_rejected = false;
+    try {
+        static_cast<void>(oneshotsea::uniform_irreducible_factor_degree(
+            Poly(Field(15), {1, 0, 1})));
+    } catch (const std::invalid_argument&) {
+        uniform_composite_rejected = true;
+    }
+    check(uniform_composite_rejected,
+          "uniform factor degree rejects a composite field modulus");
 }
 
 }  // namespace

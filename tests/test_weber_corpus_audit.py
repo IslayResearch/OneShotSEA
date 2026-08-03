@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import copy
 from contextlib import redirect_stderr
+import gzip
+import hashlib
 import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -20,9 +23,11 @@ ROOT = Path(__file__).resolve().parents[1]
 NATIVE = ROOT / "build" / "oracle_weber_audit"
 BOOTSTRAP = ROOT / "oracle" / "weber_corpus_audit.py"
 TABLES = ROOT / "data" / "modpoly" / "weber_f"
+MULTILIMB_ARTIFACT = ROOT / "artifacts" / "local" / "weber-oracle-multilimb-20260803"
 sys.path.insert(0, str(ROOT / "oracle"))
 import weber_corpus_audit_driver as driver  # noqa: E402
 import weber_early_abort_audit as early_audit  # noqa: E402
+import retained_weber_corpus as retained_corpus  # noqa: E402
 
 
 FAKE_MAGMA = r"""
@@ -46,6 +51,217 @@ else:
               "trace": p + 1 - order}
 json.dump(result, sys.stdout, separators=(",", ":")); print()
 """
+
+
+class RetainedMultilimbCorpusTests(unittest.TestCase):
+    @staticmethod
+    def rewrite_records_and_hashes(
+        artifact: Path, raw_records: bytes, record_count: int
+    ) -> None:
+        records_path = artifact / "raw" / "records.ndjson.gz"
+        with gzip.open(records_path, "wb") as stream:
+            stream.write(raw_records)
+        manifest_path = artifact / "raw" / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["records"].update(
+            {
+                "sha256": hashlib.sha256(raw_records).hexdigest(),
+                "count": record_count,
+            }
+        )
+        manifest_path.write_text(
+            json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        result_path = artifact / "result.json"
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["raw"].update(
+            {
+                "manifest_sha256": hashlib.sha256(
+                    manifest_path.read_bytes()
+                ).hexdigest(),
+                "manifest_bytes": manifest_path.stat().st_size,
+                "records_gzip_sha256": hashlib.sha256(
+                    records_path.read_bytes()
+                ).hexdigest(),
+                "records_gzip_bytes": records_path.stat().st_size,
+                "records_sha256": hashlib.sha256(raw_records).hexdigest(),
+                "records_bytes": len(raw_records),
+                "record_count": record_count,
+            }
+        )
+        result_path.write_text(
+            json.dumps(result, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def encode_records(records: list[dict[str, object]]) -> bytes:
+        return b"".join(
+            json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
+            + b"\n"
+            for record in records
+        )
+
+    def test_replays_complete_64_through_416_bit_evidence(self) -> None:
+        summary = retained_corpus.audit_artifact(MULTILIMB_ARTIFACT)
+        self.assertEqual(summary["bit_sizes"], [64, 128, 256, 416])
+        self.assertEqual(summary["record_count"], 4)
+        self.assertEqual(
+            summary["claim_counts"],
+            {
+                "complete_native_counts": 4,
+                "exact_elkies": 70,
+                "certified_atkin": 4,
+                "unconstrained": 64,
+                "exact_schoof": 7,
+            },
+        )
+
+    def test_rejects_semantic_tamper_even_with_recomputed_hashes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = Path(temporary) / "artifact"
+            shutil.copytree(MULTILIMB_ARTIFACT, artifact)
+            records_path = artifact / "raw" / "records.ndjson.gz"
+            with gzip.open(records_path, "rt", encoding="utf-8") as stream:
+                records = [json.loads(line) for line in stream]
+            exact = next(
+                level
+                for level in records[0]["native"]["final"]["levels"]
+                if level["classification"] == "exact_elkies"
+            )
+            exact["trace_residue"] = (exact["trace_residue"] + 1) % exact["ell"]
+            self.rewrite_records_and_hashes(
+                artifact, self.encode_records(records), len(records)
+            )
+            with self.assertRaisesRegex(
+                retained_corpus.RetainedCorpusError,
+                "exact Elkies level .* disagrees with Magma",
+            ):
+                retained_corpus.audit_artifact(artifact)
+
+    def test_rejects_combined_curve_and_candidate_telemetry_tamper(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = Path(temporary) / "artifact"
+            shutil.copytree(MULTILIMB_ARTIFACT, artifact)
+            records_path = artifact / "raw" / "records.ndjson.gz"
+            with gzip.open(records_path, "rt", encoding="utf-8") as stream:
+                records = [json.loads(line) for line in stream]
+            record = records[0]
+            prime = int(record["native"]["p"])
+            for path in ("native", "heuristic_fallback_off"):
+                curve = record[path]["curve"]
+                curve["a"] = str((int(curve["a"]) + 1) % prime)
+            early = record["native"]["early"]
+            early["exact_trace_candidate_count"] = str(
+                int(early["exact_trace_candidate_count"]) + 1
+            )
+            self.rewrite_records_and_hashes(
+                artifact, self.encode_records(records), len(records)
+            )
+            with self.assertRaisesRegex(
+                retained_corpus.RetainedCorpusError,
+                "curve is not the canonical production model|candidate count disagrees",
+            ):
+                retained_corpus.audit_artifact(artifact)
+
+    def test_rejects_candidate_count_tamper_with_recomputed_hashes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = Path(temporary) / "artifact"
+            shutil.copytree(MULTILIMB_ARTIFACT, artifact)
+            records_path = artifact / "raw" / "records.ndjson.gz"
+            with gzip.open(records_path, "rt", encoding="utf-8") as stream:
+                records = [json.loads(line) for line in stream]
+            early = records[0]["native"]["early"]
+            early["exact_trace_candidate_count"] = str(
+                int(early["exact_trace_candidate_count"]) + 1
+            )
+            self.rewrite_records_and_hashes(
+                artifact, self.encode_records(records), len(records)
+            )
+            with self.assertRaisesRegex(
+                retained_corpus.RetainedCorpusError,
+                "exact candidate count disagrees with replay",
+            ):
+                retained_corpus.audit_artifact(artifact)
+
+    def test_rejects_newline_free_decompression_bomb_before_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = Path(temporary) / "artifact"
+            shutil.copytree(MULTILIMB_ARTIFACT, artifact)
+            bomb = b"x" * (retained_corpus.MAX_RECORD_BYTES + 1)
+            self.rewrite_records_and_hashes(artifact, bomb, 1)
+            with self.assertRaisesRegex(
+                retained_corpus.RetainedCorpusError,
+                "per-record audit limit",
+            ):
+                retained_corpus.audit_artifact(artifact)
+
+    def test_rejects_oversized_top_level_json_before_parse(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = Path(temporary) / "artifact"
+            shutil.copytree(MULTILIMB_ARTIFACT, artifact)
+            (artifact / "result.json").write_bytes(
+                b"{" + b" " * retained_corpus.MAX_JSON_BYTES + b"}"
+            )
+            with self.assertRaisesRegex(
+                retained_corpus.RetainedCorpusError,
+                "retained result exceeds",
+            ):
+                retained_corpus.audit_artifact(artifact)
+
+    def test_path_swap_to_fifo_after_bounded_manifest_read_is_not_reopened(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = Path(temporary) / "artifact"
+            shutil.copytree(MULTILIMB_ARTIFACT, artifact)
+            probe = textwrap.dedent(
+                """
+                import os
+                from pathlib import Path
+                import sys
+
+                sys.path.insert(0, sys.argv[1])
+                import retained_weber_corpus as retained
+
+                artifact = Path(sys.argv[2]).resolve()
+                manifest = artifact / "raw" / "manifest.json"
+                detached = artifact / "raw" / "manifest.detached.json"
+                original = retained.read_bounded_file
+                swapped = False
+
+                def read_then_swap(path, label, maximum):
+                    global swapped
+                    payload = original(path, label, maximum)
+                    if path == manifest and not swapped:
+                        path.rename(detached)
+                        os.mkfifo(path)
+                        swapped = True
+                    return payload
+
+                retained.read_bounded_file = read_then_swap
+                retained.audit_artifact(artifact)
+                if not swapped:
+                    raise RuntimeError("manifest swap was not exercised")
+                """
+            )
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    probe,
+                    str(ROOT / "oracle"),
+                    str(artifact),
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=15,
+            )
+            self.assertEqual(completed.returncode, 0, completed.stderr)
 
 
 class WeberCorpusAuditTests(unittest.TestCase):

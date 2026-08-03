@@ -883,6 +883,14 @@ For many random primes and curves at 16, 32, 64, 128, 256, and 416 bits:
 4. Ask Magma to validate the kernel/codomain isogeny on sampled Elkies levels.
 5. Complete the custom point count and require `p+1-t` to equal both oracles.
 
+The retained corpus now splits this matrix into two bounded gates.  The
+10,000-curve Magma corpus supplies random breadth at 16-32 bits.  The compact
+[`weber-oracle-multilimb-20260803`](../artifacts/local/weber-oracle-multilimb-20260803/README.md)
+capture supplies one deterministic complete production-Weber/Magma count at
+each of 64, 128, 256, and 416 bits and replays every emitted exact-Elkies,
+certified-Atkin, and exact-Schoof claim.  The latter is representative
+multi-limb regression coverage, not statistical breadth at those sizes.
+
 Coverage must explicitly include singular inputs, `j=0`, `j=1728`,
 supersingular curves, repeated modular roots, volcanic primes, no-root Atkin
 levels, one/two/all-root cases, `lambda=+/-1`, both twist signs, and residue

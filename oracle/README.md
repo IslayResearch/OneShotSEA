@@ -205,6 +205,26 @@ python3 oracle/weber_corpus_audit.py \
   --max-prime-attempts 1000000
 ```
 
+A bounded representative multi-limb capture using that same driver is retained
+at
+[`artifacts/local/weber-oracle-multilimb-20260803`](../artifacts/local/weber-oracle-multilimb-20260803/README.md).
+It contains complete native/Magma curve and twist counts at 64, 128, 256, and
+416 bits, including every normalized intermediate exact-Elkies,
+certified-Atkin, unconstrained, and exact-Schoof record.  The accepted capture
+was rebuilt and run from a clean detached checkout of its named commit; its
+exact executable and capture/oracle scripts are retained.  A fresh checkout
+can authenticate and replay all retained mathematical claims without a Magma
+license:
+
+```sh
+python3 oracle/retained_weber_corpus.py \
+  artifacts/local/weber-oracle-multilimb-20260803
+```
+
+The existing `test-weber-corpus` target runs this compact gate.  It complements
+the statistically broad 16-32-bit corpus below; four deterministic curves are
+representative multi-limb coverage, not a yield or random-population claim.
+
 The same create-only, bounded-child, direct Magma runtime/root, full-module
 bootstrap attestation, source/dependency snapshot, identity drift,
 partial-manifest, interrupt, and `UINT64_MAX` cursor contracts as the

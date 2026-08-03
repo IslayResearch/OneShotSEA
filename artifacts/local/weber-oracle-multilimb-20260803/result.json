@@ -1,0 +1,46 @@
+{
+  "schema": "oneshotsea.retained-weber-oracle-result.v1",
+  "classification": "bounded deterministic production-Weber/Magma multi-limb differential evidence",
+  "capture": {
+    "started_utc": "2026-08-03T07:53:12Z",
+    "completed_utc": "2026-08-03T07:56:28Z",
+    "wall_seconds": 196,
+    "git_commit": "d226d84f3921497ce3a9c91e85e426071311ec24",
+    "git_worktree_clean": true,
+    "provenance_mode": "clean-commit-with-retained-capture-inputs",
+    "native_sha256": "548468eee9fbecc7949f8a73191bc70c8ef92c0404b222646349e74de344b1a8",
+    "magma_version": "Magma V2.29-1",
+    "magma_runtime_sha256": "4047b365a1b8f5468bf0cfca42a62835968a5ecec1b30fb72ddd7205179a969f",
+    "table_set_sha256": "b1b78ff3df681f83131dbbb7caa26b03b66036788671e00a323faaef16ef8113",
+    "note": "The native executable was rebuilt and the corpus was captured from a clean detached checkout of the named commit. The exact executable and capture/oracle scripts are retained under raw/inputs; the checked-in table set is authenticated against the manifest."
+  },
+  "coverage": {
+    "bit_sizes": [64, 128, 256, 416],
+    "curves_per_size": 1,
+    "complete_point_count_required": true,
+    "claim_counts": {
+      "complete_native_counts": 4,
+      "exact_elkies": 70,
+      "certified_atkin": 4,
+      "unconstrained": 64,
+      "exact_schoof": 7
+    }
+  },
+  "retained_inputs": {
+    "oracle_weber_audit": {"bytes": 858128, "sha256": "548468eee9fbecc7949f8a73191bc70c8ef92c0404b222646349e74de344b1a8"},
+    "weber_corpus_audit.py": {"bytes": 4057, "sha256": "f13145b89bd9d188152853eb6e93e0ceafc7bb4284533a3bc4cefca53cb30bc3"},
+    "weber_corpus_audit_driver.py": {"bytes": 71621, "sha256": "6ec3e5ffbb19a41af0d1c566f2cb76d28861a431afc3f10a2417cf40e926b927"},
+    "audit_common.py": {"bytes": 25530, "sha256": "3a8d39f6400844e977f03a8820bb967a709c253568d6519aacb4a54168268ef4"},
+    "point_count.m": {"bytes": 1475, "sha256": "bb18f669440bca5d396ca59e8ab2846cc071775aec2360c0b3ff38e059d1b321"},
+    "prime_check.m": {"bytes": 428, "sha256": "b4f2fe392d99a362bfa14d0f52c34ef236257870e35977f3ed73c5cbed504b8c"}
+  },
+  "raw": {
+    "manifest_sha256": "46e72877a6430698e38eb8bdb413d271a116eccc60db74445a2627fed1cf3e00",
+    "manifest_bytes": 15814,
+    "records_gzip_sha256": "d193fe29ba1dcb867b37ac7c189793da485c1865d807f4d92eda5fbe56c404b9",
+    "records_gzip_bytes": 11441,
+    "records_sha256": "a5fc12d83e4e2e4d22b83df2bc236732f370f67b9862c70c0a678fdcce5df8f0",
+    "records_bytes": 218998,
+    "record_count": 4
+  }
+}

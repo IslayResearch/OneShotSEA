@@ -129,6 +129,30 @@ The complete 94,301,494-byte record stream is also retained as a deterministic
 records and reproduces SHA-256
 `0e02c9cb090bc3292a37fd924a092e21bef5629a3140541ed83db51bad1dfe6e`.
 
+### Representative multi-limb oracle completion gate
+
+The production-Weber corpus path was also run on one deterministic curve and
+twist at each of 64, 128, 256, and 416 bits.  All four native point counts
+completed and matched independent Magma orders and traces.  Across the normal
+production final states, the retained stream contains 70 exact-Elkies records,
+4 certified-Atkin records, 64 fail-closed unconstrained records, and 7
+exact-Schoof fallback records.  The fallback-off executions are validated
+separately but are not double-counted in those totals.  The live validator
+checked every classification and every intermediate CRT state against the
+Magma trace.  The accepted clean-commit recapture took 196 seconds on the
+recorded Apple M4 host.
+
+The compact artifact and exact recapture command are in
+[`artifacts/local/weber-oracle-multilimb-20260803`](../artifacts/local/weber-oracle-multilimb-20260803/README.md).
+Its clean-checkout audit authenticates the record stream and semantically
+replays the deterministic source/curve/twist identities, every cumulative CRT
+transition and Hasse candidate count, each retained residue/classification, and
+the final singleton.  The exact clean-built native executable and capture
+driver/oracle inputs are retained with the artifact.  This supplies
+representative multi-limb correctness coverage; the
+10,000-curve 16-32-bit corpus remains the statistical breadth and early-abort
+audit.
+
 The implemented exact trace-prior policy narrows this complete set without a
 heuristic assumption.  Weber-f adds `t = p+1 (mod 4)` only after directly
 finding all three rational roots of the actual short Weierstrass cubic.  For

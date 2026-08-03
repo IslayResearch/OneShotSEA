@@ -851,6 +851,24 @@ class RunPodSearchAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(search_audit.AuditError, "batch maximum"):
             search_audit._validate_smooth_batch(forged, "forged recovery")
 
+        forged = json.loads(json.dumps(batch))
+        forged["coordinator_batches"] = "0"
+        forged["cohorts"][0]["coordinator_batches"] = "0"
+        with self.assertRaisesRegex(search_audit.AuditError, "batch lower bounds"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
+        forged = json.loads(json.dumps(batch))
+        forged["max_requests_per_batch_in_any_cohort"] = "0"
+        forged["cohorts"][0]["max_requests_per_batch"] = "0"
+        with self.assertRaisesRegex(search_audit.AuditError, "batch lower bounds"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
+        forged = json.loads(json.dumps(batch))
+        forged["max_queued_requests_in_any_cohort"] = "0"
+        forged["cohorts"][0]["max_queued_requests"] = "0"
+        with self.assertRaisesRegex(search_audit.AuditError, "queue lower bound"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
     def test_certificate_requires_local_pinned_verifier_and_rejects_invalid(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

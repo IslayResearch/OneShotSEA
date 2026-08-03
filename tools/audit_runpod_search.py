@@ -1650,8 +1650,20 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
             parsed_cohort["completed_requests"] + parsed_cohort["failed_requests"])
         if parsed_cohort["coordinator_batches"] > processed_requests:
             raise AuditError("{} smooth cohort has too many batches".format(label))
+        if processed_requests != 0 and (
+            parsed_cohort["coordinator_batches"] == 0 or
+            parsed_cohort["max_requests_per_batch"] == 0 or
+            processed_requests > (
+                parsed_cohort["coordinator_batches"] *
+                parsed_cohort["max_requests_per_batch"])
+        ):
+            raise AuditError("{} smooth cohort batch lower bounds are impossible".format(label))
         if parsed_cohort["max_queued_requests"] > parsed_cohort["submitted_requests"]:
             raise AuditError("{} smooth cohort queue maximum is impossible".format(label))
+        if parsed_cohort["submitted_requests"] != 0 and (
+            parsed_cohort["max_queued_requests"] == 0
+        ):
+            raise AuditError("{} smooth cohort queue lower bound is impossible".format(label))
         if parsed_cohort["max_requests_per_batch"] > processed_requests or (
             parsed_cohort["max_requests_per_batch"] >
             parsed_cohort["max_queued_requests"]

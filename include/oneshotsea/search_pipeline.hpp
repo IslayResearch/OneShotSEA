@@ -75,6 +75,14 @@ struct SearchPipelineConfig {
     // the full-schedule first pass. A nonzero value is semantic, requires an
     // early_trace_cap greater than one, and must leave a nonempty early prefix.
     std::size_t classical_direct_cap_one_tail_count = 0U;
+    // When nonzero, a complete cap-N set with at least this many traces pays
+    // for the deferred direct suffix before exact smoothness screening. This
+    // is useful when one cached suffix is cheaper than scanning many curve and
+    // twist orders. A suffix that remains multi-trace is re-enumerated at the
+    // original cap and still receives the ordinary sound smoothness screen.
+    // The threshold is semantic, must be in [2, early_trace_cap], and requires
+    // a nonempty deferred suffix.
+    std::size_t classical_direct_pre_smooth_tail_min_trace_count = 0U;
     std::uint64_t classical_direct_maximum_prime_candidates = 1000000U;
     std::uint64_t classical_direct_maximum_x_candidates_per_surface =
         1000000U;

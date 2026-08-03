@@ -22,7 +22,7 @@ namespace oneshotsea {
 inline constexpr char kRareSchoofFallbackPolicy[] =
     "retained-state-exact-schoof-3,5,7,11,13,17,19,23,29,31,37-v2";
 inline constexpr char kClassicalDirectSeaPolicy[] =
-    "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-cap-one-tail-v4";
+    "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-cap-one-tail-pre-smooth-v5";
 
 // A caller-supplied exact congruence for the Frobenius trace. The modulus may
 // be composite, but must fit uint64, be coprime to the field characteristic,
@@ -149,10 +149,10 @@ std::vector<std::uint64_t> expected_information_per_cost_order(
 
 // Correctness runner for the checked-in Weber table set.
 // Positive kernel evidence narrows the possible source lifts; empty/Atkin
-// levels never discard a lift. For trace_cap>1, independently certified
-// classical-j Atkin constraints at checked-in levels 5 and 7 may produce the
-// complete bounded trace set used for sound early screening. trace_cap=1
-// always requires uniqueness from the exact prior and Elkies residues alone.
+// levels never discard a lift. Independently certified classical-j Atkin
+// constraints at checked-in levels 5 and 7 may produce the complete bounded
+// trace set used for sound early screening or an effective cap-one singleton;
+// exact-only and effective constraints remain separately observable.
 // A known_source_lift is an optional generator witness: it must already be
 // normalized, nonzero, unramified/nonexceptional, and map to the curve's
 // exact j-invariant. Invalid witnesses are rejected rather than silently
@@ -189,9 +189,9 @@ void extend_weber_sea_with_schoof_fallback(
 // evaluations at the requested ordered, distinct prime levels.  Each level
 // derives its D=-7*3^(2n) order and HCP state internally.  Positive roots are
 // admitted only through BMSS/Frobenius exact residues; square-free no-root
-// specializations contribute only certified Atkin sets.  Completion for
-// trace_cap>1 uses the effective exact+Atkin state, while trace_cap=1 still
-// requires exact residues.  State updates and progress callbacks are
+// specializations contribute only certified Atkin sets. Completion at every
+// trace cap uses the effective exact+Atkin state, while retaining the
+// exact-only CRT separately. State updates and progress callbacks are
 // transactional per level.
 void extend_sea_with_classical_direct(
     const Curve& curve, WeberSeaResult& result,

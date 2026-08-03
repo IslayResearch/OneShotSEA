@@ -478,11 +478,15 @@ class CliTests(unittest.TestCase):
             start = records[0]
             self.assertEqual(
                 start["classical_direct"]["policy"],
-                "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-cap-one-tail-v4",
+                "retained-state-three-power-classical-j-crt-bmss-atkin-singleton-cap-one-tail-pre-smooth-v5",
             )
             self.assertEqual(start["classical_direct"]["levels"], ["7", "11"])
             self.assertEqual(
                 start["classical_direct"]["cap_one_tail_count"], "0",
+            )
+            self.assertEqual(
+                start["classical_direct"]
+                    ["pre_smooth_tail_min_traces"], "0",
             )
             self.assertEqual(
                 start["classical_direct"]["maximum_prime_candidates"],
@@ -675,6 +679,7 @@ class CliTests(unittest.TestCase):
                 "--sea-strategy", "direct-first",
                 "--classical-direct-levels", "7,11",
                 "--classical-direct-cap-one-tail-count", 1,
+                "--classical-direct-pre-smooth-tail-min-traces", 2,
                 "--classical-direct-context-cache", cache,
                 "--classical-direct-context-sha256", digest,
                 "--classical-direct-context-max-file-bytes",
@@ -695,6 +700,11 @@ class CliTests(unittest.TestCase):
                 direct_records[0]["classical_direct"]
                     ["cap_one_tail_count"],
                 "1",
+            )
+            self.assertEqual(
+                direct_records[0]["classical_direct"]
+                    ["pre_smooth_tail_min_traces"],
+                "2",
             )
             live_direct_levels = [
                 record for record in direct_records
@@ -746,6 +756,17 @@ class CliTests(unittest.TestCase):
                 *invalid_tail_common,
                 "--trace-cap", 1,
                 "--classical-direct-cap-one-tail-count", 1,
+            )
+            self.assert_rejected(
+                *invalid_tail_common,
+                "--trace-cap", 16,
+                "--classical-direct-pre-smooth-tail-min-traces", 2,
+            )
+            self.assert_rejected(
+                *invalid_tail_common,
+                "--trace-cap", 4,
+                "--classical-direct-cap-one-tail-count", 1,
+                "--classical-direct-pre-smooth-tail-min-traces", 5,
             )
 
             strict_default = self.run_cli(

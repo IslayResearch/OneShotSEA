@@ -1062,6 +1062,8 @@ void test_checkpoint_bound_direct_first_strategy() {
     cap_one_tail_config.early_trace_cap = 4U;
     cap_one_tail_config.classical_direct_levels = {7U, 11U};
     cap_one_tail_config.classical_direct_cap_one_tail_count = 1U;
+    cap_one_tail_config.classical_direct_pre_smooth_tail_min_trace_count =
+        2U;
     cap_one_tail_config.sea_strategy =
         oneshotsea::SearchSeaStrategy::direct_first;
     cap_one_tail_config.sea_threads = 1U;
@@ -1079,7 +1081,7 @@ void test_checkpoint_bound_direct_first_strategy() {
               cap_one_tail.report.classical_direct_levels[1].ell == 11U &&
               cap_one_tail.report.exact_trace ==
                   cap_transition.report.exact_trace,
-          "cap-one direct suffix is deferred until a cap-N smooth survivor and completes before Weber continuation");
+          "cap-one direct suffix can promote a multi-trace cap-N set before smoothness and complete before Weber continuation");
 
     oneshotsea::SearchPipelineConfig no_tail_identity_config =
         cap_one_tail_config;
@@ -1088,6 +1090,8 @@ void test_checkpoint_bound_direct_first_strategy() {
     no_tail_identity_config.expected_classical_direct_context_sha256 =
         cap_one_tail.direct_cache_sha256;
     no_tail_identity_config.classical_direct_cap_one_tail_count = 0U;
+    no_tail_identity_config
+        .classical_direct_pre_smooth_tail_min_trace_count = 0U;
     const std::string tail_identity_digest(64U, 'f');
     const auto cap_one_tail_identity = oneshotsea::make_search_identity(
         cap_one_tail_config, {1U, 2U}, 0U, 1U, tail_identity_digest,
@@ -1099,6 +1103,18 @@ void test_checkpoint_bound_direct_first_strategy() {
     check(cap_one_tail_identity.schedule_sha256 !=
               no_tail_identity.schedule_sha256,
           "cap-one direct suffix boundary is bound into checkpoint identity");
+
+    oneshotsea::SearchPipelineConfig post_smooth_tail_identity_config =
+        cap_one_tail_config;
+    post_smooth_tail_identity_config
+        .classical_direct_pre_smooth_tail_min_trace_count = 0U;
+    const auto post_smooth_tail_identity = oneshotsea::make_search_identity(
+        post_smooth_tail_identity_config, {1U, 2U}, 0U, 1U,
+        tail_identity_digest, tail_identity_digest,
+        "cap-one-tail-identity-test-v1");
+    check(cap_one_tail_identity.schedule_sha256 !=
+              post_smooth_tail_identity.schedule_sha256,
+          "pre-smooth direct suffix threshold is bound into checkpoint identity");
 
     const auto rejects_tail_config = [&](oneshotsea::SearchPipelineConfig value) {
         try {
@@ -1119,10 +1135,24 @@ void test_checkpoint_bound_direct_first_strategy() {
     oneshotsea::SearchPipelineConfig weber_first_tail = cap_one_tail_config;
     weber_first_tail.sea_strategy =
         oneshotsea::SearchSeaStrategy::weber_first;
+    oneshotsea::SearchPipelineConfig pre_smooth_without_tail =
+        cap_one_tail_config;
+    pre_smooth_without_tail.classical_direct_cap_one_tail_count = 0U;
+    oneshotsea::SearchPipelineConfig pre_smooth_below_two =
+        cap_one_tail_config;
+    pre_smooth_below_two
+        .classical_direct_pre_smooth_tail_min_trace_count = 1U;
+    oneshotsea::SearchPipelineConfig pre_smooth_above_cap =
+        cap_one_tail_config;
+    pre_smooth_above_cap
+        .classical_direct_pre_smooth_tail_min_trace_count = 5U;
     check(rejects_tail_config(whole_schedule_tail) &&
               rejects_tail_config(cap_one_without_early_screen) &&
-              rejects_tail_config(weber_first_tail),
-          "cap-one direct suffix requires direct-first, cap-N screening, and a nonempty early prefix");
+              rejects_tail_config(weber_first_tail) &&
+              rejects_tail_config(pre_smooth_without_tail) &&
+              rejects_tail_config(pre_smooth_below_two) &&
+              rejects_tail_config(pre_smooth_above_cap),
+          "cap-one direct suffix and pre-smooth threshold require direct-first, cap-N screening, and valid nonempty boundaries");
 
     oneshotsea::SearchPipelineConfig fallback_config = small_config();
     fallback_config.early_trace_cap = 1U;

@@ -334,6 +334,18 @@ void validate_classical_direct_config(const SearchPipelineConfig& config) {
                 "the cap-one classical direct tail must leave a nonempty early schedule prefix");
         }
     }
+    if (config.classical_direct_pre_smooth_tail_min_trace_count != 0U) {
+        if (config.classical_direct_cap_one_tail_count == 0U) {
+            throw std::invalid_argument(
+                "a pre-smooth classical direct tail threshold requires a deferred cap-one tail");
+        }
+        if (config.classical_direct_pre_smooth_tail_min_trace_count < 2U ||
+            config.classical_direct_pre_smooth_tail_min_trace_count >
+                config.early_trace_cap) {
+            throw std::invalid_argument(
+                "the pre-smooth classical direct tail threshold must be between two and the early trace cap");
+        }
+    }
 }
 
 void validate_config(const SearchPipelineConfig& config,
@@ -1410,6 +1422,38 @@ static SearchCurveReport process_search_curve_impl(
         throw std::logic_error("SEA enumerated an empty complete trace set");
     }
 
+    const auto extend_cap_one_direct_tail = [&](WeberSeaResult& state) {
+        ++report.direct_first_attempts;
+        sea_execution_phase = SeaExecutionPhase::direct_first;
+        extend_classical_direct(
+            state, 1U, config.classical_direct_levels.size());
+        if (state.traces.has_value()) {
+            ++report.direct_first_completions;
+            return true;
+        }
+        ++report.direct_first_fallbacks;
+        sea_execution_phase = SeaExecutionPhase::direct_first_fallback;
+        return false;
+    };
+    bool direct_tail_attempted_before_smoothness = false;
+    if (config.classical_direct_pre_smooth_tail_min_trace_count != 0U &&
+        sea.traces->size() >=
+            config.classical_direct_pre_smooth_tail_min_trace_count) {
+        direct_tail_attempted_before_smoothness = true;
+        if (!extend_cap_one_direct_tail(sea)) {
+            // A cap-one extension deliberately clears the stale cap-N
+            // enumeration when the suffix remains incomplete. Refinement can
+            // only shrink the already complete set, so reconstruct it at the
+            // original bound before performing the sound smoothness screen.
+            sea.traces = sea.effective_constraints.enumerate(
+                config.early_trace_cap);
+            if (!sea.traces.has_value() || sea.traces->empty()) {
+                throw std::logic_error(
+                    "pre-smooth direct tail lost the complete cap-N trace set");
+            }
+        }
+    }
+
     stage_start = Clock::now();
     std::vector<CurveTwistSmoothParts> initial_parts =
         extract_curve_twist(*sea.traces);
@@ -1440,19 +1484,15 @@ static SearchCurveReport process_search_curve_impl(
         if (!config.classical_direct_levels.empty()) {
             if (config.sea_strategy == SearchSeaStrategy::direct_first &&
                 config.classical_direct_cap_one_tail_count != 0U) {
-                // The cap-N set has already survived sound smoothness
-                // screening. Only now materialize the measured suffix, before
-                // paying for additional Weber levels at the unique-trace cap.
-                ++report.direct_first_attempts;
-                sea_execution_phase = SeaExecutionPhase::direct_first;
-                extend_classical_direct(
-                    sea, 1U, config.classical_direct_levels.size());
-                if (sea.traces.has_value()) {
-                    ++report.direct_first_completions;
-                } else {
-                    ++report.direct_first_fallbacks;
-                    sea_execution_phase =
-                        SeaExecutionPhase::direct_first_fallback;
+                // By default the cap-N set has already survived sound
+                // smoothness screening before the suffix is materialized. A
+                // measured pre-smooth policy may have attempted the same
+                // suffix earlier; do not count or evaluate it twice.
+                const bool direct_complete =
+                    !direct_tail_attempted_before_smoothness
+                        ? extend_cap_one_direct_tail(sea)
+                        : false;
+                if (!direct_complete) {
                     if (!initial_weber_pass_ran || initial_weber_fit_cap) {
                         sea = run_sea(1U, &sea);
                     }
@@ -2544,6 +2584,10 @@ std::string search_schedule_sha256(
         canonical << '\n'
                   << "classical_direct_cap_one_tail_count="
                   << config.classical_direct_cap_one_tail_count << '\n'
+                  << "classical_direct_pre_smooth_tail_min_trace_count="
+                  << config
+                         .classical_direct_pre_smooth_tail_min_trace_count
+                  << '\n'
                   << "classical_direct_maximum_prime_candidates="
                   << config.classical_direct_maximum_prime_candidates << '\n'
                   << "classical_direct_maximum_x_candidates_per_surface="

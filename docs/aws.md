@@ -181,6 +181,7 @@ Then add the following to the otherwise complete bounded worker invocation:
   --sea-strategy direct-first \
   --classical-direct-levels "$LEVELS" \
   --classical-direct-cap-one-tail-count 2 \
+  --classical-direct-pre-smooth-tail-min-traces 2 \
   --classical-direct-max-prime-candidates 10000000 \
   --classical-direct-max-x-candidates 1000000 \
   --classical-direct-context-cache \
@@ -188,9 +189,14 @@ Then add the following to the otherwise complete bounded worker invocation:
   --classical-direct-context-sha256 \
     a459dc7732e0a8924f3dcce15bd640c5a72f594d403bf117d0fa45c6b3805625 \
   --classical-direct-context-max-file-bytes 1000000000 \
-  --classical-direct-cache-resident-bytes 0 \
+  --classical-direct-cache-resident-bytes 1000000000 \
   --sea-threads 1
 ```
+
+The pre-smooth threshold promotes the two-level suffix when the cap-16 set is
+still multiple; zero retains the conservative post-smooth policy. The 1 GB
+logical residency budget keeps this 150,799,468-byte context resident across a
+cohort and is a resource setting rather than checkpoint identity.
 
 The launcher and remote worker fail closed unless the cache file and manifest
 match the trusted digest, target, ordered schedule, caps, exact preparation

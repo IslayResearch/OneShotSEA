@@ -86,6 +86,7 @@ launch="$(AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
   --curve-family x1-27 --x1-require-point4 1 --curve-threads 10 \
   --sea-strategy direct-first --classical-direct-levels 7,5,11 \
   --classical-direct-cap-one-tail-count 1 \
+  --classical-direct-pre-smooth-tail-min-traces 2 \
   --classical-direct-max-prime-candidates 10000000 \
   --classical-direct-max-x-candidates 1000000 \
   --classical-direct-context-cache \
@@ -104,6 +105,7 @@ launch="$(AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
    "$launch" == *'--curve-family x1-27 --x1-require-point4 1'* &&
    "$launch" == *'--sea-strategy direct-first --classical-direct-levels 7\,5\,11'* &&
    "$launch" == *'--classical-direct-cap-one-tail-count 1'* &&
+   "$launch" == *'--classical-direct-pre-smooth-tail-min-traces 2'* &&
    "$launch" == *'--classical-direct-context-sha256'*"$direct_digest"* &&
    "$launch" == *'--curve-threads 10 --sea-level-telemetry 0'* &&
    "$launch" == *'--schoof-fallback 1 --skip-incomplete-curves 0'* &&
@@ -123,6 +125,22 @@ if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
   --smooth-cache /opt/oneshotsea/caches/test/smooth.cache \
   --smooth-cache-sha256 "$digest" --max-curves 1 >/dev/null 2>&1; then
   fail 'launcher accepted a cap-one direct tail with no early prefix'
+fi
+
+if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
+  --run-id invalid-pre-smooth-tail --run-kind benchmark --prime 101 \
+  --worker-id 0 --worker-count 1 --range-start 0 --range-end 1 \
+  --seed 1 --max-level 11 --sea-threads 1 --trace-cap 4 \
+  --sea-strategy direct-first --classical-direct-levels 7,5 \
+  --classical-direct-cap-one-tail-count 1 \
+  --classical-direct-pre-smooth-tail-min-traces 5 \
+  --classical-direct-context-cache \
+    /opt/oneshotsea/direct-caches/test/direct.ctx \
+  --classical-direct-context-sha256 "$direct_digest" \
+  --table-dir data/modpoly/weber_f \
+  --smooth-cache /opt/oneshotsea/caches/test/smooth.cache \
+  --smooth-cache-sha256 "$digest" --max-curves 1 >/dev/null 2>&1; then
+  fail 'launcher accepted a pre-smooth direct threshold above trace-cap'
 fi
 
 if AWS_INSTANCE_ID="$instance" "${SCRIPT_DIR}/launch-worker.sh" \
@@ -356,6 +374,7 @@ chmod 755 "${tmp_dir}/bin/tmux"
 direct_args=(
   --sea-strategy direct-first --classical-direct-levels "7,5"
   --classical-direct-cap-one-tail-count 1
+  --classical-direct-pre-smooth-tail-min-traces 2
   --classical-direct-max-prime-candidates 100
   --classical-direct-max-x-candidates 200
   --classical-direct-context-cache
@@ -553,7 +572,9 @@ jq -e --arg direct "$direct_cache_sha" '
   (.command_argv | index("--classical-direct-levels")) as $levels |
   .command_argv[$levels + 1] == "7,5" and
   (.command_argv | index("--classical-direct-cap-one-tail-count")) as $tail |
-  .command_argv[$tail + 1] == "1"
+  .command_argv[$tail + 1] == "1" and
+  (.command_argv | index("--classical-direct-pre-smooth-tail-min-traces")) as $pre |
+  .command_argv[$pre + 1] == "2"
 ' \
   "${fake_root}/runs/integration/worker-2/manifest.json" >/dev/null ||
   fail 'remote worker manifest does not bind the exact partition'

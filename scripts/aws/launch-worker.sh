@@ -21,6 +21,7 @@ x1_require_point4=0
 sea_strategy='weber-first'
 classical_direct_levels=''
 classical_direct_cap_one_tail_count=0
+classical_direct_pre_smooth_tail_min_traces=0
 classical_direct_maximum_prime_candidates=1000000
 classical_direct_maximum_x_candidates=1000000
 classical_direct_context_cache=''
@@ -60,6 +61,8 @@ Options:
   --classical-direct-levels CSV       Ordered direct-level schedule
   --classical-direct-cap-one-tail-count N
                                         Deferred suffix used only after cap-N screening
+  --classical-direct-pre-smooth-tail-min-traces N
+                                        Promote large cap-N sets before smoothness
   --classical-direct-max-prime-candidates N
   --classical-direct-max-x-candidates N
   --classical-direct-context-cache PATH
@@ -148,6 +151,9 @@ while (( $# )); do
     --classical-direct-cap-one-tail-count)
       classical_direct_cap_one_tail_count="${2:-}"
       direct_option_seen=1; shift 2 ;;
+    --classical-direct-pre-smooth-tail-min-traces)
+      classical_direct_pre_smooth_tail_min_traces="${2:-}"
+      direct_option_seen=1; shift 2 ;;
     --classical-direct-max-prime-candidates)
       classical_direct_maximum_prime_candidates="${2:-}"
       direct_option_seen=1; shift 2 ;;
@@ -225,6 +231,8 @@ validate_positive_uint classical-direct-max-prime-candidates \
   "$classical_direct_maximum_prime_candidates"
 validate_uint classical-direct-cap-one-tail-count \
   "$classical_direct_cap_one_tail_count"
+validate_uint classical-direct-pre-smooth-tail-min-traces \
+  "$classical_direct_pre_smooth_tail_min_traces"
 validate_positive_uint classical-direct-max-x-candidates \
   "$classical_direct_maximum_x_candidates"
 validate_positive_uint classical-direct-context-max-file-bytes \
@@ -241,30 +249,34 @@ if [[ "$sea_strategy" == direct-first ]]; then
   [[ "$classical_direct_context_sha256" =~ ^[0-9a-f]{64}$ ]] ||
     die '--sea-strategy direct-first requires a trusted direct-cache SHA-256'
   if ! python3 - "$classical_direct_levels" \
-      "$classical_direct_cap_one_tail_count" <<'PY'
+      "$classical_direct_cap_one_tail_count" \
+      "$classical_direct_pre_smooth_tail_min_traces" \
+      "${trace_cap:-64}" <<'PY'
 import math
 import re
 import sys
 
-text, tail_text = sys.argv[1:]
+text, tail_text, pre_smooth_text, trace_cap_text = sys.argv[1:]
 if not re.fullmatch(r"[1-9][0-9]*(?:,[1-9][0-9]*)*", text):
     raise SystemExit(1)
 values = [int(value) for value in text.split(",")]
 tail = int(tail_text)
+pre_smooth = int(pre_smooth_text)
+trace_cap = int(trace_cap_text)
 if len(values) != len(set(values)) or any(value > (1 << 32) - 1 for value in values):
     raise SystemExit(1)
 if tail < 0 or tail >= len(values):
+    raise SystemExit(1)
+if tail != 0 and trace_cap <= 1:
+    raise SystemExit(1)
+if pre_smooth != 0 and (tail == 0 or pre_smooth < 2 or pre_smooth > trace_cap):
     raise SystemExit(1)
 for value in values:
     if value <= 3 or any(value % divisor == 0 for divisor in range(2, math.isqrt(value) + 1)):
         raise SystemExit(1)
 PY
   then
-    die 'classical direct levels must be ordered distinct primes and the cap-one tail must leave a nonempty prefix'
-  fi
-  if (( 10#$classical_direct_cap_one_tail_count != 0 )) &&
-      [[ "$trace_cap" =~ ^0*1$ ]]; then
-    die '--classical-direct-cap-one-tail-count requires --trace-cap greater than one'
+    die 'classical direct schedule, cap-one tail, pre-smooth threshold, or trace cap is invalid'
   fi
 else
   (( direct_option_seen == 0 )) ||
@@ -340,6 +352,8 @@ if [[ "$sea_strategy" == direct-first ]]; then
     --classical-direct-levels "$classical_direct_levels"
     --classical-direct-cap-one-tail-count \
       "$classical_direct_cap_one_tail_count"
+    --classical-direct-pre-smooth-tail-min-traces \
+      "$classical_direct_pre_smooth_tail_min_traces"
     --classical-direct-max-prime-candidates \
       "$classical_direct_maximum_prime_candidates"
     --classical-direct-max-x-candidates \

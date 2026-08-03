@@ -117,6 +117,7 @@ This cached schedule may also be tried before Weber tables:
   --sea-strategy direct-first \
   --classical-direct-levels 7,11,13 \
   --classical-direct-cap-one-tail-count 1 \
+  --classical-direct-pre-smooth-tail-min-traces 2 \
   --classical-direct-context-cache runs/p125/direct-7-11-13.ctx \
   --classical-direct-context-sha256 TRUSTED_SHA256 \
   --classical-direct-context-max-file-bytes 8589934592
@@ -132,11 +133,20 @@ hard failure. The strategy and digest are checkpoint-bound. Omitting
 `--sea-strategy` keeps the byte-compatible Weber-first default.
 
 The optional `--classical-direct-cap-one-tail-count N` leaves the last `N`
-cached levels unloaded during the cap-N screen. They are authenticated as part
-of the complete file and schedule, but are materialized only if a multi-trace
-set survives smoothness and reaches cap one. A sound early rejection therefore
-pays only for the prefix. The suffix boundary is checkpoint-bound and must
-leave at least one early level; zero preserves the full-schedule first pass.
+cached levels unloaded during the cap-N screen. They remain authenticated as
+part of the complete file and schedule. With the default
+`--classical-direct-pre-smooth-tail-min-traces 0`, they are materialized only
+if a multi-trace set survives smoothness and reaches cap one, so a sound early
+rejection pays only for the prefix.
+
+A pre-smooth threshold from 2 through the trace cap promotes the suffix ahead
+of smoothness when the complete cap-N set has at least that many traces. A
+singleton then avoids redundant smooth-cache scans; a still-multiple result is
+re-enumerated at cap N and screened normally. The suffix is attempted at most
+once and never weakens the certified constraints. The suffix boundary and
+threshold are checkpoint-bound. A suffix must leave at least one early level;
+zero preserves the full-schedule first pass, and a nonzero threshold requires a
+nonzero suffix.
 
 Generation and load reject files above 4 GiB by default. Larger expected
 artifacts require the explicit

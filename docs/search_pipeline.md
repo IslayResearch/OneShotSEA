@@ -166,18 +166,27 @@ and a deferred cap-one suffix:
 ```sh
 --trace-cap 16 \
 --classical-direct-levels 7,5,11,13,19,17,23,29,31,37,41,43,47,53,67,71,79,61,73,59,89,97 \
---classical-direct-cap-one-tail-count 2
+--classical-direct-cap-one-tail-count 2 \
+--classical-direct-pre-smooth-tail-min-traces 2
 ```
 
 The early prefix is the full list minus its last `N` entries. It runs toward
-the complete cap-N screen. If that set is soundly rejected, the suffix is
-never materialized. Only a multi-trace set that survives exact smoothness
-screening evaluates the suffix at cap one, before any further Weber
-continuation. The suffix reuses the same retained exact/Atkin state, skips any
-modulus already owned by either direct or Weber evidence, and falls back to
-Weber and then optional Schoof only if uniqueness is still incomplete. A
-nonzero suffix count requires direct-first, a trace cap greater than one, and a
-nonempty early prefix. The boundary is schedule- and checkpoint-bound.
+the complete cap-N screen. With the default pre-smooth threshold zero, a sound
+rejection pays only for that prefix; only a multi-trace set that survives exact
+smoothness evaluates the suffix at cap one. A nonzero threshold `T` instead
+evaluates the suffix before smoothness whenever the complete cap-N set contains
+at least `T` traces. A resulting singleton submits only its curve and twist
+orders. If the suffix merely refines the set, the search re-enumerates the
+certified effective constraints at cap N and screens that refined set before
+continuing to Weber.
+
+The suffix always reuses the same retained exact/Atkin state, skips any modulus
+already owned by either direct or Weber evidence, and falls back to Weber and
+then optional Schoof only if uniqueness is still incomplete. It is attempted
+at most once per curve. A nonzero suffix count requires direct-first, a trace
+cap greater than one, and a nonempty early prefix. A nonzero pre-smooth
+threshold additionally requires a suffix and must lie in `[2, trace-cap]`.
+Both values are schedule- and checkpoint-bound.
 
 The p125 retained audit used a selected 20-level prefix and suffix 89/97. Four
 sound cap-16 rejections emitted 80 prefix evaluations and zero suffix
@@ -195,10 +204,10 @@ the strict `oneshotsea.search-start.v1` and `oneshotsea.search-curve.v1`
 field sets remain byte-compatible with existing production auditors.
 
 The AWS launcher and immutable remote worker admit the direct schedule, trusted
-cache, construction caps, residency budget, and deferred-suffix boundary; dry
-run and manifest tests cover their normalized argv. RunPod does not currently
-admit these options. The default empty direct schedule remains byte-compatible
-with the audited Weber-first schema.
+cache, construction caps, residency budget, deferred-suffix boundary, and
+pre-smooth threshold; dry run and manifest tests cover their normalized argv.
+RunPod does not currently admit these options. The default empty direct
+schedule remains byte-compatible with the audited Weber-first schema.
 
 For a local multi-curve invocation, the target characteristic, ordered level
 list, and both caps are retained in one run-scoped context. Each level's

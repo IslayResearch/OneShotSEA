@@ -237,7 +237,7 @@ void usage() {
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
         << "  oneshotsea prepare-classical-direct-context --p P --classical-direct-levels L1,L2,... --output PATH [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-max-file-bytes N] [--sea-threads N]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--sea-strategy weber-first|direct-first] [--classical-direct-levels L1,L2,...] [--classical-direct-cap-one-tail-count N] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST [--classical-direct-context-max-file-bytes N] [--classical-direct-cache-resident-bytes N]] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--sea-strategy weber-first|direct-first] [--classical-direct-levels L1,L2,...] [--classical-direct-cap-one-tail-count N] [--classical-direct-pre-smooth-tail-min-traces N] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST [--classical-direct-context-max-file-bytes N] [--classical-direct-cache-resident-bytes N]] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -496,6 +496,11 @@ int main(int argc, char** argv) {
             const std::uint64_t classical_direct_cap_one_tail_count =
                 optional_u64(
                     options, "classical-direct-cap-one-tail-count", 0U);
+            const std::uint64_t
+                classical_direct_pre_smooth_tail_min_trace_count =
+                    optional_u64(
+                        options,
+                        "classical-direct-pre-smooth-tail-min-traces", 0U);
             config.classical_direct_maximum_prime_candidates = optional_u64(
                 options, "classical-direct-max-prime-candidates",
                 config.classical_direct_maximum_prime_candidates);
@@ -508,7 +513,9 @@ int main(int argc, char** argv) {
                      "classical-direct-max-prime-candidates") ||
                  options.contains("classical-direct-max-x-candidates") ||
                  options.contains(
-                     "classical-direct-cap-one-tail-count"))) {
+                     "classical-direct-cap-one-tail-count") ||
+                 options.contains(
+                     "classical-direct-pre-smooth-tail-min-traces"))) {
                 throw std::invalid_argument(
                     "classical direct policy options require --classical-direct-levels");
             }
@@ -526,6 +533,8 @@ int main(int argc, char** argv) {
                 sea_threads > std::numeric_limits<std::size_t>::max() ||
                 classical_direct_cap_one_tail_count >
                     std::numeric_limits<std::size_t>::max() ||
+                classical_direct_pre_smooth_tail_min_trace_count >
+                    std::numeric_limits<std::size_t>::max() ||
                 direct_cache_resident_bytes >
                     std::numeric_limits<std::size_t>::max() ||
                 assembly_attempts > std::numeric_limits<std::size_t>::max() ||
@@ -541,6 +550,9 @@ int main(int argc, char** argv) {
             config.classical_direct_cap_one_tail_count =
                 static_cast<std::size_t>(
                     classical_direct_cap_one_tail_count);
+            config.classical_direct_pre_smooth_tail_min_trace_count =
+                static_cast<std::size_t>(
+                    classical_direct_pre_smooth_tail_min_trace_count);
             config.enable_schoof_fallback = schoof_fallback != 0U;
             config.skip_incomplete_curves = skip_incomplete_curves != 0U;
             config.sea_threads = static_cast<std::size_t>(sea_threads);
@@ -596,6 +608,19 @@ int main(int argc, char** argv) {
                      config.classical_direct_levels.size())) {
                 throw std::invalid_argument(
                     "--classical-direct-cap-one-tail-count requires direct-first SEA, trace-cap greater than one, and a nonempty early level prefix");
+            }
+            if (config
+                        .classical_direct_pre_smooth_tail_min_trace_count !=
+                    0U &&
+                (config.classical_direct_cap_one_tail_count == 0U ||
+                 config
+                         .classical_direct_pre_smooth_tail_min_trace_count <
+                     2U ||
+                 config
+                         .classical_direct_pre_smooth_tail_min_trace_count >
+                     config.early_trace_cap)) {
+                throw std::invalid_argument(
+                    "--classical-direct-pre-smooth-tail-min-traces requires a deferred tail and a threshold between two and trace-cap");
             }
             config.assembly_attempts =
                 static_cast<std::size_t>(assembly_attempts);
@@ -837,6 +862,9 @@ int main(int argc, char** argv) {
                 }
                 std::cout << "],\"cap_one_tail_count\":\""
                           << config.classical_direct_cap_one_tail_count
+                          << "\",\"pre_smooth_tail_min_traces\":\""
+                          << config
+                                 .classical_direct_pre_smooth_tail_min_trace_count
                           << "\",\"maximum_prime_candidates\":\""
                           << config.classical_direct_maximum_prime_candidates
                           << "\",\"maximum_x_candidates_per_surface\":\""

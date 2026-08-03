@@ -91,6 +91,9 @@ def parser() -> argparse.ArgumentParser:
     )
     result.add_argument("--classical-direct-levels")
     result.add_argument("--classical-direct-cap-one-tail-count", type=int)
+    result.add_argument(
+        "--classical-direct-pre-smooth-tail-min-traces", type=int,
+    )
     result.add_argument("--classical-direct-max-prime-candidates", type=int)
     result.add_argument("--classical-direct-max-x-candidates", type=int)
     result.add_argument("--classical-direct-context-cache", type=Path)
@@ -174,6 +177,7 @@ def main() -> int:
     direct_values = (
         args.classical_direct_levels,
         args.classical_direct_cap_one_tail_count,
+        args.classical_direct_pre_smooth_tail_min_traces,
         args.classical_direct_max_prime_candidates,
         args.classical_direct_max_x_candidates,
         args.classical_direct_context_cache,
@@ -212,6 +216,18 @@ def main() -> int:
             and (args.trace_cap if args.trace_cap is not None else 64) <= 1
         ):
             fail("the classical direct cap-one tail requires trace-cap greater than one")
+        assert args.classical_direct_pre_smooth_tail_min_traces is not None
+        effective_trace_cap = args.trace_cap if args.trace_cap is not None else 64
+        if (
+            args.classical_direct_pre_smooth_tail_min_traces != 0
+            and (
+                args.classical_direct_cap_one_tail_count == 0
+                or args.classical_direct_pre_smooth_tail_min_traces < 2
+                or args.classical_direct_pre_smooth_tail_min_traces
+                > effective_trace_cap
+            )
+        ):
+            fail("the direct pre-smooth tail threshold is outside its trace-cap policy")
         direct_positive = (
             ("classical-direct-max-prime-candidates",
              args.classical_direct_max_prime_candidates),
@@ -395,6 +411,8 @@ def main() -> int:
             "--classical-direct-levels", args.classical_direct_levels,
             "--classical-direct-cap-one-tail-count",
             str(args.classical_direct_cap_one_tail_count),
+            "--classical-direct-pre-smooth-tail-min-traces",
+            str(args.classical_direct_pre_smooth_tail_min_traces),
             "--classical-direct-max-prime-candidates",
             str(args.classical_direct_max_prime_candidates),
             "--classical-direct-max-x-candidates",

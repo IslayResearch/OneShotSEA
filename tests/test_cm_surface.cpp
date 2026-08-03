@@ -1,6 +1,7 @@
 #include "oneshotsea/cm_surface.hpp"
 #include "oneshotsea/modpoly.hpp"
 #include "oneshotsea/weber.hpp"
+#include "oneshotsea/weber_cm_surface.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -38,6 +39,11 @@ std::vector<mpz_class> hilbert_minus_71_coefficients() {
         1};
 }
 
+std::vector<mpz_class> weber_class_minus_71_coefficients() {
+    // x^7+x^6-x^5-x^4-x^3+x^2+2x-1, in ascending order.
+    return {-1, 2, 1, -1, -1, -1, 1, 1};
+}
+
 void test_minus_71_surface() {
     const auto order = oneshotsea::validate_sutherland_suitable_order(
         5, -71, 1);
@@ -59,14 +65,14 @@ void test_minus_71_surface() {
     check(surfaces.level() == 5U &&
               surfaces.auxiliary_prime() == 1811 &&
               surfaces.all_surface_invariants() == expected_roots &&
-              surfaces.interpolation_surfaces().size() == 7U &&
+              surfaces.surface_curves().size() == 7U &&
               surfaces.exact_group_order() == 1800 &&
               surfaces.horizontal_edges_per_surface() == 2U,
           "H_-71 splits into the seven expected CM surface invariants");
 
     const auto phi5 = oneshotsea::SparseModularPolynomial::load(
         5, "data/modpoly/j/phi_5.txt");
-    for (const auto& surface : surfaces.interpolation_surfaces()) {
+    for (const auto& surface : surfaces.surface_curves()) {
         check(surface.j_invariant == surface.curve.j_invariant() &&
                   hilbert.evaluate(surface.j_invariant) == 0 &&
                   oneshotsea::count_points_bruteforce(surface.curve) == 1800 &&
@@ -118,6 +124,120 @@ void test_minus_71_surface() {
               native_residue.x_derivative_coefficients ==
                   table_residue.x_derivative_coefficients,
           "table-free CM interpolation matches both Phi_5 specialization channels");
+
+    const oneshotsea::Poly weber_class_polynomial(
+        field, weber_class_minus_71_coefficients());
+    const auto phi37_weber = oneshotsea::SparseModularPolynomial::load(
+        37, "data/modpoly/weber_f/phi_37.txt");
+    const auto weber_specialization =
+        oneshotsea::specialize_weber_from_cm_surfaces(
+            surfaces, weber_class_polynomial, {phi37_weber}, target_powers);
+    const auto phi5_weber = oneshotsea::SparseModularPolynomial::load(
+        5, "data/modpoly/weber_f/phi_5.txt");
+    const auto weber_table_residue =
+        oneshotsea::specialize_sparse_modpoly_for_crt_reference(
+            phi5_weber, target_powers, witness.prime);
+    check(weber_specialization.surface_invariant_count == 7U &&
+              weber_specialization.floor_invariant_count == 28U &&
+              weber_specialization.orientation_relation_count == 1U &&
+              weber_specialization.relative_sign_coefficient == 1810 &&
+              weber_specialization.residue.value_coefficients ==
+                  weber_table_residue.value_coefficients &&
+              weber_specialization.residue.x_derivative_coefficients ==
+                  weber_table_residue.x_derivative_coefficients,
+          "target-table-free Weber orientation matches both authenticated Phi_5 channels");
+
+    oneshotsea::Poly negative_weber_class =
+        oneshotsea::Poly::constant(field, 1);
+    for (const mpz_class& root :
+         std::vector<mpz_class>({11, 37, 491, 1028, 1091, 1188, 1586})) {
+        negative_weber_class = oneshotsea::mul(
+            negative_weber_class,
+            oneshotsea::Poly(field, {root, 1}));
+    }
+    const auto globally_negated =
+        oneshotsea::specialize_weber_from_cm_surfaces(
+            surfaces, negative_weber_class, {phi37_weber}, target_powers);
+    check(globally_negated.relative_sign_coefficient == 1810 &&
+              globally_negated.residue.value_coefficients ==
+                  weber_specialization.residue.value_coefficients &&
+              globally_negated.residue.x_derivative_coefficients ==
+                  weber_specialization.residue.x_derivative_coefficients,
+          "global Weber sign choice leaves the normalized modular polynomial unchanged");
+
+    for (std::size_t probe_degree = 0U; probe_degree < 7U;
+         ++probe_degree) {
+        std::vector<mpz_class> probe(7U, 0);
+        probe.front() = 1;
+        if (probe_degree != 0U) {
+            probe[probe_degree] = 1;
+        }
+        const auto native_probe =
+            oneshotsea::specialize_weber_from_cm_surfaces(
+                surfaces, weber_class_polynomial, {phi37_weber}, probe);
+        const auto table_probe =
+            oneshotsea::specialize_sparse_modpoly_for_crt_reference(
+                phi5_weber, probe, witness.prime);
+        check(native_probe.residue.value_coefficients ==
+                      table_probe.value_coefficients &&
+                  native_probe.residue.x_derivative_coefficients ==
+                      table_probe.x_derivative_coefficients,
+              "Weber interpolation agrees on every lifted-power basis probe");
+    }
+
+    const auto phi19_weber = oneshotsea::SparseModularPolynomial::load(
+        19, "data/modpoly/weber_f/phi_19.txt");
+    const oneshotsea::SparseModularPolynomial malformed_phi37(
+        37, {{38, 0, 1}, {0, 38, 1}, {37, 37, 1}});
+    oneshotsea::Poly mixed_sign_class = oneshotsea::Poly::constant(field, 1);
+    for (const mpz_class& root :
+         std::vector<mpz_class>({1800, 37, 491, 1028, 1091, 1188, 1586})) {
+        mixed_sign_class = oneshotsea::mul(
+            mixed_sign_class,
+            oneshotsea::Poly(field, {field.neg(root), 1}));
+    }
+    check(rejects([&] {
+              static_cast<void>(
+                  oneshotsea::specialize_weber_from_cm_surfaces(
+                      surfaces, weber_class_polynomial, {}, target_powers));
+          }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::specialize_weber_from_cm_surfaces(
+                          surfaces, weber_class_polynomial, {phi19_weber},
+                          target_powers));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::specialize_weber_from_cm_surfaces(
+                          surfaces, weber_class_polynomial, {phi5_weber},
+                          target_powers));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::specialize_weber_from_cm_surfaces(
+                          surfaces, weber_class_polynomial,
+                          {phi37_weber, phi37_weber}, target_powers));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::specialize_weber_from_cm_surfaces(
+                          surfaces, weber_class_polynomial, {malformed_phi37},
+                          target_powers));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::specialize_weber_from_cm_surfaces(
+                          surfaces, mixed_sign_class, {phi37_weber},
+                          target_powers));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::specialize_weber_from_cm_surfaces(
+                          surfaces, weber_class_polynomial, {phi37_weber},
+                          {1, 2}));
+              }),
+          "Weber orientation rejects missing, insufficient, target-level, duplicate, malformed, mixed-sign, and malformed-power evidence");
     check(rejects([&] {
               static_cast<void>(
                   oneshotsea::specialize_classical_from_cm_surfaces(

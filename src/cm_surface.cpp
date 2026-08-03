@@ -52,12 +52,12 @@ std::optional<RationalPrimeIsogenyEnumeration> try_surface_twist(
 CmSurfaceEnumeration::CmSurfaceEnumeration(
     unsigned level, mpz_class auxiliary_prime,
     std::vector<mpz_class> all_surface_invariants,
-    std::vector<CmSurfaceCurve> interpolation_surfaces,
+    std::vector<CmSurfaceCurve> surface_curves,
     mpz_class exact_group_order,
     std::size_t horizontal_edges_per_surface)
     : level_(level), auxiliary_prime_(std::move(auxiliary_prime)),
       all_surface_invariants_(std::move(all_surface_invariants)),
-      interpolation_surfaces_(std::move(interpolation_surfaces)),
+      surface_curves_(std::move(surface_curves)),
       exact_group_order_(std::move(exact_group_order)),
       horizontal_edges_per_surface_(horizontal_edges_per_surface) {}
 
@@ -122,9 +122,9 @@ CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
     const std::size_t expected_horizontal =
         static_cast<std::size_t>(splitting_symbol + 1);
 
-    std::vector<CmSurfaceCurve> interpolation_surfaces;
-    interpolation_surfaces.reserve(interpolation_count);
-    for (std::size_t index = 0U; index < interpolation_count; ++index) {
+    std::vector<CmSurfaceCurve> surface_curves;
+    surface_curves.reserve(surface_roots.size());
+    for (std::size_t index = 0U; index < surface_roots.size(); ++index) {
         const mpz_class& j = surface_roots[index];
         if (j == 0 || j == field.normalize(1728)) {
             throw std::runtime_error(
@@ -162,13 +162,13 @@ CmSurfaceEnumeration enumerate_cm_interpolation_surfaces(
             throw std::runtime_error(
                 "CM surface edge counts contradict quadratic splitting");
         }
-        interpolation_surfaces.push_back(
+        surface_curves.push_back(
             {j, std::move(selected), std::move(classified),
              selected_edges.x_candidates_tested});
     }
     return CmSurfaceEnumeration(
         order.level(), prime_witness.prime, std::move(surface_roots),
-        std::move(interpolation_surfaces), exact_group_order,
+        std::move(surface_curves), exact_group_order,
         expected_horizontal);
 }
 
@@ -176,7 +176,7 @@ CrtSpecializationResidue specialize_classical_from_cm_surfaces(
     const CmSurfaceEnumeration& surfaces,
     const std::vector<mpz_class>& target_power_lifts) {
     const std::size_t count = static_cast<std::size_t>(surfaces.level_) + 2U;
-    if (surfaces.interpolation_surfaces_.size() != count ||
+    if (surfaces.surface_curves_.size() < count ||
         target_power_lifts.size() != count ||
         target_power_lifts.empty() || target_power_lifts.front() != 1) {
         throw std::invalid_argument(
@@ -190,8 +190,8 @@ CrtSpecializationResidue specialize_classical_from_cm_surfaces(
     }
     const Field field(surfaces.auxiliary_prime_);
     Poly root_product = Poly::constant(field, 1);
-    for (const CmSurfaceCurve& surface :
-         surfaces.interpolation_surfaces_) {
+    for (std::size_t row = 0U; row < count; ++row) {
+        const CmSurfaceCurve& surface = surfaces.surface_curves_[row];
         if (surface.curve.field().modulus() != surfaces.auxiliary_prime_ ||
             surface.j_invariant != surface.curve.j_invariant() ||
             surface.edges.size() + 1U != count) {
@@ -211,7 +211,7 @@ CrtSpecializationResidue specialize_classical_from_cm_surfaces(
     std::vector<mpz_class> derivative_weights(count, 0);
     for (std::size_t row = 0U; row < count; ++row) {
         const mpz_class x =
-            surfaces.interpolation_surfaces_[row].j_invariant;
+            surfaces.surface_curves_[row].j_invariant;
         const Poly divisor(field, {field.neg(x), 1});
         auto quotient_and_remainder = divmod(root_product, divisor);
         if (!quotient_and_remainder.second.is_zero()) {
@@ -248,7 +248,7 @@ CrtSpecializationResidue specialize_classical_from_cm_surfaces(
     for (std::size_t row = 0U; row < count; ++row) {
         Poly neighbor_polynomial = Poly::constant(field, 1);
         for (const CmSurfaceEdge& edge :
-             surfaces.interpolation_surfaces_[row].edges) {
+             surfaces.surface_curves_[row].edges) {
             const mpz_class neighbor = edge.isogeny.codomain.j_invariant();
             neighbor_polynomial = mul(
                 neighbor_polynomial,

@@ -411,12 +411,15 @@ asymptotically optimized selector.  The producer now has the table-free
 surface-edge primitive: exact-order rational `ell`-subgroups are distinguished
 by kernel polynomial, all `ell+1` are required, and direct point-sum Vélu
 quotients are independently checked.  Given a split caller-supplied HCP, the
-producer now admits the correct trace-signed CM `j` surfaces, classifies their
+producer now admits every correct trace-signed CM `j` surface, classifies its
 horizontal and descending edges, and interpolates both classical residue
-channels without a target-level bivariate table.  A proved Weber height bound,
-authenticated HCP production, and consistent Weber surface/floor signs remain
-open.  Until they are implemented, the authenticated finite Weber catalog is
-still the production source.  See
+channels without a target-level bivariate table.  At level 5, a supplied Weber
+class polynomial and target-independent `Phi_37^f` relation connect the signed
+surface/floor torsors; exactly one relative sign yields `X^5Y^5=-1`, and both
+direct channels match the authenticated `Phi_5^f` oracle.  A proved Weber
+height bound plus authenticated class-polynomial and small-relation production
+remain open.  Until they are implemented, the authenticated finite Weber
+catalog is still the production source.  See
 `docs/explicit_crt_producer.md` and
 `docs/direct_specialization_boundary.md` for the exact contract, validation,
 complexity boundary, and remaining work.

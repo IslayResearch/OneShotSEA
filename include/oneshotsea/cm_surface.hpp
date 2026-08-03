@@ -28,8 +28,8 @@ public:
     const std::vector<mpz_class>& all_surface_invariants() const {
         return all_surface_invariants_;
     }
-    const std::vector<CmSurfaceCurve>& interpolation_surfaces() const {
-        return interpolation_surfaces_;
+    const std::vector<CmSurfaceCurve>& surface_curves() const {
+        return surface_curves_;
     }
     const mpz_class& exact_group_order() const { return exact_group_order_; }
     std::size_t horizontal_edges_per_surface() const {
@@ -40,7 +40,7 @@ private:
     CmSurfaceEnumeration(
         unsigned level, mpz_class auxiliary_prime,
         std::vector<mpz_class> all_surface_invariants,
-        std::vector<CmSurfaceCurve> interpolation_surfaces,
+        std::vector<CmSurfaceCurve> surface_curves,
         mpz_class exact_group_order,
         std::size_t horizontal_edges_per_surface);
 
@@ -53,14 +53,14 @@ private:
     unsigned level_;
     mpz_class auxiliary_prime_;
     std::vector<mpz_class> all_surface_invariants_;
-    std::vector<CmSurfaceCurve> interpolation_surfaces_;
+    std::vector<CmSurfaceCurve> surface_curves_;
     mpz_class exact_group_order_;
     std::size_t horizontal_edges_per_surface_;
 };
 
 // Validate one H_O mod p instance against the checked order and CRT witness,
-// require complete square-free splitting into h(O) roots, and admit the first
-// ell+2 surface curves needed for interpolation.  For every admitted curve,
+// require complete square-free splitting into h(O) roots, and admit every
+// surface curve (the first ell+2 are used for interpolation).  For every curve,
 // exactly one quadratic twist must yield all ell+1 rational cyclic kernels for
 // the order p+1-t.  The class polynomial's mathematical provenance remains an
 // obligation of the caller until the HCP producer receives its opaque checked

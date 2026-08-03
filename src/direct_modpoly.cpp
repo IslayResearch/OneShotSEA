@@ -471,10 +471,12 @@ SutherlandOrderSearchResult discover_sutherland_suitable_order(
         "no suitable order found inside the explicit discovery bounds");
 }
 
-std::vector<SutherlandCrtPrime> select_sutherland_crt_primes(
+namespace {
+
+std::vector<SutherlandCrtPrime> select_sutherland_crt_primes_impl(
     const SutherlandSuitableOrder& order, const mpz_class& target_modulus,
     const mpz_class& coefficient_abs_bound,
-    std::uint64_t maximum_candidates) {
+    std::uint64_t maximum_candidates, bool require_weber_two_roots) {
     if (!is_probable_prime(target_modulus)) {
         throw std::invalid_argument("CRT target modulus must be prime");
     }
@@ -509,6 +511,8 @@ std::vector<SutherlandCrtPrime> select_sutherland_crt_primes(
         }
         const mpz_class prime = numerator / 4;
         if (prime == target_modulus ||
+            (require_weber_two_roots &&
+             mpz_fdiv_ui(prime.get_mpz_t(), 12U) != 11U) ||
             mpz_divisible_p(order.discriminant().get_mpz_t(),
                             prime.get_mpz_t()) != 0 ||
             !is_proven_auxiliary_prime(prime)) {
@@ -526,6 +530,30 @@ std::vector<SutherlandCrtPrime> select_sutherland_crt_primes(
     }
     throw std::runtime_error(
         "suitable-prime search exhausted before the CRT height bound");
+}
+
+}  // namespace
+
+std::vector<SutherlandCrtPrime> select_sutherland_crt_primes(
+    const SutherlandSuitableOrder& order, const mpz_class& target_modulus,
+    const mpz_class& coefficient_abs_bound,
+    std::uint64_t maximum_candidates) {
+    return select_sutherland_crt_primes_impl(
+        order, target_modulus, coefficient_abs_bound, maximum_candidates,
+        false);
+}
+
+std::vector<SutherlandCrtPrime> select_sutherland_weber_crt_primes(
+    const SutherlandSuitableOrder& order, const mpz_class& target_modulus,
+    const mpz_class& coefficient_abs_bound,
+    std::uint64_t maximum_candidates) {
+    if (!order.weber_f_order_congruences_hold()) {
+        throw std::invalid_argument(
+            "Weber CRT prime selection received an incompatible order");
+    }
+    return select_sutherland_crt_primes_impl(
+        order, target_modulus, coefficient_abs_bound, maximum_candidates,
+        true);
 }
 
 std::vector<mpz_class> lifted_target_powers(
@@ -735,7 +763,7 @@ CrtSpecializationResult reconstruct_weber_specialization_algorithm1(
     const std::vector<mpz_class> target_power_lifts =
         lifted_target_powers(target_field, source_x, order.level() + 1U);
     const std::vector<SutherlandCrtPrime> selected =
-        select_sutherland_crt_primes(
+        select_sutherland_weber_crt_primes(
             order, target_field.modulus(),
             coefficient_bound.absolute_bound(),
             maximum_candidates);

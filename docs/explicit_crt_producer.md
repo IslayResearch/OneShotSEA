@@ -1,12 +1,13 @@
 # Explicit-CRT direct-specialization scaffold
 
-Status: implemented and differentially tested through a native classical
-`j`-residue at one auxiliary prime.  Given validated `H_O mod p` state, the
-producer admits trace-signed CM surface curves, enumerates every rational
-`ell`-kernel and Vélu quotient, and interpolates both required channels without
-loading the target-level bivariate modular polynomial.  HCP
-generation/authentication, consistent Weber surface/floor signs, and the
-proved Weber height bound are not implemented.
+Status: implemented and differentially tested through a native signed Weber
+residue at one auxiliary prime.  Given validated classical/Weber class state,
+the producer admits every trace-signed CM surface curve, enumerates every
+rational `ell`-kernel and Vélu quotient, connects both signed torsors with
+target-independent small Weber relations, and interpolates both required
+channels without loading the target-level bivariate modular polynomial.  Class
+polynomial/relation authentication and the proved Weber height bound are not
+implemented.
 
 ## Purpose
 
@@ -26,8 +27,10 @@ receives one checked `SutherlandCrtPrime {p,t,v}` plus the canonical integer
 lifts of all required target-field powers, and must return the two specialized
 coefficient vectors modulo `p`.  `specialize_classical_from_cm_surfaces`
 implements the geometric and interpolation core of that callback in the
-classical `j` normalization.  The remaining producer seam is the independently
-authenticated HCP input and signed Weber conversion required by production.
+classical `j` normalization.  `specialize_weber_from_cm_surfaces` completes the
+signed Weber conversion when supplied independently authenticated surface
+class state and small orientation relations.  The remaining producer seam is
+generating/authenticating those inputs and deriving the production height.
 
 ## Checked pipeline
 
@@ -135,7 +138,32 @@ polynomial but does not establish its mathematical provenance.  An opaque,
 authenticated HCP producer type is still required before this state can cross
 a production no-root trust boundary.
 
-### 5. Exact CRT and height check
+### 5. Signed Weber torsors and relative orientation
+
+For the Weber path, `select_sutherland_weber_crt_primes` retains only
+`p=11 mod 12`.  BLS Lemma 7.3 then guarantees that each admitted surface or
+floor `j`-invariant has exactly the pair `f,-f` over the auxiliary field.
+`specialize_weber_from_cm_surfaces` checks this consequence explicitly.
+
+A supplied Weber surface class polynomial must split square-freely and map
+bijectively to the complete classical surface.  One or more independently
+authenticated, target-independent small Weber modular polynomials must connect
+that signed surface and split the doubled floor candidates into exactly two
+connected components, each containing one lift of every floor invariant.  The
+components must be global negatives.  The target-level relation is rejected.
+
+The producer constructs both possible surface/floor orientations and computes
+only the interpolated coefficient of `X^ell Y^ell`.  Exactly one must equal
+`-1`, the normalization specified by BLS Section 7.3.  If neither or both do,
+the auxiliary prime is rejected.  Once selected, the same Lagrange linear
+functionals produce the Weber value and X-derivative residues directly.
+
+This implements the paper's heuristic ambiguity check faithfully and detects
+the ambiguity it warns about.  Authenticity of the supplied class polynomial
+and small relations remains an explicit caller obligation until opaque pinned
+producer types are connected.
+
+### 6. Exact CRT and height check
 
 The high-level Weber wrapper accepts a `CrtCoefficientBound`, not a raw
 integer.  Its constructor is private.  At present, the only available evidence
@@ -202,9 +230,17 @@ make test-direct-modpoly test-prime-isogeny test-cm-surface
 `tests/test_cm_surface.cpp` additionally checks complete splitting of
 `H_-71 mod 1811`, all seven surface invariants, unique trace-sign admission,
 two horizontal and four descending edges in every row, and exact agreement of
-both native residue channels with an authenticated classical `Phi_5` oracle.
-The full-table adapter exists only as this independent fixture; it is not used
-by the native producer and cannot supply a production claim.
+both native classical residue channels with an authenticated `Phi_5` oracle.
+The Weber fixture uses the published degree-seven Weber class polynomial for
+`D=-71` and the target-independent `Phi_37^f` relation to orient all 28 floor
+invariants.  Exactly one global floor sign yields `X^5Y^5=-1`, and both emitted
+channels match the authenticated `Phi_5^f` oracle on every lifted-power basis
+probe, thereby checking the complete interpolated coefficient matrix.  Missing generators,
+`Phi_19^f`'s eight insufficient components, mixed surface signs, duplicate
+relations, and target-level `Phi_5^f` input are rejected.
+
+The target-level full-table adapters exist only as independent fixtures; they
+are not used by the native producers and cannot supply a production claim.
 
 ## Complexity and the asymptotic claim
 
@@ -223,10 +259,10 @@ particular:
   class-number validator is not an optimized class-group routine;
 - the fixed-`v` practical prime search is not the randomized selector used by
   the asymptotic theorem;
-- no Hilbert class polynomial state is generated or authenticated (a supplied
-  split polynomial is checked and its `j` roots are consumed);
-- classical `j` surface/floor rows are enumerated, but consistent Weber lifts
-  and their relative sign rules are not; and
+- no classical or Weber class polynomial state is generated or authenticated
+  (supplied split polynomials are checked and consumed);
+- signed Weber rows are produced with supplied small relations, but selecting
+  and authenticating a sufficient class-group generator set is not wired; and
 - the high-level API rejects untyped/empirical bounds, but a proved,
   normalization-specific Weber coefficient bound `H` is not yet implemented.
 
@@ -238,15 +274,15 @@ implementation theorem.
 
 ## Next implementation gate
 
-Complete the Weber callback for one small level first:
+Turn the checked level-5 callback into a production provider:
 
 1. implement a proved Weber-specific height derivation, then derive or load
    independently authenticated Hilbert-class-polynomial state
    for the validated order;
-2. convert the admitted classical surface and floor rows to Weber invariants
-   with consistent surface/floor signs, failing closed on ambiguity;
-3. apply the already implemented two interpolation functionals in the Weber
-   normalization without loading `Phi_ell^f(X,Y)`; and
+2. compute/authenticate the Weber surface class polynomial and a sufficient
+   target-independent small-relation generator set for each selected order;
+3. pass the resulting signed residues through the proved-bound CRT wrapper;
+   and
 4. compare every per-prime residue and final target specialization with the
    authenticated table oracle before permitting any no-root result.
 
@@ -268,9 +304,11 @@ CM discriminants `-19` and `-11` exercise both modular-square-root branches and
 compare all twelve quotients with the independent division-kernel Vélu path,
 authenticated classical modular-polynomial roots, and brute-force group
 orders.  The CM-surface layer now consumes all roots of a supplied split HCP,
-selects the correct trace twist, classifies the edges, and interpolates both
-classical `j` channels.  It does not generate or authenticate the HCP or choose
-consistent Weber surface/floor signs.
+selects the correct trace twist, classifies every edge, and interpolates both
+classical `j` channels.  The Weber layer consumes a supplied Weber class
+polynomial, uses target-independent small relations to obtain the two global
+floor orientations, and uniquely selects the normalized sign.  It does not
+generate or authenticate the class polynomials or relation set.
 
 ## Focused review checklist
 
@@ -281,6 +319,8 @@ A mathematical review can remain narrow:
   class-membership obligation;
 - choice and parity of `t` and `v` in the prime equation;
 - target-field power/lift ordering;
+- completeness of the two signed torsors and the `X^ell Y^ell=-1` ambiguity
+  rule;
 - strict CRT coverage and centered rounding; and
 - whether the two output channels match the normalization required by
   [`docs/direct_specialization_boundary.md`](direct_specialization_boundary.md).

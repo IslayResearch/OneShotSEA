@@ -128,6 +128,17 @@ void test_class_numbers_and_orders() {
     }
     check(!selected.empty() && product > 40000,
           "selected CRT primes cross the strict four-times height bound");
+    const auto weber_selected =
+        oneshotsea::select_sutherland_weber_crt_primes(
+            order, 1009, 10000, 10000);
+    check(!weber_selected.empty() &&
+              std::all_of(
+                  weber_selected.begin(), weber_selected.end(),
+                  [](const auto& record) {
+                      return mpz_fdiv_ui(record.prime.get_mpz_t(), 12U) ==
+                             11U;
+                  }),
+          "Weber CRT selector retains only two-lift p=11 mod 12 primes");
     const auto repeated = oneshotsea::select_sutherland_crt_primes(
         order, 1009, 10000, 10000);
     check(repeated.size() == selected.size(),
@@ -444,6 +455,8 @@ void test_algorithm1_table_differential() {
                                   record.volcano_parameter *
                                   order.discriminant(),
                       "Algorithm 1 provider receives a checked (p,t,v) witness");
+                check(mpz_fdiv_ui(record.prime.get_mpz_t(), 12U) == 11U,
+                      "Weber Algorithm 1 supplies only two-lift CRT primes");
                 return oneshotsea::specialize_sparse_modpoly_for_crt_reference(
                     modular_polynomial, supplied_powers, record.prime);
             });

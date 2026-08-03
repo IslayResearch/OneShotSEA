@@ -2,9 +2,9 @@
 
 Status: the consumer and explicit-CRT orchestration are implemented and
 differentially validated.  A native auxiliary-prime producer now reaches a
-classical `j` specialization from caller-supplied HCP state.  HCP provenance,
-the signed Weber conversion, and a proved Weber height bound remain; production
-still uses tables.
+signed Weber specialization from caller-supplied classical/Weber class state
+and target-independent small relations.  Input provenance and a proved Weber
+height bound remain; production still uses target-level tables.
 
 ## Contract
 
@@ -86,7 +86,15 @@ of a supplied `H_O mod p`, admits the unique trace-signed twist at each of the
 Lagrange linear functionals and returns classical `j` value/X-derivative
 residues.  This validates the geometric core without constructing the
 bivariate target-level polynomial, but it does not authenticate the supplied
-HCP or solve the Weber sign problem.
+HCP.
+
+`specialize_weber_from_cm_surfaces` validates a split Weber surface class
+polynomial, uses small Weber relations other than the target level to connect
+the complete surface and floor torsors, and requires the two floor components
+to be global negatives.  It applies the BLS `X^ell Y^ell=-1` relative-sign
+test to both orientations and rejects zero or two matches.  At level 5, the
+resulting value and X-derivative residues exactly match the target-table oracle.
+The class polynomial and small relations are caller-authenticated for now.
 
 `SparseModularPolynomial::specialize_x_with_derivative` is the table-backed
 reference producer.  It evaluates `Phi(f,Y)` and `Phi_X(f,Y)` together in one
@@ -124,8 +132,8 @@ raw timing arrays, build switches, and parsed semantic checks are retained in
 The implemented boundary and auxiliary-prime producer are necessary for the
 intended asymptotic implementation, but not sufficient.  They remove the API
 dependency on a stored bivariate target-level table, implement the classical
-CM geometry and bounded reconstruction, and leave the normalization-specific
-Weber layer incomplete.
+CM geometry, signed Weber conversion, and bounded reconstruction, and leave
+input production/authentication plus the height proof incomplete.
 
 For Algorithm 1, Sutherland proves under GRH an expected running time
 
@@ -148,19 +156,19 @@ normalization-specific bound, and steps 2--4 remain substantial:
 1. replace the bounded practical order discovery where necessary with an
    asymptotically justified selector and compute a proved Weber coefficient
    bound (bounded discovery, validation, and CRT-prime selection are implemented);
-2. compute and authenticate the required Hilbert class polynomial state (a
-   supplied split HCP is currently validated and consumed);
-3. assign consistent Weber invariants and relative signs to the implemented
-   classical surface/floor rows;
-4. specialize the Weber modular function modulo each CRT prime while retaining
-   the X derivative, reusing the implemented interpolation functionals; and
+2. compute and authenticate the required classical and Weber class polynomial
+   state (supplied split state is currently validated and consumed);
+3. select and authenticate enough target-independent small Weber relations to
+   connect both class-group torsors;
+4. invoke the implemented signed specialization modulo each CRT prime while
+   retaining the X derivative; and
 5. supply per-prime `value` and `x_derivative` residues to the implemented
    exact CRT and checked specialization interface.
 
-Until those steps exist, the honest claim is: the SEA consumer, classical CM
-auxiliary producer, and CRT orchestration are validated components, including
-CRT fixtures beyond 400 bits, while the production Weber specialization source
-remains a bounded authenticated archive.
+Until those steps exist, the honest claim is: the SEA consumer, signed Weber
+auxiliary producer at level 5, and CRT orchestration are validated components,
+including CRT fixtures beyond 400 bits, while the production specialization
+source remains a bounded authenticated archive.
 
 ## Why this is reviewable now
 

@@ -100,6 +100,14 @@ std::vector<SutherlandCrtPrime> select_sutherland_crt_primes(
     const mpz_class& coefficient_abs_bound,
     std::uint64_t maximum_candidates);
 
+// Weber-f specialization uses the two-root shortcut of BLS Lemma 7.3.  This
+// selector applies the same witnessed search but retains only p=11 mod 12,
+// after checking the required order congruences.
+std::vector<SutherlandCrtPrime> select_sutherland_weber_crt_primes(
+    const SutherlandSuitableOrder& order, const mpz_class& target_modulus,
+    const mpz_class& coefficient_abs_bound,
+    std::uint64_t maximum_candidates);
+
 // Canonical target-field powers lifted to integers in [0,q), as required by
 // Algorithm 1.  Reducing these lifts modulo an auxiliary CRT prime is not the
 // same operation as exponentiating the integer representative there.

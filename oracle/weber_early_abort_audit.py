@@ -88,9 +88,14 @@ def stable_code_constant(value: object) -> object:
     if isinstance(value, tuple):
         return ("tuple", tuple(stable_code_constant(item) for item in value))
     if isinstance(value, frozenset):
+        # marshal preserves a frozenset's internal iteration order on older
+        # CPython releases. Equal constants compiled in separate code objects
+        # can therefore serialize differently even though their semantics are
+        # identical. Canonicalize recursively before hashing the module code.
+        items = [stable_code_constant(item) for item in value]
         return (
             "frozenset",
-            frozenset(stable_code_constant(item) for item in value),
+            tuple(sorted(items, key=lambda item: marshal.dumps(item, 2))),
         )
     return value
 

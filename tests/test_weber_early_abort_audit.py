@@ -6,7 +6,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -139,6 +141,37 @@ def artifact(root: Path, value: dict[str, object]) -> Path:
 
 
 class WeberEarlyAbortAuditTests(unittest.TestCase):
+    def test_loaded_module_source_digest_is_reproducible(self):
+        source = audit.TOOL_SOURCE.read_bytes()
+        loaded = audit.loaded_module_code_digest()
+        self.assertEqual(audit.source_code_digest(source), loaded)
+        self.assertEqual(
+            {audit.source_code_digest(source) for _ in range(8)},
+            {loaded},
+        )
+
+    def test_frozenset_constant_encoding_is_hash_seed_independent(self):
+        script = (
+            "import marshal, sys\n"
+            f"sys.path.insert(0, {str(ROOT / 'oracle')!r})\n"
+            "import weber_early_abort_audit as audit\n"
+            "value = frozenset(('alpha', 'bravo', 'charlie', 'delta'))\n"
+            "print(marshal.dumps(audit.stable_code_constant(value), 2).hex())\n"
+        )
+        encodings = set()
+        for seed in range(1, 9):
+            environment = os.environ.copy()
+            environment["PYTHONHASHSEED"] = str(seed)
+            result = subprocess.run(
+                [sys.executable, "-B", "-c", script],
+                check=True,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+            encodings.add(result.stdout.strip())
+        self.assertEqual(len(encodings), 1)
+
     def test_true_trace_may_occupy_least_favorable_last_position(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             corpus = artifact(Path(temporary), record([-131055, 0, 100], 100))

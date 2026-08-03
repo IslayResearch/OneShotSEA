@@ -1,28 +1,47 @@
 {
   "schema": "oneshotsea.runpod-p125-replay.v1",
   "classification": "exact same-30 production-path promotion gate; not a certificate-rate estimate",
+  "binary_provenance": {
+    "compiler_producer": "GCC: (Ubuntu 11.5.0-10ubuntu1~20~ppa3) 11.5.0",
+    "cxx_producer": "GNU C++20 11.5.0 -mtune=generic -march=x86-64 -g -O2 -std=c++20 -fopenmp -fasynchronous-unwind-tables -fstack-protector-strong -fstack-clash-protection -fcf-protection",
+    "required_cxx_markers": [
+      "GNU C++20 11.5.0",
+      "-O2",
+      "-std=c++20"
+    ]
+  },
   "baseline": {
     "artifact": "artifacts/runpod/p125-runpod-cpu16-probe-20260802b/ohfo3hbov7ot8v",
     "run_id": "p125-runpod-cpu16-probe-20260802b",
     "deployment_commit": "c08f0ed82923b7aee3a5a3c9326deb4d5e439b4c",
     "binary_sha256": "383207a8c0b1f0c05a26183e2073afbbf8fe6a7c771eac4a194077e2175aecaf",
+    "retained_binary_path": "binaries/baseline.bin",
     "start_utc": "2026-08-02T18:23:12Z",
     "end_utc": "2026-08-02T18:36:33Z",
+    "attempt_epoch_seconds": 801,
     "elapsed_seconds": 800.92,
+    "user_seconds": 7150.64,
+    "system_seconds": 19.19,
     "average_cpu_percent": 895,
     "maximum_resident_set_kbytes": 10552336,
     "maximum_resident_set_bytes": 10805592064,
     "swaps": 0,
-    "exit_status": 0
+    "exit_status": 0,
+    "recorded_hourly_rate_usd": 0.643,
+    "estimated_attempt_compute_cost_usd": 0.1430532111111111
   },
   "candidate": {
     "artifact": "artifacts/runpod/p125-runpod-cpu16-replay-550815e-20260802a/ohfo3hbov7ot8v",
     "run_id": "p125-runpod-cpu16-replay-550815e-20260802a",
     "deployment_commit": "550815e0013361f5eee4cdb6b044f5cec1a9ae2c",
     "binary_sha256": "550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737",
+    "retained_binary_path": "binaries/candidate.bin",
     "start_utc": "2026-08-02T23:56:21Z",
     "end_utc": "2026-08-03T00:05:35Z",
+    "attempt_epoch_seconds": 554,
     "elapsed_seconds": 554.18,
+    "user_seconds": 4966.56,
+    "system_seconds": 15.79,
     "average_cpu_percent": 899,
     "maximum_resident_set_kbytes": 10551336,
     "maximum_resident_set_bytes": 10804568064,
@@ -37,6 +56,9 @@
     "range_start_inclusive": "1000000",
     "range_end_exclusive": "1000030",
     "curve_count": 30,
+    "max_curves": 30,
+    "worker_id": 0,
+    "worker_count": 1,
     "curve_family": "x1-27",
     "x1_require_point_four": true,
     "max_level": 401,
@@ -44,10 +66,23 @@
     "schoof_fallback": true,
     "skip_incomplete_curves": false,
     "curve_threads": 16,
+    "sea_level_telemetry": false,
     "sea_threads": 1,
     "smooth_threads": 1,
     "smooth_coordinators": 0,
-    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551"
+    "smooth_max_batch": 128,
+    "smooth_root_auxiliary_bytes": 134217728,
+    "smooth_build_segment_span": 4000000000,
+    "assembly_attempts": 400,
+    "max_certificate_candidates": 100000,
+    "max_candidate_search_nodes": 1000000,
+    "checkpoint_every": 1,
+    "wall_time_limit_seconds": 1800,
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+    "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5",
+    "verifier_sha256": "e0ba3b8a7ed2ff48bd2fd824642bf67b0954a9f03f57daeb4ac4302691e1b666",
+    "python_sha256": "298a9e830ed52f36c299427565485d717d1ce0179c0597cc16560513eb780b06"
   },
   "outcome": {
     "curves_attempted": 30,
@@ -73,7 +108,8 @@
     "generator_rejections": 4457,
     "sea_levels": 1733,
     "exact_sea_levels": 907,
-    "atkin_sea_levels": 29
+    "atkin_sea_levels": 29,
+    "schoof_fallback_levels": 0
   },
   "timing_totals_us": {
     "baseline": {
@@ -107,6 +143,7 @@
     "wall_speed_gate_passed": true,
     "rss_gate_passed": true,
     "zero_swap_gate_passed": true,
+    "zero_exit_gate_passed": true,
     "accepted": true,
     "decision": "Promote the combined Kronecker-substitution and reciprocal-reduction production path with quotient-context reuse disabled by default."
   }

@@ -1,22 +1,39 @@
-# p125 direct-SEA factored Atkin comparison
+# Controlled p125 direct-SEA combined-patch comparison
 
-This bundle retains the fixed 16-curve cohort that exposed the direct SEA
-Atkin-state bottleneck and the replay after replacing full CRT Cartesian
-products with exact factored meet-in-the-middle counting.
+This bundle is a controlled A/B of parent commit
+`bbcd04d2c27d87f582f4d579caaacd9d4278ee8e` and candidate commit
+`13cd3a906167700b795b36abaae51c6433017fc8`. The candidate is the complete
+combined patch: factored CRT meet-in-the-middle counting/enumeration, the
+uniform factor-degree certificate, and its baby-step/giant-step modular
+composition primitive. The measurement does not isolate those components.
 
-The mathematical projection of all 240 level records is identical.  The 64
-independent Schoof controls through `ell=13` all agree and no level is
-unconstrained.  Aggregate direct-level evaluation changes from 263.265228 s
-and 1,253,654,528 bytes peak RSS to 33.784948 s and 40,943,616 bytes: 7.79x
-faster and 30.62x lower peak memory on this cohort.
+Both source archives were built on the same Apple M4 host with the same
+candidate profiler source, Makefile build rule, Apple clang 21.0.0 flags, GMP
+6.3.0 libraries, authenticated cache, and byte-identical argument vector. The
+two runs were executed serially. `provenance.json` records the full commit/tree,
+host, compiler, flags, library, cache, harness, binary, static-library, command,
+and raw-log identities. `commands.sh` reconstructs both immutable source trees,
+builds them, runs the identical command, and structurally audits a replay.
 
-`baseline.ndjson` is the retained pre-MITM run. `factored-mitm.ndjson` is the
-post-MITM replay. Both use the same p125 target, X1(27) seed/range, authenticated
-direct-context cache payload, level list, and independent-control policy.
-Timing noise outside direct evaluation is visible in curve generation and
-Schoof, so the primary comparison is the summed `evaluation_us` field.
+Across the unique ordered 16-curve by 15-level grid, all 240 mathematical and
+control projections are identical, all 64 independent Schoof controls agree,
+and no result is unconstrained. Raw level and curve records recompute every
+retained summary aggregate. The controlled measurement is:
 
-Run `python3 audit.py` from any directory to authenticate both raw logs,
-recompute their structural and semantic comparison, and verify the headline
-ratios. See [`docs/direct_atkin_mitm.md`](../../../docs/direct_atkin_mitm.md)
-for the proof and review boundary.
+| Metric | Baseline | Combined candidate | Ratio |
+|---|---:|---:|---:|
+| Direct evaluation | 427.991317 s | 39.033330 s | 10.9648x faster |
+| Peak RSS | 1,159,053,312 B | 40,370,176 B | 28.7106x lower |
+| Whole cohort | 567.560778 s | 195.298315 s | 2.9061x faster |
+
+This controlled rerun supersedes the earlier 7.79x draft measurement, whose
+retained baseline and candidate did not have an auditable identical
+configuration. The valid result is attributed only to the complete combined
+candidate commit, not to MITM alone.
+
+Run `python3 audit.py` from any directory. The auditor authenticates every
+bundle file, validates provenance and the exact raw schemas/order/bounds,
+derives summaries and `result.json` from raw records, and checks the cross-run
+configuration and semantic equality. See
+[`docs/direct_atkin_mitm.md`](../../../docs/direct_atkin_mitm.md) for the proof
+and claim boundary.

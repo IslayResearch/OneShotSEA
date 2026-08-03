@@ -182,6 +182,9 @@ void validate_options(const Options& options) {
                 options.range_start) {
         throw std::invalid_argument("cohort range is empty or overflows");
     }
+    if (options.threads == 0U) {
+        throw std::invalid_argument("cohort thread limit must be positive");
+    }
     if (options.cache_path.empty() || options.cache_sha256.empty() ||
         options.levels.empty()) {
         throw std::invalid_argument(

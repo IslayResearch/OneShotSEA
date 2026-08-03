@@ -1,36 +1,74 @@
 {
-  "schema": "oneshotsea.p125-direct-atkin-mitm-comparison.v1",
+  "schema": "oneshotsea.p125-direct-atkin-combined-comparison.v2",
   "target": {
     "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
     "seed": "202607300000",
     "range_start": "2000000",
     "count": "16",
-    "levels": ["5", "7", "11", "13", "17", "19", "23", "29", "31", "37", "41", "43", "47", "53", "59"],
-    "schoof_through": "13"
+    "threads": "1",
+    "require_point_four": true,
+    "levels": [
+      "5",
+      "7",
+      "11",
+      "13",
+      "17",
+      "19",
+      "23",
+      "29",
+      "31",
+      "37",
+      "41",
+      "43",
+      "47",
+      "53",
+      "59"
+    ],
+    "schoof_through": "13",
+    "maximum_prime_candidates": "10000000",
+    "maximum_x_candidates_per_surface": "1000000",
+    "cache_sha256": "b31c858c5398d7b284ad7b003ce4647211de8dec0412421f90ed226f2926ecfd",
+    "cache_residency_budget_bytes": "1000000000"
   },
   "validation": {
-    "level_records": "240",
+    "level_records": 240,
+    "curve_records": 16,
+    "unique_ordered_grid": true,
     "semantic_level_records_equal": true,
-    "independent_schoof_attempts": "64",
-    "independent_schoof_validations": "64",
-    "unconstrained_levels": "0"
+    "raw_summary_aggregates_equal": true,
+    "independent_schoof_attempts": 64,
+    "independent_schoof_validations": 64,
+    "unconstrained_levels": 0
   },
   "baseline": {
+    "commit": "bbcd04d2c27d87f582f4d579caaacd9d4278ee8e",
+    "tree": "5e203de1b77ddd89f9393a8c01e225d2c2f09e2c",
     "raw": "baseline.ndjson",
-    "evaluation_us": "263265228",
-    "process_peak_rss_bytes": "1253654528",
-    "elapsed_us": "350847972"
+    "raw_sha256": "7a28b7602fcb00ccae88f64b5d388fb3c16826be62a74cdc982f2fc2594696de",
+    "raw_bytes": 158555,
+    "evaluation_us": 427991317,
+    "process_peak_rss_bytes": 1159053312,
+    "elapsed_us": 567560778
   },
-  "factored_mitm": {
-    "raw": "factored-mitm.ndjson",
-    "evaluation_us": "33784948",
-    "process_peak_rss_bytes": "40943616",
-    "elapsed_us": "176513016"
+  "combined_candidate": {
+    "commit": "13cd3a906167700b795b36abaae51c6433017fc8",
+    "tree": "8cdaa62a5465416e7b9bfcdde32f9e8f016e9a41",
+    "raw": "combined-candidate.ndjson",
+    "raw_sha256": "38eeeb936a45972977d232dfa011e9a1c9fc3ecc0a3f2ded93b3550e600d619e",
+    "raw_bytes": 157932,
+    "components": [
+      "factored CRT meet-in-the-middle",
+      "uniform factor-degree certificate",
+      "baby-step/giant-step modular composition"
+    ],
+    "evaluation_us": 39033330,
+    "process_peak_rss_bytes": 40370176,
+    "elapsed_us": 195298315
   },
   "comparison": {
-    "evaluation_speedup": 7.792382217,
-    "peak_rss_reduction_ratio": 30.619047619,
-    "whole_profile_speedup": 1.987660627
+    "evaluation_speedup": 10.964765675898008,
+    "peak_rss_reduction_ratio": 28.710633116883116,
+    "whole_profile_speedup": 2.9061222468816488
   },
-  "claim_scope": "Fixed local p125 cohort evidence. This validates semantic equivalence and the Atkin-state hot path; it is not an end-to-end certificate-yield or unbounded asymptotic claim."
+  "claim_scope": "Fixed local p125 cohort evidence for the complete candidate commit relative to its parent. The result is not a per-component, certificate-yield, or unbounded asymptotic claim."
 }

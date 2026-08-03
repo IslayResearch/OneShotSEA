@@ -84,12 +84,25 @@ seconds to 33.913631 seconds (2.76x). This measures the whole level consumer,
 not an isolated microbenchmark, and does not include curve generation or cache
 indexing.
 
-The retained fixed p125 cohort in
+The retained controlled p125 cohort in
 [`artifacts/local/p125-direct-atkin-mitm-20260803`](../artifacts/local/p125-direct-atkin-mitm-20260803)
-contains 240 semantically identical pre/post level records, 64/64 independent
-Schoof agreements, and zero unconstrained levels. Direct evaluation improved
-from 263.265228 seconds to 33.784948 seconds (7.79x), while peak RSS improved
-from 1,253,654,528 to 40,943,616 bytes (30.62x).
+compares candidate `13cd3a9` with its parent `bbcd04d` using the same profiler,
+host, compiler/flags/libraries, authenticated cache, and byte-identical command
+arguments. It contains one unique ordered 16-by-15 grid: 240 semantically
+identical pre/post level records, 64/64 independent Schoof agreements, and zero
+unconstrained levels. The raw records exactly recompute the curve and summary
+aggregates.
+
+Direct evaluation improved from 427.991317 seconds to 39.033330 seconds
+(10.9648x), peak RSS improved from 1,159,053,312 to 40,370,176 bytes
+(28.7106x), and whole-cohort elapsed time improved from 567.560778 to
+195.298315 seconds (2.9061x). This is evidence for the complete combined
+candidate patch—factored CRT MITM, the uniform factor-degree certificate, and
+baby-step/giant-step modular composition—not an isolated measurement of MITM.
+It supersedes an earlier 7.79x draft comparison whose two retained runs did not
+have auditable identical configurations. `provenance.json` records the exact
+source trees and capture-time tool, library, binary, cache, host, command, and
+raw-log identities; `audit.py` derives every retained result from the raw logs.
 
 ## Asymptotic scope and review boundary
 

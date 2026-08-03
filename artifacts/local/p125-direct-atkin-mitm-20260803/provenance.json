@@ -1,0 +1,182 @@
+{
+  "schema": "oneshotsea.p125-direct-atkin-combined-provenance.v1",
+  "capture_date": "2026-08-03",
+  "comparison": {
+    "baseline": {
+      "commit": "bbcd04d2c27d87f582f4d579caaacd9d4278ee8e",
+      "tree": "5e203de1b77ddd89f9393a8c01e225d2c2f09e2c"
+    },
+    "candidate": {
+      "commit": "13cd3a906167700b795b36abaae51c6433017fc8",
+      "tree": "8cdaa62a5465416e7b9bfcdde32f9e8f016e9a41",
+      "parent_commit": "bbcd04d2c27d87f582f4d579caaacd9d4278ee8e"
+    },
+    "candidate_components": [
+      "factored CRT meet-in-the-middle exact counting and bounded enumeration",
+      "uniform irreducible factor-degree certificate replacing full splitting",
+      "baby-step/giant-step modular composition used by the certificate"
+    ],
+    "claim_attribution": "The measurement covers the complete candidate commit relative to its parent; it does not isolate any one component."
+  },
+  "shared_harness": {
+    "source_commit": "13cd3a906167700b795b36abaae51c6433017fc8",
+    "path": "tools/profile_classical_direct_cohort.cpp",
+    "sha256": "2ac700e044795325463ee462cd44bdd39c3919e594225cf4632257b2fe89cd27",
+    "baseline_injection": "The candidate commit's profiler source and Makefile were copied byte-for-byte into the baseline source archive before building; library sources remained the exact baseline tree.",
+    "candidate_injection": "None; the candidate archive already contains the identical profiler source and Makefile."
+  },
+  "build": {
+    "compiler": {
+      "path": "/usr/bin/clang++",
+      "sha256": "179301dcb41ea78accc3fa0048a7e6f6710d891945a751a34addd622020c1818",
+      "version": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+      "target": "arm64-apple-darwin25.5.0"
+    },
+    "cppflags": [
+      "-Iinclude",
+      "-isystem",
+      "/opt/homebrew/opt/gmp/include"
+    ],
+    "cxxflags": [
+      "-O2",
+      "-g",
+      "-std=c++20",
+      "-Wall",
+      "-Wextra",
+      "-Wpedantic",
+      "-Wconversion",
+      "-Wshadow"
+    ],
+    "link_flags": [
+      "-L/opt/homebrew/opt/gmp/lib",
+      "-lgmpxx",
+      "-lgmp"
+    ],
+    "libraries": [
+      {
+        "path": "/opt/homebrew/opt/gmp/lib/libgmpxx.4.dylib",
+        "package_version": "gmp 6.3.0",
+        "compatibility_version": "12.0.0",
+        "current_version": "12.0.0",
+        "bytes": 80608,
+        "sha256": "1125ffbace543d5bc01769bbe4a89ec56907313506f10d6c654c1aa8f9b582d1"
+      },
+      {
+        "path": "/opt/homebrew/opt/gmp/lib/libgmp.10.dylib",
+        "package_version": "gmp 6.3.0",
+        "compatibility_version": "16.0.0",
+        "current_version": "16.0.0",
+        "bytes": 452352,
+        "sha256": "14123464af436d67ef69114810aa9e1e74de50e4097166fe8c110397b3ba6961"
+      },
+      {
+        "path": "/usr/lib/libc++.1.dylib",
+        "compatibility_version": "1.0.0",
+        "current_version": "2100.43.0"
+      },
+      {
+        "path": "/usr/lib/libSystem.B.dylib",
+        "compatibility_version": "1.0.0",
+        "current_version": "1356.0.0"
+      }
+    ],
+    "system_dyld_shared_cache": {
+      "path": "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_arm64e",
+      "bytes": 573440,
+      "sha256": "2d5ec323938a842298610eb66a51e2307a2e10a220b26432672c7c4f8e7256a9",
+      "covers": [
+        "/usr/lib/libc++.1.dylib",
+        "/usr/lib/libSystem.B.dylib"
+      ]
+    }
+  },
+  "host": {
+    "fingerprint_payload": {
+      "architecture": "arm64",
+      "chip": "Apple M4",
+      "efficiency_core_count": 6,
+      "kernel_release": "25.5.0",
+      "logical_core_count": 10,
+      "memory_bytes": 17179869184,
+      "model_identifier": "Mac16,10",
+      "os_build": "25F80",
+      "os_version": "26.5.1",
+      "performance_core_count": 4
+    },
+    "fingerprint_sha256": "4d54249c3b6147b2fda4fdf4f64f28e6383c0971b948431bd761d7badab7104b"
+  },
+  "shared_invocation": {
+    "argv": [
+      "./build/profile_classical_direct_cohort",
+      "--p",
+      "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+      "--seed",
+      "202607300000",
+      "--range-start",
+      "2000000",
+      "--count",
+      "16",
+      "--threads",
+      "1",
+      "--require-point4",
+      "1",
+      "--cache",
+      "/private/tmp/p125-direct-low-5-59.ctx",
+      "--cache-sha256",
+      "b31c858c5398d7b284ad7b003ce4647211de8dec0412421f90ed226f2926ecfd",
+      "--cache-resident-bytes",
+      "1000000000",
+      "--schoof-through",
+      "13",
+      "--maximum-prime-candidates",
+      "10000000",
+      "--maximum-x-candidates",
+      "1000000",
+      "5",
+      "7",
+      "11",
+      "13",
+      "17",
+      "19",
+      "23",
+      "29",
+      "31",
+      "37",
+      "41",
+      "43",
+      "47",
+      "53",
+      "59"
+    ],
+    "cache": {
+      "path": "/private/tmp/p125-direct-low-5-59.ctx",
+      "bytes": 30203068,
+      "sha256": "b31c858c5398d7b284ad7b003ce4647211de8dec0412421f90ed226f2926ecfd"
+    },
+    "execution": "Serial on the same host: baseline first, candidate second. Standard output was redirected directly to the retained NDJSON files."
+  },
+  "runs": {
+    "baseline": {
+      "raw": "baseline.ndjson",
+      "completed_at_utc": "2026-08-03T08:58:37Z",
+      "working_directory": "/private/tmp/oneshotsea-atkin-controlled.LB2f5d/baseline",
+      "raw_bytes": 158555,
+      "raw_sha256": "7a28b7602fcb00ccae88f64b5d388fb3c16826be62a74cdc982f2fc2594696de",
+      "profiler_binary_bytes": 842544,
+      "profiler_binary_sha256": "80ed27a664e150599cb48be04009e181f2ae2671a0e2661031e8ea752e3ab147",
+      "static_library_bytes": 23067384,
+      "static_library_sha256": "61ef70cd3f53bf6e809e32e071fbfac97ee065e301be2fec792f4559b855d37d"
+    },
+    "candidate": {
+      "raw": "combined-candidate.ndjson",
+      "completed_at_utc": "2026-08-03T09:02:15Z",
+      "working_directory": "/private/tmp/oneshotsea-atkin-controlled.LB2f5d/candidate",
+      "raw_bytes": 157932,
+      "raw_sha256": "38eeeb936a45972977d232dfa011e9a1c9fc3ecc0a3f2ded93b3550e600d619e",
+      "profiler_binary_bytes": 866144,
+      "profiler_binary_sha256": "760d8fea87588ef189c8eaeb8cf981e62e5cbd200e0d3d91bf85e918c53a8dc6",
+      "static_library_bytes": 23525048,
+      "static_library_sha256": "45d9bbe9d5ac73fa4bcc06e02acdd0c45819090dbb3442982d4471651e5d90e2"
+    }
+  }
+}

@@ -23,17 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Pack exact current source snapshot
-        run: tar --exclude=.git -czf /tmp/oneshotsea-current-main.tgz .
-
-      - name: Upload exact current source snapshot
-        uses: actions/upload-artifact@v4
-        with:
-          name: oneshotsea-current-main-${{ github.sha }}
-          path: /tmp/oneshotsea-current-main.tgz
-          compression-level: 0
-          retention-days: 1
-
       - name: Install native dependencies
         run: |
           sudo apt-get update
@@ -44,6 +33,8 @@ jobs:
 
       - name: Run portable native and reference tests
         run: |
+          python3 -m py_compile tools/run_p125_context_corpus_ab.py
+          python3 tests/test_context_corpus_artifact.py
           make test
           make test-poly-square
           make test-atkin

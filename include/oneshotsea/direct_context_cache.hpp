@@ -4,9 +4,12 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include <sys/types.h>
 
 namespace oneshotsea {
 
@@ -14,8 +17,19 @@ inline constexpr std::uint32_t kClassicalDirectContextCacheVersion = 1U;
 inline constexpr std::uint64_t kClassicalDirectContextCacheHeaderBytes = 96U;
 inline constexpr std::uint64_t kDefaultMaxClassicalDirectContextCacheBytes =
     UINT64_C(4) * UINT64_C(1024) * UINT64_C(1024) * UINT64_C(1024);
+// Bound admission by both the platform's signed file offset and the largest
+// whole-byte input representable by SHA-256's unsigned 64-bit bit count.
+inline constexpr std::uint64_t kMaximumClassicalDirectContextCacheBytes =
+    std::numeric_limits<std::uint64_t>::max() / 8U <
+            static_cast<std::uint64_t>(
+                std::numeric_limits<off_t>::max())
+        ? std::numeric_limits<std::uint64_t>::max() / 8U
+        : static_cast<std::uint64_t>(
+              std::numeric_limits<off_t>::max());
 
 struct ClassicalDirectContextCacheLimits {
+    // Whole-file admission ceiling, inclusive. Values must be between the
+    // fixed header size and kMaximumClassicalDirectContextCacheBytes.
     std::uint64_t max_file_bytes =
         kDefaultMaxClassicalDirectContextCacheBytes;
     std::uint64_t max_levels = 4096U;
@@ -26,6 +40,16 @@ class ClassicalDirectContextCacheError : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
 };
+
+namespace detail {
+
+// Internal exact-length descriptor primitive used by publication, loading,
+// and adversarial tests. It never opens or resolves a pathname and does not
+// assume ownership.
+std::string sha256_classical_direct_context_descriptor_exact(
+    int descriptor, std::uint64_t byte_count);
+
+}  // namespace detail
 
 struct ClassicalDirectContextCacheBuildResult {
     std::string sha256;

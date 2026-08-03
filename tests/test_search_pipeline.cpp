@@ -778,12 +778,17 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
     const std::string direct_sha =
         oneshotsea::save_classical_direct_context_cache(
             prepared, direct_cache);
+    oneshotsea::ClassicalDirectContextCacheLimits cache_limits;
+    cache_limits.max_file_bytes =
+        oneshotsea::kDefaultMaxClassicalDirectContextCacheBytes + 1U;
     auto cached = oneshotsea::load_classical_direct_context_cache(
         oneshotsea::Field(config.prime), config.classical_direct_levels,
         config.classical_direct_maximum_prime_candidates,
         config.classical_direct_maximum_x_candidates_per_surface,
-        config.sea_threads, direct_cache, direct_sha);
+        config.sea_threads, direct_cache, direct_sha, cache_limits);
     config.expected_classical_direct_context_sha256 = direct_sha;
+    config.classical_direct_context_max_file_bytes =
+        cache_limits.max_file_bytes;
 
     const oneshotsea::ExactSmoothEngine smooth =
         oneshotsea::ExactSmoothEngine::build(config.prime,
@@ -794,6 +799,13 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
     const std::string smooth_sha = oneshotsea::sha256_file(smooth_cache);
     const std::string verifier_sha =
         oneshotsea::sha256_file(config.canonical_verifier);
+    oneshotsea::SearchPipelineConfig default_limit_config = config;
+    default_limit_config.classical_direct_context_max_file_bytes =
+        oneshotsea::kDefaultMaxClassicalDirectContextCacheBytes;
+    const oneshotsea::SearchIdentity default_limit_identity =
+        oneshotsea::make_search_identity(
+            default_limit_config, {1U, 2U}, 0U, 1U, smooth_sha,
+            verifier_sha, "cached-direct-pipeline-test-v1");
     const oneshotsea::SearchIdentity identity =
         oneshotsea::make_search_identity(
             config, {1U, 2U}, 0U, 1U, smooth_sha, verifier_sha,
@@ -803,6 +815,18 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
     config.expected_table_manifest_sha256 =
         identity.table_manifest_sha256;
     config.expected_verifier_sha256 = verifier_sha;
+
+    const std::filesystem::path limit_checkpoint =
+        temporary.path() / "limit.checkpoint";
+    oneshotsea::save_search_checkpoint(
+        oneshotsea::SearchState(identity), limit_checkpoint);
+    bool rejected_limit_checkpoint = false;
+    try {
+        static_cast<void>(oneshotsea::load_search_checkpoint(
+            limit_checkpoint, default_limit_identity));
+    } catch (const oneshotsea::SearchCheckpointError&) {
+        rejected_limit_checkpoint = true;
+    }
 
     oneshotsea::SearchState state(identity);
     oneshotsea::SearchPipelineRunOptions options;
@@ -854,6 +878,8 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
     uncached.expected_table_manifest_sha256.clear();
     uncached.expected_verifier_sha256.clear();
     uncached.expected_classical_direct_context_sha256.clear();
+    uncached.classical_direct_context_max_file_bytes =
+        oneshotsea::kDefaultMaxClassicalDirectContextCacheBytes;
     const oneshotsea::SearchIdentity uncached_identity =
         oneshotsea::make_search_identity(
             uncached, {1U, 2U}, 0U, 1U, smooth_sha, verifier_sha,
@@ -880,7 +906,7 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
         oneshotsea::Field(config.prime), config.classical_direct_levels,
         config.classical_direct_maximum_prime_candidates,
         config.classical_direct_maximum_x_candidates_per_surface,
-        1U, direct_cache, direct_sha);
+        config.sea_threads, direct_cache, direct_sha);
     oneshotsea::SearchState wrong_resource_state(identity);
     oneshotsea::SearchPipelineRunOptions wrong_resource_options;
     wrong_resource_options.classical_direct_context = &wrong_resource;
@@ -894,6 +920,11 @@ void test_pipeline_reuses_authenticated_direct_context_cache() {
     }
     check(rejected_missing_cache && rejected_unbound_cache &&
               rejected_wrong_resource &&
+              rejected_limit_checkpoint &&
+              cached.cache_max_file_bytes() ==
+                  cache_limits.max_file_bytes &&
+              identity.schedule_sha256 !=
+                  default_limit_identity.schedule_sha256 &&
               identity.schedule_sha256 != uncached_identity.schedule_sha256 &&
               missing_cache_state.next_index() == 1U &&
               unexpected_cache_state.next_index() == 1U &&

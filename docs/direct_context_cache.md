@@ -40,8 +40,10 @@ On load, the implementation also:
 - checks the Lagrange partition of unity and every neighbor row's monicity;
 - checks aggregate witness and coefficient counts, CRC64, exact file length,
   and absence of trailing data;
-- computes the trusted whole-file SHA-256 before parsing and again over the
-  bytes actually consumed by the structural scan; and
+- opens and bounds one regular-file descriptor, computes the trusted
+  whole-file SHA-256 over exactly that descriptor without reopening the
+  replaceable pathname, then rewinds and hashes the bytes again during the
+  structural scan; and
 - records a SHA-256 and CRC64 for each authenticated level region, then checks
   both over the bytes used by every lazy materialization.
 
@@ -69,7 +71,11 @@ for each level:
 
 All fixed-width integers are unsigned big-endian. Publication writes a unique
 mode-0600 temporary file in the destination directory, completes and flushes
-it, atomically renames it, and flushes the parent directory. Concurrent
+it, atomically renames the still-open inode, rewinds and hashes exactly the
+precomputed file length through that same regular-file descriptor, rejects
+short input or growth, and flushes the parent directory. The returned digest
+is the stored descriptor digest; publication never reopens the replaceable
+destination pathname for hashing. Concurrent
 deterministic publishers produce byte-identical artifacts; tests race two
 publishers and authenticate the surviving complete file.
 
@@ -85,6 +91,7 @@ printed SHA-256:
   --classical-direct-levels 7,11,13 \
   --classical-direct-max-prime-candidates 1000000 \
   --classical-direct-max-x-candidates 1000000 \
+  --classical-direct-context-max-file-bytes 8589934592 \
   --sea-threads 4 \
   --output runs/p125/direct-7-11-13.ctx
 ```
@@ -98,14 +105,29 @@ Then add both cache options to the otherwise identical search configuration:
   --classical-direct-max-prime-candidates 1000000 \
   --classical-direct-max-x-candidates 1000000 \
   --classical-direct-context-cache runs/p125/direct-7-11-13.ctx \
-  --classical-direct-context-sha256 TRUSTED_SHA256
+  --classical-direct-context-sha256 TRUSTED_SHA256 \
+  --classical-direct-context-max-file-bytes 8589934592
 ```
 
+Generation and load reject files above 4 GiB by default. Larger expected
+artifacts require the explicit
+`--classical-direct-context-max-file-bytes N` admission ceiling on both the
+preparation and search commands. On supported 64-bit-offset builds, `N` is a
+decimal byte count from the 96-byte header size through
+`2305843009213693951`, inclusive; signs, uint64 overflow, smaller values,
+values outside the platform's signed file-offset range, and values whose bit
+length cannot be represented by SHA-256 are rejected.
+Raising this ceiling does not reserve memory, relax structural validation, or
+replace the trusted digest. It only admits a larger complete regular file for
+generation or authentication.
+
 The trusted cache digest is included in the search schedule digest. Adding,
-removing, or replacing a cache deliberately changes checkpoint identity. The
-preparation thread count is a resource setting rather than artifact content;
-loaded matrices remain deterministic and may be consumed with a different
-current `--sea-threads` value.
+removing, or replacing a cache deliberately changes checkpoint identity. A
+nondefault maximum-file ceiling is also included, so a checkpoint cannot be
+resumed under a different input-admission contract. The 4 GiB default retains
+the original schedule bytes. The preparation thread count is a resource
+setting rather than artifact content; loaded matrices remain deterministic
+and may be consumed with a different current `--sea-threads` value.
 
 Cache generation reports `peak_resident_contexts=1`: preparation writes and
 releases one level before starting the next, so matrix residency is bounded by

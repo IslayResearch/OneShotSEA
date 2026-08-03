@@ -236,8 +236,8 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
-        << "  oneshotsea prepare-classical-direct-context --p P --classical-direct-levels L1,L2,... --output PATH [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--sea-threads N]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST [--classical-direct-cache-resident-bytes N]] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea prepare-classical-direct-context --p P --classical-direct-levels L1,L2,... --output PATH [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-max-file-bytes N] [--sea-threads N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--classical-direct-context-cache PATH --classical-direct-context-sha256 DIGEST [--classical-direct-context-max-file-bytes N] [--classical-direct-cache-resident-bytes N]] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -362,17 +362,30 @@ int main(int argc, char** argv) {
                 options, "classical-direct-max-x-candidates", 1000000U);
             const std::uint64_t sea_threads = optional_u64(
                 options, "sea-threads", 0U);
+            const std::uint64_t max_file_bytes = optional_u64(
+                options, "classical-direct-context-max-file-bytes",
+                oneshotsea::kDefaultMaxClassicalDirectContextCacheBytes);
             if (sea_threads > std::numeric_limits<std::size_t>::max()) {
                 throw std::invalid_argument("--sea-threads is out of range");
+            }
+            if (max_file_bytes <
+                    oneshotsea::kClassicalDirectContextCacheHeaderBytes ||
+                max_file_bytes >
+                    oneshotsea::kMaximumClassicalDirectContextCacheBytes) {
+                throw std::invalid_argument(
+                    "--classical-direct-context-max-file-bytes is out of range");
             }
             const std::filesystem::path output =
                 required(options, "output");
             ensure_parent_directory(output);
+            oneshotsea::ClassicalDirectContextCacheLimits cache_limits;
+            cache_limits.max_file_bytes = max_file_bytes;
             const oneshotsea::ClassicalDirectContextCacheBuildResult build =
                 oneshotsea::prepare_classical_direct_context_cache(
                     oneshotsea::Field(prime), levels,
                     maximum_prime_candidates, maximum_x_candidates,
-                    static_cast<std::size_t>(sea_threads), output);
+                    static_cast<std::size_t>(sea_threads), output,
+                    cache_limits);
             std::cout
                 << "{\"schema\":\"oneshotsea.classical-direct-context.v1\""
                 << ",\"prime\":\"" << prime << "\",\"levels\":[";
@@ -387,6 +400,7 @@ int main(int argc, char** argv) {
                       << "\",\"maximum_x_candidates_per_surface\":\""
                       << maximum_x_candidates
                       << "\",\"thread_limit\":\"" << sea_threads
+                      << "\",\"max_file_bytes\":\"" << max_file_bytes
                       << "\",\"context_count\":\""
                       << build.context_count
                       << "\",\"preparation_us\":\""
@@ -455,6 +469,16 @@ int main(int argc, char** argv) {
                 options, "schoof-fallback", 0U);
             const std::uint64_t direct_cache_resident_bytes = optional_u64(
                 options, "classical-direct-cache-resident-bytes", 0U);
+            config.classical_direct_context_max_file_bytes = optional_u64(
+                options, "classical-direct-context-max-file-bytes",
+                config.classical_direct_context_max_file_bytes);
+            if (config.classical_direct_context_max_file_bytes <
+                    oneshotsea::kClassicalDirectContextCacheHeaderBytes ||
+                config.classical_direct_context_max_file_bytes >
+                    oneshotsea::kMaximumClassicalDirectContextCacheBytes) {
+                throw std::invalid_argument(
+                    "--classical-direct-context-max-file-bytes is out of range");
+            }
             config.classical_direct_levels = optional_u64_list(
                 options, "classical-direct-levels");
             config.classical_direct_maximum_prime_candidates = optional_u64(
@@ -511,6 +535,12 @@ int main(int argc, char** argv) {
                 !has_direct_context_path) {
                 throw std::invalid_argument(
                     "--classical-direct-cache-resident-bytes requires an authenticated classical direct context cache");
+            }
+            if (options.contains(
+                    "classical-direct-context-max-file-bytes") &&
+                !has_direct_context_path) {
+                throw std::invalid_argument(
+                    "--classical-direct-context-max-file-bytes requires an authenticated classical direct context cache");
             }
             std::optional<std::filesystem::path> direct_context_path;
             std::optional<std::string> direct_context_sha;
@@ -646,6 +676,9 @@ int main(int argc, char** argv) {
             std::unique_ptr<oneshotsea::ClassicalDirectSeaContext>
                 direct_context;
             if (direct_context_path.has_value()) {
+                oneshotsea::ClassicalDirectContextCacheLimits cache_limits;
+                cache_limits.max_file_bytes =
+                    config.classical_direct_context_max_file_bytes;
                 direct_context = std::make_unique<
                     oneshotsea::ClassicalDirectSeaContext>(
                     oneshotsea::load_classical_direct_context_cache(
@@ -655,7 +688,7 @@ int main(int argc, char** argv) {
                         config
                             .classical_direct_maximum_x_candidates_per_surface,
                         config.sea_threads, *direct_context_path,
-                        *direct_context_sha));
+                        *direct_context_sha, cache_limits));
                 direct_context->set_cached_context_residency_budget_bytes(
                     static_cast<std::size_t>(
                         direct_cache_resident_bytes));
@@ -793,6 +826,8 @@ int main(int argc, char** argv) {
                       << ",\"sea_threads\":\"" << config.sea_threads
                       << "\",\"classical_direct_cache_resident_bytes\":\""
                       << direct_cache_resident_bytes
+                      << "\",\"classical_direct_context_max_file_bytes\":\""
+                      << config.classical_direct_context_max_file_bytes
                       << "\",\"assembly_attempts\":\""
                       << config.assembly_attempts << "\",\"trace_cap\":\""
                       << config.early_trace_cap

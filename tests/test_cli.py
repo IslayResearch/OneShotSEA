@@ -13,7 +13,9 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARY = ROOT / "build" / "oneshotsea"
+BINARY = Path(
+    os.environ.get("ONESHOTSEA_BINARY", ROOT / "build" / "oneshotsea")
+)
 PHI3 = ROOT / "data" / "modpoly" / "j" / "phi_3.txt"
 PHI5 = ROOT / "data" / "modpoly" / "j" / "phi_5.txt"
 WEBER_PHI5 = ROOT / "data" / "modpoly" / "weber_f" / "phi_5.txt"
@@ -563,10 +565,13 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             cache = root / "classical-direct.ctx"
+            max_file_bytes = 4 * 1024 * 1024 * 1024 + 1
             prepared = self.run_cli(
                 "prepare-classical-direct-context",
                 "--p", 101,
                 "--classical-direct-levels", "7,11",
+                "--classical-direct-context-max-file-bytes",
+                max_file_bytes,
                 "--output", cache,
                 "--sea-threads", 2,
             )
@@ -579,6 +584,9 @@ class CliTests(unittest.TestCase):
             self.assertEqual(record["levels"], ["7", "11"])
             self.assertEqual(record["context_count"], "2")
             self.assertEqual(record["peak_resident_contexts"], "1")
+            self.assertEqual(
+                record["max_file_bytes"], str(max_file_bytes),
+            )
             self.assertGreater(int(record["matrix_coefficients"]), 0)
             self.assertEqual(
                 int(record["matrix_payload_bytes"]),
@@ -604,6 +612,8 @@ class CliTests(unittest.TestCase):
                 "--classical-direct-levels", "7,11",
                 "--classical-direct-context-cache", cache,
                 "--classical-direct-context-sha256", digest,
+                "--classical-direct-context-max-file-bytes",
+                max_file_bytes,
                 "--sea-threads", 2,
                 "--max-curves", 1,
             )
@@ -615,6 +625,11 @@ class CliTests(unittest.TestCase):
             self.assertEqual(
                 start["classical_direct"]["context_cache_sha256"],
                 digest,
+            )
+            self.assertEqual(
+                start["resources"]
+                    ["classical_direct_context_max_file_bytes"],
+                str(max_file_bytes),
             )
             summary = records[-1]["classical_direct_preparation"]
             self.assertTrue(summary["cache_loaded"])
@@ -629,6 +644,29 @@ class CliTests(unittest.TestCase):
             )
 
             smooth_digest = start["smooth_cache_sha256"]
+            mismatched_limit_resume = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 4,
+                "--range-start", 1,
+                "--range-end", 2,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 5,
+                "--trace-cap", 16,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--smooth-cache-sha256", smooth_digest,
+                "--checkpoint", root / "checkpoint.json",
+                "--classical-direct-levels", "7,11",
+                "--classical-direct-context-cache", cache,
+                "--classical-direct-context-sha256", digest,
+                "--sea-threads", 2,
+                "--max-curves", 0,
+            )
+            self.assertNotEqual(mismatched_limit_resume.returncode, 0)
+            self.assertEqual(mismatched_limit_resume.stdout, "")
+
             resident_budget = int(record["matrix_payload_bytes"])
             resident_searched = self.run_cli(
                 "search",
@@ -725,6 +763,32 @@ class CliTests(unittest.TestCase):
                 "requires an authenticated classical direct context cache",
                 resident_without_cache.stderr,
             )
+
+            max_file_without_cache = self.run_cli(
+                "search", "--p", 101, "--seed", 4,
+                "--max-level", 5,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--classical-direct-context-max-file-bytes",
+                max_file_bytes,
+            )
+            self.assertNotEqual(max_file_without_cache.returncode, 0)
+            self.assertIn(
+                "requires an authenticated classical direct context cache",
+                max_file_without_cache.stderr,
+            )
+
+            for invalid_max_file_bytes in (
+                -1, 95, 2305843009213693952, 9223372036854775808,
+                18446744073709551616,
+            ):
+                self.assert_rejected(
+                    "prepare-classical-direct-context",
+                    "--p", 101,
+                    "--classical-direct-levels", "7",
+                    "--classical-direct-context-max-file-bytes",
+                    invalid_max_file_bytes,
+                    "--output", root / "invalid.ctx",
+                )
 
     def test_x1_search_family_is_explicit_and_identity_bound(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

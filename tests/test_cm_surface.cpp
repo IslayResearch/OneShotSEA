@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace {
@@ -595,16 +597,73 @@ void test_classical_direct_context_cache() {
     const std::filesystem::path cache = temporary.path() / "direct.ctx";
     const std::string digest =
         oneshotsea::save_classical_direct_context_cache(source, cache);
+    const std::uint64_t cache_bytes = static_cast<std::uint64_t>(
+        std::filesystem::file_size(cache));
     check(oneshotsea::is_lower_sha256(digest) &&
               digest == oneshotsea::sha256_file(cache) &&
               source.prepared_context_count() == levels.size() &&
-              source.interpolation_coefficient_count() != 0U,
+              source.interpolation_coefficient_count() != 0U &&
+              source.cache_max_file_bytes() == 0U &&
+              oneshotsea::kDefaultMaxClassicalDirectContextCacheBytes ==
+                  UINT64_C(4) * UINT64_C(1024) * UINT64_C(1024) *
+                      UINT64_C(1024) &&
+              oneshotsea::kMaximumClassicalDirectContextCacheBytes ==
+                  UINT64_C(0x1fffffffffffffff),
           "direct-context cache materializes every level and returns its trust anchor");
+
+    const std::filesystem::path descriptor_path =
+        temporary.path() / "descriptor-publication-source.ctx";
+    const std::filesystem::path detached_descriptor_path =
+        temporary.path() / "descriptor-publication-source-detached.ctx";
+    std::filesystem::copy_file(cache, descriptor_path);
+    const int descriptor = ::open(descriptor_path.c_str(), O_RDONLY);
+    if (descriptor < 0) {
+        throw std::runtime_error(
+            "cannot open descriptor-authentication fixture");
+    }
+    std::string descriptor_digest;
+    bool rejected_excessive_exact_length = false;
+    try {
+        std::filesystem::rename(
+            descriptor_path, detached_descriptor_path);
+        if (::mkfifo(descriptor_path.c_str(), 0600) != 0) {
+            throw std::runtime_error(
+                "cannot install descriptor-authentication FIFO adversary");
+        }
+        descriptor_digest = oneshotsea::detail::
+            sha256_classical_direct_context_descriptor_exact(
+                descriptor, cache_bytes);
+        if (::lseek(descriptor, 0, SEEK_SET) < 0) {
+            throw std::runtime_error(
+                "cannot rewind descriptor-authentication fixture");
+        }
+        rejected_excessive_exact_length = rejects([&] {
+            static_cast<void>(
+                oneshotsea::detail::
+                    sha256_classical_direct_context_descriptor_exact(
+                        descriptor, cache_bytes + 1U));
+        });
+    } catch (...) {
+        ::close(descriptor);
+        std::error_code ignored;
+        std::filesystem::remove(descriptor_path, ignored);
+        throw;
+    }
+    ::close(descriptor);
+    std::filesystem::remove(descriptor_path);
+    check(descriptor_digest == digest &&
+              rejected_excessive_exact_length,
+          "bounded publication/authentication hashing ignores a replacement FIFO and rejects short input instead of reopening the path");
+
     const std::filesystem::path streaming_cache =
         temporary.path() / "direct-streaming.ctx";
+    oneshotsea::ClassicalDirectContextCacheLimits above_default_limit;
+    above_default_limit.max_file_bytes =
+        oneshotsea::kDefaultMaxClassicalDirectContextCacheBytes + 1U;
     const oneshotsea::ClassicalDirectContextCacheBuildResult streaming_build =
         oneshotsea::prepare_classical_direct_context_cache(
-            field, levels, prime_cap, x_cap, 2U, streaming_cache);
+            field, levels, prime_cap, x_cap, 2U, streaming_cache,
+            above_default_limit);
     check(streaming_build.sha256 == digest &&
               streaming_build.context_count == levels.size() &&
               streaming_build.preparation_us != 0U &&
@@ -617,9 +676,51 @@ void test_classical_direct_context_cache() {
               streaming_build.peak_resident_context_count == 1U,
           "streaming direct-cache preparation is byte-identical and bounds level residency");
 
+    auto above_default_loaded =
+        oneshotsea::load_classical_direct_context_cache(
+            field, levels, prime_cap, x_cap, 1U, cache, digest,
+            above_default_limit);
+    oneshotsea::ClassicalDirectContextCacheLimits exact_limit;
+    exact_limit.max_file_bytes = cache_bytes;
+    auto exact_loaded = oneshotsea::load_classical_direct_context_cache(
+        field, levels, prime_cap, x_cap, 1U, cache, digest, exact_limit);
+    oneshotsea::ClassicalDirectContextCacheLimits one_byte_short =
+        exact_limit;
+    --one_byte_short.max_file_bytes;
+    oneshotsea::ClassicalDirectContextCacheLimits unsupported_limit;
+    unsupported_limit.max_file_bytes =
+        oneshotsea::kMaximumClassicalDirectContextCacheBytes + 1U;
+    oneshotsea::ClassicalDirectContextCacheLimits below_header_limit;
+    below_header_limit.max_file_bytes =
+        oneshotsea::kClassicalDirectContextCacheHeaderBytes - 1U;
+    check(above_default_loaded.cache_max_file_bytes() ==
+                  above_default_limit.max_file_bytes &&
+              exact_loaded.cache_max_file_bytes() == cache_bytes &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::load_classical_direct_context_cache(
+                          field, levels, prime_cap, x_cap, 1U, cache,
+                          digest, one_byte_short));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::load_classical_direct_context_cache(
+                          field, levels, prime_cap, x_cap, 1U, cache,
+                          digest, unsupported_limit));
+              }) &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::save_classical_direct_context_cache(
+                          source, temporary.path() / "invalid-limit.ctx",
+                          below_header_limit));
+              }),
+          "direct-cache admission accepts explicit bounded limits above 4 GiB and exact file size but rejects smaller or unrepresentable limits");
+
     auto loaded = oneshotsea::load_classical_direct_context_cache(
         field, levels, prime_cap, x_cap, 3U, cache, digest);
     check(loaded.loaded_from_cache() && loaded.preparation_threads() == 3U &&
+              loaded.cache_max_file_bytes() ==
+                  oneshotsea::kDefaultMaxClassicalDirectContextCacheBytes &&
               loaded.prepared_context_count() == levels.size() &&
               loaded.preparation_us() == 0U &&
               loaded.cached_level_load_count() == 0U &&
@@ -657,6 +758,35 @@ void test_classical_direct_context_cache() {
         oneshotsea::short_weierstrass_curve_from_j(field, 20);
     const mpz_class curve_trace =
         field.modulus() + 1 - oneshotsea::count_points_bruteforce(curve);
+
+    const std::filesystem::path lazy_fifo_path =
+        temporary.path() / "direct-lazy-fifo.ctx";
+    const std::filesystem::path detached_lazy_fifo_path =
+        temporary.path() / "direct-lazy-fifo-detached.ctx";
+    std::filesystem::copy_file(cache, lazy_fifo_path);
+    auto lazy_fifo_loaded =
+        oneshotsea::load_classical_direct_context_cache(
+            field, levels, prime_cap, x_cap, 1U, lazy_fifo_path, digest);
+    std::filesystem::rename(lazy_fifo_path, detached_lazy_fifo_path);
+    if (::mkfifo(lazy_fifo_path.c_str(), 0600) != 0) {
+        throw std::runtime_error(
+            "cannot install lazy direct-cache FIFO adversary");
+    }
+    oneshotsea::TraceConstraints lazy_fifo_initial(field.modulus());
+    oneshotsea::WeberSeaResult lazy_fifo_state{
+        lazy_fifo_initial, lazy_fifo_initial, {}, {}, {}, {},
+        std::nullopt, {}};
+    const bool rejected_lazy_fifo = rejects([&] {
+        oneshotsea::extend_sea_with_prepared_classical_direct(
+            curve, lazy_fifo_state, lazy_fifo_loaded, 16U);
+    });
+    std::filesystem::remove(lazy_fifo_path);
+    check(rejected_lazy_fifo &&
+              lazy_fifo_state.classical_direct_levels.empty() &&
+              lazy_fifo_state.constraints.modulus() == 1 &&
+              lazy_fifo_loaded.cached_resident_context_count() == 0U,
+          "lazy direct-cache reauthentication rejects a replacement FIFO without blocking or mutating SEA state");
+
     oneshotsea::extend_sea_with_prepared_classical_direct(
         curve, cached_state, loaded, 16U);
     check(cached_state.classical_direct_levels.size() == 1U &&

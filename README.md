@@ -111,6 +111,7 @@ a search cohort:
 ./build/oneshotsea prepare-classical-direct-context \
   --p P \
   --classical-direct-levels 7,11 \
+  --classical-direct-context-max-file-bytes 8589934592 \
   --sea-threads 4 \
   --output runs/direct-7-11.ctx
 ```
@@ -124,7 +125,8 @@ digest obtained through a trusted channel:
   --sea-threads 4 \
   --classical-direct-levels 7,11 \
   --classical-direct-context-cache runs/direct-7-11.ctx \
-  --classical-direct-context-sha256 TRUSTED_SHA256
+  --classical-direct-context-sha256 TRUSTED_SHA256 \
+  --classical-direct-context-max-file-bytes 8589934592
 ```
 
 Do not derive the trusted digest from the untrusted artifact at load time. The
@@ -133,6 +135,11 @@ segments, mathematical witnesses, canonical matrices, interpolation
 identities, and CRT bounds before allowing a level to affect search state. See
 the [context-cache contract](docs/direct_context_cache.md) for the complete
 trust boundary.
+
+The cache file ceiling remains 4 GiB unless
+`--classical-direct-context-max-file-bytes N` explicitly opts both preparation
+and search into a larger bounded artifact. A nondefault ceiling is part of the
+checkpoint identity; it does not weaken digest or structural authentication.
 
 By default each authenticated level is released after its active curve workers
 finish. A multi-curve run may instead retain recently used levels under a

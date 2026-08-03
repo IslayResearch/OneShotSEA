@@ -168,9 +168,12 @@ level after its active workers finish; the resource-only
 `--classical-direct-cache-resident-bytes N` option retains a bounded LRU of
 logical matrix payload across curves. It never silently falls back to
 reconstruction when a supplied artifact fails. The digest is included in the
-schedule identity, while the residency budget is not, so cached and uncached
-checkpoints cannot be substituted and resource tuning remains resumable. Full
-format and trust details are in
+schedule identity. The whole-file admission ceiling defaults to 4 GiB; larger
+artifacts require `--classical-direct-context-max-file-bytes N` during both
+preparation and search. A nondefault ceiling is identity-bound because it
+changes which input files can be accepted. The residency budget is not
+identity-bound, so cached and uncached checkpoints cannot be substituted while
+LRU resource tuning remains resumable. Full format and trust details are in
 [the authenticated direct-context cache note](direct_context_cache.md).
 
 `oneshotsea.search-summary.v1` adds

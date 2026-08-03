@@ -23,6 +23,47 @@
 #include <unistd.h>
 
 namespace oneshotsea {
+
+std::string detail::sha256_classical_direct_context_descriptor_exact(
+    int descriptor, std::uint64_t byte_count) {
+    constexpr std::uint64_t maximum_bytes =
+        std::numeric_limits<std::uint64_t>::max() / 8U;
+    if (descriptor < 0) {
+        throw ClassicalDirectContextCacheError(
+            "cannot hash an invalid direct-cache descriptor");
+    }
+    if (byte_count > maximum_bytes) {
+        throw ClassicalDirectContextCacheError(
+            "direct-cache descriptor SHA-256 length is out of range");
+    }
+    Sha256Hasher digest;
+    std::array<std::uint8_t, 64U * 1024U> buffer{};
+    std::uint64_t remaining = byte_count;
+    while (remaining != 0U) {
+        const std::size_t requested = static_cast<std::size_t>(
+            std::min<std::uint64_t>(
+                remaining, static_cast<std::uint64_t>(buffer.size())));
+        const ssize_t received = ::read(
+            descriptor, buffer.data(), requested);
+        if (received < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            throw ClassicalDirectContextCacheError(
+                "cannot hash direct-cache descriptor: " +
+                std::string(std::strerror(errno)));
+        }
+        if (received == 0) {
+            throw ClassicalDirectContextCacheError(
+                "direct-cache descriptor ended before its bounded SHA-256 length");
+        }
+        const std::size_t count = static_cast<std::size_t>(received);
+        digest.update(buffer.data(), count);
+        remaining -= static_cast<std::uint64_t>(count);
+    }
+    return digest.hex_digest();
+}
+
 namespace {
 
 constexpr std::array<std::uint8_t, 8U> kMagic = {
@@ -41,10 +82,12 @@ std::string errno_text(const std::string& operation,
 
 void validate_limits(ClassicalDirectContextCacheLimits limits) {
     if (limits.max_file_bytes < kClassicalDirectContextCacheHeaderBytes ||
+        limits.max_file_bytes >
+            kMaximumClassicalDirectContextCacheBytes ||
         limits.max_levels == 0U ||
         limits.max_witnesses_per_level == 0U) {
         throw ClassicalDirectContextCacheError(
-            "classical direct context cache limits must be positive");
+            "classical direct context cache limits are out of range");
     }
 }
 
@@ -220,7 +263,7 @@ TemporaryFile open_temporary(const std::filesystem::path& target) {
         TemporaryFile temporary;
         temporary.path = target.string() + suffix.str();
         temporary.descriptor = ::open(
-            temporary.path.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+            temporary.path.c_str(), O_RDWR | O_CREAT | O_EXCL, 0600);
         if (temporary.descriptor >= 0) {
             return temporary;
         }
@@ -333,7 +376,10 @@ public:
     explicit ReadFile(const std::filesystem::path& path,
                       std::uint64_t offset = 0U)
         : path_(path), buffer_(kPayloadWriteBufferBytes) {
-        descriptor_ = ::open(path.c_str(), O_RDONLY);
+        // Nonblocking open prevents a replaced FIFO/device pathname from
+        // stalling before fstat can enforce the regular-file contract. It has
+        // no effect on regular-file reads.
+        descriptor_ = ::open(path.c_str(), O_RDONLY | O_NONBLOCK);
         if (descriptor_ < 0) {
             throw ClassicalDirectContextCacheError(
                 errno_text("cannot open direct cache", path_));
@@ -377,6 +423,56 @@ public:
     ~ReadFile() { ::close(descriptor_); }
 
     std::uint64_t size() const { return size_; }
+
+    std::string authenticate_complete_file_and_rewind() {
+        if (buffer_offset_ != 0U || buffered_ != 0U) {
+            throw ClassicalDirectContextCacheError(
+                "direct-cache authentication began after buffered input");
+        }
+        const off_t current = ::lseek(descriptor_, 0, SEEK_CUR);
+        if (current < 0) {
+            throw ClassicalDirectContextCacheError(
+                errno_text("cannot inspect direct-cache offset", path_));
+        }
+        if (current != 0) {
+            throw ClassicalDirectContextCacheError(
+                "direct-cache authentication requires offset zero");
+        }
+        std::string digest;
+        try {
+            digest =
+                detail::sha256_classical_direct_context_descriptor_exact(
+                    descriptor_, size_);
+        } catch (const std::exception& error) {
+            throw ClassicalDirectContextCacheError(
+                "cannot authenticate bounded direct cache " +
+                path_.string() + ": " + error.what());
+        }
+        std::uint8_t trailing = 0U;
+        for (;;) {
+            const ssize_t received = ::read(
+                descriptor_, &trailing, sizeof(trailing));
+            if (received < 0 && errno == EINTR) {
+                continue;
+            }
+            if (received < 0) {
+                throw ClassicalDirectContextCacheError(
+                    errno_text("cannot finish direct-cache authentication",
+                               path_));
+            }
+            if (received != 0) {
+                throw ClassicalDirectContextCacheError(
+                    "direct cache grew during bounded authentication");
+            }
+            break;
+        }
+        if (::lseek(descriptor_, 0, SEEK_SET) < 0) {
+            throw ClassicalDirectContextCacheError(
+                errno_text("cannot rewind authenticated direct cache",
+                           path_));
+        }
+        return digest;
+    }
 
     void read(std::uint8_t* bytes, std::size_t length) {
         while (length != 0U) {
@@ -887,20 +983,50 @@ public:
             throw ClassicalDirectContextCacheError(
                 errno_text("cannot flush direct cache", temporary.path));
         }
-        const int descriptor = temporary.descriptor;
-        temporary.descriptor = -1;
-        if (::close(descriptor) != 0) {
-            throw ClassicalDirectContextCacheError(
-                errno_text("cannot close direct cache", temporary.path));
-        }
         if (::rename(temporary.path.c_str(), cache_path.c_str()) != 0) {
             throw ClassicalDirectContextCacheError(
                 errno_text("cannot atomically rename direct cache",
                            cache_path));
         }
         temporary.path.clear();
+        // Keep the renamed inode open while deriving the returned trust
+        // anchor. A replacement destination pathname cannot redirect this
+        // bounded hash or substitute its digest.
+        if (::lseek(temporary.descriptor, 0, SEEK_SET) < 0) {
+            throw ClassicalDirectContextCacheError(
+                errno_text("cannot rewind published direct cache",
+                           cache_path));
+        }
+        const std::string published_digest =
+            detail::sha256_classical_direct_context_descriptor_exact(
+                temporary.descriptor, file_bytes);
+        std::uint8_t trailing = 0U;
+        for (;;) {
+            const ssize_t received = ::read(
+                temporary.descriptor, &trailing, sizeof(trailing));
+            if (received < 0 && errno == EINTR) {
+                continue;
+            }
+            if (received < 0) {
+                throw ClassicalDirectContextCacheError(
+                    errno_text("cannot finish hashing published direct cache",
+                               cache_path));
+            }
+            if (received != 0) {
+                throw ClassicalDirectContextCacheError(
+                    "published direct cache grew during bounded hashing");
+            }
+            break;
+        }
+        const int descriptor = temporary.descriptor;
+        temporary.descriptor = -1;
+        if (::close(descriptor) != 0) {
+            throw ClassicalDirectContextCacheError(
+                errno_text("cannot close published direct cache",
+                           cache_path));
+        }
         sync_parent_directory(cache_path);
-        return sha256_file(cache_path);
+        return published_digest;
     }
 
     static ClassicalDirectSeaContext load(
@@ -931,15 +1057,21 @@ public:
             make_classical_direct_sea_context(
                 target_field, levels, maximum_prime_candidates,
                 maximum_x_candidates_per_surface, preparation_threads);
-        if (sha256_file(authenticated_path) != trusted_sha256) {
-            throw ClassicalDirectContextCacheError(
-                "classical direct context cache SHA-256 mismatch");
-        }
         ReadFile source(authenticated_path);
         if (source.size() < kClassicalDirectContextCacheHeaderBytes ||
             source.size() > limits.max_file_bytes) {
             throw ClassicalDirectContextCacheError(
                 "direct-cache file size is invalid or excessive");
+        }
+        // Enforce the admission ceiling before hashing attacker-controlled
+        // content, and authenticate this already-open regular descriptor so
+        // pathname replacement cannot redirect or block the initial hash.
+        // The structural scan below independently rehashes the same bounded
+        // descriptor after this method rewinds it.
+        if (source.authenticate_complete_file_and_rewind() !=
+            trusted_sha256) {
+            throw ClassicalDirectContextCacheError(
+                "classical direct context cache SHA-256 mismatch");
         }
         std::array<std::uint8_t, kHeaderBytes> header{};
         source.read(header.data(), header.size());
@@ -1118,7 +1250,8 @@ public:
                 "direct-cache load timing is out of range");
         }
         result.install_cached_contexts(
-            std::move(sources), static_cast<std::uint64_t>(elapsed));
+            std::move(sources), static_cast<std::uint64_t>(elapsed),
+            limits.max_file_bytes);
         return result;
     }
 };

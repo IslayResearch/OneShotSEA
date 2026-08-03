@@ -207,6 +207,11 @@ public:
     std::size_t interpolation_storage_bytes(std::size_t level_index) const;
     bool loaded_from_cache() const { return loaded_from_cache_; }
     std::uint64_t cache_load_us() const { return cache_load_us_; }
+    // Zero for a freshly generated context. A loaded context retains the
+    // exact whole-file admission limit used by its authenticated loader.
+    std::uint64_t cache_max_file_bytes() const {
+        return cache_max_file_bytes_;
+    }
     std::uint64_t cached_level_load_count() const;
     std::uint64_t cached_level_load_us() const;
     std::size_t cached_resident_context_count() const;
@@ -251,7 +256,7 @@ private:
         const;
     void install_cached_contexts(
         std::vector<CachedLevelSource> sources,
-        std::uint64_t load_us);
+        std::uint64_t load_us, std::uint64_t max_file_bytes);
     void discard_generated_level_context(std::size_t index) const;
 
     mpz_class target_modulus_;
@@ -263,6 +268,7 @@ private:
     std::shared_ptr<CacheTelemetry> cache_telemetry_;
     bool loaded_from_cache_ = false;
     std::uint64_t cache_load_us_ = 0U;
+    std::uint64_t cache_max_file_bytes_ = 0U;
 };
 
 ClassicalDirectSeaContext make_classical_direct_sea_context(

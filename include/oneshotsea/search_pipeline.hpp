@@ -1,6 +1,7 @@
 #pragma once
 
 #include "oneshotsea/certificate.hpp"
+#include "oneshotsea/direct_context_cache.hpp"
 #include "oneshotsea/exact_smooth.hpp"
 #include "oneshotsea/integrity.hpp"
 #include "oneshotsea/search_checkpoint.hpp"
@@ -81,6 +82,12 @@ struct SearchPipelineConfig {
     // The trusted digest is included in the resumable schedule identity and
     // must match the injected immutable context supplied in the run options.
     std::string expected_classical_direct_context_sha256;
+    // Whole-file admission limit for an authenticated direct-context cache.
+    // The 4 GiB default preserves the original fail-closed boundary. A
+    // nondefault value is meaningful only with the digest above and is bound
+    // into the resumable schedule identity.
+    std::uint64_t classical_direct_context_max_file_bytes =
+        kDefaultMaxClassicalDirectContextCacheBytes;
 };
 
 enum class SearchCurveStatus : std::uint8_t {

@@ -409,6 +409,17 @@ void validate_config(const SearchPipelineConfig& config,
             throw std::invalid_argument(
                 "a classical direct context digest requires a direct schedule");
         }
+        if (config.classical_direct_context_max_file_bytes <
+                kClassicalDirectContextCacheHeaderBytes ||
+            config.classical_direct_context_max_file_bytes >
+                kMaximumClassicalDirectContextCacheBytes) {
+            throw std::invalid_argument(
+                "classical direct context max file bytes is out of range");
+        }
+    } else if (config.classical_direct_context_max_file_bytes !=
+               kDefaultMaxClassicalDirectContextCacheBytes) {
+        throw std::invalid_argument(
+            "a nondefault classical direct context max file size requires an authenticated cache digest");
     }
 }
 
@@ -1592,6 +1603,8 @@ SearchPipelineRunResult run_search_pipeline(
                 config
                     .classical_direct_maximum_x_candidates_per_surface ||
             supplied.preparation_threads() != config.sea_threads ||
+            supplied.cache_max_file_bytes() !=
+                config.classical_direct_context_max_file_bytes ||
             supplied.prepared_context_count() !=
                 supplied.levels().size()) {
             throw std::invalid_argument(
@@ -2356,6 +2369,12 @@ std::string search_schedule_sha256(
             canonical << "classical_direct_context_sha256="
                       << config.expected_classical_direct_context_sha256
                       << '\n';
+            if (config.classical_direct_context_max_file_bytes !=
+                kDefaultMaxClassicalDirectContextCacheBytes) {
+                canonical << "classical_direct_context_max_file_bytes="
+                          << config.classical_direct_context_max_file_bytes
+                          << '\n';
+            }
         }
     }
     canonical << "heuristic_rejection="

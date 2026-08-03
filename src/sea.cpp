@@ -897,8 +897,9 @@ void ClassicalDirectSeaContext::retain_cached_context(
 
 void ClassicalDirectSeaContext::install_cached_contexts(
     std::vector<CachedLevelSource> sources,
-    std::uint64_t load_us) {
-    if (sources.size() != level_slots_.size() || loaded_from_cache_) {
+    std::uint64_t load_us, std::uint64_t max_file_bytes) {
+    if (sources.size() != level_slots_.size() || loaded_from_cache_ ||
+        max_file_bytes == 0U) {
         throw std::logic_error(
             "classical direct cache does not match an empty schedule context");
     }
@@ -917,6 +918,7 @@ void ClassicalDirectSeaContext::install_cached_contexts(
         level_slots_[index]->prepared.store(true, std::memory_order_release);
     }
     cache_load_us_ = load_us;
+    cache_max_file_bytes_ = max_file_bytes;
     loaded_from_cache_ = true;
 }
 

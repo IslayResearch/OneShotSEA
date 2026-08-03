@@ -286,6 +286,9 @@ classical `Phi_7` oracle, and the callback-free multi-prime CM/CRT entry point
 agrees with the final target-field specialization.  That specialization then
 feeds the table-free classical normalized-codomain, BMSS, and Frobenius
 consumer and returns the same positive trace residue as the full `Phi_7` path.
+The same complete path runs over the 416-bit `p125` field: 37 witnessed CRT
+primes reconstruct both channels coefficient for coefficient, and two Elkies
+roots yield the independently checked exact residue 5.
 
 The target-level full-table adapters exist only as independent fixtures; they
 are not used by the native producers and cannot supply a production claim.

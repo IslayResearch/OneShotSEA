@@ -28,6 +28,12 @@ bool rejects(Function&& function) {
     }
 }
 
+mpz_class target_prime() {
+    return oneshotsea::parse_integer(
+        "10000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        "0000000000000000000000000000000000000000000237");
+}
+
 std::vector<mpz_class> hilbert_minus_71_coefficients() {
     return {
         mpz_class("737707086760731113357714241006081263"),
@@ -210,6 +216,39 @@ void test_three_power_class_polynomial() {
                       oneshotsea::derive_three_power_suitable_order(3));
               }),
           "three-power HCP producer rejects unrelated orders and levels");
+}
+
+void test_p125_classical_direct_path() {
+    const oneshotsea::Field field(target_prime());
+    const oneshotsea::Curve curve(field, 2, 3);
+    const auto order = oneshotsea::derive_three_power_suitable_order(7);
+    const auto reconstructed =
+        oneshotsea::reconstruct_classical_specialization_from_cm(
+            order, field, curve.j_invariant(), 1000000, 1000000);
+    const auto phi7 = oneshotsea::SparseModularPolynomial::load(
+        7, "data/modpoly/j/phi_7.txt");
+    const auto expected = phi7.specialize_x_with_derivative(
+        field, curve.j_invariant());
+    check(reconstructed.prime_count == 37U &&
+              reconstructed.crt_product >
+                  4 * reconstructed.coefficient_abs_bound &&
+              oneshotsea::equal(
+                  reconstructed.specialization.value(), expected.value()) &&
+              oneshotsea::equal(
+                  reconstructed.specialization.x_derivative(),
+                  expected.x_derivative()),
+          "p125 direct classical path reconstructs both Phi_7 channels from 37 primes");
+
+    const auto direct_trace =
+        oneshotsea::elkies_trace_residue_bmss_specialized_reference(
+            curve, reconstructed.specialization);
+    const auto table_trace =
+        oneshotsea::elkies_trace_residue_bmss_reference(curve, phi7);
+    check(direct_trace.has_value() && *direct_trace == 5U &&
+              direct_trace == table_trace &&
+              oneshotsea::linear_roots(
+                  reconstructed.specialization.value()).size() == 2U,
+          "p125 direct Phi_7 specialization yields the independently validated trace residue 5");
 }
 
 void test_minus_71_surface() {
@@ -466,6 +505,7 @@ void test_minus_71_surface() {
 int main() {
     try {
         test_three_power_class_polynomial();
+        test_p125_classical_direct_path();
         test_minus_71_surface();
         std::cout << "CM interpolation surface tests: ok\n";
         return EXIT_SUCCESS;

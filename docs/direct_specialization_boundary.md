@@ -93,6 +93,9 @@ the bivariate target-level polynomial.
 `elkies_trace_residue_bmss_specialized_reference` consumes that object through
 the classical normalized-codomain, BMSS, and Frobenius checks.  The level-7
 fixture matches the positive exact residue returned by the full-table path.
+The 416-bit `p125` fixture additionally reconstructs both level-7 channels
+from 37 witnessed primes and obtains the same exact residue 5 from its two
+Elkies roots.
 
 `specialize_weber_from_cm_surfaces` validates a split Weber surface class
 polynomial, uses small Weber relations other than the target level to connect

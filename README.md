@@ -58,10 +58,10 @@ For one SEA level `ell`, the new path now performs these steps:
     isogeny reconstruction, and Frobenius eigenvalue validation without
     recovering a bivariate table.
 
-The classical level-7 fixture exercises the complete callback-free path and
-the Weber level-5 fixture exercises the signed auxiliary producer.  The CRT
-layer is independently exercised with signed synthetic data, the 416-bit
-`p125` target, and authenticated-table differential oracles.
+The classical level-7 fixture exercises the complete callback-free path over
+both a small field and the 416-bit `p125` target; the latter reconstructs from
+37 auxiliary primes and yields the independently checked trace residue 5.  The
+Weber level-5 fixture exercises the signed auxiliary producer.
 
 ## Current boundary
 
@@ -118,6 +118,8 @@ These tests independently check:
   including the ramified level-7 surface with one horizontal and seven
   descending edges, plus final multi-prime CRT and positive trace-residue
   agreement with the independent `Phi_7` path; and
+- complete 416-bit `p125` reconstruction of both level-7 channels from 37
+  witnessed primes, two Elkies roots, and exact BMSS/Frobenius residue 5; and
 - exact agreement of the native classical and signed Weber value/X-derivative
   residues with authenticated `Phi_5` oracles on every lifted-power basis
   probe, including fail-closed tests for

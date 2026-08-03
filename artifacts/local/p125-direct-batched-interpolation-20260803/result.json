@@ -1,0 +1,85 @@
+{
+  "schema": "oneshotsea.p125-direct-batched-interpolation.v1",
+  "implementation": {
+    "commit": "131b19b1e0fac144d17a1af90428f611045c19b1",
+    "tree": "c3f6653149b89fb08e5cc997699f049f46e55de9",
+    "profiler_sha256": "c163f323fb4d1a76a47aa683b09c6fb4657dfc212792e935fa3cee5ece1dfdfa"
+  },
+  "baseline": {
+    "commit": "cdecbdd9dd0f673657e391f13bfa2022629db845",
+    "tree": "f06bc2c5d0ca473fa6a729ac57e8cb68e78a5184",
+    "profiler_sha256": "39a9dea5db05dd94d78476beca9574491ffa5a620ffc351379df5f41e1c098a2"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416,
+    "seed": "202607300000",
+    "range_start": "2000001",
+    "count": 4,
+    "levels": [61, 67, 71, 73, 79, 83, 89, 97],
+    "threads": 1
+  },
+  "direct_context": {
+    "sha256": "b4543589450c429516c95c5de575be853b6d5e7b5a4cdaabfdcf119a4b15d450",
+    "file_bytes": 140599516,
+    "matrix_payload_bytes": 140567632,
+    "resident_budget_bytes": 1000000000
+  },
+  "method": {
+    "order": ["baseline_a", "candidate", "baseline_b"],
+    "same_process_per_run": true,
+    "same_authenticated_cache": true,
+    "timing_scope": "sum of 32 direct level evaluation_us values; context indexing, curve generation, one-time materialization, and Schoof excluded",
+    "randomized": false,
+    "host": "Apple arm64, Darwin 25.5.0"
+  },
+  "runs": {
+    "baseline_a": {
+      "records": "raw/baseline-a.ndjson",
+      "records_sha256": "d1ee543931bb98c36278f70b1f1e958d10cfe16d8f1fec9a769769b1512c903b",
+      "level_records": 32,
+      "evaluation_us": 38214216
+    },
+    "candidate": {
+      "records": "raw/candidate.ndjson",
+      "records_sha256": "dc61419ac73e0763935b1422efd5c85dc71dab4ec0f52dc16e0d1c2b21c419b6",
+      "level_records": 32,
+      "evaluation_us": 31727943
+    },
+    "baseline_b": {
+      "records": "raw/baseline-b.ndjson",
+      "records_sha256": "79a60dbfde29e9cbe1c0f267bdd933ffb843d6099b23b5ae72af047ba8bc50d6",
+      "level_records": 32,
+      "evaluation_us": 40633241
+    }
+  },
+  "comparison": {
+    "baseline_bracket_mean_evaluation_us": 39423728.5,
+    "candidate_evaluation_us": 31727943,
+    "candidate_to_baseline_ratio": 0.8047930576,
+    "evaluation_us_reduction_percent": 19.52069424,
+    "identical_level_semantics": true,
+    "identical_peak_rss_bytes": true
+  },
+  "production_validation": {
+    "records": "raw/production-candidate.ndjson",
+    "records_sha256": "b315cee0236d05e05b0875a880cfc7bcbcefdb17f26f8cf3dc3d690d25518071",
+    "schedule_sha256": "c542232bf07b3528edb88aa6a9c8e09193d6fcb7d8c8a9b9bea903dcaacf14ad",
+    "prior_records": "artifacts/local/p125-pre-smooth-direct-tail-20260803/raw/promoted.ndjson",
+    "prior_records_sha256": "7d4e755856725bec037ebbe5b85e8c8126c3cdb3f0c4bd74f44eea2911b6ee41",
+    "independent_point_counts": "artifacts/local/p125-direct-first-cohort-20260803/raw/pari-point-counts.txt",
+    "independent_point_counts_sha256": "3f7b1849862acdf40a4cc58b98efd10181923e17f664bfb2f9e15e9427683e53",
+    "semantic_match": true,
+    "exact_traces_match_pari": true,
+    "timing_used_for_speedup_claim": false
+  },
+  "claims": {
+    "direct_specialization_constant_factor_improved": true,
+    "production_semantics_preserved": true,
+    "certificate_found": false,
+    "production_yield_measured": false,
+    "end_to_end_speedup_claimed": false,
+    "cm_crossover_established": false,
+    "asymptotic_exponent_changed": false
+  }
+}

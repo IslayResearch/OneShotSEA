@@ -30,6 +30,8 @@ general-purpose SEA implementation during a search. The branch adds:
 - specialized classical modular-polynomial construction using CM isogeny
   surfaces, Vélu quotients, interpolation, coefficient bounds, and centered
   CRT;
+- bounded 128-bit batch accumulation for the compact interpolation matrices,
+  with an exact no-overflow capacity bound for each 64-bit auxiliary field;
 - exact Elkies recovery with normalized-codomain and BMSS checks;
 - certified Atkin trace sets with factored CRT counting and bounded
   meet-in-the-middle enumeration;
@@ -58,6 +60,7 @@ while independent point counters are used only as validation oracles.
 | Certified cap-one completion | The difficult cohort curve stopped at the certified effective singleton at `ell=379`, recovered the PARI trace, and reached sound smoothness screening. [Singleton audit](artifacts/local/p125-certified-atkin-singleton-20260803/README.md) |
 | Deferred direct suffix | Levels 89/97 were absent from four ordinary p125 rejections, but cap-one replays preserved all three independent traces and shortened Weber continuation. [Deferred-suffix audit](artifacts/local/p125-cap-one-direct-tail-20260803/README.md) |
 | Pre-smooth suffix promotion | On the same four curves, five cached suffix evaluations reduced smoothness inputs from 46 orders to 8, resolved every multi-trace set to the independent PARI trace, and reduced the single-run summed total by 7.17%. [Pre-smooth A/B](artifacts/local/p125-pre-smooth-direct-tail-20260803/README.md) |
+| Direct interpolation hot path | On 32 real p125 level evaluations, batched modular accumulation preserved every exact/Atkin result and reduced isolated evaluation time by 19.52% against the mean of bracketing baselines; a production replay preserved all four independent traces. [Batched-interpolation A/B/A](artifacts/local/p125-direct-batched-interpolation-20260803/README.md) |
 | Bounded Atkin combiner | A 240-record differential A/B was identical while improving direct evaluation by 10.96x and peak RSS by 28.71x. [Atkin MITM audit](artifacts/local/p125-direct-atkin-mitm-20260803/README.md) |
 
 These results validate the implementation path and its proof-state composition.
@@ -161,6 +164,8 @@ The highest-value review questions are concrete:
    abort, the deferred suffix, Weber continuation, and cap-one recovery?
 5. Is a cached construction mathematically and operationally equivalent to a
    fresh construction with the same declared inputs?
+6. Does the direct interpolation hot path's accumulator-capacity proof cover
+   every admitted 64-bit modulus and matrix dimension?
 
 Those are bounded proof obligations with retained witnesses and differential
 evidence, which is why Drew's review is worth the time now. A positive review

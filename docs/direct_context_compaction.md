@@ -143,3 +143,26 @@ the still-required authenticated surface enumeration. These measurements
 support the implemented polynomial-factor improvements; they do not prove a
 full p125 schedule, the `p^(1/8+o(1))` yield heuristic, or an empirical
 CM/SEA crossover.
+
+## Current direct-evaluation hot path
+
+Once a compact context is resident, specialization evaluates two Lagrange
+matrix-vector products and two neighbor-matrix products over a 64-bit
+auxiliary field. The current implementation precomputes the derivative powers
+and accumulates products in `unsigned __int128` batches. The batch length is
+the exact quotient of the largest 128-bit value by `(q-1)^2`, so every batch
+is reduced before overflow is possible; no machine wraparound is treated as
+field arithmetic.
+
+An isolated A/B/A over four fixed p125 curves and levels 61 through 97 retained
+identical exact/Atkin semantics in all 32 records. Summed evaluation time was
+38,214,216 us / 31,727,943 us / 40,633,241 us, a 19.52069424% candidate
+reduction against the bracketing-baseline mean. A real four-curve search replay
+also preserved the prior statuses, trace counts, direct/Weber work counts, and
+independently checked traces. The replay timing was thermally noisy and is not
+used as performance evidence. See the
+[batched-interpolation audit](../artifacts/local/p125-direct-batched-interpolation-20260803/README.md).
+
+This is a constant-factor evaluation improvement. It does not alter the
+context producer's current finite auxiliary-prime bounds or the conditional
+outer search exponent.

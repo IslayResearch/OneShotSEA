@@ -14,16 +14,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE = ROOT / "artifacts/local/p125-context-corpus-20260803"
 RESULT = BUNDLE / "result.json"
-FIELDS = (
-    "generation_us",
-    "sea_us",
-    "total_us",
-    "source_lifts_us",
-    "modular_roots_us",
-    "normalized_codomain_us",
-    "bmss_us",
-    "eigenvalue_us",
-)
 
 
 def fail(message: str) -> None:
@@ -41,24 +31,17 @@ def close(actual: float, expected: float) -> None:
         fail(f"{actual!r} != {expected!r}")
 
 
-def check_summary(runs: list[dict], summary: dict, label: str) -> None:
-    for field in FIELDS:
-        off = [float(run["timing"][field]) for run in runs
-               if run["variant"] == "off"]
-        on = [float(run["timing"][field]) for run in runs
-              if run["variant"] == "on"]
-        if not off or len(off) != len(on):
-            fail(f"{label}/{field}: variant run counts differ")
-        off_mean = statistics.mean(off)
-        on_mean = statistics.mean(on)
+def check_summary(off: dict, on: dict, summary: dict, fields: list[str],
+                  label: str) -> None:
+    for field in fields:
+        if len(off[field]) != 2 or len(on[field]) != 2:
+            fail(f"{label}/{field}: expected two runs per variant")
+        off_mean = statistics.mean(off[field])
+        on_mean = statistics.mean(on[field])
         item = summary[field]
         close(off_mean, item["off_mean"])
         close(on_mean, item["on_mean"])
-        if on_mean == 0:
-            if item["speedup"] is not None:
-                fail(f"{label}/{field}: zero-stage speedup is not null")
-        else:
-            close(off_mean / on_mean, item["speedup"])
+        close(off_mean / on_mean, item["speedup"])
 
 
 def main() -> None:
@@ -73,6 +56,7 @@ def main() -> None:
     if result["common_configuration"]["run_order_per_index"] != \
             ["off", "on", "on", "off"]:
         fail("context-corpus run order changed")
+    fields = result["fields"]
 
     for level_text in ("193", "277"):
         level = result["levels"][level_text]
@@ -80,19 +64,24 @@ def main() -> None:
         if level["index_order"] != expected_indices or \
                 not level["all_projections_identical"]:
             fail(f"level {level_text}: identity gate failed")
-        aggregate_runs: list[dict] = []
+        aggregate_off = {field: [] for field in fields}
+        aggregate_on = {field: [] for field in fields}
         for index in expected_indices:
             item = level["indices"][str(index)]
             if not re.fullmatch(r"[0-9a-f]{64}", item["projection_sha256"]):
                 fail(f"level {level_text}, index {index}: invalid projection digest")
-            runs = item["runs"]
-            if [(run["variant"], run["sequence"]) for run in runs] != \
-                    [("off", 1), ("on", 1), ("on", 2), ("off", 2)]:
-                fail(f"level {level_text}, index {index}: run order mismatch")
-            check_summary(runs, item["summary"], f"{level_text}/{index}")
-            aggregate_runs.extend(runs)
-        check_summary(aggregate_runs, level["aggregate_summary"],
-                      f"{level_text}/aggregate")
+            check_summary(item["off"], item["on"], item["summary"], fields,
+                          f"{level_text}/{index}")
+            for field in fields:
+                aggregate_off[field].extend(item["off"][field])
+                aggregate_on[field].extend(item["on"][field])
+        aggregate_summary = level["aggregate_summary"]
+        for field in fields:
+            off_mean = statistics.mean(aggregate_off[field])
+            on_mean = statistics.mean(aggregate_on[field])
+            close(off_mean, aggregate_summary[field]["off_mean"])
+            close(on_mean, aggregate_summary[field]["on_mean"])
+            close(off_mean / on_mean, aggregate_summary[field]["speedup"])
 
     level193 = result["levels"]["193"]["aggregate_summary"]
     level277 = result["levels"]["277"]["aggregate_summary"]

@@ -105,3 +105,41 @@ atomically persisted and reused with an external SHA-256 trust anchor; see
 [the authenticated direct-context cache](direct_context_cache.md). That
 removes repeated process-start preparation but likewise does not change the
 outer exponent.
+
+## Current direct-preparation hot path
+
+The table above is the retained historical compaction bracket. Subsequent
+work removed a separate preparation bottleneck without changing its context
+format:
+
+1. find two independent exact order-`ell` points instead of coupon-collecting
+   all `ell+1` kernels;
+2. enumerate `<P>` and `<Q+kP>` as the complete projective line;
+3. accumulate all Vélu half-system sums with one batch inversion per scalar;
+4. run the quadratic point loop in a proved 64-bit Montgomery field;
+5. construct Lagrange and neighbor rows directly as `uint64_t` polynomials;
+   and
+6. buffer authenticated context reads and writes instead of issuing one
+   syscall per coefficient.
+
+Retained four-worker same-host measurements for the current build are:
+
+| Level | Preparation | Context bytes | Context SHA-256 |
+|---:|---:|---:|:---|
+| 29 | 326,099 us | 1,170,564 | `8e1f56edac173796c3c07f95d5fce2ec66fd9000d4faf1d8035f61b746d0e6c4` |
+| 101 | 5,080,798 us | 35,651,444 | `9bd15d4f0b5af08a95348d849ef332f75012bc13a61f98b92be4e2d79847543b` |
+| 157 | 28,396,348 us | 124,996,844 | `b6961ff01e2b43dd26a1d11a15ae9828ba144198f1e8a5d4881bcdfaa56e1dc6` |
+
+Each digest exactly matches a context produced before the corresponding
+arithmetic rewrite. At level 29, the two target curves also retain exact SEA
+residues `23` and `12`, independently reproduced by Schoof. Loading the
+authenticated level-29 context took 33,911 us. The retained same-binary
+pre-basis level-29 preparation was 19,967,030 us, while a retained
+post-compaction/pre-hot-path level-101 preparation was 33,818,533 us.
+
+The level-157 profile now attributes most remaining time to complete
+ring-class-polynomial root recovery, class-polynomial tower arithmetic, and
+the still-required authenticated surface enumeration. These measurements
+support the implemented polynomial-factor improvements; they do not prove a
+full p125 schedule, the `p^(1/8+o(1))` yield heuristic, or an empirical
+CM/SEA crossover.

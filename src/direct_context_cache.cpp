@@ -31,6 +31,7 @@ constexpr std::size_t kHeaderBytes =
     static_cast<std::size_t>(kClassicalDirectContextCacheHeaderBytes);
 constexpr std::uint64_t kCrc64Polynomial = UINT64_C(0x42f0e1eba9ea3693);
 constexpr std::size_t kIoChunkBytes = 1U << 30U;
+constexpr std::size_t kPayloadWriteBufferBytes = 1U << 20U;
 constexpr std::uint64_t kMaximumTargetBytes = 1U << 20U;
 
 std::string errno_text(const std::string& operation,
@@ -282,13 +283,24 @@ class PayloadWriter {
 public:
     PayloadWriter(int descriptor, std::filesystem::path path,
                   std::uint64_t crc)
-        : descriptor_(descriptor), path_(std::move(path)), crc_(crc) {}
+        : descriptor_(descriptor), path_(std::move(path)), crc_(crc),
+          buffer_(kPayloadWriteBufferBytes) {}
 
     void bytes(const std::uint8_t* value, std::size_t length) {
-        write_all(descriptor_, value, length, path_);
         crc_ = crc64_update(crc_, value, length);
         count_ = checked_add(count_, static_cast<std::uint64_t>(length),
                              "written payload size");
+        while (length != 0U) {
+            if (buffered_ == buffer_.size()) {
+                flush();
+            }
+            const std::size_t available = buffer_.size() - buffered_;
+            const std::size_t chunk = std::min(length, available);
+            std::memcpy(buffer_.data() + buffered_, value, chunk);
+            buffered_ += chunk;
+            value += chunk;
+            length -= chunk;
+        }
     }
 
     void u64(std::uint64_t value) {
@@ -299,16 +311,27 @@ public:
     std::uint64_t crc() const { return crc_; }
     std::uint64_t count() const { return count_; }
 
+    void flush() {
+        if (buffered_ == 0U) {
+            return;
+        }
+        write_all(descriptor_, buffer_.data(), buffered_, path_);
+        buffered_ = 0U;
+    }
+
 private:
     int descriptor_;
     std::filesystem::path path_;
     std::uint64_t crc_;
+    std::vector<std::uint8_t> buffer_;
+    std::size_t buffered_ = 0U;
     std::uint64_t count_ = 0U;
 };
 
 class ReadFile {
 public:
-    explicit ReadFile(const std::filesystem::path& path) : path_(path) {
+    explicit ReadFile(const std::filesystem::path& path)
+        : path_(path), buffer_(kPayloadWriteBufferBytes) {
         descriptor_ = ::open(path.c_str(), O_RDONLY);
         if (descriptor_ < 0) {
             throw ClassicalDirectContextCacheError(
@@ -340,28 +363,38 @@ public:
 
     void read(std::uint8_t* bytes, std::size_t length) {
         while (length != 0U) {
-            const std::size_t chunk = std::min(length, kIoChunkBytes);
-            const ssize_t received = ::read(descriptor_, bytes, chunk);
-            if (received < 0) {
-                if (errno == EINTR) {
-                    continue;
+            if (buffer_offset_ == buffered_) {
+                const ssize_t received = ::read(
+                    descriptor_, buffer_.data(), buffer_.size());
+                if (received < 0) {
+                    if (errno == EINTR) {
+                        continue;
+                    }
+                    throw ClassicalDirectContextCacheError(
+                        errno_text("cannot read direct cache", path_));
                 }
-                throw ClassicalDirectContextCacheError(
-                    errno_text("cannot read direct cache", path_));
+                if (received == 0) {
+                    throw ClassicalDirectContextCacheError(
+                        "truncated direct cache " + path_.string());
+                }
+                buffer_offset_ = 0U;
+                buffered_ = static_cast<std::size_t>(received);
             }
-            if (received == 0) {
-                throw ClassicalDirectContextCacheError(
-                    "truncated direct cache " + path_.string());
-            }
-            const std::size_t count = static_cast<std::size_t>(received);
-            bytes += count;
-            length -= count;
+            const std::size_t chunk = std::min(
+                length, buffered_ - buffer_offset_);
+            std::memcpy(bytes, buffer_.data() + buffer_offset_, chunk);
+            buffer_offset_ += chunk;
+            bytes += chunk;
+            length -= chunk;
         }
     }
 
 private:
     int descriptor_ = -1;
     std::filesystem::path path_;
+    std::vector<std::uint8_t> buffer_;
+    std::size_t buffer_offset_ = 0U;
+    std::size_t buffered_ = 0U;
     std::uint64_t size_ = 0U;
 };
 
@@ -621,6 +654,7 @@ public:
             throw ClassicalDirectContextCacheError(
                 "direct-cache writer produced the wrong payload length");
         }
+        writer.flush();
         const std::array<std::uint8_t, 8U> encoded_crc =
             encode_u64(writer.crc());
         pwrite_all(temporary.descriptor, encoded_crc.data(),

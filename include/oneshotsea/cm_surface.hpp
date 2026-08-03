@@ -50,7 +50,7 @@ private:
         const Poly&, std::uint64_t);
     friend CmSurfaceEnumeration enumerate_cm_interpolation_surfaces_limited(
         const SutherlandSuitableOrder&, const SutherlandCrtPrime&,
-        const Poly&, std::uint64_t, std::size_t);
+        const Poly&, std::uint64_t, std::size_t, bool);
     friend CrtSpecializationResidue specialize_classical_from_cm_surfaces(
         const CmSurfaceEnumeration&, const std::vector<mpz_class>&);
 

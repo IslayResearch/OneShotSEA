@@ -51,12 +51,35 @@ struct RationalPrimeIsogenyEnumeration {
     unsigned group_order_level_valuation;
 };
 
-// Deterministically scan affine x-coordinates, project rational points to the
-// ell-primary subgroup using the supplied exact group order, and retain one
-// generator for each distinct cyclic order-ell subgroup.  A full rational
-// E[ell] has exactly ell+1 such subgroups.  Returning fewer would make a
-// volcano row incomplete, so exhaustion of maximum_x_candidates fails closed.
+// The compact evidence needed while constructing interpolation rows.  The
+// exact-order generator witnesses the subgroup; the codomain is obtained by
+// direct Velu point sums.  Omitting the kernel polynomial avoids constructing
+// ell+1 degree-(ell-1)/2 polynomials when only neighbor j-invariants survive.
+struct RationalPrimeIsogenyNeighbor {
+    AffinePoint generator;
+    Curve codomain;
+};
+
+struct RationalPrimeIsogenyNeighborEnumeration {
+    std::vector<RationalPrimeIsogenyNeighbor> neighbors;
+    std::uint64_t x_candidates_tested;
+    unsigned group_order_level_valuation;
+};
+
+// Deterministically scan affine x-coordinates and project rational points to
+// the ell-primary subgroup until two independent order-ell points are proved.
+// The projective line <P>, <Q+kP> then enumerates all ell+1 cyclic subgroups
+// without a coupon-collector scan.  Exhausting maximum_x_candidates before a
+// basis is found fails closed.  x_candidates_tested counts the basis scan.
 RationalPrimeIsogenyEnumeration enumerate_rational_prime_isogenies(
+    const Curve& curve, unsigned level, const mpz_class& exact_group_order,
+    std::uint64_t maximum_x_candidates);
+
+// The same proved-basis/projective-line enumeration, retaining only generator
+// and codomain evidence.  This is the direct-specialization hot path; the full
+// kernel-retaining API above remains an independent differential oracle.
+RationalPrimeIsogenyNeighborEnumeration
+enumerate_rational_prime_isogeny_neighbors(
     const Curve& curve, unsigned level, const mpz_class& exact_group_order,
     std::uint64_t maximum_x_candidates);
 

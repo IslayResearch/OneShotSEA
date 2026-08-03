@@ -149,6 +149,29 @@ void test_full_rational_five_torsion() {
               neighbor_invariants.count(curve.j_invariant().get_str()) == 1U,
           "the class-number-one fixture retains the expected horizontal self-neighbor multiplicity");
 
+    const auto compact =
+        oneshotsea::enumerate_rational_prime_isogeny_neighbors(
+            curve, 5, 125, 131);
+    std::multiset<std::string> full_neighbors;
+    std::multiset<std::string> compact_neighbors;
+    for (const auto& isogeny : enumerated.isogenies) {
+        full_neighbors.insert(isogeny.codomain.j_invariant().get_str());
+    }
+    for (const auto& neighbor : compact.neighbors) {
+        compact_neighbors.insert(neighbor.codomain.j_invariant().get_str());
+        check(!neighbor.generator.infinity &&
+                  oneshotsea::affine_scalar_multiply(
+                      curve, 5, neighbor.generator).infinity,
+              "compact neighbor retains an exact-order generator witness");
+    }
+    check(compact.neighbors.size() == 6U &&
+              compact.x_candidates_tested ==
+                  enumerated.x_candidates_tested &&
+              compact.group_order_level_valuation ==
+                  enumerated.group_order_level_valuation &&
+              compact_neighbors == full_neighbors,
+          "compact projective-line enumeration exactly matches the independent kernel-retaining path");
+
     check(rejects([&] {
               static_cast<void>(
                   oneshotsea::enumerate_rational_prime_isogenies(
@@ -188,6 +211,7 @@ void test_tonelli_shanks_volcano_fixture() {
         5, "data/modpoly/j/phi_5.txt");
     const oneshotsea::Poly specialized =
         phi5.evaluate_x(field, curve.j_invariant());
+    std::multiset<std::string> full_neighbors;
     for (const auto& isogeny : enumerated.isogenies) {
         const oneshotsea::Curve reference =
             oneshotsea::velu_codomain_reference(curve, isogeny.kernel, 5);
@@ -197,7 +221,33 @@ void test_tonelli_shanks_volcano_fixture() {
                   oneshotsea::count_points_bruteforce(isogeny.codomain) ==
                       825,
               "Tonelli-Shanks fixture agrees with both independent isogeny oracles");
+        full_neighbors.insert(
+            isogeny.codomain.j_invariant().get_str());
     }
+
+    const auto compact =
+        oneshotsea::enumerate_rational_prime_isogeny_neighbors(
+            curve, 5, 825, 881);
+    std::multiset<std::string> compact_neighbors;
+    for (const auto& neighbor : compact.neighbors) {
+        check(!neighbor.generator.infinity &&
+                  oneshotsea::affine_scalar_multiply(
+                      curve, 5, neighbor.generator).infinity &&
+                  specialized.evaluate(
+                      neighbor.codomain.j_invariant()) == 0 &&
+                  oneshotsea::count_points_bruteforce(
+                      neighbor.codomain) == 825,
+              "fast 64-bit neighbors retain exact-order and modular-polynomial evidence");
+        compact_neighbors.insert(
+            neighbor.codomain.j_invariant().get_str());
+    }
+    check(compact.neighbors.size() == 6U &&
+              compact.x_candidates_tested ==
+                  enumerated.x_candidates_tested &&
+              compact.group_order_level_valuation ==
+                  enumerated.group_order_level_valuation &&
+              compact_neighbors == full_neighbors,
+          "fast 64-bit projective-line enumeration matches the independent kernel path on the Tonelli-Shanks fixture");
 }
 
 }  // namespace

@@ -31,6 +31,10 @@ Working now:
 - Curve-independent level preparation is immutable, bounded-parallel, and
   reusable across curves.  Its compact representation retains exactly two
   `(ell+2) x (ell+2)` `uint64_t` interpolation matrices per CRT prime.
+- The preparation hot path proves a rational `E[ell]` basis, enumerates the
+  projective line exactly once, and computes all quotient coefficients with
+  batched Vélu sums in a checked 64-bit Montgomery field.  It does not build
+  transient kernel polynomials when only codomain invariants are retained.
 - Prepared contexts can be persisted in a portable, atomically published
   cache and shared across restarts or worker shards.  Loading requires an
   external trusted SHA-256, revalidates the mathematical structure, and binds
@@ -124,13 +128,21 @@ payload size and peak RSS:
 ./build/benchmark_p125_classical_direct --threads 4 29
 ```
 
-On the retained same-host runs, level 13 prepared in about 0.49 seconds; level
-29 prepared in about 20.4 seconds.  A persisted level-29 context was 1.17 MB,
-loaded in 62.6 ms, and evaluated its first curve in 77.7 ms.  The independently
-computed Schoof residues agreed at both levels.  These measurements isolate a
-working primitive and expose preparation as the next scaling bottleneck; they
-do not measure certificate yield or a complete p125 point count.  Raw brackets
-and their limitations are recorded in
+On the retained same-host optimized runs with four preparation workers, level
+29 prepared in 0.326 seconds.  Its persisted 1.17 MB context loaded in 33.9 ms;
+the two independently checked exact residues remained `23 mod 29` and
+`12 mod 29`.  Higher preparation-only brackets were 5.08 seconds and 35.65 MB
+at level 101, and 28.40 seconds and 124.99 MB at level 157.  The level-29,
+level-101, and level-157 context SHA-256 values are byte-identical to contexts
+made before the arithmetic optimization, providing a deterministic
+coefficient-level differential in addition to the level-29 Schoof checks.
+
+The retained pre-basis same-binary level-29 preparation took 19.97 seconds;
+the current result is about 61x faster.  A retained intermediate level-101
+build took 33.82 seconds, about 6.7x the current time.  These are local
+engineering brackets, not crossover or certificate-yield measurements, and
+they still do not constitute a complete p125 point count.  Raw historical
+brackets and their limitations are recorded in
 [the compaction note](docs/direct_context_compaction.md) and
 [the cache note](docs/direct_context_cache.md).
 

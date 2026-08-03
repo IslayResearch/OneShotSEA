@@ -1,0 +1,128 @@
+{
+  "accepted": true,
+  "certificate_count": 0,
+  "contiguous_start": 1000827,
+  "curve_index_identity": {
+    "curve_family": "x1-27",
+    "schema": "oneshotsea.curve-index-identity.v1",
+    "x1_require_point_four": true
+  },
+  "duplicate_assignment_count": 128,
+  "first_gap": 1001551,
+  "identity": {
+    "binary_sha256": "550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737",
+    "deployment_commit": "550815e0013361f5eee4cdb6b044f5cec1a9ae2c",
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5"
+  },
+  "intentional_overlaps": [
+    {
+      "count": 128,
+      "end": 1000955,
+      "reason": "the production epoch intentionally repeated the accepted topology ranges",
+      "sources": [
+        "main",
+        "topology"
+      ],
+      "start": 1000827
+    }
+  ],
+  "ledger_sha256": "78071591e3a4435c6a252b57526abd140dcbf7df2e68a6ef6e82b51b2e6fd289",
+  "schedule_sha256s": [
+    "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+    "84d0f0544f3ec7a15ccd357a7833a0bd635e6f732215db5d8303fbc91e4edf31"
+  ],
+  "schema": "oneshotsea.search-coverage-audit.v1",
+  "sources": [
+    {
+      "assigned_count": 128,
+      "certificate_count": 0,
+      "duplicate_count": 0,
+      "fresh_count": 128,
+      "intervals": [
+        {
+          "end": 1000891,
+          "start": 1000827
+        },
+        {
+          "end": 1000955,
+          "start": 1000891
+        }
+      ],
+      "kind": "topology_audit",
+      "label": "topology",
+      "path": "artifacts/runpod/p125-topology-gate-550815e-20260803a/result.json",
+      "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+      "sha256": "b1172806c432ab894e4f2c17bb904db49be91be951a12acc093af7e7c17a2c86"
+    },
+    {
+      "assigned_count": 546,
+      "certificate_count": 0,
+      "duplicate_count": 128,
+      "fresh_count": 418,
+      "intervals": [
+        {
+          "end": 1001189,
+          "start": 1000827
+        },
+        {
+          "end": 1001373,
+          "start": 1001189
+        }
+      ],
+      "kind": "runpod_search_audit",
+      "label": "main",
+      "path": "artifacts/runpod/p125-production-dual8-550815e-20260803a/audit-result.json",
+      "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+      "sha256": "ea54c4fd31c6a74ff428c473eb4822bdbe226fbddb2d58533f071f94523a1509"
+    },
+    {
+      "assigned_count": 1,
+      "certificate_count": 0,
+      "duplicate_count": 0,
+      "fresh_count": 1,
+      "intervals": [
+        {
+          "end": 1001374,
+          "start": 1001373
+        }
+      ],
+      "kind": "runpod_search_audit",
+      "label": "recovery",
+      "path": "artifacts/runpod/p125-recovery-1001373-batch15x1024-550815e-20260803a/audit-result.json",
+      "schedule_sha256": "84d0f0544f3ec7a15ccd357a7833a0bd635e6f732215db5d8303fbc91e4edf31",
+      "sha256": "4378e2ab50727d786f2f44d0dfefa52925327cb0675ec7eee82ede269501627c"
+    },
+    {
+      "assigned_count": 177,
+      "certificate_count": 0,
+      "duplicate_count": 0,
+      "fresh_count": 177,
+      "intervals": [
+        {
+          "end": 1001463,
+          "start": 1001374
+        },
+        {
+          "end": 1001551,
+          "start": 1001463
+        }
+      ],
+      "kind": "runpod_search_audit",
+      "label": "suffix",
+      "path": "artifacts/runpod/p125-production-suffix-1001374-dual8-550815e-20260803a/audit-result.json",
+      "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+      "sha256": "af9377d89533feeb4bd58646863b170379d47e09355dc239a502fd3493c01410"
+    }
+  ],
+  "total_assigned_count": 852,
+  "unique_completed_count": 724,
+  "unique_intervals": [
+    {
+      "end": 1001551,
+      "start": 1000827
+    }
+  ]
+}

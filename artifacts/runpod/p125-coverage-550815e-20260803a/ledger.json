@@ -1,0 +1,69 @@
+{
+  "schema": "oneshotsea.search-coverage-ledger.v1",
+  "identity": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "seed": "202607300000",
+    "deployment_commit": "550815e0013361f5eee4cdb6b044f5cec1a9ae2c",
+    "binary_sha256": "550c38acebb0407de4fc1021d905796798f9f18534c341a8a5b5238d34259737",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "table_manifest_sha256": "ac1fb3eafd991bccae2fcc05572108f318522b15fd6a3a164b8665c16f2d6bd5"
+  },
+  "curve_index_identity": {
+    "schema": "oneshotsea.curve-index-identity.v1",
+    "curve_family": "x1-27",
+    "x1_require_point_four": true
+  },
+  "contiguous_start": 1000827,
+  "expected_first_gap": 1001551,
+  "sources": [
+    {
+      "label": "topology",
+      "kind": "topology_audit",
+      "path": "artifacts/runpod/p125-topology-gate-550815e-20260803a/result.json",
+      "sha256": "b1172806c432ab894e4f2c17bb904db49be91be951a12acc093af7e7c17a2c86",
+      "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+      "bx_root": "artifacts/runpod/p125-topology-bx-550815e-20260803a/ohfo3hbov7ot8v",
+      "ax_root": "artifacts/runpod/p125-topology-ax-550815e-20260803a/ohfo3hbov7ot8v",
+      "ay_root": "artifacts/runpod/p125-topology-ay-550815e-20260803a/ohfo3hbov7ot8v",
+      "by_root": "artifacts/runpod/p125-topology-by-550815e-20260803a/ohfo3hbov7ot8v",
+      "build_provenance": "artifacts/runpod/p125-topology-gate-550815e-20260803a/build-provenance.json",
+      "binary": "artifacts/runpod/p125-runpod-cpu16-replay-550815e-20260802a/ohfo3hbov7ot8v/binaries/candidate.bin",
+      "source_repo": "."
+    },
+    {
+      "label": "main",
+      "kind": "runpod_search_audit",
+      "path": "artifacts/runpod/p125-production-dual8-550815e-20260803a/audit-result.json",
+      "sha256": "ea54c4fd31c6a74ff428c473eb4822bdbe226fbddb2d58533f071f94523a1509",
+      "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+      "audit_root": "artifacts/runpod/p125-production-dual8-550815e-20260803a/ohfo3hbov7ot8v",
+      "audit_profile": "artifacts/runpod/p125-production-dual8-550815e-20260803a/audit-profile.json"
+    },
+    {
+      "label": "recovery",
+      "kind": "runpod_search_audit",
+      "path": "artifacts/runpod/p125-recovery-1001373-batch15x1024-550815e-20260803a/audit-result.json",
+      "sha256": "4378e2ab50727d786f2f44d0dfefa52925327cb0675ec7eee82ede269501627c",
+      "schedule_sha256": "84d0f0544f3ec7a15ccd357a7833a0bd635e6f732215db5d8303fbc91e4edf31",
+      "audit_root": "artifacts/runpod/p125-recovery-1001373-batch15x1024-550815e-20260803a/ohfo3hbov7ot8v",
+      "audit_profile": "artifacts/runpod/p125-recovery-1001373-batch15x1024-550815e-20260803a/audit-profile.json"
+    },
+    {
+      "label": "suffix",
+      "kind": "runpod_search_audit",
+      "path": "artifacts/runpod/p125-production-suffix-1001374-dual8-550815e-20260803a/audit-result.json",
+      "sha256": "af9377d89533feeb4bd58646863b170379d47e09355dc239a502fd3493c01410",
+      "schedule_sha256": "1721cf2a6cba0287e9247e859cb0fa923166f4b3feb18d37d5428d2dd3e45a1b",
+      "audit_root": "artifacts/runpod/p125-production-suffix-1001374-dual8-550815e-20260803a/ohfo3hbov7ot8v",
+      "audit_profile": "artifacts/runpod/p125-production-suffix-1001374-dual8-550815e-20260803a/audit-profile.json"
+    }
+  ],
+  "intentional_overlaps": [
+    {
+      "sources": ["main", "topology"],
+      "start": 1000827,
+      "end": 1000955,
+      "reason": "the production epoch intentionally repeated the accepted topology ranges"
+    }
+  ]
+}

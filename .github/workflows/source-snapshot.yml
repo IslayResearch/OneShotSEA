@@ -1,0 +1,28 @@
+name: Current main source snapshot
+
+on:
+  push:
+    branches:
+      - "agent/full-sea-ab-current-main"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pack exact source snapshot
+        run: tar --exclude=.git -czf /tmp/oneshotsea-current-main.tgz .
+
+      - name: Upload exact source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: oneshotsea-current-main-${{ github.sha }}
+          path: /tmp/oneshotsea-current-main.tgz
+          compression-level: 0
+          retention-days: 1

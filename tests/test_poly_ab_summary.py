@@ -17,6 +17,8 @@ class PolyAbSummaryTests(unittest.TestCase):
         self, directory: Path, label: str = "fixture",
         frobenius_timings=None,
     ) -> None:
+        build_commands_sha256 = hashlib.sha256(b"true\n").hexdigest()
+        build_log_sha256 = hashlib.sha256(b"build ok\n").hexdigest()
         (directory / "ENVIRONMENT.txt").write_text(
             "schema=oneshotsea.p125-poly-isolated-ab.v1\n"
             f"label={label}\n"
@@ -24,8 +26,8 @@ class PolyAbSummaryTests(unittest.TestCase):
             "source_tracked_diff_clean=true\n"
             f"retained_baseline_sha256={hashlib.sha256(b'baseline').hexdigest()}\n"
             f"retained_candidate_sha256={hashlib.sha256(b'candidate').hexdigest()}\n"
-            f"build_commands_sha256={hashlib.sha256(b'true\n').hexdigest()}\n"
-            f"build_log_sha256={hashlib.sha256(b'build ok\n').hexdigest()}\n"
+            f"build_commands_sha256={build_commands_sha256}\n"
+            f"build_log_sha256={build_log_sha256}\n"
         )
         (directory / "COMMANDS.sh").write_text("true\n")
         (directory / "BUILD_COMMANDS.sh").write_bytes(b"true\n")

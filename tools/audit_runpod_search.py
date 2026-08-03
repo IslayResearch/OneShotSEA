@@ -1609,6 +1609,16 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
         value["successful_scan_chunk_size_histogram"], label + " smooth histogram")
     if sum(histogram.values()) != parsed["successful_cache_scan_chunks"]:
         raise AuditError("{} smooth histogram does not cover scan chunks".format(label))
+    histogram_orders = sum(orders * chunks for orders, chunks in histogram.items())
+    if histogram_orders > parsed["submitted_orders"] or (
+        parsed["failed_requests"] == 0 and parsed["cancelled_requests"] == 0 and
+        histogram_orders != parsed["submitted_orders"]
+    ):
+        raise AuditError("{} smooth histogram order total differs".format(label))
+    if max(histogram, default=0) != parsed[
+        "max_orders_per_successful_scan_chunk_in_any_cohort"
+    ]:
+        raise AuditError("{} smooth histogram maximum differs".format(label))
     cohorts = value["cohorts"]
     if not isinstance(cohorts, list) or len(cohorts) != parsed["coordinator_count"]:
         raise AuditError("{} smooth cohort count differs".format(label))
@@ -1636,11 +1646,34 @@ def _validate_smooth_batch(value: Any, label: str) -> Dict[str, int]:
             parsed_cohort["cancelled_requests"]
         ):
             raise AuditError("{} smooth cohort counters do not balance".format(label))
+        processed_requests = (
+            parsed_cohort["completed_requests"] + parsed_cohort["failed_requests"])
+        if parsed_cohort["coordinator_batches"] > processed_requests:
+            raise AuditError("{} smooth cohort has too many batches".format(label))
+        if parsed_cohort["max_queued_requests"] > parsed_cohort["submitted_requests"]:
+            raise AuditError("{} smooth cohort queue maximum is impossible".format(label))
+        if parsed_cohort["max_requests_per_batch"] > processed_requests or (
+            parsed_cohort["max_requests_per_batch"] >
+            parsed_cohort["max_queued_requests"]
+        ):
+            raise AuditError("{} smooth cohort batch maximum is impossible".format(label))
         one_histogram = histogram_counts(
             cohort["successful_scan_chunk_size_histogram"],
             "{} smooth cohort {} histogram".format(label, number))
         if sum(one_histogram.values()) != parsed_cohort["successful_cache_scan_chunks"]:
             raise AuditError("{} smooth cohort histogram does not cover scan chunks".format(label))
+        one_histogram_orders = sum(
+            orders * chunks for orders, chunks in one_histogram.items())
+        if one_histogram_orders > parsed_cohort["submitted_orders"] or (
+            parsed_cohort["failed_requests"] == 0 and
+            parsed_cohort["cancelled_requests"] == 0 and
+            one_histogram_orders != parsed_cohort["submitted_orders"]
+        ):
+            raise AuditError("{} smooth cohort histogram order total differs".format(label))
+        if max(one_histogram, default=0) != parsed_cohort[
+            "max_orders_per_successful_scan_chunk"
+        ]:
+            raise AuditError("{} smooth cohort histogram maximum differs".format(label))
         for orders, chunks in one_histogram.items():
             cohort_histogram[orders] = cohort_histogram.get(orders, 0) + chunks
     additive = (

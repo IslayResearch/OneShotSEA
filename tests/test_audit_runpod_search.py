@@ -821,6 +821,36 @@ class RunPodSearchAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(search_audit.AuditError, "does not cover"):
             search_audit._validate_smooth_batch(forged, "forged recovery")
 
+        forged = json.loads(json.dumps(batch))
+        forged["submitted_orders"] = "1"
+        forged["cohorts"][0]["submitted_orders"] = "1"
+        with self.assertRaisesRegex(search_audit.AuditError, "order total differs"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
+        forged = json.loads(json.dumps(batch))
+        forged["max_orders_per_successful_scan_chunk_in_any_cohort"] = "1"
+        forged["cohorts"][0]["max_orders_per_successful_scan_chunk"] = "1"
+        with self.assertRaisesRegex(search_audit.AuditError, "histogram maximum differs"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
+        forged = json.loads(json.dumps(batch))
+        forged["coordinator_batches"] = "999"
+        forged["cohorts"][0]["coordinator_batches"] = "999"
+        with self.assertRaisesRegex(search_audit.AuditError, "too many batches"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
+        forged = json.loads(json.dumps(batch))
+        forged["max_queued_requests_in_any_cohort"] = "999"
+        forged["cohorts"][0]["max_queued_requests"] = "999"
+        with self.assertRaisesRegex(search_audit.AuditError, "queue maximum"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
+        forged = json.loads(json.dumps(batch))
+        forged["max_requests_per_batch_in_any_cohort"] = "999"
+        forged["cohorts"][0]["max_requests_per_batch"] = "999"
+        with self.assertRaisesRegex(search_audit.AuditError, "batch maximum"):
+            search_audit._validate_smooth_batch(forged, "forged recovery")
+
     def test_certificate_requires_local_pinned_verifier_and_rejects_invalid(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

@@ -44,17 +44,19 @@ bool is_prime(std::uint64_t value) {
 
 void validate_classical_direct_levels(
     const std::vector<std::uint64_t>& levels) {
-    if (!std::is_sorted(levels.begin(), levels.end()) ||
-        std::adjacent_find(levels.begin(), levels.end()) != levels.end()) {
-        throw std::invalid_argument(
-            "classical direct levels must be strictly increasing");
-    }
+    std::vector<std::uint64_t> seen;
+    seen.reserve(levels.size());
     for (const std::uint64_t ell : levels) {
         if (ell <= 3U || ell > std::numeric_limits<unsigned>::max() ||
             !is_prime(ell)) {
             throw std::invalid_argument(
                 "classical direct schedule contains an invalid level");
         }
+        if (std::find(seen.begin(), seen.end(), ell) != seen.end()) {
+            throw std::invalid_argument(
+                "classical direct schedule contains a duplicate level");
+        }
+        seen.push_back(ell);
     }
 }
 
@@ -397,7 +399,8 @@ WeberSeaResult run_weber_sea_reference(
     bool enable_conjugate_eigenvalue_reuse,
     const std::vector<WeberSeaLevelEstimate>& level_estimates,
     const std::optional<ExactTracePrior>& trace_prior,
-    const std::optional<mpz_class>& known_source_lift) {
+    const std::optional<mpz_class>& known_source_lift,
+    const WeberSeaResult* retained_state) {
     if (curve.is_singular()) {
         throw std::invalid_argument("SEA requires a nonsingular curve");
     }
@@ -424,7 +427,37 @@ WeberSeaResult run_weber_sea_reference(
         initial_constraints.refine_exact(
             trace_prior->modulus(), trace_prior->residue());
     }
-    std::vector<mpz_class> source_lifts;
+    WeberSeaResult result = retained_state
+        ? *retained_state
+        : WeberSeaResult{
+              initial_constraints, initial_constraints, {}, {}, {}, {},
+              std::nullopt, {}};
+    if (result.constraints.prime() != curve.field().modulus() ||
+        result.effective_constraints.prime() != curve.field().modulus() ||
+        result.constraints.candidate_count() == 0 ||
+        result.effective_constraints.candidate_count() == 0) {
+        throw std::invalid_argument(
+            "retained Weber SEA state is empty or belongs to a different field");
+    }
+    if (trace_prior.has_value()) {
+        const mpz_class prior_modulus(
+            std::to_string(trace_prior->modulus()));
+        if (result.constraints.modulus() % prior_modulus != 0 ||
+            std::any_of(
+                result.constraints.residues().begin(),
+                result.constraints.residues().end(),
+                [&](const mpz_class& residue) {
+                    return mpz_fdiv_ui(residue.get_mpz_t(),
+                                       trace_prior->modulus()) !=
+                           trace_prior->residue();
+                })) {
+            throw std::invalid_argument(
+                "retained Weber SEA state does not contain the exact trace prior");
+        }
+    }
+    result.traces.reset();
+
+    std::optional<mpz_class> validated_known_source_lift;
     if (known_source_lift.has_value()) {
         const mpz_class normalized =
             curve.field().normalize(*known_source_lift);
@@ -437,14 +470,27 @@ WeberSeaResult run_weber_sea_reference(
             throw std::invalid_argument(
                 "known Weber source lift is not a normalized nonzero unramified lift of the curve j-invariant");
         }
-        source_lifts.push_back(normalized);
+        validated_known_source_lift = normalized;
+    }
+
+    std::vector<mpz_class> source_lifts;
+    if (!result.compatible_source_lifts.empty()) {
+        if (validated_known_source_lift.has_value() &&
+            std::find(result.compatible_source_lifts.begin(),
+                      result.compatible_source_lifts.end(),
+                      *validated_known_source_lift) ==
+                result.compatible_source_lifts.end()) {
+            throw std::invalid_argument(
+                "known Weber source lift contradicts the retained SEA state");
+        }
+        source_lifts = result.compatible_source_lifts;
+    } else if (validated_known_source_lift.has_value()) {
+        source_lifts.push_back(*validated_known_source_lift);
     } else {
         source_lifts =
             weber_f_lifts(curve.field(), curve.j_invariant());
     }
-    WeberSeaResult result{
-        initial_constraints, initial_constraints, {}, {}, {},
-        std::move(source_lifts), std::nullopt, {}};
+    result.compatible_source_lifts = std::move(source_lifts);
     if (result.compatible_source_lifts.empty()) {
         return result;
     }
@@ -460,8 +506,14 @@ WeberSeaResult run_weber_sea_reference(
     }
 
     for (const std::uint64_t ell : levels) {
-        if (trace_prior.has_value() &&
-            trace_prior->modulus() % ell == 0U) {
+        const mpz_class ell_integer(std::to_string(ell));
+        const bool already_attempted = std::any_of(
+            result.levels.begin(), result.levels.end(),
+            [ell](const WeberSeaLevelRecord& level) {
+                return level.ell == ell;
+            });
+        if (result.effective_constraints.modulus() % ell_integer == 0 ||
+            already_attempted) {
             continue;
         }
         const std::filesystem::path table =

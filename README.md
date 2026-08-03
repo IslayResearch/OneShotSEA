@@ -132,11 +132,12 @@ digest obtained through a trusted channel:
 Add `--sea-strategy direct-first` to try those authenticated cached levels
 from the exact curve-family trace prior before loading Weber levels. This
 nondefault policy requires the cache and a nonempty level list. A complete
-direct trace set uses the ordinary sound smoothness and certificate gates; an
-incomplete set is discarded before the unchanged Weber-first path restarts.
-Cache/authentication/evaluation errors remain hard failures. The strategy and
-cache digest are checkpoint-bound, while omitting the option preserves the
-existing Weber-first schedule identity.
+direct trace set uses the ordinary sound smoothness and certificate gates. If
+the direct set is incomplete, Weber evaluation continues the same certified
+exact/Atkin state and skips already-covered levels; it does not repeat or
+discard direct evidence. Cache/authentication/evaluation errors remain hard
+failures. The strategy and cache digest are checkpoint-bound, while omitting
+the option preserves the existing Weber-first schedule identity.
 
 Do not derive the trusted digest from the untrusted artifact at load time. The
 loader checks the whole-file digest, deterministic metadata, per-level

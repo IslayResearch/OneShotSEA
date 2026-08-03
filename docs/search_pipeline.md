@@ -106,7 +106,9 @@ classical direct tail:
 --classical-direct-max-x-candidates 1000000
 ```
 
-Levels must be distinct increasing primes greater than three. After the
+Levels must be ordered, distinct primes greater than three. Their order is
+semantic and may be chosen from a curve-independent information/cost profile.
+After the
 authenticated Weber schedule fails to fit the requested trace cap, each level
 internally derives its `D=-7*3^(2n)` suitable order and ring class polynomial,
 reconstructs `Phi_ell(j,Y)` and its X derivative by witnessed auxiliary-prime
@@ -136,16 +138,17 @@ cached direct levels toward the requested trace cap. This remains a point
 count of `pair.curve`; an X1 generator's selected curve/twist side changes the
 sign of the validated prior, not which curve is counted.
 
-Only a complete bounded direct trace set may enter the exact smoothness
-screen, which still checks both curve and twist orders. A surviving
-multi-trace set continues the same direct state at the exact cap-one gate. If
-the direct schedule is inconclusive at either gate, every mathematical part
-of that direct state is discarded and the ordinary Weber-first path restarts
-from the family prior. Direct-cache authentication, lazy-materialization, or
+Only a complete bounded trace set may enter the exact smoothness screen,
+whether completed directly or by Weber continuation; the screen still checks
+both curve and twist orders. A surviving multi-trace set continues the same
+retained state at the exact cap-one gate. If
+the direct schedule is inconclusive at either gate, the ordinary Weber pass
+continues its retained exact and independently certified Atkin constraints.
+It skips every modulus already owned by the direct state and every previously
+attempted Weber level. Direct-cache authentication, lazy-materialization, or
 mathematical exceptions are hard operational failures and never trigger this
-fallback. Thus incomplete direct constraints cannot be merged into or trusted
-by the Weber path, and a cap-N trace set cannot leak through the singleton
-certificate gate.
+continuation. A cap-N enumeration is cleared before cap-one continuation, so
+a multi-trace set still cannot leak through the singleton certificate gate.
 
 The nondefault strategy and trusted cache digest are schedule-bound, so a
 direct-first checkpoint cannot resume as Weber-first or under another cache.

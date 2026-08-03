@@ -130,7 +130,7 @@ std::vector<std::uint64_t> expected_information_per_cost_order(
     const std::vector<std::uint64_t>& increasing_levels,
     const std::vector<WeberSeaLevelEstimate>& estimates);
 
-// Increasing-level correctness runner for the checked-in Weber table set.
+// Correctness runner for the checked-in Weber table set.
 // Positive kernel evidence narrows the possible source lifts; empty/Atkin
 // levels never discard a lift. For trace_cap>1, independently certified
 // classical-j Atkin constraints at checked-in levels 5 and 7 may produce the
@@ -139,7 +139,12 @@ std::vector<std::uint64_t> expected_information_per_cost_order(
 // A known_source_lift is an optional generator witness: it must already be
 // normalized, nonzero, unramified/nonexceptional, and map to the curve's
 // exact j-invariant. Invalid witnesses are rejected rather than silently
-// falling back to lift discovery.
+// falling back to lift discovery.  A retained_state, when supplied, is copied
+// and extended transactionally at the level boundary: exact/direct Atkin
+// moduli and previously attempted Weber levels are skipped, while compatible
+// Weber source lifts are discovered before the first new table level.  This
+// permits an incomplete authenticated direct pass to continue through the
+// table schedule without discarding certified trace constraints.
 WeberSeaResult run_weber_sea_reference(
     const Curve& curve, const std::string& table_directory,
     std::uint64_t max_level, std::size_t trace_cap,
@@ -149,7 +154,8 @@ WeberSeaResult run_weber_sea_reference(
     bool enable_conjugate_eigenvalue_reuse = true,
     const std::vector<WeberSeaLevelEstimate>& level_estimates = {},
     const std::optional<ExactTracePrior>& trace_prior = std::nullopt,
-    const std::optional<mpz_class>& known_source_lift = std::nullopt);
+    const std::optional<mpz_class>& known_source_lift = std::nullopt,
+    const WeberSeaResult* retained_state = nullptr);
 
 // Extend an already-computed Weber state with a fixed set of independent,
 // exact Schoof residues. Existing exact prior/table moduli are skipped. If an
@@ -161,7 +167,7 @@ void extend_weber_sea_with_schoof_fallback(
     const SchoofFallbackProgress& progress = {});
 
 // Extend retained SEA constraints with callback-free classical direct
-// evaluations at the requested strictly increasing prime levels.  Each level
+// evaluations at the requested ordered, distinct prime levels.  Each level
 // derives its D=-7*3^(2n) order and HCP state internally.  Positive roots are
 // admitted only through BMSS/Frobenius exact residues; square-free no-root
 // specializations contribute only certified Atkin sets.  Completion for

@@ -124,10 +124,11 @@ This cached schedule may also be tried before Weber tables:
 `direct-first` requires the authenticated cache; it cannot silently prepare
 or rebuild contexts. It begins with only the exact generator-family trace
 prior. A complete result follows the normal sound smoothness and singleton
-certificate gates. Exhaustion discards the direct constraint state and
-restarts the unchanged Weber-first path, while any cache or evaluation error
-propagates as a hard failure. The strategy and digest are checkpoint-bound.
-Omitting `--sea-strategy` keeps the byte-compatible Weber-first default.
+certificate gates. If the direct schedule is incomplete, the ordinary Weber
+pass continues its exact/effective constraints and skips moduli already
+certified by the direct pass. Any cache or evaluation error propagates as a
+hard failure. The strategy and digest are checkpoint-bound. Omitting
+`--sea-strategy` keeps the byte-compatible Weber-first default.
 
 Generation and load reject files above 4 GiB by default. Larger expected
 artifacts require the explicit

@@ -55,8 +55,8 @@ struct SearchPipelineConfig {
     // The published default exhausts authenticated Weber tables before the
     // optional direct tail. Direct-first instead starts from only the exact
     // family trace prior and an authenticated cached direct schedule. If that
-    // state cannot complete the requested trace cap, it is discarded before
-    // restarting the ordinary Weber-first path.
+    // state cannot complete the requested trace cap, the ordinary Weber pass
+    // continues the same certified constraints and skips duplicate levels.
     SearchSeaStrategy sea_strategy = SearchSeaStrategy::weber_first;
     // Opt into the fixed retained-state exact-Schoof tail after all configured
     // Weber levels fail to fit the requested trace cap. This is semantic and
@@ -64,7 +64,7 @@ struct SearchPipelineConfig {
     bool enable_schoof_fallback = false;
     // Optional callback-free classical-j direct SEA tail, evaluated after the
     // authenticated Weber schedule and before exact Schoof fallback.  The
-    // strictly increasing prime list and both failure caps are semantic and
+    // ordered, distinct prime list and both failure caps are semantic and
     // are bound into the resumable schedule identity.  An empty list retains
     // the published table-backed behavior.
     std::vector<std::uint64_t> classical_direct_levels;

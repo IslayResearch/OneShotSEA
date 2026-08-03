@@ -544,6 +544,14 @@ void test_prepared_classical_context_equivalence() {
     check(!serial_failure.empty() && parallel_failure == serial_failure,
           "parallel preparation reports the same lowest-index surface failure as serial preparation");
 
+    const auto measured_order_context =
+        oneshotsea::make_classical_direct_sea_context(
+            field, {11U, 7U}, 100000U, 1000000U);
+    check(measured_order_context.levels() ==
+              std::vector<std::uint64_t>({11U, 7U}) &&
+              measured_order_context.prepared_context_count() == 0U,
+          "prepared direct context preserves a lazy measured-cost level order");
+
     const oneshotsea::Field wrong_field(197);
     check(rejects([&] {
               static_cast<void>(
@@ -563,7 +571,7 @@ void test_prepared_classical_context_equivalence() {
               rejects([&] {
                   static_cast<void>(
                       oneshotsea::make_classical_direct_sea_context(
-                          field, {11U, 7U}, 100000U, 1000000U));
+                          field, {7U, 7U}, 100000U, 1000000U));
               }) &&
               rejects([&] {
                   static_cast<void>(
@@ -675,6 +683,27 @@ void test_classical_direct_context_cache() {
                   std::filesystem::file_size(streaming_cache) &&
               streaming_build.peak_resident_context_count == 1U,
           "streaming direct-cache preparation is byte-identical and bounds level residency");
+
+    const std::vector<std::uint64_t> measured_levels{11U, 7U};
+    const std::filesystem::path measured_cache =
+        temporary.path() / "direct-measured-order.ctx";
+    const auto measured_build =
+        oneshotsea::prepare_classical_direct_context_cache(
+            field, measured_levels, prime_cap, x_cap, 2U,
+            measured_cache);
+    auto measured_loaded =
+        oneshotsea::load_classical_direct_context_cache(
+            field, measured_levels, prime_cap, x_cap, 2U,
+            measured_cache, measured_build.sha256);
+    check(measured_loaded.levels() == measured_levels &&
+              measured_build.context_count == measured_levels.size() &&
+              rejects([&] {
+                  static_cast<void>(
+                      oneshotsea::load_classical_direct_context_cache(
+                          field, {7U, 11U}, prime_cap, x_cap, 2U,
+                          measured_cache, measured_build.sha256));
+              }),
+          "authenticated direct cache preserves measured level order and rejects an order substitution");
 
     auto above_default_loaded =
         oneshotsea::load_classical_direct_context_cache(
@@ -1151,8 +1180,10 @@ void test_classical_direct_sea_runner() {
               "direct level-11 Atkin set contains the brute-force trace residue");
     }
 
+    // j=14 has a certified direct Atkin level at ell=7 and rational Weber
+    // lifts, so the hybrid test exercises a real retained-state continuation.
     const oneshotsea::Curve atkin_curve =
-        oneshotsea::short_weierstrass_curve_from_j(field, 4);
+        oneshotsea::short_weierstrass_curve_from_j(field, 14);
     const mpz_class atkin_trace =
         field.modulus() + 1 -
         oneshotsea::count_points_bruteforce(atkin_curve);
@@ -1177,6 +1208,25 @@ void test_classical_direct_sea_runner() {
           "direct SEA Atkin set contains the brute-force trace residue");
     check(atkin_state.traces.has_value(),
           "direct SEA Atkin constraint fits the requested complete trace cap");
+
+    const auto pure_weber = oneshotsea::run_weber_sea_reference(
+        atkin_curve, "data/modpoly/weber_f", 11U, 1U);
+    const auto hybrid_weber = oneshotsea::run_weber_sea_reference(
+        atkin_curve, "data/modpoly/weber_f", 11U, 1U, {}, 0U, true,
+        true, {}, std::nullopt, std::nullopt, &atkin_state);
+    check(std::none_of(
+              hybrid_weber.levels.begin(), hybrid_weber.levels.end(),
+              [](const oneshotsea::WeberSeaLevelRecord& level) {
+                  return level.ell == 7U;
+              }) &&
+              hybrid_weber.effective_constraints.modulus() % 7 == 0 &&
+              hybrid_weber.constraints.candidate_count() ==
+                  pure_weber.constraints.candidate_count() &&
+              hybrid_weber.effective_constraints.candidate_count() ==
+                  pure_weber.effective_constraints.candidate_count() &&
+              hybrid_weber.traces == pure_weber.traces &&
+              atkin_state.classical_direct_levels.size() == 1U,
+          "Weber continuation retains direct Atkin evidence, skips its duplicate level, and matches a pure Weber point count");
     const auto screen = oneshotsea::screen_order_candidates(
         atkin_state.effective_constraints, 16U, 1000,
         [](const mpz_class& order) {
@@ -1224,7 +1274,7 @@ void test_classical_direct_sea_runner() {
           "the same prepared context remains reusable after callback failure");
     check(rejects([&] {
               oneshotsea::extend_sea_with_classical_direct(
-                  elkies_curve, callback_state, {7U, 5U}, 16U,
+                  elkies_curve, callback_state, {7U, 7U}, 16U,
                   100000U, 1000000U);
           }) &&
               rejects([&] {
@@ -1232,7 +1282,7 @@ void test_classical_direct_sea_runner() {
                       elkies_curve, callback_state, {9U}, 16U,
                       100000U, 1000000U);
               }),
-          "direct SEA rejects unsorted and composite level schedules");
+          "direct SEA rejects duplicate and composite level schedules");
 }
 
 void test_minus_71_surface() {

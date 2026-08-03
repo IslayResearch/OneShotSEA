@@ -299,20 +299,19 @@ void validate_digest(const std::string& value, const char* label) {
 }
 
 void validate_classical_direct_config(const SearchPipelineConfig& config) {
-    if (!std::is_sorted(config.classical_direct_levels.begin(),
-                        config.classical_direct_levels.end()) ||
-        std::adjacent_find(config.classical_direct_levels.begin(),
-                           config.classical_direct_levels.end()) !=
-            config.classical_direct_levels.end()) {
-        throw std::invalid_argument(
-            "classical direct SEA levels must be strictly increasing");
-    }
+    std::vector<std::uint64_t> seen;
+    seen.reserve(config.classical_direct_levels.size());
     for (const std::uint64_t ell : config.classical_direct_levels) {
         if (ell <= 3U || ell > std::numeric_limits<unsigned>::max() ||
             !is_prime_u64(ell)) {
             throw std::invalid_argument(
                 "classical direct SEA schedule contains an invalid level");
         }
+        if (std::find(seen.begin(), seen.end(), ell) != seen.end()) {
+            throw std::invalid_argument(
+                "classical direct SEA schedule contains a duplicate level");
+        }
+        seen.push_back(ell);
     }
     if (!config.classical_direct_levels.empty() &&
         (config.classical_direct_maximum_prime_candidates == 0U ||
@@ -434,20 +433,6 @@ void validate_config(const SearchPipelineConfig& config,
         throw std::invalid_argument(
             "a nondefault classical direct context max file size requires an authenticated cache digest");
     }
-}
-
-std::size_t exact_level_count(const WeberSeaResult& result) {
-    return static_cast<std::size_t>(std::count_if(
-        result.levels.begin(), result.levels.end(),
-        [](const WeberSeaLevelRecord& level) { return level.exact; }));
-}
-
-std::size_t atkin_level_count(const WeberSeaResult& result) {
-    return static_cast<std::size_t>(std::count_if(
-        result.levels.begin(), result.levels.end(),
-        [](const WeberSeaLevelRecord& level) {
-            return level.atkin_projective_order.has_value();
-        }));
 }
 
 bool has_large_enough_smooth_part(
@@ -1184,9 +1169,13 @@ static SearchCurveReport process_search_curve_impl(
         }
     };
 
-    auto run_sea = [&](std::size_t trace_cap) {
+    auto run_sea = [&](std::size_t trace_cap,
+                       const WeberSeaResult* retained_state) {
         stage_start = Clock::now();
         const std::size_t pass = report.sea_passes + 1U;
+        const std::size_t retained_level_count = retained_state
+            ? retained_state->levels.size()
+            : 0U;
         const WeberSeaProgress progress = [&](const WeberSeaLevelRecord& level) {
             report.sea_level_timings.push_back({
                 pass,
@@ -1222,12 +1211,26 @@ static SearchCurveReport process_search_curve_impl(
         WeberSeaResult result = run_weber_sea_reference(
             pair.curve, config.table_directory.string(), config.max_level,
             trace_cap, progress, config.sea_threads, true, true, {},
-            trace_prior, pair.weber_f);
+            trace_prior, pair.weber_f, retained_state);
         record_sea_elapsed(elapsed_us(stage_start));
         ++report.sea_passes;
-        report.sea_levels += result.levels.size();
-        report.exact_sea_levels += exact_level_count(result);
-        report.atkin_sea_levels += atkin_level_count(result);
+        if (result.levels.size() < retained_level_count) {
+            throw std::logic_error(
+                "Weber SEA continuation lost retained level records");
+        }
+        report.sea_levels += result.levels.size() - retained_level_count;
+        report.exact_sea_levels += static_cast<std::size_t>(std::count_if(
+            result.levels.begin() +
+                static_cast<std::ptrdiff_t>(retained_level_count),
+            result.levels.end(),
+            [](const WeberSeaLevelRecord& level) { return level.exact; }));
+        report.atkin_sea_levels += static_cast<std::size_t>(std::count_if(
+            result.levels.begin() +
+                static_cast<std::ptrdiff_t>(retained_level_count),
+            result.levels.end(),
+            [](const WeberSeaLevelRecord& level) {
+                return level.atkin_projective_order.has_value();
+            }));
         report.final_exact_trace_candidate_count =
             result.constraints.candidate_count();
         report.final_trace_candidate_count =
@@ -1336,9 +1339,14 @@ static SearchCurveReport process_search_curve_impl(
             }
             ++report.direct_first_fallbacks;
             sea_execution_phase = SeaExecutionPhase::direct_first_fallback;
+            initial_weber_pass_ran = true;
+            WeberSeaResult weber = run_sea(
+                config.early_trace_cap, &direct);
+            initial_weber_fit_cap = weber.traces.has_value();
+            return weber;
         }
         initial_weber_pass_ran = true;
-        WeberSeaResult weber = run_sea(config.early_trace_cap);
+        WeberSeaResult weber = run_sea(config.early_trace_cap, nullptr);
         initial_weber_fit_cap = weber.traces.has_value();
         return weber;
     }();
@@ -1414,7 +1422,7 @@ static SearchCurveReport process_search_curve_impl(
                     ++report.direct_first_fallbacks;
                     sea_execution_phase =
                         SeaExecutionPhase::direct_first_fallback;
-                    sea = run_sea(1U);
+                    sea = run_sea(1U, nullptr);
                     if (!sea.traces.has_value()) {
                         extend_classical_direct(sea, 1U);
                     }
@@ -1425,7 +1433,10 @@ static SearchCurveReport process_search_curve_impl(
                 }
             } else {
                 if (initial_weber_fit_cap) {
-                    sea = run_sea(1U);
+                    sea = config.sea_strategy ==
+                                  SearchSeaStrategy::direct_first
+                        ? run_sea(1U, &sea)
+                        : run_sea(1U, nullptr);
                 }
                 if (!sea.traces.has_value()) {
                     extend_classical_direct(sea, 1U);
@@ -1440,7 +1451,7 @@ static SearchCurveReport process_search_curve_impl(
             // same state. Repeating the full table pass would add no evidence.
             extend_schoof(sea, 1U);
         } else {
-            sea = run_sea(1U);
+            sea = run_sea(1U, nullptr);
         }
         if (!sea.traces.has_value()) {
             report.status = SearchCurveStatus::sea_level_limit;
@@ -2456,7 +2467,7 @@ std::string search_schedule_sha256(
               << '\n';
     if (config.sea_strategy == SearchSeaStrategy::direct_first) {
         canonical
-            << "sea_strategy=authenticated-direct-prior-then-discarded-state-weber-fallback-v1\n";
+            << "sea_strategy=authenticated-direct-prior-then-retained-state-weber-continuation-v2\n";
     }
     if (!config.classical_direct_levels.empty()) {
         canonical << "classical_direct_tail="

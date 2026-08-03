@@ -671,9 +671,17 @@ void test_search_uses_classical_direct_tail_after_weber_completion() {
                   tighter_cap_identity.schedule_sha256,
           "direct policy, level list, and execution caps are schedule-bound");
 
+    oneshotsea::SearchPipelineConfig measured_order = config;
+    measured_order.classical_direct_levels = {11U, 7U};
+    const auto measured_order_identity = oneshotsea::make_search_identity(
+        measured_order, {1, 2}, 0, 1, digest, digest,
+        "direct-tail-pipeline-test-v1");
+    check(measured_order_identity.schedule_sha256 !=
+              direct_identity.schedule_sha256,
+          "measured direct-level order is accepted and schedule-bound");
+
     for (const std::vector<std::uint64_t>& invalid_levels :
-         {std::vector<std::uint64_t>{11U, 7U},
-          std::vector<std::uint64_t>{7U, 7U},
+         {std::vector<std::uint64_t>{7U, 7U},
           std::vector<std::uint64_t>{9U}}) {
         oneshotsea::SearchPipelineConfig invalid = config;
         invalid.classical_direct_levels = invalid_levels;
@@ -1048,6 +1056,16 @@ void test_checkpoint_bound_direct_first_strategy() {
               fallback.report.timings.direct_first_us != 0U &&
               fallback.report.timings.direct_first_fallback_us != 0U &&
               fallback.report.sea_passes != 0U &&
+              fallback.report.classical_direct_levels.size() == 1U &&
+              !fallback.report.sea_level_timings.empty() &&
+              std::none_of(
+                  fallback.report.sea_level_timings.begin(),
+                  fallback.report.sea_level_timings.end(),
+                  [](const oneshotsea::SearchSeaLevelTiming& level) {
+                      return level.ell == 5U;
+                  }) &&
+              fallback.report.sea_level_timings.front()
+                      .constraint_modulus % 5 == 0 &&
               fallback.report.status == generated_weber.status &&
               fallback.report.outcome.terminal_stage ==
                   generated_weber.outcome.terminal_stage &&
@@ -1056,7 +1074,7 @@ void test_checkpoint_bound_direct_first_strategy() {
               fallback.report.outcome.reached_smoothness_testing ==
                   generated_weber.outcome.reached_smoothness_testing &&
               fallback.report.exact_trace == generated_weber.exact_trace,
-          "inconclusive cached direct state is discarded before a semantically equivalent Weber-first restart");
+          "inconclusive cached direct state is retained across a semantically equivalent duplicate-skipping Weber continuation");
 
     oneshotsea::SearchPipelineConfig direct_identity_config = fallback_config;
     direct_identity_config.sea_threads = 1U;

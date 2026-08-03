@@ -1,277 +1,213 @@
-# OneShotSEA: direct SEA specialization
+# OneShotSEA: custom direct-SEA branch
 
-This branch develops the part of OneShotSEA that must replace finite
-modular-polynomial tables if the one-shot primality search is to scale past
-the current catalog.  It is a correctness-first implementation of
-Sutherland-style direct modular-polynomial evaluation, specialized to the two
-univariate polynomials that SEA actually consumes:
+This branch adds a target-table-free SEA path to the existing one-shot
+primality-proof search.  Its main deliverable is a classical `j` evaluator for
 
 ```text
-Phi_ell(x,Y)       and       d/dX Phi_ell(x,Y).
+Phi_ell(j,Y)       and       d/dX Phi_ell(j,Y)
 ```
 
-The current milestone includes a callback-free classical `j` specialization
-for the suitable family `D=-7*3^(2n)`, a bounded multi-level SEA runner that
-retains exact Elkies and certified Atkin constraints, and independent
-differential tests.  It also reaches sign-consistent auxiliary-field Weber
-specialization at level 5, but that faster path still relies on caller-supplied
-Weber class state and does **not** yet have a proved Weber coefficient-height
-bound.
+that constructs only the two univariate specializations SEA needs.  It uses
+the CRT/isogeny-volcano algorithms of Bröker--Lauter--Sutherland and
+Sutherland, rather than calling PARI/GP, Magma, Sage, or an external SEA
+implementation.
 
-This is not yet the production point counter and it does not claim a new
-`nextprime(10^125)` certificate.  The inherited search program still uses its
-authenticated target-level Weber catalog.
+The evaluator is wired into `oneshotsea search` as an **opt-in, identity-bound
+tail** after the authenticated Weber-table levels and before the optional
+Schoof fallback.  It retains the existing SEA state, so a curve that survives
+the early smoothness screen continues without repeating earlier levels.
 
-## What this branch implements
+This is a reviewable implementation milestone, not a claim that the full
+large-prime search is finished.  In particular:
 
-For one SEA level `ell`, the new path now performs these steps:
+- the default search remains table-backed;
+- no new `nextprime(10^125)` certificate is claimed here;
+- the classical direct path is working and independently tested at levels 5,
+  7, and 11 on the 416-bit `p125` fixture;
+- the faster Weber direct path is only partially implemented and is not yet
+  admitted as a production trust anchor; and
+- the intended `p^(1/8+o(1))` search scaling is a conditional heuristic, not a
+  benchmark result established by this repository.
 
-1. Select the cited `D=-7*3^(2n)` classical family directly, or discover a
-   general suitable order, then independently validate every Definition 1
-   predicate and its class number.
-2. Select deterministically proved 64-bit auxiliary primes with retained
-   `(p,t,v,D)` witnesses satisfying
+## Branch delta
 
-   ```text
-   4p = t^2 - ell^2 v^2 D.
-   ```
-
-3. Derive the classical `H_O mod p` internally from fixed exact `Phi_3`
-   ring-class resultants, with exact ascending-factor division and degree
-   checks.
-4. Compute powers in the target field first and lift their canonical integer
-   representatives, as required by the direct-evaluation algorithm.
-5. Require complete square-free HCP splitting,
-   choose the unique trace-signed twist for every surface root, and check the
-   expected horizontal/descending edge counts.
-6. Enumerate all `ell+1` rational cyclic kernels and construct every Vélu
-   quotient over the auxiliary field without consulting `Phi_ell`.
-7. Validate a supplied Weber surface class polynomial, use authenticated small
-   Weber relations other than the target level to connect both torsors, and
-   require exactly two globally opposite floor orientations.
-8. Select the unique relative surface/floor sign whose interpolated
-   `X^ell Y^ell` coefficient is `-1`; zero or two matches fail closed.
-9. Build each signed neighbor polynomial and apply only the two Lagrange linear
-   functionals needed for `Phi_ell(x,Y)` and its X derivative.  The producer
-   never constructs or loads the bivariate target-level modular polynomial.
-10. Stream checked residues into exact centered CRT reconstruction, with strict
-   coverage, normalization, and coefficient-bound checks.  The classical `j`
-   wrapper derives its bound directly from Sutherland's theorem using exact
-   integer arithmetic; Weber remains gated on a normalization-specific proof.
-11. Feed a classical specialization directly into normalized-codomain, BMSS
-    isogeny reconstruction, and Frobenius eigenvalue validation without
-    recovering a bivariate table; when it has no root, certify the Atkin
-    projective order from its square-free equal-degree factorization.
-12. Extend retained SEA state over a bounded, strictly increasing level list,
-    stopping only when its exact constraints—or its exact plus certified Atkin
-    constraints for a bounded screen—cover the requested Hasse trace cap.
-
-The 416-bit `p125` fixture runs the callback-free classical path at levels 5,
-7, and 11.  It reconstructs from 34, 37, and 43 witnessed auxiliary primes and
-returns independently checked trace residues 3, 5, and 10, respectively.
-Their exact modulus is 385, which is deliberately reported as incomplete for
-unique trace recovery.  A small-field no-root fixture independently checks the
-level-7 Atkin set.  The Weber level-5 fixture exercises the signed auxiliary
-producer.  On the current local fixture, levels 5, 7, and 11 take roughly
-0.18 s, 0.51 s, and 2.59 s (about 3.3 s total); these are engineering samples,
-not an asymptotic benchmark.
-
-## Current boundary
-
-| Component | State |
+| Area | What this branch adds |
 |---|---|
-| Three-power classical suitable order | Implemented directly for every `ell>3` |
-| General suitable-order discovery and validation | Implemented, bounded, and deterministic |
-| Witnessed auxiliary-prime selection | Implemented for proved 64-bit primes |
-| Target-field power lifting | Implemented |
-| Complete rational-kernel enumeration and Vélu quotients | Implemented |
-| Complete CM `j` surface/floor admission and trace-sign selection | Implemented |
-| Fixed-`Phi_3` classical HCP generation mod each auxiliary prime | Implemented for `D=-7*3^(2n)` |
-| Callback-free classical `j` specialization, CRT, and BMSS/Frobenius consumer | Implemented and differentially tested at `ell=5,7,11` on `p125` |
-| Direct classical Atkin/no-root certification | Implemented and differentially tested at `ell=7` |
-| Bounded retained-state classical SEA runner | Implemented with exact/Atkin trace caps and transactional progress |
-| Signed, target-table-free Weber residue | Implemented and differentially tested at `ell=5`, from caller-supplied class/orientation state |
-| Exact CRT reconstruction | Implemented and corruption-tested |
-| Proved classical Algorithm 1 coefficient bound | Implemented without floating-point logarithms |
-| Weber class-polynomial generation and authentication | Not implemented; current Weber API validates caller-supplied state |
-| Authentication/selection of small Weber orientation relations | Not wired to the pinned catalog trust type |
-| Proved normalization-specific Weber height bound | Not implemented |
-| Production search-pipeline replacement of the table catalog | Not enabled |
-| Unbounded search or new `p125` certificate | Not demonstrated |
+| Direct modular-polynomial evaluation | Suitable-order selection, witnessed auxiliary primes, target-field lifting, isogeny-volcano interpolation, and exact centered CRT reconstruction without a target-level bivariate table |
+| Classical CM surface construction | Internally derived `D=-7*3^(2n)` ring class polynomials from fixed exact `Phi_3` resultants, complete surface admission, and Vélu enumeration of all `ell+1` cyclic quotients |
+| SEA consumption | Direct BMSS/Frobenius Elkies residues and certified Atkin factor-degree constraints |
+| Retained-state runner | Strict increasing direct-level schedules, exact-versus-Atkin completion rules, transactional progress, and sound bounded early screening |
+| Production integration | Optional classical direct tail, checkpoint/schedule binding, live and retained telemetry, and continuation from table evidence without a second table pass |
+| Independent validation | Differential table oracles, independent division-polynomial and Vélu checks, independent Schoof congruences, progress replay, corruption tests, and sanitizer coverage |
 
-“Target-table-free” here refers to the native auxiliary-prime producer.  It
-uses a small target-independent `Phi_37^f` relation to propagate signs and
-explicitly rejects `Phi_5^f` as orientation input.  Tests load authenticated
-classical and Weber `Phi_5` tables only as independent oracles and demand
-coefficient-for-coefficient agreement; production code does not use those
-oracles.
+The inherited curve generators, smoothness engine, certificate builder,
+canonical verifier, checkpointing, and cloud scripts are integration context;
+they are not reimplemented by this branch.
 
 ## Build and validate
 
-The native build requires a C++20 compiler and GMP.  Run the branch-focused
-tests with:
+The native build requires a C++20 compiler and GMP.
 
 ```sh
-make test-direct-modpoly test-prime-isogeny test-cm-surface
+/usr/bin/make -j4
+/usr/bin/make \
+  test-direct-modpoly \
+  test-prime-isogeny \
+  test-cm-surface \
+  test-search-pipeline \
+  test-cli \
+  test-progress-audit \
+  test-x1-27-probe
 ```
 
-These tests independently check:
-
-- suitable orders at every odd prime level through 997, including agreement
-  between two class-number computations and explicit cap failures;
-- both trace-parity branches and every retained `(p,t,v,D)` equation;
-- rejection of composites, a strong pseudoprime, duplicates, malformed
-  residues, insufficient CRT coverage, and inputs outside the proved range;
-- exact reconstruction over `F_1009` and the 416-bit `p125` field;
-- all six level-5 cyclic kernels on two unrelated CM fixtures, using an
-  independent division-polynomial kernel path and an independent Vélu
-  coefficient computation;
-- complete splitting of `H_-71 mod 1811`, the seven expected surface
-  invariants, unique trace-sign admission, and two horizontal plus four
-  descending edges at every interpolation point;
-- exact reproduction of `H_-567 mod 27847` from the fixed `Phi_3` tower,
-  including the ramified level-7 surface with one horizontal and seven
-  descending edges, plus final multi-prime CRT and positive trace-residue
-  agreement with the independent `Phi_7` path;
-- complete 416-bit `p125` reconstruction at levels 5, 7, and 11 from 34, 37,
-  and 43 witnessed primes, with exact BMSS/Frobenius residues 3, 5, and 10 and
-  agreement against full-table paths at levels 5 and 7 and the independent
-  Schoof characteristic equation at level 11;
-- direct level-7 no-root classification over `F_193`, with the same certified
-  Atkin projective order and trace-residue set as the full-table oracle;
-- retained-state runner behavior, including strict schedules, no duplicate
-  work, exact-versus-Atkin completion rules, transactional callbacks, and a
-  complete direct-Atkin trace set accepted by the sound early-screen API; and
-- exact agreement of the native classical and signed Weber value/X-derivative
-  residues with authenticated `Phi_5` oracles on every lifted-power basis
-  probe, including fail-closed tests for
-  insufficient torsor generators, mixed surface signs, duplicate relations,
-  and attempted use of the target-level table.
-
-The inherited integration, Atkin, eigenvalue, search, certificate, and verifier
-tests remain available through `make test-all`.  Magma can optionally be used
-as a separate point-count oracle:
+`make test-all` also runs the inherited repository-wide suite.  Magma is an
+optional, separate point-count oracle:
 
 ```sh
-MAGMA=/path/to/magma make test-all
+MAGMA=/path/to/magma /usr/bin/make test-all
 ```
 
-Magma, Sage, PARI/GP, and external SEA implementations are not called by the
-native producer.
+The focused tests cover both positive results and fail-closed behavior,
+including malformed witnesses, insufficient CRT coverage, incomplete CM
+surfaces, mixed signs, duplicate relations, bad schedules, identity mutation,
+and incomplete point counts.
 
-## Soundness boundary
+## Use the production tail
 
-A positive Elkies result has strong downstream BMSS-isogeny and Frobenius
-checks.  An Atkin/no-root classification cannot carry the same local witness,
-so it depends directly on the authenticity of the specialization.  For that
-reason, the new path fails closed.  The classical three-power route now has an
-internally derived class polynomial and proved coefficient bound, but remains
-outside the production point counter until broader level/scale validation and
-integration are complete.  The Weber wrapper additionally awaits a proved
-normalization-specific height and authenticated class/relation provenance.
+Add an increasing list of distinct primes greater than three to a normal
+`oneshotsea search` command:
 
-Search heuristics may reorder work, but they may not reject curves.  A
-smoothness early abort is sound only after the complete Hasse-compatible trace
-set has been enumerated and both the curve and twist orders have been checked.
+```sh
+./build/oneshotsea search \
+  ...existing search arguments... \
+  --classical-direct-levels 7,11 \
+  --classical-direct-max-prime-candidates 1000000 \
+  --classical-direct-max-x-candidates 1000000
+```
+
+The direct policy version, ordered level list, and both failure caps are
+included in the schedule digest.  Changing them invalidates an existing
+checkpoint.  Exhausting a cap is reported as an implementation limit; it is
+never treated as a mathematical rejection.
+
+Per-level direct records include the suitable-order discriminant and class
+number, auxiliary-prime count, exact residue or Atkin projective order,
+accumulated exact/effective moduli and trace-candidate counts, and elapsed
+time.  Given an independently obtained final trace, replay table and direct
+evidence with:
+
+```sh
+python3 tools/audit_sea_progress.py \
+  --progress runs/p125/worker-0.ndjson \
+  --index GLOBAL_INDEX \
+  --trace INDEPENDENT_TRACE
+```
+
+See [the search-pipeline guide](docs/search_pipeline.md) for the complete
+command, checkpoint trust model, telemetry schema, and operational limits.
+
+## Evidence currently in the repository
+
+- On the 416-bit `p125` fixture, the callback-free classical path reconstructs
+  levels 5, 7, and 11 from 34, 37, and 43 witnessed auxiliary primes and
+  obtains trace residues 3, 5, and 10.  The level-11 result is checked against
+  an independent Schoof characteristic equation; levels 5 and 7 also agree
+  coefficient-for-coefficient with authenticated full-table paths.
+- The resulting exact modulus is only `385`, so the fixture deliberately
+  remains incomplete for unique trace recovery.  The code does not turn this
+  partial evidence into a certificate.
+- A small-field level-7 no-root fixture agrees with an independent full-table
+  oracle on both the Atkin projective order and its trace-residue set.
+- A production-search fixture starts with ten Hasse-compatible traces,
+  continues retained state through direct levels 7 and 11, isolates the exact
+  trace, and passes the unchanged canonical certificate verifier without a
+  repeated table pass or Schoof fallback.
+
+Local timings have been roughly 0.2 s, 0.5 s, and 2.6 s for direct levels 5,
+7, and 11 on the fixed 416-bit fixture.  These numbers identify engineering
+hot spots; they are not an asymptotic benchmark.
+
+## Correctness and trust boundary
+
+The classical path derives its class state internally and uses an exact
+integer form of the published classical coefficient-height bound.  A positive
+Elkies result is then checked by BMSS isogeny reconstruction and Frobenius.
+The no-root Atkin result has no equivalent local kernel witness, so it depends
+more directly on the reconstructed specialization; the implementation admits
+it only after square-free equal-degree factorization and fails closed on any
+inconsistency.
+
+The Weber producer is deliberately outside that production boundary.  It can
+reproduce signed level-5 residues from caller-supplied Weber class/orientation
+state, but class-polynomial authentication, orientation-relation provenance,
+and a normalization-specific coefficient-height proof remain open.
+
+Early aborts may save work but may not create false rejections.  Smoothness
+rejection is sound only after enumerating the complete Hasse-compatible trace
+set and checking both the curve and twist orders.  Atkin constraints may help
+that bounded screen, but they cannot satisfy the unique-trace gate used to
+construct a certificate.
 
 ## Asymptotic status
 
-Let `n = ceil(log2 p)`, use the verifier's smoothness bound `B=n^4`, and require
-a certified divisor of size `p^(1/2+o(1))`.  Under the usual
-Dickman--Mertens heuristic, a random curve order succeeds with probability
-`p^(-1/8+o(1))`, so the expected search is `p^(1/8+o(1))` curves.  If each SEA
-count costs only `poly(n)`, that cost is absorbed into the `o(1)` exponent.
-This is the intended advantage over the CM search term `p^(1/4+o(1))`.
+Let `n = ceil(log2 p)`, use the verifier's smoothness bound `B=n^4`, and seek a
+certified divisor of size `p^(1/2+o(1))`.  Under the usual Dickman--Mertens
+heuristic, the success probability for a random curve order is
+`p^(-1/8+o(1))`, giving `p^(1/8+o(1))` expected curves.  If each SEA point count
+costs `poly(n)`, that cost is absorbed by the `o(1)` term.  This is the intended
+advantage over the CM search term `p^(1/4+o(1))`.
 
-The branch architecture is compatible with that target: it streams
-specializations, avoids a bivariate target-level table, and uses work
-polynomial in the interpolation and CRT sizes.  The repository does not yet
-establish the repository-wide claim.  The classical family selector and
-fixed-size resultant construction are polynomial, but auxiliary primes remain
-64-bit and use the paper's unproved fixed-`v` practical selector.  Production
-benchmarks, theorem-aligned prime selection, authenticated Weber class/relation
-production, and the proved Weber height are still open.
+The current architecture is compatible with that argument: it streams
+specializations and avoids a finite target-level table catalog.  It does not
+yet prove the end-to-end scaling claim.  The practical auxiliary-prime search
+is bounded to 64-bit primes and uses the paper's heuristic fixed-`v` selector;
+large-level memory, reusable curve-independent preparation, and production
+throughput still require measurement and optimization.
 
-## Why this milestone is worth reviewing
+## Why this is worth expert review
 
-This is worth Drew's time because it is no longer a speculative scaffold: the
-novel path reaches exact SEA residues on a 416-bit target at three levels and a
-certified Atkin set on an independent small field.  The remaining risk is
-concentrated in a bounded mathematical trust boundary—CM-order selection,
-volcano construction, interpolation/CRT normalization, and Atkin
-classification—where an expert review can prevent an error from being
-amplified by later performance work or production integration.  It does not
-require reviewing the inherited search operations or accepting the claimed
-asymptotic crossover.
+The branch now crosses the useful review threshold: it produces independently
+checked SEA evidence on a 416-bit target and exercises the same retained state
+inside the production search.  Review can therefore focus on the novel,
+bounded trust boundary before performance work makes it harder to change:
 
-The concrete review questions are:
+1. suitable-order and `(p,t,v,D)` predicates;
+2. fixed-`Phi_3` ring-class resultants and exact factor removal;
+3. CM-surface admission and complete Vélu edge enumeration;
+4. interpolation normalization, target-field lifting, height bounds, and CRT;
+5. BMSS/Frobenius consumption and Atkin factor-degree certification; and
+6. retained-state completion rules, early screening, and schedule identity.
 
-1. Are the suitable-order and `(p,t,v,D)` predicates faithful to the direct
-   evaluation algorithm?
-2. Do the fixed-`Phi_3` ring-class resultants and exact factor removals produce
-   the intended `H_O mod p`, including the ramified level-7 case?
-3. Does complete HCP splitting plus unique trace-signed twist admission place
-   every interpolation curve on the intended CM surface?
-4. Are all `ell+1` kernels complete, distinct, and converted to the correct
-   Vélu codomains?
-5. Do the small Weber relations yield two global floor signs, and does the
-   `X^ell Y^ell=-1` test choose the unique correct relative orientation?
-6. Do the two interpolation functionals compute exactly the required value
-   and X-derivative channels?
-7. Are target-field lifting, strict CRT coverage, centered reconstruction, and
-   the exact-integer classical height/no-root trust boundary sound?
-8. Does square-free equal-degree factorization of a direct no-root
-   specialization certify exactly the intended Atkin trace set?
-9. Does the retained-state runner preserve the distinction between exact
-   unique-trace completion and bounded exact-plus-Atkin early screening?
+A positive review would validate the mathematical and integration core needed
+for the intended one-shot SEA search.  It would not endorse a finished Weber
+evaluator, a measured crossover point, or a new large primality certificate.
 
-If those answers are yes, the milestone validates the geometric and CRT core
-needed by the intended one-shot SEA path.  It does not ask the reviewer to
-endorse a finished Weber evaluator, the claimed asymptotic crossover, or a new
-large certificate.
+## Code and design map
 
-## Code map
+- [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp): suitable orders,
+  auxiliary-prime witnesses, target lifts, and exact CRT.
+- [`src/class_polynomial.cpp`](src/class_polynomial.cpp): three-power ring
+  class polynomials from fixed `Phi_3` resultants.
+- [`src/prime_isogeny.cpp`](src/prime_isogeny.cpp): auxiliary-field point
+  arithmetic, rational cyclic kernels, and Vélu quotients.
+- [`src/cm_surface.cpp`](src/cm_surface.cpp): classical surface enumeration and
+  direct specialization.
+- [`src/weber_cm_surface.cpp`](src/weber_cm_surface.cpp): experimental signed
+  Weber specialization.
+- [`src/sea.cpp`](src/sea.cpp): direct levels, Elkies/Atkin consumption, and
+  retained-state completion.
+- [`src/search_pipeline.cpp`](src/search_pipeline.cpp) and
+  [`src/main.cpp`](src/main.cpp): production-tail integration, identity, CLI,
+  and telemetry.
+- [`tools/audit_sea_progress.py`](tools/audit_sea_progress.py): independent
+  replay of table and direct SEA records.
+- [Direct CRT producer design](docs/explicit_crt_producer.md)
+- [SEA design and proof obligations](docs/sea_design.md)
+- [Production search pipeline](docs/search_pipeline.md)
 
-- [`include/oneshotsea/direct_modpoly.hpp`](include/oneshotsea/direct_modpoly.hpp)
-  and [`src/direct_modpoly.cpp`](src/direct_modpoly.cpp): checked orders,
-  auxiliary primes, target lifts, residue contracts, and exact CRT.
-- [`include/oneshotsea/prime_isogeny.hpp`](include/oneshotsea/prime_isogeny.hpp)
-  and [`src/prime_isogeny.cpp`](src/prime_isogeny.cpp): auxiliary-field point
-  arithmetic, complete cyclic-kernel enumeration, and Vélu edges.
-- [`include/oneshotsea/class_polynomial.hpp`](include/oneshotsea/class_polynomial.hpp)
-  and [`src/class_polynomial.cpp`](src/class_polynomial.cpp): three-power
-  suitable orders and fixed-`Phi_3` ring-class resultants modulo CRT primes.
-- [`include/oneshotsea/cm_surface.hpp`](include/oneshotsea/cm_surface.hpp) and
-  [`src/cm_surface.cpp`](src/cm_surface.cpp): HCP splitting, trace-sign CM
-  admission, edge classification, and table-free interpolation.
-- [`include/oneshotsea/weber_cm_surface.hpp`](include/oneshotsea/weber_cm_surface.hpp)
-  and [`src/weber_cm_surface.cpp`](src/weber_cm_surface.cpp): signed Weber
-  torsors, relative-orientation rejection, and direct Weber residues.
-- [`include/oneshotsea/sea.hpp`](include/oneshotsea/sea.hpp) and
-  [`src/sea.cpp`](src/sea.cpp): bounded retained-state direct-level runner,
-  exact/Atkin constraints, completion rules, and progress records.
-- [`tests/test_direct_modpoly.cpp`](tests/test_direct_modpoly.cpp),
-  [`tests/test_prime_isogeny.cpp`](tests/test_prime_isogeny.cpp), and
-  [`tests/test_cm_surface.cpp`](tests/test_cm_surface.cpp): focused positive,
-  negative, and independent differential evidence.
-- [`docs/explicit_crt_producer.md`](docs/explicit_crt_producer.md): equations,
-  proof obligations, and the remaining Weber producer gate.
-- [`docs/sea_design.md`](docs/sea_design.md): the integrated SEA/search design
-  outside this branch-specific milestone.
-
-## Primary references
+## References
 
 - R. Bröker, K. Lauter, and A. Sutherland,
   [*Modular polynomials via isogeny volcanoes*](https://arxiv.org/abs/1001.0402).
 - A. Sutherland,
   [*On the evaluation of modular polynomials*](https://arxiv.org/abs/1202.3985).
-
-## Inherited production system
-
-The repository also contains the existing table-backed search, checkpoint,
-certificate, verifier, and RunPod machinery.  Those components provide the
-integration target for this work but are not the subject of this branch.
-Their contracts and operations remain documented in
-[`docs/sea_design.md`](docs/sea_design.md),
-[`docs/search_pipeline.md`](docs/search_pipeline.md), and
-[`docs/runpod.md`](docs/runpod.md).

@@ -19,6 +19,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -135,6 +136,46 @@ std::string optional_string(const std::map<std::string, std::string>& options,
     return found == options.end() ? std::move(fallback) : found->second;
 }
 
+std::vector<std::uint64_t> optional_u64_list(
+    const std::map<std::string, std::string>& options,
+    const std::string& name) {
+    const auto found = options.find(name);
+    if (found == options.end()) {
+        return {};
+    }
+    const std::string& text = found->second;
+    if (text.empty()) {
+        throw std::invalid_argument("--" + name +
+                                    " must be a comma-separated integer list");
+    }
+    std::vector<std::uint64_t> values;
+    std::size_t begin = 0U;
+    while (begin < text.size()) {
+        const std::size_t comma = text.find(',', begin);
+        const std::size_t end =
+            comma == std::string::npos ? text.size() : comma;
+        const std::string_view item(text.data() + begin, end - begin);
+        std::uint64_t value = 0U;
+        const auto parsed = std::from_chars(
+            item.data(), item.data() + item.size(), value, 10);
+        if (item.empty() || parsed.ec != std::errc{} ||
+            parsed.ptr != item.data() + item.size()) {
+            throw std::invalid_argument("--" + name +
+                                        " must be a comma-separated integer list");
+        }
+        values.push_back(value);
+        if (comma == std::string::npos) {
+            break;
+        }
+        begin = comma + 1U;
+        if (begin == text.size()) {
+            throw std::invalid_argument("--" + name +
+                                        " must not end with a comma");
+        }
+    }
+    return values;
+}
+
 void ensure_parent_directory(const std::filesystem::path& path) {
     const std::filesystem::path parent = path.parent_path();
     if (!parent.empty()) {
@@ -193,7 +234,7 @@ void usage() {
         << "  oneshotsea elkies-weber-residue --p P --a A --b B --ell L --file PATH\n"
         << "  oneshotsea elkies-division-residue --p P --a A --b B --ell L\n"
         << "  oneshotsea sea-weber-count --p P --a A --b B --max-level L --table-dir PATH --trace-cap N [--sea-threads N] [--root-orbit-reuse 0|1] [--conjugate-eigenvalue-reuse 0|1] [--prime-schedule increasing|expected-information-per-cost --level-profile PATH]\n"
-        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
+        << "  oneshotsea search --p P --seed S --range-start I --range-end J --worker-id W --worker-count N --max-level L --table-dir PATH --smooth-cache PATH --checkpoint PATH [--curve-family weber-f|x1-11|x1-27] [--x1-require-point4 0|1] [--classical-direct-levels L1,L2,...] [--classical-direct-max-prime-candidates N] [--classical-direct-max-x-candidates N] [--schoof-fallback 0|1] [--skip-incomplete-curves 0|1] [--curve-threads N] [--smooth-coordinators N] [--sea-threads N] [--sea-level-telemetry 0|1] [--max-curves N]\n"
         << "  oneshotsea modpoly --p P --a A --b B --level L --file PATH\n";
 }
 
@@ -353,6 +394,22 @@ int main(int argc, char** argv) {
                 options, "skip-incomplete-curves", 0U);
             const std::uint64_t schoof_fallback = optional_u64(
                 options, "schoof-fallback", 0U);
+            config.classical_direct_levels = optional_u64_list(
+                options, "classical-direct-levels");
+            config.classical_direct_maximum_prime_candidates = optional_u64(
+                options, "classical-direct-max-prime-candidates",
+                config.classical_direct_maximum_prime_candidates);
+            config.classical_direct_maximum_x_candidates_per_surface =
+                optional_u64(
+                    options, "classical-direct-max-x-candidates",
+                    config.classical_direct_maximum_x_candidates_per_surface);
+            if (config.classical_direct_levels.empty() &&
+                (options.contains(
+                     "classical-direct-max-prime-candidates") ||
+                 options.contains("classical-direct-max-x-candidates"))) {
+                throw std::invalid_argument(
+                    "classical direct execution caps require --classical-direct-levels");
+            }
             const std::uint64_t assembly_attempts = optional_u64(
                 options, "assembly-attempts", 400U);
             const std::uint64_t max_certificate_candidates = optional_u64(
@@ -538,6 +595,15 @@ int main(int argc, char** argv) {
                             << oneshotsea::search_sea_level_json(index, level)
                             << '\n' << std::flush;
                     };
+                run_options.classical_direct_level_callback =
+                    [](std::uint64_t index,
+                       const oneshotsea::SearchClassicalDirectLevelTiming&
+                           level) {
+                        std::cout
+                            << oneshotsea::search_classical_direct_level_json(
+                                   index, level)
+                            << '\n' << std::flush;
+                    };
             }
             std::cout << "{\"schema\":\"oneshotsea.search-start.v1\""
                       << ",\"prime\":\"" << config.prime
@@ -561,8 +627,27 @@ int main(int argc, char** argv) {
                       << "\",\"python_sha256\":\"" << python_sha
                       << "\",\"build_id\":\"" << build_id
                       << "\",\"heuristic_rejection\":"
-                      << (config.skip_incomplete_curves ? "true" : "false")
-                      << ",\"resources\":{\"smooth_threads\":\""
+                      << (config.skip_incomplete_curves ? "true" : "false");
+            if (!config.classical_direct_levels.empty()) {
+                std::cout << ",\"classical_direct\":{\"policy\":\""
+                          << oneshotsea::kClassicalDirectSeaPolicy
+                          << "\",\"levels\":[";
+                for (std::size_t index = 0U;
+                     index < config.classical_direct_levels.size(); ++index) {
+                    if (index != 0U) {
+                        std::cout << ',';
+                    }
+                    std::cout << '"' << config.classical_direct_levels[index]
+                              << '"';
+                }
+                std::cout << "],\"maximum_prime_candidates\":\""
+                          << config.classical_direct_maximum_prime_candidates
+                          << "\",\"maximum_x_candidates_per_surface\":\""
+                          << config
+                                 .classical_direct_maximum_x_candidates_per_surface
+                          << "\"}";
+            }
+            std::cout << ",\"resources\":{\"smooth_threads\":\""
                       << smooth_threads << "\",\"smooth_max_batch\":\""
                       << smooth_batch
                       << "\",\"smooth_root_auxiliary_bytes\":\""

@@ -46,6 +46,15 @@ struct SearchPipelineConfig {
     // Weber levels fail to fit the requested trace cap. This is semantic and
     // is bound into the resumable schedule identity.
     bool enable_schoof_fallback = false;
+    // Optional callback-free classical-j direct SEA tail, evaluated after the
+    // authenticated Weber schedule and before exact Schoof fallback.  The
+    // strictly increasing prime list and both failure caps are semantic and
+    // are bound into the resumable schedule identity.  An empty list retains
+    // the published table-backed behavior.
+    std::vector<std::uint64_t> classical_direct_levels;
+    std::uint64_t classical_direct_maximum_prime_candidates = 1000000U;
+    std::uint64_t classical_direct_maximum_x_candidates_per_surface =
+        1000000U;
     bool skip_incomplete_curves = false;
     // Maximum concurrent modular-root jobs inside SEA. Zero selects the
     // available CPU concurrency. This is a resource setting and deliberately
@@ -129,6 +138,24 @@ struct SearchSchoofFallbackTiming {
     std::uint64_t elapsed_us = 0;
 };
 
+struct SearchClassicalDirectLevelTiming {
+    std::size_t pass = 0;
+    std::uint64_t ell = 0;
+    bool exact = false;
+    std::optional<std::uint64_t> trace_residue;
+    mpz_class order_discriminant = 0;
+    std::uint64_t class_number = 0;
+    std::size_t auxiliary_prime_count = 0;
+    std::size_t elkies_kernel_count = 0;
+    mpz_class exact_modulus = 1;
+    mpz_class constraint_modulus = 1;
+    mpz_class exact_trace_candidate_count = 0;
+    mpz_class trace_candidate_count = 0;
+    std::optional<std::uint64_t> atkin_projective_order;
+    std::size_t atkin_residue_count = 0;
+    std::uint64_t elapsed_us = 0;
+};
+
 struct SearchCurveReport {
     std::uint64_t global_index = 0;
     SearchCurveStatus status = SearchCurveStatus::sea_level_limit;
@@ -140,6 +167,8 @@ struct SearchCurveReport {
     std::size_t sea_levels = 0;
     std::size_t exact_sea_levels = 0;
     std::size_t atkin_sea_levels = 0;
+    std::size_t classical_direct_passes = 0;
+    std::vector<SearchClassicalDirectLevelTiming> classical_direct_levels;
     std::vector<SearchSchoofFallbackTiming> schoof_fallback_levels;
     std::optional<mpz_class> final_exact_trace_candidate_count;
     std::optional<mpz_class> final_trace_candidate_count;
@@ -162,6 +191,8 @@ struct SearchCurveReport {
 // alters the durable search checkpoint.
 using SearchSeaLevelCallback =
     std::function<void(std::uint64_t, const SearchSeaLevelTiming&)>;
+using SearchClassicalDirectLevelCallback = std::function<void(
+    std::uint64_t, const SearchClassicalDirectLevelTiming&)>;
 
 // Injectable so a focused integration test can assert verifier invocation.
 // Production callers should leave this empty to invoke the unmodified script.
@@ -184,7 +215,9 @@ SearchCurveReport process_search_curve(
     std::uint64_t global_index,
     const CanonicalCertificateVerifier& verifier = {},
     const SearchSeaLevelCallback& sea_level_callback = {},
-    const ExactSmoothBatchCoordinator* smooth_coordinator = nullptr);
+    const ExactSmoothBatchCoordinator* smooth_coordinator = nullptr,
+    const SearchClassicalDirectLevelCallback&
+        classical_direct_level_callback = {});
 
 struct SearchPipelineRunOptions {
     // Zero means no curves; callers choose an explicit cap or the remaining
@@ -219,6 +252,7 @@ struct SearchPipelineRunOptions {
     // but invocations are serialized so each live telemetry record is atomic.
     // Level telemetry is diagnostic and never advances the checkpoint.
     SearchSeaLevelCallback sea_level_callback;
+    SearchClassicalDirectLevelCallback classical_direct_level_callback;
 };
 
 struct ExactSmoothBatchPoolTelemetry {
@@ -274,6 +308,9 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                                      bool include_sea_level_timings = true);
 std::string search_sea_level_json(std::uint64_t global_index,
                                   const SearchSeaLevelTiming& level);
+std::string search_classical_direct_level_json(
+    std::uint64_t global_index,
+    const SearchClassicalDirectLevelTiming& level);
 
 // Content identities used to bind resumable checkpoints.  The schedule hash
 // includes the exact smooth-cache and canonical-verifier digests.

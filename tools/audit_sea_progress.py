@@ -20,6 +20,15 @@ def decimal(value: object, label: str) -> int:
     return int(value)
 
 
+def signed_decimal(value: object, label: str) -> int:
+    if not isinstance(value, str):
+        fail(f"{label} must be a signed decimal string")
+    digits = value[1:] if value.startswith("-") else value
+    if not digits.isdecimal():
+        fail(f"{label} must be a signed decimal string")
+    return int(value)
+
+
 def candidate_count(radius: int, residue: int, modulus: int) -> int:
     lower = -radius
     upper = radius
@@ -116,7 +125,12 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
         if trace % prior_modulus != prior_residue:
             fail("independent trace disagrees with trace_prior")
     levels = record.get("sea_level_timings")
-    if not isinstance(levels, list) or not levels:
+    direct_levels = record.get("classical_direct_levels", [])
+    if not isinstance(levels, list):
+        fail("search-curve sea_level_timings is not a list")
+    if not isinstance(direct_levels, list):
+        fail("search-curve classical_direct_levels is not a list")
+    if not levels and not direct_levels:
         fail("search-curve record has no SEA levels")
 
     current_pass = 0
@@ -128,124 +142,176 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
     exact_levels = 0
     atkin_levels = 0
     passes: list[dict[str, object]] = []
-    for position, raw_level in enumerate(levels):
-        if not isinstance(raw_level, dict):
-            fail(f"SEA level {position} is not an object")
-        pass_number = decimal(raw_level.get("pass"), f"level[{position}].pass")
-        ell = decimal(raw_level.get("ell"), f"level[{position}].ell")
-        if pass_number != current_pass:
-            if pass_number != current_pass + 1:
-                fail("SEA passes are not contiguous")
-            if current_pass:
-                passes.append({"pass": current_pass, "modulus": str(modulus)})
-            current_pass = pass_number
-            prior_ell = 0
-            residue = prior_residue
-            modulus = prior_modulus
-            effective_residues = [prior_residue]
-            effective_modulus = prior_modulus
-        if ell <= prior_ell:
-            fail(f"SEA levels are not increasing within pass {current_pass}")
-        prior_ell = ell
+    direct_passes: list[dict[str, object]] = []
 
-        exact = raw_level.get("exact")
-        if not isinstance(exact, bool):
-            fail(f"level[{position}].exact is not Boolean")
-        claimed_residue = raw_level.get("trace_residue")
-        if exact:
-            small = decimal(claimed_residue, f"level[{position}].trace_residue")
-            if small >= ell:
-                fail(f"trace residue {small} is not canonical modulo {ell}")
-            if trace % ell != small:
+    def replay_level_stream(
+        stream: list[object], stream_name: str, reset_between_passes: bool
+    ) -> None:
+        nonlocal current_pass, prior_ell, residue, modulus
+        nonlocal effective_residues, effective_modulus
+        nonlocal exact_levels, atkin_levels
+
+        current_pass = 0
+        prior_ell = 0
+        for position, raw_level in enumerate(stream):
+            label = f"{stream_name}[{position}]"
+            if not isinstance(raw_level, dict):
+                fail(f"{label} is not an object")
+            pass_number = decimal(raw_level.get("pass"), f"{label}.pass")
+            ell = decimal(raw_level.get("ell"), f"{label}.ell")
+            if pass_number != current_pass:
+                if pass_number != current_pass + 1:
+                    fail(f"{stream_name} passes are not contiguous")
+                if current_pass:
+                    target = passes if reset_between_passes else direct_passes
+                    target.append(
+                        {"pass": current_pass, "modulus": str(modulus)}
+                    )
+                current_pass = pass_number
+                prior_ell = 0
+                if reset_between_passes:
+                    residue = prior_residue
+                    modulus = prior_modulus
+                    effective_residues = [prior_residue]
+                    effective_modulus = prior_modulus
+            if ell <= prior_ell:
                 fail(
-                    f"independent trace disagrees at ell={ell}: "
-                    f"expected {trace % ell}, logged {small}"
+                    f"{stream_name} levels are not increasing within pass "
+                    f"{current_pass}"
                 )
-            residue = combine_crt(residue, modulus, small, ell)
-            modulus *= ell
-            effective_residues = [
-                combine_crt(value, effective_modulus, small, ell)
-                for value in effective_residues
-            ]
-            effective_modulus *= ell
-            exact_levels += 1
-        elif claimed_residue is not None:
-            fail(f"nonexact level ell={ell} unexpectedly claims a residue")
+            prior_ell = ell
 
-        claimed_atkin_order = raw_level.get("atkin_projective_order")
-        if claimed_atkin_order is not None:
+            exact = raw_level.get("exact")
+            if not isinstance(exact, bool):
+                fail(f"{label}.exact is not Boolean")
+            claimed_residue = raw_level.get("trace_residue")
             if exact:
-                fail(f"exact level ell={ell} also claims Atkin evidence")
-            order = decimal(
-                claimed_atkin_order,
-                f"level[{position}].atkin_projective_order",
-            )
-            allowed = atkin_residues(ell, prime, order)
-            logged_residue_count = decimal(
-                raw_level.get("atkin_residue_count"),
-                f"level[{position}].atkin_residue_count",
-            )
-            if logged_residue_count != len(allowed):
-                fail(
-                    f"Atkin residue-count mismatch at ell={ell}: expected "
-                    f"{len(allowed)}, logged {logged_residue_count}"
-                )
-            if trace % ell not in allowed:
-                fail(f"independent trace violates Atkin constraint at ell={ell}")
-            effective_residues = [
-                combine_crt(value, effective_modulus, small, ell)
-                for value in effective_residues
-                for small in allowed
-            ]
-            effective_residues = sorted(set(effective_residues))
-            effective_modulus *= ell
-            atkin_levels += 1
+                small = decimal(claimed_residue, f"{label}.trace_residue")
+                if small >= ell:
+                    fail(f"trace residue {small} is not canonical modulo {ell}")
+                if trace % ell != small:
+                    fail(
+                        f"independent trace disagrees at ell={ell}: "
+                        f"expected {trace % ell}, logged {small}"
+                    )
+                residue = combine_crt(residue, modulus, small, ell)
+                modulus *= ell
+                effective_residues = [
+                    combine_crt(value, effective_modulus, small, ell)
+                    for value in effective_residues
+                ]
+                effective_modulus *= ell
+                exact_levels += 1
+            elif claimed_residue is not None:
+                fail(f"nonexact level ell={ell} unexpectedly claims a residue")
 
-        logged_modulus = decimal(
-            raw_level.get("exact_modulus"), f"level[{position}].exact_modulus"
-        )
-        if logged_modulus != modulus:
-            fail(
-                f"CRT modulus mismatch at ell={ell}: expected {modulus}, "
-                f"logged {logged_modulus}"
-            )
-        expected_count = candidate_count(radius, residue, modulus)
-        logged_exact_count_value = raw_level.get("exact_trace_candidate_count")
-        # Backward compatibility for retained pre-Atkin v1 records.
-        logged_exact_count = decimal(
-            raw_level.get("trace_candidate_count")
-            if logged_exact_count_value is None else logged_exact_count_value,
-            f"level[{position}].exact_trace_candidate_count",
-        )
-        if logged_exact_count != expected_count:
-            fail(
-                f"exact candidate-count mismatch at ell={ell}: expected "
-                f"{expected_count}, logged {logged_exact_count}"
-            )
-        logged_constraint_modulus_value = raw_level.get("constraint_modulus")
-        if logged_constraint_modulus_value is not None:
-            logged_constraint_modulus = decimal(
-                logged_constraint_modulus_value,
-                f"level[{position}].constraint_modulus",
-            )
-            if logged_constraint_modulus != effective_modulus:
-                fail(
-                    f"effective modulus mismatch at ell={ell}: expected "
-                    f"{effective_modulus}, logged {logged_constraint_modulus}"
+            claimed_atkin_order = raw_level.get("atkin_projective_order")
+            if claimed_atkin_order is not None:
+                if exact:
+                    fail(f"exact level ell={ell} also claims Atkin evidence")
+                order = decimal(
+                    claimed_atkin_order, f"{label}.atkin_projective_order"
                 )
-            effective_count = residue_set_candidate_count(
-                radius, effective_residues, effective_modulus
-            )
-            logged_effective_count = decimal(
-                raw_level.get("trace_candidate_count"),
-                f"level[{position}].trace_candidate_count",
-            )
-            if logged_effective_count != effective_count:
-                fail(
-                    f"effective candidate-count mismatch at ell={ell}: "
-                    f"expected {effective_count}, logged {logged_effective_count}"
+                allowed = atkin_residues(ell, prime, order)
+                logged_residue_count = decimal(
+                    raw_level.get("atkin_residue_count"),
+                    f"{label}.atkin_residue_count",
                 )
-    passes.append({"pass": current_pass, "modulus": str(modulus)})
+                if logged_residue_count != len(allowed):
+                    fail(
+                        f"Atkin residue-count mismatch at ell={ell}: expected "
+                        f"{len(allowed)}, logged {logged_residue_count}"
+                    )
+                if trace % ell not in allowed:
+                    fail(
+                        f"independent trace violates Atkin constraint at ell={ell}"
+                    )
+                effective_residues = [
+                    combine_crt(value, effective_modulus, small, ell)
+                    for value in effective_residues
+                    for small in allowed
+                ]
+                effective_residues = sorted(set(effective_residues))
+                effective_modulus *= ell
+                atkin_levels += 1
+
+            if stream_name == "classical_direct_levels":
+                discriminant = signed_decimal(
+                    raw_level.get("order_discriminant"),
+                    f"{label}.order_discriminant",
+                )
+                class_number = decimal(
+                    raw_level.get("class_number"), f"{label}.class_number"
+                )
+                auxiliary_primes = decimal(
+                    raw_level.get("auxiliary_prime_count"),
+                    f"{label}.auxiliary_prime_count",
+                )
+                kernels = decimal(
+                    raw_level.get("elkies_kernel_count"),
+                    f"{label}.elkies_kernel_count",
+                )
+                decimal(raw_level.get("elapsed_us"), f"{label}.elapsed_us")
+                if discriminant >= 0 or class_number == 0 or auxiliary_primes == 0:
+                    fail(f"{label} has invalid CM/CRT evidence")
+                if (exact and kernels == 0) or (not exact and kernels != 0):
+                    fail(f"{label} has inconsistent Elkies kernel evidence")
+
+            logged_modulus = decimal(
+                raw_level.get("exact_modulus"), f"{label}.exact_modulus"
+            )
+            if logged_modulus != modulus:
+                fail(
+                    f"CRT modulus mismatch at ell={ell}: expected {modulus}, "
+                    f"logged {logged_modulus}"
+                )
+            expected_count = candidate_count(radius, residue, modulus)
+            logged_exact_count_value = raw_level.get(
+                "exact_trace_candidate_count"
+            )
+            # Backward compatibility for retained pre-Atkin v1 records.
+            logged_exact_count = decimal(
+                raw_level.get("trace_candidate_count")
+                if logged_exact_count_value is None
+                else logged_exact_count_value,
+                f"{label}.exact_trace_candidate_count",
+            )
+            if logged_exact_count != expected_count:
+                fail(
+                    f"exact candidate-count mismatch at ell={ell}: expected "
+                    f"{expected_count}, logged {logged_exact_count}"
+                )
+            logged_constraint_modulus_value = raw_level.get(
+                "constraint_modulus"
+            )
+            if logged_constraint_modulus_value is not None:
+                logged_constraint_modulus = decimal(
+                    logged_constraint_modulus_value,
+                    f"{label}.constraint_modulus",
+                )
+                if logged_constraint_modulus != effective_modulus:
+                    fail(
+                        f"effective modulus mismatch at ell={ell}: expected "
+                        f"{effective_modulus}, logged {logged_constraint_modulus}"
+                    )
+                effective_count = residue_set_candidate_count(
+                    radius, effective_residues, effective_modulus
+                )
+                logged_effective_count = decimal(
+                    raw_level.get("trace_candidate_count"),
+                    f"{label}.trace_candidate_count",
+                )
+                if logged_effective_count != effective_count:
+                    fail(
+                        f"effective candidate-count mismatch at ell={ell}: "
+                        f"expected {effective_count}, logged {logged_effective_count}"
+                    )
+        if current_pass:
+            target = passes if reset_between_passes else direct_passes
+            target.append({"pass": current_pass, "modulus": str(modulus)})
+
+    replay_level_stream(levels, "sea_level_timings", True)
+    replay_level_stream(direct_levels, "classical_direct_levels", False)
     return {
         "schema": "oneshotsea.sea-progress-audit.v1",
         "index": str(record.get("index")),
@@ -259,10 +325,13 @@ def audit_record(record: dict[str, object], trace: int) -> dict[str, object]:
         "curve_order": str(prime + 1 - trace),
         "twist_order": str(prime + 1 + trace),
         "curve_twist_sum": str(2 * prime + 2),
-        "levels": len(levels),
+        "levels": len(levels) + len(direct_levels),
+        "weber_levels": len(levels),
+        "classical_direct_levels": len(direct_levels),
         "exact_levels": exact_levels,
         "atkin_levels": atkin_levels,
         "passes": passes,
+        "classical_direct_passes": direct_passes,
         "verified": True,
     }
 

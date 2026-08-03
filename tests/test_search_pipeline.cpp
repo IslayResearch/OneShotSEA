@@ -499,8 +499,147 @@ void test_search_uses_retained_schoof_fallback_without_second_sea_pass() {
     check(report_json.find("\"schoof_fallback_level_count\":\"") !=
                   std::string::npos &&
               report_json.find("\"schoof_fallback_levels\":[{") !=
+                  std::string::npos &&
+              report_json.find("classical_direct") == std::string::npos,
+          "search telemetry retains compact exact-Schoof evidence and legacy default fields");
+}
+
+void test_search_uses_classical_direct_tail_after_weber_completion() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.max_level = 5U;
+    config.early_trace_cap = 16U;
+    config.classical_direct_levels = {7U, 11U};
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    std::vector<oneshotsea::SearchClassicalDirectLevelTiming> live_levels;
+    const auto report = oneshotsea::process_search_curve(
+        config, smooth, 1U,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; },
+        {}, nullptr,
+        [&](std::uint64_t index,
+            const oneshotsea::SearchClassicalDirectLevelTiming& level) {
+            check(index == 1U,
+                  "live direct SEA telemetry retains the curve index");
+            live_levels.push_back(level);
+        });
+    const auto generated = oneshotsea::deterministic_weber_curve_pair(
+        config.prime, config.seed, 1U);
+    const mpz_class expected_trace =
+        config.prime + 1 -
+        oneshotsea::count_points_bruteforce(generated.curve);
+
+    check(report.status != oneshotsea::SearchCurveStatus::sea_level_limit &&
+              report.initial_trace_count == 10U &&
+              report.exact_trace ==
+                  std::optional<mpz_class>(expected_trace) &&
+              report.sea_passes == 2U && report.sea_levels == 1U &&
+              report.classical_direct_passes == 1U &&
+              report.classical_direct_levels.size() == 1U &&
+              report.schoof_fallback_levels.empty(),
+          "search exhausts the authenticated Weber schedule before using the minimal direct tail");
+    check(live_levels.size() == report.classical_direct_levels.size(),
+          "live direct SEA telemetry covers every retained direct level");
+    for (std::size_t index = 0U;
+         index < report.classical_direct_levels.size(); ++index) {
+        const auto& level = report.classical_direct_levels[index];
+        check(level.pass == 1U && level.exact && level.ell == 7U &&
+                  level.trace_residue == mpz_fdiv_ui(
+                      expected_trace.get_mpz_t(), level.ell) &&
+                  level.order_discriminant < 0 &&
+                  level.class_number != 0U &&
+                  level.auxiliary_prime_count != 0U &&
+                  level.elkies_kernel_count == 2U &&
+                  live_levels[index].ell == level.ell &&
+                  live_levels[index].trace_residue == level.trace_residue,
+              "direct search level retains authenticated CM/CRT and exact-trace evidence");
+        const std::string live_json =
+            oneshotsea::search_classical_direct_level_json(1U, level);
+        check(live_json.find(
+                  "\"schema\":\"oneshotsea.search-classical-direct-level.v1\"") !=
+                      std::string::npos &&
+                  live_json.find("\"order_discriminant\":\"") !=
+                      std::string::npos &&
+                  live_json.find("\"auxiliary_prime_count\":\"") !=
+                      std::string::npos,
+              "live direct SEA JSON exposes the mathematical evidence");
+    }
+
+    const std::string digest(64U, 'c');
+    const auto direct_identity = oneshotsea::make_search_identity(
+        config, {1, 2}, 0, 1, digest, digest,
+        "direct-tail-pipeline-test-v1");
+    const std::string report_json = oneshotsea::search_curve_report_json(
+        report, oneshotsea::SearchState(direct_identity));
+    const std::string compact_json = oneshotsea::search_curve_report_json(
+        report, oneshotsea::SearchState(direct_identity), false);
+    check(report_json.find("\"classical_direct_level_count\":\"1\"") !=
+                  std::string::npos &&
+              report_json.find("\"classical_direct_levels\":[{") !=
+                  std::string::npos &&
+              compact_json.find("\"classical_direct_level_count\":\"1\"") !=
+                  std::string::npos &&
+              compact_json.find("\"classical_direct_levels\":[]") !=
                   std::string::npos,
-          "search telemetry retains compact exact-Schoof evidence");
+          "curve JSON retains direct counts while honoring compact level telemetry");
+
+    oneshotsea::SearchPipelineConfig disabled = config;
+    disabled.classical_direct_levels.clear();
+    const auto disabled_identity = oneshotsea::make_search_identity(
+        disabled, {1, 2}, 0, 1, digest, digest,
+        "direct-tail-pipeline-test-v1");
+    oneshotsea::SearchPipelineConfig tighter_cap = config;
+    --tighter_cap.classical_direct_maximum_prime_candidates;
+    const auto tighter_cap_identity = oneshotsea::make_search_identity(
+        tighter_cap, {1, 2}, 0, 1, digest, digest,
+        "direct-tail-pipeline-test-v1");
+    check(direct_identity.schedule_sha256 !=
+                  disabled_identity.schedule_sha256 &&
+              direct_identity.schedule_sha256 !=
+                  tighter_cap_identity.schedule_sha256,
+          "direct policy, level list, and execution caps are schedule-bound");
+
+    for (const std::vector<std::uint64_t>& invalid_levels :
+         {std::vector<std::uint64_t>{11U, 7U},
+          std::vector<std::uint64_t>{7U, 7U},
+          std::vector<std::uint64_t>{9U}}) {
+        oneshotsea::SearchPipelineConfig invalid = config;
+        invalid.classical_direct_levels = invalid_levels;
+        bool rejected = false;
+        try {
+            (void)oneshotsea::make_search_identity(
+                invalid, {1, 2}, 0, 1, digest, digest,
+                "invalid-direct-tail-test-v1");
+        } catch (const std::invalid_argument&) {
+            rejected = true;
+        }
+        check(rejected,
+              "search identity rejects an invalid direct SEA schedule");
+    }
+}
+
+void test_direct_tail_preserves_remaining_weber_levels() {
+    oneshotsea::SearchPipelineConfig config = small_config();
+    config.max_level = 11U;
+    config.early_trace_cap = 16U;
+    config.classical_direct_levels = {7U};
+    const oneshotsea::ExactSmoothEngine smooth =
+        oneshotsea::ExactSmoothEngine::build(config.prime);
+
+    const auto report = oneshotsea::process_search_curve(
+        config, smooth, 1U,
+        [](const oneshotsea::MontgomeryCertificate&) { return false; });
+    const auto generated = oneshotsea::deterministic_weber_curve_pair(
+        config.prime, config.seed, 1U);
+    const mpz_class expected_trace =
+        config.prime + 1 -
+        oneshotsea::count_points_bruteforce(generated.curve);
+    check(report.status != oneshotsea::SearchCurveStatus::sea_level_limit &&
+              report.sea_passes == 2U &&
+              report.exact_trace ==
+                  std::optional<mpz_class>(expected_trace) &&
+              expected_trace == -10,
+          "direct-enabled survivors exhaust the authenticated Weber schedule before the optional tail");
 }
 
 void test_parallel_curve_ordering_and_shared_checkpoint() {
@@ -548,6 +687,18 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
 
         std::atomic<unsigned> active_callbacks{0};
         std::atomic<unsigned> maximum_active_callbacks{0};
+        const auto enter_callback = [&] {
+            const unsigned active = active_callbacks.fetch_add(1U) + 1U;
+            unsigned maximum = maximum_active_callbacks.load();
+            while (maximum < active &&
+                   !maximum_active_callbacks.compare_exchange_weak(
+                       maximum, active)) {
+            }
+            std::this_thread::sleep_for(std::chrono::microseconds(50));
+        };
+        const auto leave_callback = [&] {
+            active_callbacks.fetch_sub(1U);
+        };
         std::map<std::uint64_t,
                  std::vector<std::pair<std::size_t, std::uint64_t>>>
             live_levels;
@@ -558,16 +709,9 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
             options.sea_level_callback =
                 [&](std::uint64_t index,
                     const oneshotsea::SearchSeaLevelTiming& level) {
-                    const unsigned active =
-                        active_callbacks.fetch_add(1U) + 1U;
-                    unsigned maximum = maximum_active_callbacks.load();
-                    while (maximum < active &&
-                           !maximum_active_callbacks.compare_exchange_weak(
-                               maximum, active)) {
-                    }
-                    std::this_thread::sleep_for(std::chrono::microseconds(50));
+                    enter_callback();
                     live_levels[index].emplace_back(level.pass, level.ell);
-                    active_callbacks.fetch_sub(1U);
+                    leave_callback();
                 };
         }
 
@@ -576,11 +720,17 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
             config, smooth, state, options,
             [&](const oneshotsea::SearchCurveReport& report,
                 const oneshotsea::SearchState&) {
+                if (audit_live_levels) {
+                    enter_callback();
+                }
                 observation.indices.push_back(report.global_index);
                 observation.statuses.push_back(report.status);
                 auto& levels = report_levels[report.global_index];
                 for (const auto& level : report.sea_level_timings) {
                     levels.emplace_back(level.pass, level.ell);
+                }
+                if (audit_live_levels) {
+                    leave_callback();
                 }
             },
             [](const oneshotsea::MontgomeryCertificate&) { return false; });
@@ -685,7 +835,7 @@ void test_parallel_curve_ordering_and_shared_checkpoint() {
               "parallel coordinator publishes the complete ordered checkpoint");
         if (audit_live_levels) {
             check(maximum_active_callbacks.load() == 1U,
-                  "parallel live SEA callbacks are serialized atomically");
+                  "parallel live SEA and curve callbacks are serialized atomically");
             check(live_levels == report_levels,
                   "each interleaved live index subsequence stays in SEA order");
         }
@@ -1043,6 +1193,26 @@ void test_sea_level_limit_does_not_advance_cursor() {
     check(fallback_mutation_rejected &&
               fallback_mutated_state.next_index() == 0U,
           "post-identity Schoof-fallback mutation is rejected before processing");
+
+    oneshotsea::SearchPipelineConfig direct_mutated = small_config();
+    direct_mutated.expected_schedule_sha256 = sound_identity.schedule_sha256;
+    direct_mutated.expected_smooth_cache_sha256 = smooth_sha;
+    direct_mutated.expected_verifier_sha256 = verifier_sha;
+    direct_mutated.expected_table_manifest_sha256 =
+        sound_identity.table_manifest_sha256;
+    direct_mutated.classical_direct_levels = {13U};
+    oneshotsea::SearchState direct_mutated_state(sound_identity);
+    bool direct_mutation_rejected = false;
+    try {
+        (void)oneshotsea::run_search_pipeline(
+            direct_mutated, smooth, direct_mutated_state,
+            mutated_options);
+    } catch (const std::invalid_argument&) {
+        direct_mutation_rejected = true;
+    }
+    check(direct_mutation_rejected &&
+              direct_mutated_state.next_index() == 0U,
+          "post-identity direct-SEA mutation is rejected before processing");
 
     oneshotsea::SearchPipelineConfig unbound = small_config();
     const oneshotsea::SearchIdentity unbound_identity =
@@ -1554,6 +1724,8 @@ int main() {
         test_mismatched_smooth_coordinator_fails_before_sea();
         test_pool_telemetry_merge_checks_overflow_transactionally();
         test_search_uses_retained_schoof_fallback_without_second_sea_pass();
+        test_search_uses_classical_direct_tail_after_weber_completion();
+        test_direct_tail_preserves_remaining_weber_levels();
         std::cout << "search pipeline tests passed\n";
         return 0;
     } catch (const std::exception& error) {

@@ -6,7 +6,7 @@ another point-counting oracle.
 
 For each assigned global index it constructs both curve classes for one
 Montgomery-compatible Weber-f value, runs the checked-in Weber SEA
-implementation, extracts exact
+implementation and any schedule-bound classical direct tail, extracts exact
 curve and twist n^4-smooth parts in one batch, tries both order classes and
 both Montgomery sides, retries certificate construction without the 2-primary
 part, validates the result natively, and finally invokes the unmodified pinned
@@ -19,10 +19,10 @@ the selected family supplies one, exact Elkies residues, and optionally
 certified factor-degree constraints from the authenticated classical level-5
 and level-7 tables. If every curve and twist order in that set has exact smooth
 part at or below the certificate lower bound, rejection is sound. Otherwise
-the curve is rerun with trace cap one; Atkin constraints cannot satisfy that
-unique-trace gate, so certificate assembly still requires uniqueness from the
-exact prior plus the exact Elkies CRT. Heuristic rejection is disabled in this
-command.
+the retained state continues with trace cap one; Atkin constraints cannot
+satisfy that unique-trace gate, so certificate assembly still requires
+uniqueness from the exact prior plus exact Elkies residues. Heuristic rejection
+is disabled in this command.
 
 An example local run is:
 
@@ -78,11 +78,11 @@ The stdout and progress records distinguish sound smoothness rejection from
 `implementation_no_lift` and `implementation_level_limit`.  The latter two are
 not mathematical rejections.  Either outcome is reported and checkpointed
 without advancing the curve cursor, and the current search chunk stops so the
-same index can be retried with an adequate build/table schedule.  In
-particular, search completeness depends on providing enough valid specialized
-tables through `--max-level` to isolate a unique trace for every candidate that
-survives early screening.  Increasing the range does not remedy an inadequate
-table schedule.
+same index can be retried with an adequate point-count schedule. In
+particular, search completeness depends on providing enough valid table,
+direct, or exact-Schoof levels to isolate a unique trace for every candidate
+that survives early screening. Increasing the range does not remedy an
+inadequate point-count schedule.
 
 Long discovery runs may instead opt into
 `--skip-incomplete-curves 1`.  This converts only those two incomplete
@@ -96,6 +96,34 @@ as a sound rejection or full point count.  The policy is part of the schedule
 digest, so its checkpoint cannot be substituted into a sound-only run.  It may
 lose a curve that would have yielded a certificate under a larger table set,
 but cannot create a false-positive certificate.
+
+The custom evaluator is exposed through the optional classical direct tail:
+
+```sh
+--classical-direct-levels 7,11 \
+--classical-direct-max-prime-candidates 1000000 \
+--classical-direct-max-x-candidates 1000000
+```
+
+Levels must be distinct increasing primes greater than three. After the
+authenticated Weber schedule fails to fit the requested trace cap, each level
+internally derives its `D=-7*3^(2n)` suitable order and ring class polynomial,
+reconstructs `Phi_ell(j,Y)` and its X derivative by witnessed auxiliary-prime
+CRT, and consumes the result through BMSS/Frobenius or certified Atkin
+factorization. A complete bounded trace set may enter the exact smoothness
+screen; a survivor continues the same direct schedule at the exact cap-one
+gate. It neither repeats the table pass nor treats Atkin evidence as an exact
+trace. The exact/Atkin constraints then flow through the unchanged
+smoothness, certificate, and canonical-verifier gates.
+
+The direct policy version, ordered level list, auxiliary-prime candidate cap,
+and per-surface x-candidate cap are semantic and included in the schedule
+digest. Post-identity mutation therefore fails before curve processing. An
+empty list preserves the published default schedule bytes. The two caps bound
+failure rather than ordinary resource parallelism: exhausting either is an
+implementation limit, never a heuristic or mathematical rejection. Direct
+SEA runs before `--schoof-fallback 1`; the fallback sees and checks the same
+retained state.
 
 Sound-only runs may instead opt into `--schoof-fallback 1`. After all
 authenticated Weber levels are exhausted without fitting the trace cap, this
@@ -130,9 +158,18 @@ records total attempts, independent quotient-ring recoveries, and exact
 characteristic-polynomial conjugates.  These fields make the production
 optimizations auditable without changing residue semantics.
 
+Direct records are kept separately in `classical_direct_levels`. Each retains
+its pass and level, exact residue or Atkin order, suitable-order discriminant
+and class number, witnessed auxiliary-prime count, Elkies-kernel count,
+accumulated exact/effective moduli and candidate counts, and elapsed time. Live
+records use `oneshotsea.search-classical-direct-level.v1`. Aggregate direct
+pass, level, exact, and Atkin counts remain present even when detailed level
+telemetry is disabled.
+
 Long production runs may use `--sea-level-telemetry 0`.  This suppresses the
-live per-level records and leaves each curve record's `sea_level_timings` array
-empty, but preserves `final_exact_trace_candidates` and
+live per-level records and leaves each curve record's `sea_level_timings` and
+`classical_direct_levels` arrays empty, but preserves their aggregate counts,
+`final_exact_trace_candidates`, and
 `final_trace_candidates` so an incomplete skip remains quantitatively
 auditable, along with the per-curve SEA level counts, exact/Atkin counts, trace
 prior, status, major-kernel timings, peak RSS, state counters, and checkpoint
@@ -148,17 +185,22 @@ python3 tools/audit_sea_progress.py \
   --index GLOBAL_INDEX --trace MAGMA_TRACE
 ```
 
-The auditor independently rebuilds the exact CRT, checks every exact residue
-against the supplied trace, reconstructs each logged PGL order by repeated
-matrix multiplication, regenerates its Atkin residue set, and recomputes both
-exact and effective Hasse candidate counts after every level. It reports the
-curve/twist orders and their `2p+2` sum. Retained pre-Atkin v1 records remain
-auditable with their original exact-count semantics.
+The auditor independently rebuilds the exact CRT across both table and direct
+records, checks every exact residue against the supplied trace, reconstructs
+each logged PGL order by repeated matrix multiplication, regenerates its Atkin
+residue set, and recomputes both exact and effective Hasse candidate counts
+after every level. For direct records it also sanity-checks the signed CM
+discriminant, nonzero class number and auxiliary-prime count, and
+exact/nonexact kernel-count boundary. It reports the curve/twist orders and
+their `2p+2` sum. Retained pre-Atkin v1 records remain auditable with their
+original exact-count semantics.
 
 Useful resource caps include `--max-curves`, `--checkpoint-every`,
 `--curve-threads`, `--sea-threads`, `--smooth-threads`, `--smooth-max-batch`,
 `--smooth-root-auxiliary-bytes`, `--smooth-build-segment-span`,
 `--sea-level-telemetry`,
+`--classical-direct-max-prime-candidates`,
+`--classical-direct-max-x-candidates`,
 `--assembly-attempts`,
 `--max-certificate-candidates`, and `--max-candidate-search-nodes`.  Reaching
 either candidate-enumeration bound aborts before the curve cursor advances, so

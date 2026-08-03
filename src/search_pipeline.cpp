@@ -296,6 +296,30 @@ void validate_digest(const std::string& value, const char* label) {
     }
 }
 
+void validate_classical_direct_config(const SearchPipelineConfig& config) {
+    if (!std::is_sorted(config.classical_direct_levels.begin(),
+                        config.classical_direct_levels.end()) ||
+        std::adjacent_find(config.classical_direct_levels.begin(),
+                           config.classical_direct_levels.end()) !=
+            config.classical_direct_levels.end()) {
+        throw std::invalid_argument(
+            "classical direct SEA levels must be strictly increasing");
+    }
+    for (const std::uint64_t ell : config.classical_direct_levels) {
+        if (ell <= 3U || ell > std::numeric_limits<unsigned>::max() ||
+            !is_prime_u64(ell)) {
+            throw std::invalid_argument(
+                "classical direct SEA schedule contains an invalid level");
+        }
+    }
+    if (!config.classical_direct_levels.empty() &&
+        (config.classical_direct_maximum_prime_candidates == 0U ||
+         config.classical_direct_maximum_x_candidates_per_surface == 0U)) {
+        throw std::invalid_argument(
+            "classical direct SEA execution caps must be positive");
+    }
+}
+
 void validate_config(const SearchPipelineConfig& config,
                      const ExactSmoothEngine* engine = nullptr) {
     if (config.prime <= 7 || mpz_even_p(config.prime.get_mpz_t()) != 0 ||
@@ -309,6 +333,7 @@ void validate_config(const SearchPipelineConfig& config,
         config.max_candidate_search_nodes == 0U) {
         throw std::invalid_argument("invalid SEA/search resource limit");
     }
+    validate_classical_direct_config(config);
     switch (config.curve_family) {
         case SearchCurveFamily::weber_f:
             if (config.x1_require_point_four) {
@@ -1011,7 +1036,9 @@ SearchCurveReport process_search_curve(
     std::uint64_t global_index,
     const CanonicalCertificateVerifier& injected_verifier,
     const SearchSeaLevelCallback& sea_level_callback,
-    const ExactSmoothBatchCoordinator* smooth_coordinator) {
+    const ExactSmoothBatchCoordinator* smooth_coordinator,
+    const SearchClassicalDirectLevelCallback&
+        classical_direct_level_callback) {
     validate_config(config, &smooth_engine);
     if (smooth_coordinator &&
         !smooth_coordinator->compatible_with(smooth_engine)) {
@@ -1155,12 +1182,63 @@ SearchCurveReport process_search_curve(
             result.effective_constraints.candidate_count();
     };
 
+    std::size_t classical_direct_pass = 0U;
+    auto extend_classical_direct = [&](WeberSeaResult& result,
+                                       std::size_t trace_cap) {
+        stage_start = Clock::now();
+        ++classical_direct_pass;
+        ++report.classical_direct_passes;
+        const ClassicalDirectSeaProgress progress =
+            [&](const ClassicalDirectSeaLevelRecord& level) {
+                report.classical_direct_levels.push_back({
+                    classical_direct_pass,
+                    level.ell,
+                    level.exact,
+                    level.trace_residue,
+                    level.order_discriminant,
+                    level.class_number,
+                    level.auxiliary_prime_count,
+                    level.elkies_kernel_count,
+                    level.exact_modulus,
+                    level.constraint_modulus,
+                    level.exact_trace_candidate_count,
+                    level.trace_candidate_count,
+                    level.atkin_projective_order,
+                    level.atkin_residue_count,
+                    level.elapsed_us,
+                });
+                if (classical_direct_level_callback) {
+                    classical_direct_level_callback(
+                        global_index,
+                        report.classical_direct_levels.back());
+                }
+            };
+        extend_sea_with_classical_direct(
+            pair.curve, result, config.classical_direct_levels, trace_cap,
+            config.classical_direct_maximum_prime_candidates,
+            config.classical_direct_maximum_x_candidates_per_surface,
+            progress);
+        report.timings.sea_us += elapsed_us(stage_start);
+        report.final_exact_trace_candidate_count =
+            result.constraints.candidate_count();
+        report.final_trace_candidate_count =
+            result.effective_constraints.candidate_count();
+    };
+
     WeberSeaResult sea = run_sea(config.early_trace_cap);
-    if (sea.compatible_source_lifts.empty() && sea.levels.empty()) {
+    const bool early_weber_fit_cap = sea.traces.has_value();
+    const bool no_rational_weber_lift =
+        sea.compatible_source_lifts.empty() && sea.levels.empty();
+    if (no_rational_weber_lift &&
+        config.classical_direct_levels.empty()) {
         report.status = SearchCurveStatus::no_rational_weber_lift;
         report.outcome = {CurveTerminalStage::rejected_sea, false, false};
         report.timings.total_us = elapsed_us(total_start);
         return report;
+    }
+    if (!sea.traces.has_value() &&
+        !config.classical_direct_levels.empty()) {
+        extend_classical_direct(sea, config.early_trace_cap);
     }
     if (!sea.traces.has_value() && config.enable_schoof_fallback) {
         extend_schoof(sea, config.early_trace_cap);
@@ -1203,7 +1281,23 @@ SearchCurveReport process_search_curve(
     } else {
         // The early enumeration was complete, so the rejection above was
         // sound.  A survivor must now meet the stricter unique-trace gate.
-        if (config.enable_schoof_fallback) {
+        if (!config.classical_direct_levels.empty()) {
+            // If the bounded Weber pass itself produced the complete early
+            // set, it may have stopped before exhausting the authenticated
+            // table schedule.  Run the ordinary cap-one Weber pass before
+            // consulting the optional direct tail.  Otherwise the first
+            // Weber pass exhausted its tables and the retained direct state
+            // is the only state that should be extended.
+            if (early_weber_fit_cap) {
+                sea = run_sea(1U);
+            }
+            if (!sea.traces.has_value()) {
+                extend_classical_direct(sea, 1U);
+            }
+            if (!sea.traces.has_value() && config.enable_schoof_fallback) {
+                extend_schoof(sea, 1U);
+            }
+        } else if (config.enable_schoof_fallback) {
             // Retain every authenticated Weber/Atkin residue and extend the
             // same state. Repeating the full table pass would add no evidence.
             extend_schoof(sea, 1U);
@@ -1494,16 +1588,37 @@ SearchPipelineRunResult run_search_pipeline(
             const std::lock_guard<std::mutex> lock(verifier_mutex);
             return canonical(certificate);
         };
-    std::mutex sea_level_mutex;
+    std::mutex callback_mutex;
     const SearchSeaLevelCallback serialized_sea_level_callback =
         options.sea_level_callback
             ? SearchSeaLevelCallback(
                   [&](std::uint64_t index,
                       const SearchSeaLevelTiming& level) {
-                      const std::lock_guard<std::mutex> lock(sea_level_mutex);
+                      const std::lock_guard<std::mutex> lock(callback_mutex);
                       options.sea_level_callback(index, level);
                   })
             : SearchSeaLevelCallback{};
+    const SearchClassicalDirectLevelCallback
+        serialized_classical_direct_level_callback =
+            options.classical_direct_level_callback
+                ? SearchClassicalDirectLevelCallback(
+                      [&](std::uint64_t index,
+                          const SearchClassicalDirectLevelTiming& level) {
+                          const std::lock_guard<std::mutex> lock(
+                              callback_mutex);
+                          options.classical_direct_level_callback(index,
+                                                                  level);
+                      })
+                : SearchClassicalDirectLevelCallback{};
+    const SearchReportCallback serialized_report_callback =
+        report_callback
+            ? SearchReportCallback(
+                  [&](const SearchCurveReport& report,
+                      const SearchState& current) {
+                      const std::lock_guard<std::mutex> lock(callback_mutex);
+                      report_callback(report, current);
+                  })
+            : SearchReportCallback{};
     std::vector<std::unique_ptr<ExactSmoothBatchCoordinator>>
         smooth_coordinators;
     if (!state.complete() && options.max_curves != 0U &&
@@ -1547,7 +1662,8 @@ SearchPipelineRunResult run_search_pipeline(
                             config, smooth_engine, index,
                             serialized_verifier,
                             serialized_sea_level_callback,
-                            smooth_coordinator);
+                            smooth_coordinator,
+                            serialized_classical_direct_level_callback);
                     }));
             }
         };
@@ -1582,8 +1698,8 @@ SearchPipelineRunResult run_search_pipeline(
                                         report, state,
                                         options.include_sea_level_timings));
                     }
-                    if (report_callback) {
-                        report_callback(report, state);
+                    if (serialized_report_callback) {
+                        serialized_report_callback(report, state);
                     }
                     break;
                 }
@@ -1626,8 +1742,8 @@ SearchPipelineRunResult run_search_pipeline(
                                 report, state,
                                 options.include_sea_level_timings));
             }
-            if (report_callback) {
-                report_callback(report, state);
+            if (serialized_report_callback) {
+                serialized_report_callback(report, state);
             }
             if (report.certificate.has_value()) {
                 result.verified = std::move(report);
@@ -1657,6 +1773,23 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                                      const SearchState& state,
                                      bool include_sea_level_timings) {
     std::ostringstream output;
+    const std::size_t exact_classical_direct_levels =
+        static_cast<std::size_t>(std::count_if(
+            report.classical_direct_levels.begin(),
+            report.classical_direct_levels.end(),
+            [](const SearchClassicalDirectLevelTiming& level) {
+                return level.exact;
+            }));
+    const std::size_t atkin_classical_direct_levels =
+        static_cast<std::size_t>(std::count_if(
+            report.classical_direct_levels.begin(),
+            report.classical_direct_levels.end(),
+            [](const SearchClassicalDirectLevelTiming& level) {
+                return level.atkin_projective_order.has_value();
+            }));
+    const bool include_classical_direct =
+        report.classical_direct_passes != 0U ||
+        !report.classical_direct_levels.empty();
     const bool heuristic =
         report.status == SearchCurveStatus::heuristic_no_lift_skip ||
         report.status == SearchCurveStatus::heuristic_level_limit_skip;
@@ -1697,8 +1830,18 @@ std::string search_curve_report_json(const SearchCurveReport& report,
            << report.sea_passes << "\",\"sea_levels\":\""
            << report.sea_levels << "\",\"exact_sea_levels\":\""
            << report.exact_sea_levels << "\",\"atkin_sea_levels\":\""
-           << report.atkin_sea_levels
-           << "\",\"schoof_fallback_level_count\":\""
+           << report.atkin_sea_levels;
+    if (include_classical_direct) {
+        output << "\",\"classical_direct_passes\":\""
+               << report.classical_direct_passes
+               << "\",\"classical_direct_level_count\":\""
+               << report.classical_direct_levels.size()
+               << "\",\"exact_classical_direct_levels\":\""
+               << exact_classical_direct_levels
+               << "\",\"atkin_classical_direct_levels\":\""
+               << atkin_classical_direct_levels;
+    }
+    output << "\",\"schoof_fallback_level_count\":\""
            << report.schoof_fallback_levels.size()
            << "\",\"initial_trace_count\":\""
            << report.initial_trace_count << '"';
@@ -1781,7 +1924,54 @@ std::string search_curve_report_json(const SearchCurveReport& report,
                << "\",\"conjugate_eigenvalues_derived\":\""
                << level.conjugate_eigenvalues_derived << "\"}";
     }
-    output << "],\"schoof_fallback_levels\":[";
+    output << ']';
+    if (include_classical_direct) {
+        output << ",\"classical_direct_levels\":[";
+        const std::size_t retained_classical_direct_level_count =
+            include_sea_level_timings
+                ? report.classical_direct_levels.size()
+                : 0U;
+        for (std::size_t index = 0U;
+             index < retained_classical_direct_level_count; ++index) {
+            if (index != 0U) {
+                output << ',';
+            }
+            const SearchClassicalDirectLevelTiming& level =
+                report.classical_direct_levels[index];
+            output << "{\"pass\":\"" << level.pass << "\",\"ell\":\""
+                   << level.ell << "\",\"exact\":"
+                   << (level.exact ? "true" : "false")
+                   << ",\"trace_residue\":";
+            if (level.trace_residue.has_value()) {
+                output << '"' << *level.trace_residue << '"';
+            } else {
+                output << "null";
+            }
+            output << ",\"order_discriminant\":\""
+                   << level.order_discriminant << "\",\"class_number\":\""
+                   << level.class_number << "\",\"auxiliary_prime_count\":\""
+                   << level.auxiliary_prime_count
+                   << "\",\"elkies_kernel_count\":\""
+                   << level.elkies_kernel_count << "\",\"exact_modulus\":\""
+                   << level.exact_modulus << "\",\"constraint_modulus\":\""
+                   << level.constraint_modulus
+                   << "\",\"exact_trace_candidate_count\":\""
+                   << level.exact_trace_candidate_count
+                   << "\",\"trace_candidate_count\":\""
+                   << level.trace_candidate_count
+                   << "\",\"atkin_projective_order\":";
+            if (level.atkin_projective_order.has_value()) {
+                output << '"' << *level.atkin_projective_order << '"';
+            } else {
+                output << "null";
+            }
+            output << ",\"atkin_residue_count\":\""
+                   << level.atkin_residue_count << "\",\"elapsed_us\":\""
+                   << level.elapsed_us << "\"}";
+        }
+        output << ']';
+    }
+    output << ",\"schoof_fallback_levels\":[";
     for (std::size_t index = 0U;
          index < report.schoof_fallback_levels.size(); ++index) {
         if (index != 0U) {
@@ -1863,6 +2053,44 @@ std::string search_sea_level_json(std::uint64_t global_index,
            << level.independent_eigenvalue_recoveries
            << "\",\"conjugate_eigenvalues_derived\":\""
            << level.conjugate_eigenvalues_derived << "\"}}";
+    return output.str();
+}
+
+std::string search_classical_direct_level_json(
+    std::uint64_t global_index,
+    const SearchClassicalDirectLevelTiming& level) {
+    std::ostringstream output;
+    output << "{\"schema\":\"oneshotsea.search-classical-direct-level.v1\""
+           << ",\"index\":\"" << global_index << "\",\"pass\":\""
+           << level.pass << "\",\"ell\":\"" << level.ell
+           << "\",\"exact\":" << (level.exact ? "true" : "false")
+           << ",\"trace_residue\":";
+    if (level.trace_residue.has_value()) {
+        output << '"' << *level.trace_residue << '"';
+    } else {
+        output << "null";
+    }
+    output << ",\"order_discriminant\":\""
+           << level.order_discriminant << "\",\"class_number\":\""
+           << level.class_number << "\",\"auxiliary_prime_count\":\""
+           << level.auxiliary_prime_count
+           << "\",\"elkies_kernel_count\":\""
+           << level.elkies_kernel_count << "\",\"exact_modulus\":\""
+           << level.exact_modulus << "\",\"constraint_modulus\":\""
+           << level.constraint_modulus
+           << "\",\"exact_trace_candidate_count\":\""
+           << level.exact_trace_candidate_count
+           << "\",\"trace_candidate_count\":\""
+           << level.trace_candidate_count
+           << "\",\"atkin_projective_order\":";
+    if (level.atkin_projective_order.has_value()) {
+        output << '"' << *level.atkin_projective_order << '"';
+    } else {
+        output << "null";
+    }
+    output << ",\"atkin_residue_count\":\""
+           << level.atkin_residue_count << "\",\"elapsed_us\":\""
+           << level.elapsed_us << "\"}";
     return output.str();
 }
 
@@ -1966,8 +2194,26 @@ std::string search_schedule_sha256(
               << (config.enable_schoof_fallback
                       ? kRareSchoofFallbackPolicy
                       : "disabled")
-              << '\n'
-              << "heuristic_rejection="
+              << '\n';
+    if (!config.classical_direct_levels.empty()) {
+        canonical << "classical_direct_tail="
+                  << kClassicalDirectSeaPolicy << '\n'
+                  << "classical_direct_levels=";
+        for (std::size_t index = 0U;
+             index < config.classical_direct_levels.size(); ++index) {
+            if (index != 0U) {
+                canonical << ',';
+            }
+            canonical << config.classical_direct_levels[index];
+        }
+        canonical << '\n'
+                  << "classical_direct_maximum_prime_candidates="
+                  << config.classical_direct_maximum_prime_candidates << '\n'
+                  << "classical_direct_maximum_x_candidates_per_surface="
+                  << config.classical_direct_maximum_x_candidates_per_surface
+                  << '\n';
+    }
+    canonical << "heuristic_rejection="
               << (config.skip_incomplete_curves ? "incomplete-only"
                                                 : "disabled")
               << '\n'

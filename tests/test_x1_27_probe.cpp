@@ -1,4 +1,6 @@
 #include "oneshotsea/x1_27_probe.hpp"
+#include "oneshotsea/schoof.hpp"
+#include "oneshotsea/sea.hpp"
 
 #include <chrono>
 #include <cstdlib>
@@ -182,6 +184,33 @@ int main() {
     check(target.sample->pair.j_invariant ==
               target.sample->tate_curve.j_invariant(),
           "p125 Tate/Weber j identity");
+
+    oneshotsea::TraceConstraints direct_initial(prime);
+    direct_initial.refine_exact(432U, 14U);
+    oneshotsea::WeberSeaResult direct_state{
+        direct_initial, direct_initial, {}, {}, {}, {}, std::nullopt, {}};
+    oneshotsea::extend_sea_with_classical_direct(
+        target.sample->pair.curve, direct_state, {7U, 11U}, 64U,
+        1000000U, 1000000U);
+    check(direct_state.classical_direct_levels.size() == 2U &&
+              direct_state.classical_direct_levels[0].ell == 7U &&
+              direct_state.classical_direct_levels[0].exact &&
+              direct_state.classical_direct_levels[0].trace_residue == 3U &&
+              direct_state.classical_direct_levels[0]
+                      .auxiliary_prime_count == 37U &&
+              direct_state.classical_direct_levels[1].ell == 11U &&
+              direct_state.classical_direct_levels[1].exact &&
+              direct_state.classical_direct_levels[1].trace_residue == 5U &&
+              direct_state.classical_direct_levels[1]
+                      .auxiliary_prime_count == 43U &&
+              direct_state.constraints.modulus() == 33264 &&
+              !direct_state.traces.has_value(),
+          "p125 production X1(27) curve retains direct levels 7 and 11 without false completion");
+    check(oneshotsea::schoof_trace_mod_ell(
+              target.sample->pair.curve, 7U) == 3U &&
+              oneshotsea::schoof_trace_mod_ell(
+                  target.sample->pair.curve, 11U) == 5U,
+          "independent Schoof validates both p125 production direct residues");
 
     std::cout << "ok x1-27 probe small_p=" << small_prime
               << " small_us=" << small_us

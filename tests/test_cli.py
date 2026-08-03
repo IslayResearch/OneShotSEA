@@ -314,6 +314,7 @@ class CliTests(unittest.TestCase):
             self.assertEqual(len(records[0]["table_manifest_sha256"]), 64)
             self.assertEqual(len(records[0]["verifier_sha256"]), 64)
             self.assertFalse(records[0]["heuristic_rejection"])
+            self.assertNotIn("classical_direct", records[0])
             self.assertEqual(records[0]["resources"]["curve_threads"], "2")
             self.assertEqual(
                 records[0]["resources"]["smooth_coordinators"], "1"
@@ -405,6 +406,8 @@ class CliTests(unittest.TestCase):
             )
             self.assertEqual(curve_records[-1]["status"],
                              "verified_certificate")
+            self.assertNotIn("classical_direct_passes", curve_records[-1])
+            self.assertNotIn("classical_direct_levels", curve_records[-1])
             self.assertEqual(curve_records[-1]["certificate"]["line"],
                              "101 35 25 28")
             self.assertTrue(
@@ -437,6 +440,97 @@ class CliTests(unittest.TestCase):
             self.assertTrue((root / "checkpoint.json").is_file())
             self.assertEqual(
                 len((root / "progress.ndjson").read_text().splitlines()), 1
+            )
+
+    def test_search_cli_runs_identity_bound_classical_direct_tail(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 4,
+                "--range-start", 1,
+                "--range-end", 2,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 5,
+                "--trace-cap", 16,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--checkpoint", root / "checkpoint.json",
+                "--progress", root / "progress.ndjson",
+                "--certificate-out", root / "certificate.txt",
+                "--classical-direct-levels", "7,11",
+                "--classical-direct-max-prime-candidates", 1000000,
+                "--classical-direct-max-x-candidates", 1000000,
+                "--max-curves", 1,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            records = [json.loads(line) for line in result.stdout.splitlines()]
+            start = records[0]
+            self.assertEqual(
+                start["classical_direct"]["policy"],
+                "retained-state-three-power-classical-j-crt-bmss-atkin-v2",
+            )
+            self.assertEqual(start["classical_direct"]["levels"], ["7", "11"])
+            self.assertEqual(
+                start["classical_direct"]["maximum_prime_candidates"],
+                "1000000",
+            )
+            direct = [
+                record for record in records
+                if record["schema"] ==
+                "oneshotsea.search-classical-direct-level.v1"
+            ]
+            self.assertEqual([record["ell"] for record in direct], ["7"])
+            self.assertTrue(all(record["exact"] for record in direct))
+            self.assertTrue(
+                all(int(record["auxiliary_prime_count"]) > 0
+                    for record in direct)
+            )
+            curve = next(
+                record for record in records
+                if record["schema"] == "oneshotsea.search-curve.v1"
+            )
+            self.assertEqual(curve["sea_passes"], "2")
+            self.assertEqual(curve["sea_levels"], "1")
+            self.assertEqual(curve["initial_trace_count"], "10")
+            self.assertEqual(curve["classical_direct_level_count"], "1")
+            self.assertEqual(
+                [level["ell"] for level in curve["classical_direct_levels"]],
+                ["7"],
+            )
+            self.assertEqual(curve["trace"], "-10")
+            self.assertEqual((root / "certificate.txt").read_text(),
+                             "101 35 25 28\n")
+
+            digest = hashlib.sha256(
+                (root / "smooth.cache").read_bytes()
+            ).hexdigest()
+            mutated = self.run_cli(
+                "search",
+                "--p", 101,
+                "--seed", 4,
+                "--range-start", 1,
+                "--range-end", 2,
+                "--worker-id", 0,
+                "--worker-count", 1,
+                "--max-level", 5,
+                "--table-dir", ROOT / "data" / "modpoly" / "weber_f",
+                "--smooth-cache", root / "smooth.cache",
+                "--smooth-cache-sha256", digest,
+                "--checkpoint", root / "checkpoint.json",
+                "--classical-direct-levels", "7,11",
+                "--classical-direct-max-prime-candidates", 999999,
+                "--max-curves", 0,
+            )
+            self.assertNotEqual(mutated.returncode, 0)
+            self.assertEqual(mutated.stdout, "")
+
+        for malformed in ("", "7,", "7,,11", "seven"):
+            self.assert_rejected(
+                "search", "--p", 101, "--seed", 1,
+                "--classical-direct-levels", malformed,
             )
 
     def test_x1_search_family_is_explicit_and_identity_bound(self) -> None:

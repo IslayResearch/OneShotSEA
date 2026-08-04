@@ -408,14 +408,16 @@ void test_polynomial() {
                   high_degree_pow_modulus)),
           "p125 prepared composition matches the independent Horner reference");
 
-    // The reusable reverse-polynomial reducer is enabled only for large monic
-    // quotient rings.  Differentially straddle its production threshold and
-    // extend through the largest current Weber degree.  The binary reference
-    // deliberately uses the public long reducer, so this compares independent
-    // reduction algorithms rather than two exponentiation schedules sharing
-    // the same context.
+    // The reusable reverse-polynomial reducer uses a packed top-block hybrid
+    // at the measured direct-level degrees 80 through 90, then the full
+    // reciprocal reducer from degree 96. Differentially straddle both
+    // boundaries and extend through the largest current Weber degree. The
+    // binary reference deliberately uses the public long reducer, so this
+    // compares independent reduction algorithms rather than two exponentiation
+    // schedules sharing the same context.
     for (const std::size_t degree :
-         {95U, 96U, 97U, 129U, 194U, 401U}) {
+         {79U, 80U, 81U, 89U, 90U, 91U, 95U, 96U, 97U, 129U, 194U,
+          401U}) {
         std::vector<mpz_class> reciprocal_modulus_coefficients =
             dense_polynomial(
                 p125_field, degree + 1U,
@@ -436,7 +438,8 @@ void test_polynomial() {
                                           reciprocal_modulus)),
               "reciprocal reducer matches long reduction at degree " +
                   std::to_string(degree));
-        if (degree == 96U || degree == 194U) {
+        if (degree == 80U || degree == 90U || degree == 96U ||
+            degree == 194U) {
             check(oneshotsea::equal(
                       oneshotsea::powmod(reciprocal_base, p125,
                                          reciprocal_modulus),

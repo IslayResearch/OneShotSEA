@@ -35,6 +35,12 @@ constexpr std::size_t kReciprocalReductionDegreeThreshold =
 #else
 constexpr std::size_t kReciprocalReductionDegreeThreshold = 96U;
 #endif
+// A packed 48-coefficient top block wins at the current direct-specialization
+// degrees 80, 84, and 90.  It regresses by degree 95; degree 96 already enters
+// the faster full reciprocal reducer, so keep the measured hybrid band narrow.
+constexpr std::size_t kHybridReciprocalReductionDegreeThreshold = 80U;
+constexpr std::size_t kHybridReciprocalReductionMaximumDegree = 90U;
+constexpr std::size_t kHybridReciprocalReductionBlockSize = 48U;
 constexpr unsigned int kMaximumPowmodWindowBits = 5U;
 
 struct PowmodWindowStep {
@@ -751,17 +757,34 @@ PolyModContext::PolyModContext(const Poly& modulus) : modulus_(modulus) {
         return;
     }
     const std::size_t degree = static_cast<std::size_t>(modulus_.degree());
-    if (degree < kReciprocalReductionDegreeThreshold) {
+    const bool full_reciprocal =
+        degree >= kReciprocalReductionDegreeThreshold;
+    const bool hybrid_reciprocal =
+        kReciprocalReductionDegreeThreshold != 0U &&
+        kKroneckerCoefficientThreshold != 0U &&
+        kHybridReciprocalReductionBlockSize >=
+            kKroneckerCoefficientThreshold &&
+        degree >= kHybridReciprocalReductionDegreeThreshold &&
+        degree <= kHybridReciprocalReductionMaximumDegree &&
+        degree < kReciprocalReductionDegreeThreshold;
+    if (!full_reciprocal && !hybrid_reciprocal) {
         return;
     }
+    const std::size_t reciprocal_precision =
+        full_reciprocal
+            ? degree
+            : std::min(degree, kHybridReciprocalReductionBlockSize);
 
     // If M is monic of degree d, reverse(M) has constant coefficient one.
-    // Compute its inverse modulo x^d by the exact coefficient recurrence.
-    reciprocal_.assign(degree, 0);
+    // Compute the required prefix of its inverse by the exact coefficient
+    // recurrence.  Full reduction needs precision d; hybrid top-block
+    // cancellation needs only the configured block width.
+    reciprocal_.assign(reciprocal_precision, 0);
     reciprocal_[0] = 1;
     const Field& field = modulus_.field();
     const std::vector<mpz_class>& coefficients = modulus_.coefficients();
-    for (std::size_t output_degree = 1U; output_degree < degree;
+    for (std::size_t output_degree = 1U;
+         output_degree < reciprocal_precision;
          ++output_degree) {
         mpz_class accumulated = 0;
         for (std::size_t input_degree = 1U;
@@ -834,35 +857,59 @@ void PolyModContext::reduce_coefficients(
 
     const Field& field = modulus_.field();
     const std::size_t quotient_size = coefficients.size() - modulus_degree;
-    if (quotient_size > reciprocal_.size()) {
-        throw std::logic_error(
-            "reciprocal quotient exceeds its prepared precision");
-    }
+    const std::size_t reciprocal_quotient_size =
+        std::min(quotient_size, reciprocal_.size());
 
     // Fast monic division: reverse the high part of C, multiply by
     // reverse(M)^-1 modulo x^k, then reverse the first k coefficients to
-    // obtain the quotient.  Raw convolution coefficients are normalized only
-    // at the F_p boundaries required by the division identity.
-    std::vector<mpz_class> reversed_high(quotient_size);
-    for (std::size_t index = 0U; index < quotient_size; ++index) {
+    // obtain the highest quotient coefficients.  Raw convolution
+    // coefficients are normalized only at the F_p boundaries required by the
+    // division identity.
+    std::vector<mpz_class> reversed_high(reciprocal_quotient_size);
+    for (std::size_t index = 0U;
+         index < reciprocal_quotient_size; ++index) {
         reversed_high[index] = field.normalize(
             coefficients[coefficients.size() - 1U - index]);
     }
     std::vector<mpz_class> reversed_quotient = coefficient_product(
         reversed_high,
-        std::span<const mpz_class>(reciprocal_.data(), quotient_size), field);
-    std::vector<mpz_class> quotient(quotient_size);
-    for (std::size_t index = 0U; index < quotient_size; ++index) {
-        quotient[quotient_size - 1U - index] =
+        std::span<const mpz_class>(reciprocal_.data(),
+                                   reciprocal_quotient_size),
+        field);
+    std::vector<mpz_class> quotient(reciprocal_quotient_size);
+    for (std::size_t index = 0U;
+         index < reciprocal_quotient_size; ++index) {
+        quotient[reciprocal_quotient_size - 1U - index] =
             field.normalize(reversed_quotient[index]);
     }
     const std::vector<mpz_class> quotient_times_modulus =
         coefficient_product(quotient, modulus_.coefficients(), field);
-    for (std::size_t index = 0U; index < modulus_degree; ++index) {
-        coefficients[index] = field.normalize(
-            coefficients[index] - quotient_times_modulus[index]);
+
+    if (reciprocal_quotient_size == quotient_size) {
+        for (std::size_t index = 0U; index < modulus_degree; ++index) {
+            coefficients[index] = field.normalize(
+                coefficients[index] - quotient_times_modulus[index]);
+        }
+        coefficients.resize(modulus_degree);
+        return;
     }
-    coefficients.resize(modulus_degree);
+
+    const std::size_t quotient_shift =
+        quotient_size - reciprocal_quotient_size;
+    for (std::size_t index = 0U;
+         index < quotient_times_modulus.size(); ++index) {
+        coefficients[quotient_shift + index] -=
+            quotient_times_modulus[index];
+    }
+
+    // The packed block cancels these coefficients in F_p.  Clear their
+    // possibly nonzero integer multiples of p, then finish the remaining
+    // lower quotient with the independently tested long reducer.
+    std::fill(coefficients.begin() +
+                  static_cast<std::ptrdiff_t>(modulus_degree +
+                                              quotient_shift),
+              coefficients.end(), mpz_class(0));
+    reduce_product_coefficients(coefficients, modulus_);
 }
 
 namespace {

@@ -87,6 +87,9 @@ public:
 
 private:
     Poly modulus_;
+    // Full precision selects reciprocal reduction throughout.  A shorter
+    // prefix selects one packed top-block cancellation followed by the long
+    // reducer; an empty vector selects the long reducer directly.
     std::vector<mpz_class> reciprocal_;
 
     void reduce_coefficients(std::vector<mpz_class>& coefficients) const;

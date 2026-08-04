@@ -1,0 +1,168 @@
+{
+  "schema": "oneshotsea.p125-direct-hybrid-reduction.v1",
+  "implementation": {
+    "commit": "a83a6a6e22384ebcad6c3180eab1336460c7bf9e",
+    "tree": "c971884eba9ea8183bf26636207e2b87c1f33bb0",
+    "benchmark_commit": "a8a045eee2c15561018e0407c8c44aba74db8659",
+    "benchmark_tree": "055001f2f9cb886a6132e58034f99cbf963587a4",
+    "profiler_sha256": "198ea391a7e075fe8299e7731c184f08e89eb62e786df31433dc5d7d5bcb6af0",
+    "benchmark_sha256": "892b63dafedcbcce48f2ccfde029fb60bd5d856d94c1538e5e132f97fe034a09",
+    "search_binary_sha256": "44d555f0bffe56081b37fee07f1f0ae0c39ce14f5ec835a6532d3979c4075c05"
+  },
+  "baseline": {
+    "commit": "0802f770c3e67322731cd117a002c4b5822b5f26",
+    "tree": "f9010a073333f87f78f902e1f063e385fdf76fe1",
+    "profiler_sha256": "4c886ff5ed0d29f7a243a64cc730f899e9069b4ef0046ba7cf4e484d7676362b",
+    "benchmark_sha256": "2ee7c995649df8e064401a3956478f1f945c5aa0f5f29172aada0de62946a692"
+  },
+  "target": {
+    "prime": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000237",
+    "bits": 416,
+    "seed": "202607300000",
+    "range_start": "2000001",
+    "count": 4,
+    "profile_level": 89,
+    "profile_degree": 90,
+    "threads": 1,
+    "require_point_four": true
+  },
+  "direct_context": {
+    "sha256": "b4543589450c429516c95c5de575be853b6d5e7b5a4cdaabfdcf119a4b15d450",
+    "file_bytes": 140599516,
+    "profiled_level_payload_bytes": 24511760,
+    "resident_budget_bytes": 1000000000,
+    "maximum_prime_candidates": 10000000,
+    "maximum_x_candidates_per_surface": 1000000
+  },
+  "method": {
+    "profile_order": ["baseline_a", "candidate_a", "candidate_b", "baseline_b"],
+    "fresh_process_per_profile": true,
+    "same_authenticated_cache": true,
+    "hybrid_minimum_degree": 80,
+    "hybrid_maximum_degree": 90,
+    "packed_block_coefficients": 48,
+    "full_reciprocal_minimum_degree": 96,
+    "degree_90_full_quotient_coefficients": 89,
+    "baseline_scalar_submul_calls_per_full_reduction": 8010,
+    "hybrid_scalar_submul_calls_per_full_reduction": 3690,
+    "scalar_submul_calls_replaced_per_full_reduction": 4320,
+    "packed_convolutions_per_hybrid_block": 2,
+    "controlled_target_degree": 90,
+    "controlled_control_degree": 79,
+    "controlled_repetitions_per_phase": 20,
+    "controlled_order": ["baseline_a", "candidate_a", "candidate_b", "baseline_b"],
+    "control_interleaving": "target-first on even repetitions and control-first on odd repetitions"
+  },
+  "runs": {
+    "baseline_a": {
+      "records": "raw/baseline-a.ndjson",
+      "records_sha256": "e2cd4834dba4201c29c2df3dd5d56083ec03f345a764522fbbe32d1e7bf294d5",
+      "evaluation_us": 2051555,
+      "generation_us": 38209243,
+      "materialization_us": 503571,
+      "peak_rss_bytes": 36995072
+    },
+    "candidate_a": {
+      "records": "raw/candidate-a.ndjson",
+      "records_sha256": "eafdd3ece9f60043b4b7677e3cf59e0f4ca07433645b2b25609d981f8d5e6f81",
+      "evaluation_us": 1356919,
+      "generation_us": 25457031,
+      "materialization_us": 366483,
+      "peak_rss_bytes": 37224448
+    },
+    "candidate_b": {
+      "records": "raw/candidate-b.ndjson",
+      "records_sha256": "8031553ea9e6bb6e1a9c9d5c3ce802a7216c12d30a44851f7138854ba126ca65",
+      "evaluation_us": 1851449,
+      "generation_us": 34192935,
+      "materialization_us": 271681,
+      "peak_rss_bytes": 37126144
+    },
+    "baseline_b": {
+      "records": "raw/baseline-b.ndjson",
+      "records_sha256": "19024479a907e8fe307404136236b600e63f329836a563e16d82d5caddc87e31",
+      "evaluation_us": 1842398,
+      "generation_us": 32867512,
+      "materialization_us": 391319,
+      "peak_rss_bytes": 37044224
+    }
+  },
+  "profile_comparison": {
+    "baseline_evaluation_us": 3893953,
+    "candidate_evaluation_us": 3208368,
+    "raw_target_timer_reduction_percent": 17.60640151537525,
+    "baseline_generation_us": 71076755,
+    "candidate_generation_us": 59649966,
+    "generation_control_reduction_percent": 16.07668920732242,
+    "baseline_materialization_us": 894890,
+    "candidate_materialization_us": 638164,
+    "identical_level_semantics": true,
+    "general_speedup_inference_allowed": false
+  },
+  "controlled_benchmark": {
+    "projection_sha256": "abca412be9004458ad6532e7a4b14b2d537c1b78849c3e6c791f3e4e081f1263",
+    "baseline_target_cpu_us": 8306267,
+    "baseline_control_cpu_us": 6669395,
+    "candidate_target_cpu_us": 7974086,
+    "candidate_control_cpu_us": 6665935,
+    "baseline_cpu_ratio": 1.245430357626141,
+    "candidate_cpu_ratio": 1.196244187799611,
+    "cpu_ratio_reduction_percent": 3.949331211123031,
+    "baseline_target_elapsed_us": 9389374,
+    "baseline_control_elapsed_us": 7488100,
+    "candidate_target_elapsed_us": 8432505,
+    "candidate_control_elapsed_us": 6998688,
+    "baseline_elapsed_ratio": 1.253906064288671,
+    "candidate_elapsed_ratio": 1.204869398378668,
+    "elapsed_ratio_reduction_percent": 3.91071287607353,
+    "files": {
+      "baseline_a": ["raw/control-baseline-a.projection.txt", "raw/control-baseline-a.timing.txt"],
+      "candidate_a": ["raw/control-candidate-a.projection.txt", "raw/control-candidate-a.timing.txt"],
+      "candidate_b": ["raw/control-candidate-b.projection.txt", "raw/control-candidate-b.timing.txt"],
+      "baseline_b": ["raw/control-baseline-b.projection.txt", "raw/control-baseline-b.timing.txt"]
+    }
+  },
+  "production_validation": {
+    "records": "raw/production-progress.ndjson",
+    "records_sha256": "44d1e54f43105721e24eb819559049e99f2a6cdd9525ad230deef9a56f2bc247",
+    "checkpoint": "raw/production-checkpoint.json",
+    "checkpoint_sha256": "b916293232df3dc13f8812b92b760dbc771add703fe62e4f0c511dfd622cd1af",
+    "schedule_sha256": "c542232bf07b3528edb88aa6a9c8e09193d6fcb7d8c8a9b9bea903dcaacf14ad",
+    "direct_context_sha256": "a459dc7732e0a8924f3dcce15bd640c5a72f594d403bf117d0fa45c6b3805625",
+    "smooth_cache_sha256": "afe0927dd21aa1555c4b24ecab60636aedf4657c455a4d01ce0e65d863abf551",
+    "prior_records": "artifacts/local/p125-direct-frobenius-x-window-20260803/raw/production-progress.ndjson",
+    "prior_records_sha256": "11606b258a7c6d93a3ffeae8c1746c647e9f501800c21a1dcded8af628a537ad",
+    "independent_point_counts": "artifacts/local/p125-direct-first-cohort-20260803/raw/pari-point-counts.txt",
+    "independent_point_counts_sha256": "3f7b1849862acdf40a4cc58b98efd10181923e17f664bfb2f9e15e9427683e53",
+    "direct_level_evaluations": 85,
+    "direct_level_counts": [20, 22, 22, 21],
+    "direct_exact_counts": [12, 11, 11, 10],
+    "direct_atkin_counts": [8, 11, 11, 11],
+    "weber_level_counts": [33, 33, 35, 52],
+    "smooth_orders": 8,
+    "sound_rejections": 4,
+    "semantic_match": true,
+    "exact_traces_match_pari": true,
+    "timing_used_for_speedup_claim": false
+  },
+  "validation": {
+    "release": ["core", "polynomial-square", "factor", "Atkin", "direct-modpoly", "CM-surface", "search-checkpoint", "search-pipeline", "CLI", "poly-A/B-summary"],
+    "sanitizers": ["ASan", "UBSan"],
+    "sanitized_suites": ["core", "polynomial-square", "factor", "Atkin"],
+    "hybrid_boundary_degrees": [79, 80, 81, 89, 90, 91, 95, 96, 97],
+    "target_exponent_degrees": [80, 90, 96, 194]
+  },
+  "claims": {
+    "hybrid_top_block_exact": true,
+    "controlled_degree_90_ratio_improved": true,
+    "degree_95_hybrid_rejected": true,
+    "full_reciprocal_degree_96_path_preserved": true,
+    "production_semantics_preserved": true,
+    "certificate_found": false,
+    "production_yield_measured": false,
+    "whole_cohort_speedup_claimed": false,
+    "end_to_end_speedup_claimed": false,
+    "cm_crossover_established": false,
+    "asymptotic_exponent_changed": false
+  }
+}

@@ -1,0 +1,9 @@
+timing.schema=oneshotsea.p125-poly-trusted-timing.v1
+timing.mode=frobenius-x-control
+timing.degree=90
+timing.control_degree=79
+timing.repetitions=20
+timing.target_cpu_us=3797426
+timing.target_elapsed_us=3808683
+timing.control_cpu_us=3069136
+timing.control_elapsed_us=3089780

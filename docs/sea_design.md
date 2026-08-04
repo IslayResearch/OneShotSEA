@@ -98,6 +98,16 @@ is retained for every other reduced base. Exact binary differentials and the
 p125 production replay are retained in the [Frobenius-X-window
 audit](../artifacts/local/p125-direct-frobenius-x-window-20260803/README.md).
 
+Dense reductions in quotient degrees 80 through 90 use a hybrid reducer: a
+48-coefficient reciprocal prefix recovers and cancels the highest quotient
+block with two packed convolutions, and the established long reducer finishes
+the remainder. Degrees 91 through 95 remain on long reduction, while degree 96
+and above retain the full reciprocal reducer; compiling out packed Kronecker
+convolution also compiles out the hybrid. Independent long-reducer
+differentials, sanitizer coverage, a controlled degree-90 benchmark, and an
+exact p125 production replay are retained in the [hybrid-reduction
+audit](../artifacts/local/p125-direct-hybrid-reduction-20260803/README.md).
+
 ### 0.3 Sound early abort, exact smoothness, and certificate tail
 
 The first SEA pass proceeds to early screening only when the

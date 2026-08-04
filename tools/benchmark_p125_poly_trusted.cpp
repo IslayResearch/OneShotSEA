@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -37,6 +38,25 @@ std::uint64_t elapsed_us(const Clock::time_point& started) {
         throw std::logic_error("steady clock moved backwards");
     }
     return static_cast<std::uint64_t>(elapsed.count());
+}
+
+std::uint64_t elapsed_cpu_us(std::clock_t started) {
+    const std::clock_t finished = std::clock();
+    if (started == static_cast<std::clock_t>(-1) ||
+        finished == static_cast<std::clock_t>(-1) || finished < started) {
+        throw std::runtime_error("process CPU clock is unavailable");
+    }
+    const long double ticks =
+        static_cast<long double>(finished - started);
+    const long double microseconds =
+        ticks * 1000000.0L / static_cast<long double>(CLOCKS_PER_SEC);
+    if (microseconds < 0.0L ||
+        microseconds >
+            static_cast<long double>(
+                std::numeric_limits<std::uint64_t>::max())) {
+        throw std::overflow_error("process CPU timing overflow");
+    }
+    return static_cast<std::uint64_t>(microseconds);
 }
 
 std::uint64_t parse_u64(std::string_view encoded, const char* label) {
@@ -186,7 +206,8 @@ oneshotsea::Poly deterministic_modulus(const oneshotsea::Field& field,
     return oneshotsea::Poly(field, std::move(coefficients));
 }
 
-int run_frobenius(std::uint64_t degree_u64, std::uint64_t repetitions) {
+int run_frobenius(std::string_view mode, std::uint64_t degree_u64,
+                  std::uint64_t repetitions) {
     if (degree_u64 == 0U ||
         degree_u64 > static_cast<std::uint64_t>(
                          std::numeric_limits<std::size_t>::max() - 1U)) {
@@ -209,29 +230,40 @@ int run_frobenius(std::uint64_t degree_u64, std::uint64_t repetitions) {
     const oneshotsea::Poly x = oneshotsea::Poly::x(field);
     const oneshotsea::Poly curve_rhs(
         field, {curve.b(), curve.a(), mpz_class(0), mpz_class(1)});
+    const bool measure_x = mode != "frobenius-rhs";
+    const bool measure_rhs = mode != "frobenius-x";
 
     oneshotsea::Poly x_to_p(field);
     oneshotsea::Poly rhs_to_half(field);
     const Clock::time_point started = Clock::now();
+    const std::clock_t cpu_started = std::clock();
     for (std::uint64_t repetition = 0U; repetition < repetitions;
          ++repetition) {
-        oneshotsea::Poly current_x =
-            oneshotsea::powmod(x, prime, modulus);
-        oneshotsea::Poly current_rhs = oneshotsea::powmod(
-            curve_rhs, (prime - 1) / 2, modulus);
+        oneshotsea::Poly current_x(field);
+        oneshotsea::Poly current_rhs(field);
+        if (measure_x) {
+            current_x = oneshotsea::powmod(x, prime, modulus);
+        }
+        if (measure_rhs) {
+            current_rhs = oneshotsea::powmod(
+                curve_rhs, (prime - 1) / 2, modulus);
+        }
         if (repetition == 0U) {
             x_to_p = std::move(current_x);
             rhs_to_half = std::move(current_rhs);
-        } else if (!oneshotsea::equal(x_to_p, current_x) ||
-                   !oneshotsea::equal(rhs_to_half, current_rhs)) {
+        } else if ((measure_x &&
+                    !oneshotsea::equal(x_to_p, current_x)) ||
+                   (measure_rhs &&
+                    !oneshotsea::equal(rhs_to_half, current_rhs))) {
             throw std::runtime_error(
                 "repeated quotient Frobenius outputs differ");
         }
     }
+    const std::uint64_t measured_cpu_us = elapsed_cpu_us(cpu_started);
     const std::uint64_t measured_us = elapsed_us(started);
 
     std::cout << "projection.schema=oneshotsea.p125-poly-trusted.v1\n"
-              << "projection.mode=frobenius\n"
+              << "projection.mode=" << mode << '\n'
               << "prime=" << prime << '\n'
               << "seed=" << kSeed << '\n'
               << "global_index=" << kGlobalIndex << '\n'
@@ -240,13 +272,18 @@ int run_frobenius(std::uint64_t degree_u64, std::uint64_t repetitions) {
               << "repetitions=" << repetitions << '\n';
     print_sample(generated);
     print_poly("quotient.modulus", modulus);
-    print_poly("frobenius.x_to_p", x_to_p);
-    print_poly("frobenius.rhs_to_half", rhs_to_half);
+    if (measure_x) {
+        print_poly("frobenius.x_to_p", x_to_p);
+    }
+    if (measure_rhs) {
+        print_poly("frobenius.rhs_to_half", rhs_to_half);
+    }
 
     std::cerr << "timing.schema=oneshotsea.p125-poly-trusted-timing.v1\n"
-              << "timing.mode=frobenius\n"
+              << "timing.mode=" << mode << '\n'
               << "timing.degree=" << degree << '\n'
               << "timing.repetitions=" << repetitions << '\n'
+              << "timing.cpu_us=" << measured_cpu_us << '\n'
               << "timing.elapsed_us=" << measured_us << '\n';
     return 0;
 }
@@ -431,7 +468,7 @@ int run_sea(const std::string& table_directory, std::uint64_t max_level) {
 
 void usage(const char* executable) {
     std::cerr << "usage: " << executable
-              << " frobenius DEGREE REPETITIONS\n"
+              << " {frobenius|frobenius-x|frobenius-rhs} DEGREE REPETITIONS\n"
               << "       " << executable
               << " sea TABLE_DIRECTORY [MAX_LEVEL]\n";
 }
@@ -440,12 +477,15 @@ void usage(const char* executable) {
 
 int main(int argc, char** argv) {
     try {
-        if (argc >= 2 && std::string_view(argv[1]) == "frobenius") {
+        if (argc >= 2 &&
+            (std::string_view(argv[1]) == "frobenius" ||
+             std::string_view(argv[1]) == "frobenius-x" ||
+             std::string_view(argv[1]) == "frobenius-rhs")) {
             if (argc != 4) {
                 usage(argv[0]);
                 return 2;
             }
-            return run_frobenius(parse_u64(argv[2], "DEGREE"),
+            return run_frobenius(argv[1], parse_u64(argv[2], "DEGREE"),
                                   parse_u64(argv[3], "REPETITIONS"));
         }
         if (argc >= 2 && std::string_view(argv[1]) == "sea") {

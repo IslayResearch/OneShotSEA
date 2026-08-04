@@ -288,6 +288,113 @@ int run_frobenius(std::string_view mode, std::uint64_t degree_u64,
     return 0;
 }
 
+struct AccumulatedTiming {
+    std::uint64_t cpu_us = 0U;
+    std::uint64_t elapsed_us = 0U;
+};
+
+oneshotsea::Poly timed_powmod(const oneshotsea::Poly& base,
+                             const mpz_class& exponent,
+                             const oneshotsea::Poly& modulus,
+                             AccumulatedTiming& timing) {
+    const Clock::time_point started = Clock::now();
+    const std::clock_t cpu_started = std::clock();
+    oneshotsea::Poly result = oneshotsea::powmod(base, exponent, modulus);
+    const std::uint64_t cpu_us = elapsed_cpu_us(cpu_started);
+    const std::uint64_t wall_us = elapsed_us(started);
+    if (cpu_us > std::numeric_limits<std::uint64_t>::max() - timing.cpu_us ||
+        wall_us > std::numeric_limits<std::uint64_t>::max() -
+                      timing.elapsed_us) {
+        throw std::overflow_error("accumulated Frobenius timing overflow");
+    }
+    timing.cpu_us += cpu_us;
+    timing.elapsed_us += wall_us;
+    return result;
+}
+
+int run_frobenius_x_control(std::uint64_t degree_u64,
+                            std::uint64_t control_degree_u64,
+                            std::uint64_t repetitions) {
+    if (degree_u64 == 0U || control_degree_u64 == 0U ||
+        degree_u64 > static_cast<std::uint64_t>(
+                         std::numeric_limits<std::size_t>::max() - 1U) ||
+        control_degree_u64 > static_cast<std::uint64_t>(
+                                 std::numeric_limits<std::size_t>::max() -
+                                 1U)) {
+        throw std::invalid_argument("Frobenius degree is out of range");
+    }
+    if (degree_u64 == control_degree_u64) {
+        throw std::invalid_argument(
+            "target and control Frobenius degrees must differ");
+    }
+    if (repetitions == 0U) {
+        throw std::invalid_argument("REPETITIONS must be positive");
+    }
+
+    const std::size_t degree = static_cast<std::size_t>(degree_u64);
+    const std::size_t control_degree =
+        static_cast<std::size_t>(control_degree_u64);
+    const mpz_class prime = target_prime();
+    const oneshotsea::Field field(prime);
+    const oneshotsea::Poly x = oneshotsea::Poly::x(field);
+    const oneshotsea::Poly modulus = deterministic_modulus(field, degree);
+    const oneshotsea::Poly control_modulus =
+        deterministic_modulus(field, control_degree);
+
+    oneshotsea::Poly x_to_p(field);
+    oneshotsea::Poly control_x_to_p(field);
+    AccumulatedTiming target_timing;
+    AccumulatedTiming control_timing;
+    for (std::uint64_t repetition = 0U; repetition < repetitions;
+         ++repetition) {
+        oneshotsea::Poly current_target(field);
+        oneshotsea::Poly current_control(field);
+        if ((repetition & 1U) == 0U) {
+            current_target = timed_powmod(
+                x, prime, modulus, target_timing);
+            current_control = timed_powmod(
+                x, prime, control_modulus, control_timing);
+        } else {
+            current_control = timed_powmod(
+                x, prime, control_modulus, control_timing);
+            current_target = timed_powmod(
+                x, prime, modulus, target_timing);
+        }
+        if (repetition == 0U) {
+            x_to_p = std::move(current_target);
+            control_x_to_p = std::move(current_control);
+        } else if (!oneshotsea::equal(x_to_p, current_target) ||
+                   !oneshotsea::equal(control_x_to_p, current_control)) {
+            throw std::runtime_error(
+                "repeated controlled Frobenius outputs differ");
+        }
+    }
+
+    std::cout << "projection.schema=oneshotsea.p125-poly-trusted.v1\n"
+              << "projection.mode=frobenius-x-control\n"
+              << "prime=" << prime << '\n'
+              << "degree=" << degree << '\n'
+              << "control_degree=" << control_degree << '\n'
+              << "repetitions=" << repetitions << '\n';
+    print_poly("quotient.modulus", modulus);
+    print_poly("frobenius.x_to_p", x_to_p);
+    print_poly("control.quotient.modulus", control_modulus);
+    print_poly("control.frobenius.x_to_p", control_x_to_p);
+
+    std::cerr << "timing.schema=oneshotsea.p125-poly-trusted-timing.v1\n"
+              << "timing.mode=frobenius-x-control\n"
+              << "timing.degree=" << degree << '\n'
+              << "timing.control_degree=" << control_degree << '\n'
+              << "timing.repetitions=" << repetitions << '\n'
+              << "timing.target_cpu_us=" << target_timing.cpu_us << '\n'
+              << "timing.target_elapsed_us=" << target_timing.elapsed_us
+              << '\n'
+              << "timing.control_cpu_us=" << control_timing.cpu_us << '\n'
+              << "timing.control_elapsed_us=" << control_timing.elapsed_us
+              << '\n';
+    return 0;
+}
+
 void print_level(std::size_t index,
                  const oneshotsea::WeberSeaLevelRecord& level) {
     const std::string prefix = "sea.level[" + std::to_string(index) + "]";
@@ -470,6 +577,8 @@ void usage(const char* executable) {
     std::cerr << "usage: " << executable
               << " {frobenius|frobenius-x|frobenius-rhs} DEGREE REPETITIONS\n"
               << "       " << executable
+              << " frobenius-x-control DEGREE CONTROL_DEGREE REPETITIONS\n"
+              << "       " << executable
               << " sea TABLE_DIRECTORY [MAX_LEVEL]\n";
 }
 
@@ -477,6 +586,17 @@ void usage(const char* executable) {
 
 int main(int argc, char** argv) {
     try {
+        if (argc >= 2 &&
+            std::string_view(argv[1]) == "frobenius-x-control") {
+            if (argc != 5) {
+                usage(argv[0]);
+                return 2;
+            }
+            return run_frobenius_x_control(
+                parse_u64(argv[2], "DEGREE"),
+                parse_u64(argv[3], "CONTROL_DEGREE"),
+                parse_u64(argv[4], "REPETITIONS"));
+        }
         if (argc >= 2 &&
             (std::string_view(argv[1]) == "frobenius" ||
              std::string_view(argv[1]) == "frobenius-x" ||
